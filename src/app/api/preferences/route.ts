@@ -1,0 +1,5 @@
+import {z} from 'zod';import {sql} from 'drizzle-orm';import {db} from '@/db';import {appSettings} from '@/db/schema';
+import {browserKey,errorResponse,sameOrigin} from '@/lib/auth';import {getSetting,getConfig} from '@/lib/config';
+export const dynamic='force-dynamic';
+export async function GET(){try{const key=await browserKey();const cfg=await getConfig();return Response.json({theme:cfg.defaultTheme,view:cfg.defaultView,...(await getSetting('preferences:'+key))?.value});}catch(e){return errorResponse(e);}}
+export async function PATCH(req:Request){try{sameOrigin(req);const b=z.object({theme:z.enum(['light','dark']).optional(),view:z.enum(['list','board','cards']).optional(),moduleViews:z.record(z.string(),z.string()).optional(),savedFilters:z.array(z.record(z.string(),z.string())).max(30).optional()}).parse(await req.json());const key='preferences:'+await browserKey();await db.insert(appSettings).values({key,value:b}).onConflictDoUpdate({target:appSettings.key,set:{value:sql`${appSettings.value} || ${JSON.stringify(b)}::jsonb`,updatedAt:new Date()}});return Response.json({ok:true});}catch(e){return errorResponse(e);}}

@@ -1,0 +1,2846 @@
+[
+  {
+    "id": "ApiV2HostAppointmentsController_getHostAppointmentReservations",
+    "method": "GET",
+    "path": "/api/v2/host/appointments/reservations",
+    "title": "Get all appointment reservations",
+    "parameters": [
+      {
+        "name": "page",
+        "required": true,
+        "in": "query",
+        "description": "Starts at 0",
+        "schema": {
+          "minimum": 0,
+          "example": 0,
+          "type": "integer"
+        }
+      },
+      {
+        "name": "pageSize",
+        "required": true,
+        "in": "query",
+        "schema": {
+          "minimum": 1,
+          "maximum": 200,
+          "example": 10,
+          "type": "integer"
+        }
+      },
+      {
+        "name": "sortOrder",
+        "required": false,
+        "in": "query",
+        "schema": {
+          "enum": [
+            "ASC",
+            "DESC"
+          ],
+          "type": "string"
+        }
+      },
+      {
+        "name": "sortBy",
+        "required": false,
+        "in": "query",
+        "description": "Field to sort by",
+        "schema": {
+          "enum": [
+            "startsAt"
+          ],
+          "type": "string"
+        }
+      },
+      {
+        "name": "startAfter",
+        "required": false,
+        "in": "query",
+        "schema": {
+          "type": "string"
+        }
+      },
+      {
+        "name": "startBefore",
+        "required": false,
+        "in": "query",
+        "schema": {
+          "type": "string"
+        }
+      },
+      {
+        "name": "endAfter",
+        "required": false,
+        "in": "query",
+        "schema": {
+          "type": "string"
+        }
+      },
+      {
+        "name": "endBefore",
+        "required": false,
+        "in": "query",
+        "schema": {
+          "type": "string"
+        }
+      },
+      {
+        "name": "includeCancelled",
+        "required": false,
+        "in": "query",
+        "schema": {
+          "type": "boolean"
+        }
+      },
+      {
+        "name": "includeCancelledAttendees",
+        "required": false,
+        "in": "query",
+        "schema": {
+          "type": "boolean"
+        }
+      },
+      {
+        "name": "isPaid",
+        "required": false,
+        "in": "query",
+        "schema": {
+          "type": "boolean"
+        }
+      }
+    ],
+    "body": null
+  },
+  {
+    "id": "ApiV2HostCheckoutController_postCompatibleMemberships",
+    "method": "POST",
+    "path": "/api/v2/host/checkout/compatible-memberships",
+    "title": "Get compatible memberships for checkout cart",
+    "parameters": [],
+    "body": {
+      "type": "object",
+      "properties": {
+        "memberId": {
+          "type": "integer",
+          "description": "ID of the member to perform the checkout for"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "subscription"
+                    ]
+                  },
+                  "membershipId": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "id",
+                  "type",
+                  "membershipId"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "session"
+                    ]
+                  },
+                  "sessionId": {
+                    "type": "integer"
+                  },
+                  "appliedPriceRuleIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  }
+                },
+                "required": [
+                  "id",
+                  "type",
+                  "sessionId"
+                ]
+              }
+            ]
+          }
+        },
+        "homeLocationId": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "memberId",
+        "items"
+      ]
+    }
+  },
+  {
+    "id": "ApiV2HostCheckoutController_postPrices",
+    "method": "POST",
+    "path": "/api/v2/host/checkout/prices",
+    "title": "Get prices for checkout",
+    "parameters": [],
+    "body": {
+      "type": "object",
+      "properties": {
+        "memberId": {
+          "type": "integer",
+          "description": "ID of the member to perform the checkout for"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "subscription"
+                    ]
+                  },
+                  "membershipId": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "id",
+                  "type",
+                  "membershipId"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "session"
+                    ]
+                  },
+                  "sessionId": {
+                    "type": "integer"
+                  },
+                  "appliedPriceRuleIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  }
+                },
+                "required": [
+                  "id",
+                  "type",
+                  "sessionId"
+                ]
+              }
+            ]
+          }
+        },
+        "homeLocationId": {
+          "type": "integer"
+        },
+        "paymentMethods": {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "membership"
+                    ]
+                  },
+                  "boughtMembershipId": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "id",
+                  "type",
+                  "boughtMembershipId"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "saved_payment_method"
+                    ]
+                  },
+                  "savedPaymentMethodId": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "id",
+                  "type",
+                  "savedPaymentMethodId"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "custom"
+                    ]
+                  },
+                  "customPaymentMethodId": {
+                    "type": "integer"
+                  },
+                  "note": {
+                    "type": "string",
+                    "description": "This field may be required, depends on your payment settings"
+                  }
+                },
+                "required": [
+                  "id",
+                  "type",
+                  "customPaymentMethodId"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "free"
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "type"
+                ]
+              }
+            ]
+          }
+        }
+      },
+      "required": [
+        "memberId",
+        "items",
+        "paymentMethods"
+      ]
+    }
+  },
+  {
+    "id": "ApiV2HostCheckoutController_post",
+    "method": "POST",
+    "path": "/api/v2/host/checkout",
+    "title": "Perform checkout",
+    "parameters": [],
+    "body": {
+      "type": "object",
+      "properties": {
+        "memberId": {
+          "type": "integer",
+          "description": "ID of the member to perform the checkout for"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "subscription"
+                    ]
+                  },
+                  "membershipId": {
+                    "type": "integer"
+                  },
+                  "attemptedPriceInCurrency": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "type",
+                  "membershipId",
+                  "attemptedPriceInCurrency"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "session"
+                    ]
+                  },
+                  "sessionId": {
+                    "type": "integer"
+                  },
+                  "appliedPriceRuleIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  },
+                  "attemptedPriceInCurrency": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "type",
+                  "sessionId",
+                  "attemptedPriceInCurrency"
+                ]
+              }
+            ]
+          }
+        },
+        "homeLocationId": {
+          "type": "integer"
+        },
+        "paymentMethods": {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "membership"
+                    ]
+                  },
+                  "boughtMembershipId": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "id",
+                  "type",
+                  "boughtMembershipId"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "saved_payment_method"
+                    ]
+                  },
+                  "savedPaymentMethodId": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "id",
+                  "type",
+                  "savedPaymentMethodId"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "custom"
+                    ]
+                  },
+                  "customPaymentMethodId": {
+                    "type": "integer"
+                  },
+                  "note": {
+                    "type": "string",
+                    "description": "This field may be required, depends on your payment settings"
+                  }
+                },
+                "required": [
+                  "id",
+                  "type",
+                  "customPaymentMethodId"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "free"
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "type"
+                ]
+              }
+            ]
+          }
+        }
+      },
+      "required": [
+        "memberId",
+        "items",
+        "paymentMethods"
+      ]
+    }
+  },
+  {
+    "id": "ApiV2HostMembersAppointmentsController_getAppointmentReservations",
+    "method": "GET",
+    "path": "/api/v2/host/members/{memberId}/appointments",
+    "title": "Get appointments by a specific member",
+    "parameters": [
+      {
+        "name": "memberId",
+        "required": true,
+        "in": "path",
+        "schema": {
+          "type": "number"
+        }
+      },
+      {
+        "name": "page",
+        "required": true,
+        "in": "query",
+        "description": "Starts at 0",
+        "schema": {
+          "minimum": 0,
+          "example": 0,
+          "type": "integer"
+        }
+      },
+      {
+        "name": "pageSize",
+        "required": true,
+        "in": "query",
+        "schema": {
+          "minimum": 1,
+          "maximum": 200,
+          "example": 10,
+          "type": "integer"
+        }
+      },
+      {
+        "name": "sortOrder",
+        "required": false,
+        "in": "query",
+        "schema": {
+          "enum": [
+            "ASC",
+            "DESC"
+          ],
+          "type": "string"
+        }
+      },
+      {
+        "name": "sortBy",
+        "required": false,
+        "in": "query",
+        "description": "Field to sort by",
+        "schema": {
+          "enum": [
+            "startsAt"
+          ],
+          "type": "string"
+        }
+      },
+      {
+        "name": "startAfter",
+        "required": false,
+        "in": "query",
+        "schema": {
+          "type": "string"
+        }
+      },
+      {
+        "name": "startBefore",
+        "required": false,
+        "in": "query",
+        "schema": {
+          "type": "string"
+        }
+      },
+      {
+        "name": "endAfter",
+        "required": false,
+        "in": "query",
+        "schema": {
+          "type": "string"
+        }
+      },
+      {
+        "name": "endBefore",
+        "required": false,
+        "in": "query",
+        "schema": {
+          "type": "string"
+        }
+      },
+      {
+        "name": "includeCancelled",
+        "required": false,
+        "in": "query",
+        "schema": {
+          "type": "boolean"
+        }
+      }
+    ],
+    "body": null
+  },
+  {
+    "id": "ApiV2HostMembersBoughtMembershipsController_list",
+    "method": "GET",
+    "path": "/api/v2/host/members/{memberId}/bought-memberships/active",
+    "title": "Get all active subscriptions and packs of a specific member",
+    "parameters": [
+      {
+        "name": "memberId",
+        "required": true,
+        "in": "path",
+        "schema": {
+          "type": "number"
+        }
+      },
+      {
+        "name": "page",
+        "required": true,
+        "in": "query",
+        "description": "Starts at 0",
+        "schema": {
+          "minimum": 0,
+          "example": 0,
+          "type": "integer"
+        }
+      },
+      {
+        "name": "pageSize",
+        "required": true,
+        "in": "query",
+        "schema": {
+          "minimum": 1,
+          "maximum": 200,
+          "example": 10,
+          "type": "integer"
+        }
+      },
+      {
+        "name": "includeFrozen",
+        "required": false,
+        "in": "query",
+        "schema": {
+          "type": "boolean"
+        }
+      }
+    ],
+    "body": null
+  },
+  {
+    "id": "ApiV2HostMembersBoughtMembershipsController_updateClassCredits",
+    "method": "PUT",
+    "path": "/api/v2/host/members/{memberId}/bought-memberships/{boughtMembershipId}/credits",
+    "title": "Update credits of package-events or package-money bought membership for a specific member",
+    "parameters": [
+      {
+        "name": "memberId",
+        "required": true,
+        "in": "path",
+        "schema": {
+          "type": "number"
+        }
+      },
+      {
+        "name": "boughtMembershipId",
+        "required": true,
+        "in": "path",
+        "schema": {
+          "type": "number"
+        }
+      }
+    ],
+    "body": {
+      "type": "object",
+      "properties": {
+        "eventCreditsLeft": {
+          "type": "number",
+          "description": "Set number of event credits left, valid only for PACKAGE_EVENTS bought membership",
+          "minimum": 0
+        },
+        "moneyCreditsLeft": {
+          "type": "number",
+          "description": "Set number of money credits left, valid only for PACKAGE_MONEY bought membership",
+          "minimum": 0
+        }
+      }
+    }
+  },
+  {
+    "id": "ApiV2HostMembersBoughtMembershipsController_freezeMembership",
+    "method": "PUT",
+    "path": "/api/v2/host/members/{memberId}/bought-memberships/{boughtMembershipId}/membership-freeze",
+    "title": "Freeze bought membership immediately or schedule freeze/unfreeze",
+    "parameters": [
+      {
+        "name": "memberId",
+        "required": true,
+        "in": "path",
+        "schema": {
+          "type": "number"
+        }
+      },
+      {
+        "name": "boughtMembershipId",
+        "required": true,
+        "in": "path",
+        "schema": {
+          "type": "number"
+        }
+      }
+    ],
+    "body": {
+      "type": "object",
+      "properties": {
+        "freezeType": {
+          "type": "string",
+          "enum": [
+            "not_set",
+            "now",
+            "scheduled",
+            "before_renewal"
+          ]
+        },
+        "freezeAt": {
+          "type": "string",
+          "nullable": true,
+          "format": "date-time"
+        },
+        "unfreezeType": {
+          "type": "string",
+          "enum": [
+            "not_set",
+            "scheduled"
+          ]
+        },
+        "unfreezeAt": {
+          "type": "string",
+          "nullable": true,
+          "format": "date-time"
+        },
+        "reason": {
+          "type": "string",
+          "nullable": true
+        }
+      },
+      "required": [
+        "freezeType",
+        "freezeAt",
+        "unfreezeType",
+        "unfreezeAt"
+      ]
+    }
+  },
+  {
+    "id": "ApiV2HostMembersBoughtMembershipsController_scheduleMembershipFreeze",
+    "method": "PUT",
+    "path": "/api/v2/host/members/{memberId}/bought-memberships/{boughtMembershipId}/membership-schedule-freeze",
+    "title": "Schedule bought membership freeze",
+    "parameters": [
+      {
+        "name": "memberId",
+        "required": true,
+        "in": "path",
+        "schema": {
+          "type": "number"
+        }
+      },
+      {
+        "name": "boughtMembershipId",
+        "required": true,
+        "in": "path",
+        "schema": {
+          "type": "number"
+        }
+      }
+    ],
+    "body": {
+      "type": "object",
+      "properties": {
+        "freezeType": {
+          "type": "string",
+          "enum": [
+            "not_set",
+            "now",
+            "scheduled",
+            "before_renewal"
+          ]
+        },
+        "freezeAt": {
+          "type": "string",
+          "nullable": true,
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "freezeType",
+        "freezeAt"
+      ]
+    }
+  },
+  {
+    "id": "ApiV2HostMembersBoughtMembershipsController_removeMembershipFreeze",
+    "method": "DELETE",
+    "path": "/api/v2/host/members/{memberId}/bought-memberships/{boughtMembershipId}/membership-schedule-freeze",
+    "title": "Unfreeze bought membership or remove scheduled freeze",
+    "parameters": [
+      {
+        "name": "memberId",
+        "required": true,
+        "in": "path",
+        "schema": {
+          "type": "number"
+        }
+      },
+      {
+        "name": "boughtMembershipId",
+        "required": true,
+        "in": "path",
+        "schema": {
+          "type": "number"
+        }
+      }
+    ],
+    "body": null
+  },
+  {
+    "id": "ApiV2HostMembersBoughtMembershipsController_scheduleMembershipUnfreeze",
+    "method": "PUT",
+    "path": "/api/v2/host/members/{memberId}/bought-memberships/{boughtMembershipId}/membership-schedule-unfreeze",
+    "title": "Schedule bought membership unfreeze",
+    "parameters": [
+      {
+        "name": "memberId",
+        "required": true,
+        "in": "path",
+        "schema": {
+          "type": "number"
+        }
+      },
+      {
+        "name": "boughtMembershipId",
+        "required": true,
+        "in": "path",
+        "schema": {
+          "type": "number"
+        }
+      }
+    ],
+    "body": {
+      "type": "object",
+      "properties": {
+        "unfreezeType": {
+          "type": "string",
+          "enum": [
+            "not_set",
+            "scheduled"
+          ]
+        },
+        "unfreezeAt": {
+          "type": "string",
+          "nullable": true,
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "unfreezeType",
+        "unfreezeAt"
+      ]
+    }
+  },
+  {
+    "id": "ApiV2HostMembersBoughtMembershipsController_removeMembershipUnfreeze",
+    "method": "DELETE",
+    "path": "/api/v2/host/members/{memberId}/bought-memberships/{boughtMembershipId}/membership-schedule-unfreeze",
+    "title": "Remove bought membership scheduled unfreeze",
+    "parameters": [
+      {
+        "name": "memberId",
+        "required": true,
+        "in": "path",
+        "schema": {
+          "type": "number"
+        }
+      },
+      {
+        "name": "boughtMembershipId",
+        "required": true,
+        "in": "path",
+        "schema": {
+          "type": "number"
+        }
+      }
+    ],
+    "body": null
+  },
+  {
+    "id": "ApiV2HostMembersController_list",
+    "method": "GET",
+    "path": "/api/v2/host/members",
+    "title": "Get members",
+    "parameters": [
+      {
+        "name": "page",
+        "required": true,
+        "in": "query",
+        "description": "Starts at 0",
+        "schema": {
+          "minimum": 0,
+          "example": 0,
+          "type": "integer"
+        }
+      },
+      {
+        "name": "pageSize",
+        "required": true,
+        "in": "query",
+        "schema": {
+          "minimum": 1,
+          "maximum": 100,
+          "example": 10,
+          "type": "integer"
+        }
+      },
+      {
+        "name": "sortOrder",
+        "required": false,
+        "in": "query",
+        "schema": {
+          "enum": [
+            "ASC",
+            "DESC"
+          ],
+          "type": "string"
+        }
+      },
+      {
+        "name": "sortBy",
+        "required": false,
+        "in": "query",
+        "description": "Field to sort by",
+        "schema": {
+          "enum": [
+            "lastSeenAt",
+            "firstSeenAt",
+            "firstName",
+            "lastName",
+            "email"
+          ],
+          "type": "string"
+        }
+      },
+      {
+        "name": "query",
+        "required": false,
+        "in": "query",
+        "description": "Search customers by query",
+        "schema": {
+          "type": "string"
+        }
+      },
+      {
+        "name": "filterPreset",
+        "required": false,
+        "in": "query",
+        "schema": {
+          "enum": [
+            "with-active-membership"
+          ],
+          "type": "string"
+        }
+      },
+      {
+        "name": "staticSegmentId",
+        "required": false,
+        "in": "query",
+        "description": "Filter customers by static segment ID",
+        "schema": {
+          "type": "integer"
+        }
+      }
+    ],
+    "body": null
+  },
+  {
+    "id": "ApiV2HostMembersController_create",
+    "method": "POST",
+    "path": "/api/v2/host/members",
+    "title": "Add member",
+    "parameters": [],
+    "body": {
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "firstName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "lastName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "phoneNumber": {
+          "type": "string"
+        },
+        "homeLocationId": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "email",
+        "firstName",
+        "lastName"
+      ]
+    }
+  },
+  {
+    "id": "ApiV2HostMembersController_listPost",
+    "method": "POST",
+    "path": "/api/v2/host/members/list",
+    "title": "Get members (with filters)",
+    "parameters": [],
+    "body": {
+      "type": "object",
+      "properties": {
+        "page": {
+          "type": "integer",
+          "description": "Starts at 0",
+          "minimum": 0
+        },
+        "pageSize": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "sortOrder": {
+          "type": "string",
+          "enum": [
+            "ASC",
+            "DESC"
+          ]
+        },
+        "sortBy": {
+          "type": "string",
+          "description": "Field to sort by",
+          "enum": [
+            "lastSeenAt",
+            "firstSeenAt",
+            "firstName",
+            "lastName",
+            "email"
+          ]
+        },
+        "query": {
+          "type": "string",
+          "description": "Search customers by query"
+        },
+        "filterPreset": {
+          "type": "string",
+          "enum": [
+            "with-active-membership"
+          ]
+        },
+        "staticSegmentId": {
+          "type": "integer",
+          "description": "Filter customers by static segment ID"
+        },
+        "filter": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "and",
+                "or"
+              ]
+            },
+            "joinedSince": {
+              "type": "string"
+            },
+            "lastContacted": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "fixed",
+                    "flexible"
+                  ]
+                },
+                "startDate": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "endDate": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "days": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "type"
+              ]
+            },
+            "visits": {
+              "type": "object",
+              "properties": {
+                "count": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "moreThan",
+                        "lessThan",
+                        "exactly"
+                      ]
+                    },
+                    "value": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "value"
+                  ]
+                },
+                "startDate": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "endDate": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "dateType": {
+                  "type": "string",
+                  "enum": [
+                    "fixed",
+                    "flexible"
+                  ]
+                },
+                "timeUnitNumber": {
+                  "type": "integer"
+                },
+                "qualifiers": {
+                  "type": "object",
+                  "properties": {
+                    "membershipIds": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "membershipId": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "membershipId"
+                        ]
+                      }
+                    },
+                    "teacherIds": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "teacherId": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "teacherId"
+                        ]
+                      }
+                    },
+                    "sessionIds": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "sessionId": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "sessionId"
+                        ]
+                      }
+                    },
+                    "templateIds": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "templateId": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "templateId"
+                        ]
+                      }
+                    },
+                    "sessionSeriesIds": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "seriesId": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "seriesId"
+                        ]
+                      }
+                    },
+                    "locationIds": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "locationId": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "locationId"
+                        ]
+                      }
+                    },
+                    "sessionType": {
+                      "type": "string",
+                      "enum": [
+                        "private",
+                        "special-event",
+                        "special-event-new",
+                        "retreat",
+                        "fitness",
+                        "course",
+                        "course-class",
+                        "semester",
+                        "recital"
+                      ]
+                    },
+                    "appointmentServiceIds": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "appointmentServiceId": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "appointmentServiceId"
+                        ]
+                      }
+                    }
+                  }
+                }
+              },
+              "required": [
+                "count"
+              ]
+            },
+            "address": {
+              "type": "object",
+              "properties": {
+                "address": {
+                  "type": "string"
+                },
+                "city": {
+                  "type": "string"
+                },
+                "country": {
+                  "type": "string"
+                },
+                "zipcode": {
+                  "type": "string"
+                }
+              }
+            },
+            "futureBookings": {
+              "type": "object",
+              "properties": {
+                "count": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "moreThan",
+                        "lessThan",
+                        "exactly"
+                      ]
+                    },
+                    "value": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "value"
+                  ]
+                },
+                "dateType": {
+                  "type": "string",
+                  "enum": [
+                    "fixed",
+                    "flexible"
+                  ]
+                },
+                "startDate": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "endDate": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "timeUnit": {
+                  "type": "string",
+                  "enum": [
+                    "days",
+                    "weeks",
+                    "months"
+                  ]
+                },
+                "timeUnitNumber": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "count"
+              ]
+            },
+            "memberships": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "membershipState": {
+                    "type": "string",
+                    "enum": [
+                      "active",
+                      "not-active",
+                      "cancelled",
+                      "expired",
+                      "none"
+                    ]
+                  },
+                  "membershipId": {
+                    "type": "integer",
+                    "nullable": true
+                  },
+                  "membershipIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  }
+                },
+                "required": [
+                  "membershipState"
+                ]
+              }
+            },
+            "customerAge": {
+              "type": "object",
+              "properties": {
+                "fieldId": {
+                  "type": "integer"
+                },
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "after",
+                    "before",
+                    "on",
+                    "between",
+                    "isEmpty",
+                    "isNotEmpty"
+                  ]
+                },
+                "value": {
+                  "type": "integer"
+                },
+                "value2": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "fieldId",
+                "type"
+              ]
+            },
+            "customFields": {
+              "type": "object",
+              "properties": {
+                "date": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "fieldId": {
+                        "type": "integer"
+                      },
+                      "type": {
+                        "type": "string",
+                        "enum": [
+                          "after",
+                          "before",
+                          "on",
+                          "between",
+                          "isEmpty",
+                          "isNotEmpty"
+                        ]
+                      },
+                      "value": {
+                        "type": "string"
+                      },
+                      "value2": {
+                        "type": "string"
+                      },
+                      "yearExcluded": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "fieldId",
+                      "type"
+                    ]
+                  }
+                },
+                "number": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "fieldId": {
+                        "type": "integer"
+                      },
+                      "type": {
+                        "type": "string",
+                        "enum": [
+                          "largerThan",
+                          "smallerThan",
+                          "equalsTo",
+                          "isEmpty",
+                          "isNotEmpty"
+                        ]
+                      },
+                      "value": {
+                        "type": "integer",
+                        "nullable": true
+                      }
+                    },
+                    "required": [
+                      "fieldId",
+                      "type",
+                      "value"
+                    ]
+                  }
+                },
+                "text": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "fieldId": {
+                        "type": "integer"
+                      },
+                      "type": {
+                        "type": "string",
+                        "enum": [
+                          "includes",
+                          "equalsTo",
+                          "isEmpty",
+                          "isNotEmpty"
+                        ]
+                      },
+                      "value": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "fieldId",
+                      "type"
+                    ]
+                  }
+                },
+                "dropdown": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "fieldId": {
+                        "type": "integer"
+                      },
+                      "type": {
+                        "type": "string",
+                        "enum": [
+                          "equalsTo",
+                          "isEmpty",
+                          "isNotEmpty"
+                        ]
+                      },
+                      "value": {
+                        "type": "string",
+                        "nullable": true
+                      }
+                    },
+                    "required": [
+                      "fieldId",
+                      "type"
+                    ]
+                  }
+                },
+                "boolean": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "fieldId": {
+                        "type": "integer"
+                      },
+                      "value": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "fieldId",
+                      "value"
+                    ]
+                  }
+                }
+              }
+            },
+            "customerTags": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "nullable": true,
+                  "enum": [
+                    "and",
+                    "or"
+                  ]
+                },
+                "tags": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer"
+                  }
+                },
+                "customerHaveTag": {
+                  "type": "string",
+                  "enum": [
+                    "have",
+                    "not-have"
+                  ]
+                }
+              },
+              "required": [
+                "type",
+                "tags"
+              ]
+            },
+            "homeLocations": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "locationId": {
+                    "type": "integer",
+                    "nullable": true
+                  }
+                },
+                "required": [
+                  "locationId"
+                ]
+              }
+            },
+            "parentsChildren": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "parents",
+                  "children",
+                  "non-children"
+                ]
+              }
+            },
+            "customerRankings": {
+              "type": "object",
+              "properties": {
+                "customerRankingId": {
+                  "type": "integer"
+                },
+                "customerHaveRanking": {
+                  "type": "string",
+                  "enum": [
+                    "have",
+                    "not-have"
+                  ]
+                }
+              },
+              "required": [
+                "customerRankingId"
+              ]
+            }
+          },
+          "required": [
+            "type"
+          ]
+        }
+      },
+      "required": [
+        "page",
+        "pageSize"
+      ]
+    }
+  },
+  {
+    "id": "ApiV2HostMembersController_get",
+    "method": "GET",
+    "path": "/api/v2/host/members/{memberId}",
+    "title": "Get member",
+    "parameters": [
+      {
+        "name": "memberId",
+        "required": true,
+        "in": "path",
+        "schema": {
+          "type": "number"
+        }
+      }
+    ],
+    "body": null
+  },
+  {
+    "id": "ApiV2HostMembersController_updateName",
+    "method": "PUT",
+    "path": "/api/v2/host/members/{memberId}/name",
+    "title": "Update member name",
+    "parameters": [
+      {
+        "name": "memberId",
+        "required": true,
+        "in": "path",
+        "schema": {
+          "type": "number"
+        }
+      }
+    ],
+    "body": {
+      "type": "object",
+      "properties": {
+        "firstName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "lastName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        }
+      },
+      "required": [
+        "firstName",
+        "lastName"
+      ]
+    }
+  },
+  {
+    "id": "ApiV2HostMembersController_updatePhoneNumber",
+    "method": "PUT",
+    "path": "/api/v2/host/members/{memberId}/phone-number",
+    "title": "Update member phone number",
+    "parameters": [
+      {
+        "name": "memberId",
+        "required": true,
+        "in": "path",
+        "schema": {
+          "type": "number"
+        }
+      }
+    ],
+    "body": {
+      "type": "object",
+      "properties": {
+        "phoneNumber": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "phoneNumber"
+      ]
+    }
+  },
+  {
+    "id": "ApiV2HostMembersController_deleteMemberPhoneNumber",
+    "method": "DELETE",
+    "path": "/api/v2/host/members/{memberId}/phone-number",
+    "title": "Delete all phone number records for a member",
+    "parameters": [
+      {
+        "name": "memberId",
+        "required": true,
+        "in": "path",
+        "schema": {
+          "type": "number"
+        }
+      }
+    ],
+    "body": null
+  },
+  {
+    "id": "ApiV2HostMembersController_updateEmail",
+    "method": "PUT",
+    "path": "/api/v2/host/members/{memberId}/email",
+    "title": "Update member e-mail",
+    "parameters": [
+      {
+        "name": "memberId",
+        "required": true,
+        "in": "path",
+        "schema": {
+          "type": "number"
+        }
+      }
+    ],
+    "body": {
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "email"
+      ]
+    }
+  },
+  {
+    "id": "ApiV2HostMembershipsController_list",
+    "method": "GET",
+    "path": "/api/v2/host/memberships",
+    "title": "Get available host memberships",
+    "parameters": [
+      {
+        "name": "page",
+        "required": true,
+        "in": "query",
+        "description": "Starts at 0",
+        "schema": {
+          "minimum": 0,
+          "example": 0,
+          "type": "integer"
+        }
+      },
+      {
+        "name": "pageSize",
+        "required": true,
+        "in": "query",
+        "schema": {
+          "minimum": 1,
+          "maximum": 200,
+          "example": 10,
+          "type": "integer"
+        }
+      },
+      {
+        "name": "sortOrder",
+        "required": false,
+        "in": "query",
+        "schema": {
+          "enum": [
+            "ASC",
+            "DESC"
+          ],
+          "type": "string"
+        }
+      },
+      {
+        "name": "sortBy",
+        "required": false,
+        "in": "query",
+        "description": "Field to sort by",
+        "schema": {
+          "enum": [
+            "name",
+            "orderNumber"
+          ],
+          "type": "string"
+        }
+      },
+      {
+        "name": "includeDisabled",
+        "required": false,
+        "in": "query",
+        "schema": {
+          "type": "boolean"
+        }
+      },
+      {
+        "name": "onlyFeatured",
+        "required": false,
+        "in": "query",
+        "schema": {
+          "type": "boolean"
+        }
+      },
+      {
+        "name": "compatibleWithSessionId",
+        "required": false,
+        "in": "query",
+        "schema": {
+          "type": "integer"
+        }
+      },
+      {
+        "name": "compatibleWithAppointmentId",
+        "required": false,
+        "in": "query",
+        "schema": {
+          "type": "integer"
+        }
+      }
+    ],
+    "body": null
+  },
+  {
+    "id": "ApiV2HostMembersNotesController_list",
+    "method": "GET",
+    "path": "/api/v2/host/members/{memberId}/notes",
+    "title": "Get notes for a specific member",
+    "parameters": [
+      {
+        "name": "page",
+        "required": true,
+        "in": "query",
+        "description": "Starts at 0",
+        "schema": {
+          "minimum": 0,
+          "example": 0,
+          "type": "integer"
+        }
+      },
+      {
+        "name": "pageSize",
+        "required": true,
+        "in": "query",
+        "schema": {
+          "minimum": 1,
+          "maximum": 100,
+          "example": 10,
+          "type": "integer"
+        }
+      },
+      {
+        "name": "sortOrder",
+        "required": false,
+        "in": "query",
+        "schema": {
+          "enum": [
+            "ASC",
+            "DESC"
+          ],
+          "type": "string"
+        }
+      },
+      {
+        "name": "sortBy",
+        "required": false,
+        "in": "query",
+        "description": "Field to sort by",
+        "schema": {
+          "enum": [
+            "createdAt",
+            "modifiedAt"
+          ],
+          "type": "string"
+        }
+      },
+      {
+        "name": "memberId",
+        "required": true,
+        "in": "path",
+        "schema": {
+          "type": "number"
+        }
+      }
+    ],
+    "body": null
+  },
+  {
+    "id": "ApiV2HostMembersSessionBookingsController_list",
+    "method": "GET",
+    "path": "/api/v2/host/members/{memberId}/sessions",
+    "title": "Get session bookings by a specific member",
+    "parameters": [
+      {
+        "name": "memberId",
+        "required": true,
+        "in": "path",
+        "schema": {
+          "type": "number"
+        }
+      },
+      {
+        "name": "page",
+        "required": true,
+        "in": "query",
+        "description": "Starts at 0",
+        "schema": {
+          "minimum": 0,
+          "example": 0,
+          "type": "integer"
+        }
+      },
+      {
+        "name": "pageSize",
+        "required": true,
+        "in": "query",
+        "schema": {
+          "minimum": 1,
+          "maximum": 100,
+          "example": 10,
+          "type": "integer"
+        }
+      },
+      {
+        "name": "sortOrder",
+        "required": false,
+        "in": "query",
+        "schema": {
+          "enum": [
+            "ASC",
+            "DESC"
+          ],
+          "type": "string"
+        }
+      },
+      {
+        "name": "sortBy",
+        "required": false,
+        "in": "query",
+        "description": "Field to sort by",
+        "schema": {
+          "enum": [
+            "startsAt"
+          ],
+          "type": "string"
+        }
+      },
+      {
+        "name": "startAfter",
+        "required": false,
+        "in": "query",
+        "schema": {
+          "type": "string"
+        }
+      },
+      {
+        "name": "startBefore",
+        "required": false,
+        "in": "query",
+        "schema": {
+          "type": "string"
+        }
+      },
+      {
+        "name": "endAfter",
+        "required": false,
+        "in": "query",
+        "schema": {
+          "type": "string"
+        }
+      },
+      {
+        "name": "endBefore",
+        "required": false,
+        "in": "query",
+        "schema": {
+          "type": "string"
+        }
+      },
+      {
+        "name": "includeCancelled",
+        "required": false,
+        "in": "query",
+        "schema": {
+          "type": "boolean"
+        }
+      }
+    ],
+    "body": null
+  },
+  {
+    "id": "ApiV2HostMemberTagsController_assign",
+    "method": "POST",
+    "path": "/api/v2/host/members/{memberId}/tags/{tagId}",
+    "title": "Assign a tag to a member",
+    "parameters": [
+      {
+        "name": "memberId",
+        "required": true,
+        "in": "path",
+        "schema": {
+          "type": "number"
+        }
+      },
+      {
+        "name": "tagId",
+        "required": true,
+        "in": "path",
+        "schema": {
+          "type": "number"
+        }
+      }
+    ],
+    "body": null
+  },
+  {
+    "id": "ApiV2HostMemberTagsController_unassign",
+    "method": "DELETE",
+    "path": "/api/v2/host/members/{memberId}/tags/{tagId}",
+    "title": "Unassign a tag from a member",
+    "parameters": [
+      {
+        "name": "memberId",
+        "required": true,
+        "in": "path",
+        "schema": {
+          "type": "number"
+        }
+      },
+      {
+        "name": "tagId",
+        "required": true,
+        "in": "path",
+        "schema": {
+          "type": "number"
+        }
+      }
+    ],
+    "body": null
+  },
+  {
+    "id": "ApiV2HostSalesController_list",
+    "method": "GET",
+    "path": "/api/v2/host/sales",
+    "title": "Get sales",
+    "parameters": [
+      {
+        "name": "page",
+        "required": true,
+        "in": "query",
+        "description": "Starts at 0",
+        "schema": {
+          "minimum": 0,
+          "example": 0,
+          "type": "integer"
+        }
+      },
+      {
+        "name": "pageSize",
+        "required": true,
+        "in": "query",
+        "schema": {
+          "minimum": 1,
+          "example": 10,
+          "type": "integer"
+        }
+      },
+      {
+        "name": "sortOrder",
+        "required": false,
+        "in": "query",
+        "schema": {
+          "enum": [
+            "ASC",
+            "DESC"
+          ],
+          "type": "string"
+        }
+      },
+      {
+        "name": "sortBy",
+        "required": false,
+        "in": "query",
+        "description": "Field to sort by",
+        "schema": {
+          "type": "string"
+        }
+      }
+    ],
+    "body": null
+  },
+  {
+    "id": "ApiV2HostSessionBookingCheckInController_addSessionBookingCheckIn",
+    "method": "POST",
+    "path": "/api/v2/host/session-bookings/{bookingId}/check-in",
+    "title": "Mark session booking as checked-in",
+    "parameters": [
+      {
+        "name": "bookingId",
+        "required": true,
+        "in": "path",
+        "schema": {
+          "type": "number"
+        }
+      }
+    ],
+    "body": null
+  },
+  {
+    "id": "ApiV2HostSessionBookingCheckInController_removeSessionBookingCheckIn",
+    "method": "DELETE",
+    "path": "/api/v2/host/session-bookings/{bookingId}/check-in",
+    "title": "Mark session booking as not checked-in",
+    "parameters": [
+      {
+        "name": "bookingId",
+        "required": true,
+        "in": "path",
+        "schema": {
+          "type": "number"
+        }
+      }
+    ],
+    "body": null
+  },
+  {
+    "id": "ApiV2HostSessionBookingController_cancelSessionBooking",
+    "method": "DELETE",
+    "path": "/api/v2/host/session-bookings/{bookingId}",
+    "title": "Cancel session booking",
+    "parameters": [
+      {
+        "name": "bookingId",
+        "required": true,
+        "in": "path",
+        "schema": {
+          "type": "number"
+        }
+      }
+    ],
+    "body": {
+      "type": "object",
+      "properties": {
+        "refund": {
+          "type": "boolean"
+        },
+        "disableNotifications": {
+          "type": "boolean"
+        },
+        "isLateCancellation": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "refund",
+        "disableNotifications",
+        "isLateCancellation"
+      ]
+    }
+  },
+  {
+    "id": "ApiV2HostSessionRecurringBookingController_cancelRecurringSessionBooking",
+    "method": "DELETE",
+    "path": "/api/v2/host/session-recurring-bookings/{bookingId}",
+    "title": "Cancel recurring session booking",
+    "parameters": [
+      {
+        "name": "bookingId",
+        "required": true,
+        "in": "path",
+        "schema": {
+          "type": "number"
+        }
+      }
+    ],
+    "body": {
+      "type": "object",
+      "properties": {
+        "afterSessionId": {
+          "type": "integer"
+        }
+      }
+    }
+  },
+  {
+    "id": "ApiV2HostSessionsController_getSessions",
+    "method": "GET",
+    "path": "/api/v2/host/sessions",
+    "title": "Returns a list of sessions",
+    "parameters": [
+      {
+        "name": "page",
+        "required": true,
+        "in": "query",
+        "description": "Starts at 0",
+        "schema": {
+          "minimum": 0,
+          "example": 0,
+          "type": "integer"
+        }
+      },
+      {
+        "name": "pageSize",
+        "required": true,
+        "in": "query",
+        "schema": {
+          "minimum": 1,
+          "maximum": 200,
+          "example": 10,
+          "type": "integer"
+        }
+      },
+      {
+        "name": "sortOrder",
+        "required": false,
+        "in": "query",
+        "schema": {
+          "enum": [
+            "ASC",
+            "DESC"
+          ],
+          "type": "string"
+        }
+      },
+      {
+        "name": "sortBy",
+        "required": false,
+        "in": "query",
+        "description": "Field to sort by",
+        "schema": {
+          "enum": [
+            "name",
+            "startsAt",
+            "endsAt"
+          ],
+          "type": "string"
+        }
+      },
+      {
+        "name": "includeCancelled",
+        "required": false,
+        "in": "query",
+        "description": "also include cancelled sessions",
+        "schema": {
+          "type": "boolean"
+        }
+      },
+      {
+        "name": "types",
+        "required": false,
+        "in": "query",
+        "description": "only return specified session types",
+        "schema": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "private",
+              "special-event",
+              "special-event-new",
+              "retreat",
+              "fitness",
+              "course",
+              "course-class",
+              "semester",
+              "recital"
+            ]
+          }
+        }
+      },
+      {
+        "name": "teacherId",
+        "required": false,
+        "in": "query",
+        "schema": {
+          "type": "integer"
+        }
+      },
+      {
+        "name": "locationId",
+        "required": false,
+        "in": "query",
+        "schema": {
+          "type": "integer"
+        }
+      },
+      {
+        "name": "includeChildLocations",
+        "required": false,
+        "in": "query",
+        "description": "when filtering by location, include the locations child locations",
+        "schema": {
+          "type": "boolean"
+        }
+      },
+      {
+        "name": "startAfter",
+        "required": false,
+        "in": "query",
+        "schema": {
+          "type": "string"
+        }
+      },
+      {
+        "name": "startBefore",
+        "required": false,
+        "in": "query",
+        "schema": {
+          "type": "string"
+        }
+      },
+      {
+        "name": "endAfter",
+        "required": false,
+        "in": "query",
+        "schema": {
+          "type": "string"
+        }
+      },
+      {
+        "name": "endBefore",
+        "required": false,
+        "in": "query",
+        "schema": {
+          "type": "string"
+        }
+      }
+    ],
+    "body": null
+  },
+  {
+    "id": "ApiV2HostSessionsController_getSession",
+    "method": "GET",
+    "path": "/api/v2/host/sessions/{sessionId}",
+    "title": "Returns a session detail",
+    "parameters": [
+      {
+        "name": "sessionId",
+        "required": true,
+        "in": "path",
+        "schema": {
+          "type": "number"
+        }
+      }
+    ],
+    "body": null
+  },
+  {
+    "id": "ApiV2HostSessionsController_getSessionBookings",
+    "method": "GET",
+    "path": "/api/v2/host/sessions/{sessionId}/bookings",
+    "title": "Returns a list of session bookings",
+    "parameters": [
+      {
+        "name": "page",
+        "required": true,
+        "in": "query",
+        "description": "Starts at 0",
+        "schema": {
+          "minimum": 0,
+          "example": 0,
+          "type": "integer"
+        }
+      },
+      {
+        "name": "pageSize",
+        "required": true,
+        "in": "query",
+        "schema": {
+          "minimum": 1,
+          "maximum": 100,
+          "example": 10,
+          "type": "integer"
+        }
+      },
+      {
+        "name": "sortOrder",
+        "required": false,
+        "in": "query",
+        "schema": {
+          "enum": [
+            "ASC",
+            "DESC"
+          ],
+          "type": "string"
+        }
+      },
+      {
+        "name": "sortBy",
+        "required": false,
+        "in": "query",
+        "description": "Field to sort by",
+        "schema": {
+          "enum": [
+            "createdAt",
+            "firstName",
+            "lastName"
+          ],
+          "type": "string"
+        }
+      },
+      {
+        "name": "includeCancelled",
+        "required": false,
+        "in": "query",
+        "description": "also include cancelled bookings",
+        "schema": {
+          "type": "boolean"
+        }
+      },
+      {
+        "name": "sessionId",
+        "required": true,
+        "in": "path",
+        "schema": {
+          "type": "number"
+        }
+      }
+    ],
+    "body": null
+  },
+  {
+    "id": "ApiV2HostSessionsController_addToSessionForFree",
+    "method": "POST",
+    "path": "/api/v2/host/sessions/{sessionId}/bookings/free",
+    "title": "Add a member to a session for free",
+    "parameters": [
+      {
+        "name": "sessionId",
+        "required": true,
+        "in": "path",
+        "schema": {
+          "type": "number"
+        }
+      }
+    ],
+    "body": {
+      "type": "object",
+      "properties": {
+        "memberId": {
+          "type": "integer"
+        },
+        "createRecurringBooking": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "memberId"
+      ]
+    }
+  },
+  {
+    "id": "ApiV2HostSessionsController_addToWaitlist",
+    "method": "POST",
+    "path": "/api/v2/host/sessions/{sessionId}/waitlist/bookings",
+    "title": "Add a member to a session waitlist",
+    "parameters": [
+      {
+        "name": "sessionId",
+        "required": true,
+        "in": "path",
+        "schema": {
+          "type": "number"
+        }
+      }
+    ],
+    "body": {
+      "type": "object",
+      "properties": {
+        "memberId": {
+          "type": "integer"
+        },
+        "useBoughtMembershipIds": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        }
+      },
+      "required": [
+        "memberId"
+      ]
+    }
+  },
+  {
+    "id": "ApiV2HostTagsController_list",
+    "method": "GET",
+    "path": "/api/v2/host/tags",
+    "title": "List available tags",
+    "parameters": [
+      {
+        "name": "page",
+        "required": true,
+        "in": "query",
+        "description": "Starts at 0",
+        "schema": {
+          "minimum": 0,
+          "example": 0,
+          "type": "integer"
+        }
+      },
+      {
+        "name": "pageSize",
+        "required": true,
+        "in": "query",
+        "schema": {
+          "minimum": 1,
+          "maximum": 100,
+          "example": 10,
+          "type": "integer"
+        }
+      },
+      {
+        "name": "sortOrder",
+        "required": false,
+        "in": "query",
+        "schema": {
+          "enum": [
+            "ASC",
+            "DESC"
+          ],
+          "type": "string"
+        }
+      },
+      {
+        "name": "sortBy",
+        "required": false,
+        "in": "query",
+        "description": "Field to sort by",
+        "schema": {
+          "enum": [
+            "name"
+          ],
+          "type": "string"
+        }
+      }
+    ],
+    "body": null
+  },
+  {
+    "id": "ApiV2HostReportRunsController_createReportRun",
+    "method": "POST",
+    "path": "/api/v2/host/reports",
+    "title": "Initiate report generation",
+    "parameters": [],
+    "body": {
+      "type": "object",
+      "properties": {
+        "parameters": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "reportType": {
+                  "type": "string",
+                  "enum": [
+                    "total-sales"
+                  ]
+                },
+                "hostId": {
+                  "type": "integer"
+                },
+                "dateRange": {
+                  "type": "object",
+                  "properties": {
+                    "from": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "to": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  },
+                  "required": [
+                    "from",
+                    "to"
+                  ]
+                },
+                "locationId": {
+                  "type": "integer"
+                },
+                "tagId": {
+                  "type": "integer"
+                },
+                "moneyCreditSalesFilter": {
+                  "type": "string",
+                  "enum": [
+                    "noFilter",
+                    "filterOutMoneyCreditSales",
+                    "filterOutSalesPaidByMoneyCredits"
+                  ]
+                },
+                "includeRefunds": {
+                  "type": "boolean"
+                },
+                "saleTypes": {
+                  "type": "array",
+                  "items": {
+                    "enum": [
+                      "membership",
+                      "session",
+                      "appointment",
+                      "product",
+                      "video",
+                      "course",
+                      "gift-card",
+                      "monthly-subscription",
+                      "custom-member-payment-plan-installment",
+                      "money-credit",
+                      "event-credit",
+                      "auto-attendance-penalty",
+                      "auto-attendance-penalty-retry-fee",
+                      "stripe-refund",
+                      "refund",
+                      "tips",
+                      "appointment-deposit",
+                      "tuition-installment",
+                      "tuition-registration-fee",
+                      "appointment-addon",
+                      "open-area-visit",
+                      "membership-freeze-fee",
+                      "membership-cancellation-fee",
+                      "membership-renewal-retry-fee",
+                      "membership-transfer-fee",
+                      "membership-joining-fee",
+                      "session-addon",
+                      "reward-points"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "excludeGiftCardPaymentMethod": {
+                  "type": "boolean"
+                },
+                "excludeTransactionFeesInSaleValue": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "reportType",
+                "hostId",
+                "dateRange"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "reportType": {
+                  "type": "string",
+                  "enum": [
+                    "franchise-gift-card-reconciliation"
+                  ]
+                },
+                "hostId": {
+                  "type": "integer"
+                },
+                "dateRange": {
+                  "type": "object",
+                  "properties": {
+                    "from": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "to": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  },
+                  "required": [
+                    "from",
+                    "to"
+                  ]
+                }
+              },
+              "required": [
+                "reportType",
+                "hostId",
+                "dateRange"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "reportType": {
+                  "type": "string",
+                  "enum": [
+                    "payroll"
+                  ]
+                },
+                "hostId": {
+                  "type": "integer"
+                },
+                "dateRange": {
+                  "type": "object",
+                  "properties": {
+                    "from": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "to": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  },
+                  "required": [
+                    "from",
+                    "to"
+                  ]
+                },
+                "teacherId": {
+                  "type": "integer"
+                },
+                "locationId": {
+                  "type": "integer"
+                },
+                "memberHomeLocationId": {
+                  "type": "integer"
+                },
+                "includeVatInRevenue": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "reportType",
+                "hostId",
+                "dateRange"
+              ]
+            }
+          ]
+        }
+      },
+      "required": [
+        "parameters"
+      ]
+    }
+  },
+  {
+    "id": "ApiV2HostReportRunsController_getReportRun",
+    "method": "GET",
+    "path": "/api/v2/host/reports/{reportRunId}",
+    "title": "Retrieve a report",
+    "parameters": [
+      {
+        "name": "reportRunId",
+        "required": true,
+        "in": "path",
+        "schema": {
+          "type": "number"
+        }
+      }
+    ],
+    "body": null
+  },
+  {
+    "id": "ApiV2HostPaymentTransactionsController_get",
+    "method": "GET",
+    "path": "/api/v2/host/payment-transactions/{paymentTransactionId}",
+    "title": "Get payment transaction info",
+    "parameters": [
+      {
+        "name": "paymentTransactionId",
+        "required": true,
+        "in": "path",
+        "schema": {
+          "type": "number"
+        }
+      }
+    ],
+    "body": null
+  }
+]

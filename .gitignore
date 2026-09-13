@@ -1,0 +1,12 @@
+node_modules/
+.next/
+.DS_Store
+.env
+.env.*
+!.env.example
+*.tsbuildinfo
+playwright-report/
+test-results/
+.iris-vault-key
+
+.artifacts/

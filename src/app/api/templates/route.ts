@@ -1,0 +1,3 @@
+import {NextRequest} from 'next/server';import {configuredTemplates} from '@/lib/template-store';import {errorResponse} from '@/lib/auth';
+export const dynamic='force-dynamic';
+export async function GET(req:NextRequest){try{const q=(req.nextUrl.searchParams.get('q')||'').toLowerCase();const category=req.nextUrl.searchParams.get('category');const templates=(await configuredTemplates()).filter(t=>(!category||category==='all'||t.category===category)&&(!q||(t.title+' '+t.category+' '+t.description).toLowerCase().includes(q)));return Response.json({templates,count:templates.length});}catch(e){return errorResponse(e);}}

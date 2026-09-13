@@ -1,0 +1,7 @@
+export function object(v:unknown):Record<string,unknown>{return v&&typeof v==='object'&&!Array.isArray(v)?v as Record<string,unknown>:{};}
+export function display(v:unknown):string{if(v==null||v==='')return '—';if(typeof v==='boolean')return v?'Yes':'No';if(typeof v==='object'){const o=object(v);return String(o.name||[o.firstName,o.lastName].filter(Boolean).join(' ')||o.label||o.id||'Details');}return String(v);}
+export function niceKey(k:string){return k.replace(/([a-z])([A-Z])/g,'$1 $2').replaceAll('_',' ').replace(/^./,c=>c.toUpperCase());}
+let displayTimezone='Asia/Kolkata';
+export function setDisplayTimezone(timezone:string){try{new Intl.DateTimeFormat('en',{timeZone:timezone});displayTimezone=timezone;}catch{}}
+export function indiaDate(v:unknown,short=false){if(!v)return'—';const d=new Date(String(v));return Number.isNaN(d.getTime())?String(v):new Intl.DateTimeFormat('en-IN',{timeZone:displayTimezone,day:'numeric',month:'short',...(short?{}:{year:'numeric',hour:'numeric',minute:'2-digit'})}).format(d);}
+export function csvDownload(name:string,rows:unknown[][]){const safe=(v:unknown)=>{let s=String(v??'');if(/^[=+\-@\t\r]/.test(s))s="'"+s;return'"'+s.replaceAll('"','""')+'"';};const blob=new Blob(['\ufeff'+rows.map(row=>row.map(safe).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
