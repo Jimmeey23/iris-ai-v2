@@ -36,6 +36,8 @@ export function MultiSelect({
   placeholder,
   emptyHint,
   source,
+  studio,
+  sessionTypes,
 }: {
   module: PickerModule;
   value: PickerOption[];
@@ -44,6 +46,10 @@ export function MultiSelect({
   placeholder?: string;
   emptyHint?: string;
   source?: (opt: PickerOption) => void;
+  /** Narrows a session lookup to the studio the entry is about. */
+  studio?: string;
+  /** Narrows a session lookup to given Momence session types, e.g. `['private']` for hosted classes. */
+  sessionTypes?: string[];
 }) {
   const [q, setQ] = useState('');
   const [live, setLive] = useState<PickerOption[]>([]);
@@ -57,8 +63,11 @@ export function MultiSelect({
     const controller = new AbortController();
     const t = setTimeout(() => {
       setBusy(true);
+      const params = new URLSearchParams({ module, q, page: '0' });
+      if (module === 'sessions' && studio) params.set('studio', studio);
+      if (module === 'sessions') for (const t of sessionTypes || []) params.append('type', t);
       api<{ items: MomenceRecord[]; source: string }>(
-        `/api/momence?module=${module}&q=${encodeURIComponent(q)}&page=0`,
+        `/api/momence?${params}`,
         { signal: controller.signal },
       )
         .then((d) => {
@@ -69,7 +78,7 @@ export function MultiSelect({
         .finally(() => setBusy(false));
     }, 220);
     return () => { clearTimeout(t); controller.abort(); };
-  }, [module, q, open]);
+  }, [module, q, open, studio, sessionTypes?.join(',')]);
 
   useEffect(() => {
     function onDocClick(e: MouseEvent) {

@@ -1,7 +1,8 @@
 "use client";
 import * as Dialog from '@radix-ui/react-dialog';
-import {useEffect,useState,useRef,createContext,useContext,useCallback,type ReactNode} from 'react';
-import {X,CheckCircle2,AlertCircle,Loader2,Search,Inbox,Sun,Moon} from 'lucide-react';
+import {useEffect,useLayoutEffect,useState,useRef,createContext,useContext,useCallback,type ReactNode} from 'react';
+import {X,CheckCircle2,AlertCircle,Loader2,Search,Sun,Moon} from 'lucide-react';
+import {EmptyArt,type ArtVariant} from './graphics';
 import {cn,initials} from '@/lib/utils';
 import type {Identity} from '@/lib/auth';
 import {setDisplayTimezone} from '@/lib/display';
@@ -10,7 +11,10 @@ export async function api<T=Record<string,unknown>>(url:string,init?:RequestInit
 type AppContextType={theme:'light'|'dark';toggleTheme:()=>void;notify:(text:string,type?:'success'|'error')=>void;user:Identity|null;setupRequired:boolean;refreshUser:()=>Promise<void>;pollSeconds:number;workspaceName:string;themePlaceholder?:string;view:string;setView:(view:string)=>void;openAuth:()=>void};
 const AppContext=createContext<AppContextType|null>(null);
 export function useApp(){const c=useContext(AppContext);if(!c)throw new Error('App provider missing');return c;}
-export function AppProvider({children}:{children:ReactNode}){const[pollSeconds,setPollSeconds]=useState(15);const[workspaceName,setWorkspaceName]=useState('Physique 57 India');const[theme,setTheme]=useState<'light'|'dark'>('dark');const[view,setViewState]=useState('list');const[user,setUser]=useState<Identity|null>(null);const[setupRequired,setSetupRequired]=useState(false);const[toasts,setToasts]=useState<{id:number;text:string;type:'success'|'error'}[]>([]);const[authOpen,setAuthOpen]=useState(false);
+export function AppProvider({children}:{children:ReactNode}){const[pollSeconds,setPollSeconds]=useState(15);const[workspaceName,setWorkspaceName]=useState('Physique 57 India');const[theme,setTheme]=useState<'light'|'dark'>('dark');
+  // Sync the saved theme before first paint so light users never see a dark flash,
+  // while the server markup always renders dark → no hydration mismatch.
+  useLayoutEffect(()=>{try{const v=localStorage.getItem('iris-theme');if(v==='light'){setTheme('light');document.documentElement.dataset.theme='light';}}catch{}},[]);const[view,setViewState]=useState('list');const[user,setUser]=useState<Identity|null>(null);const[setupRequired,setSetupRequired]=useState(false);const[toasts,setToasts]=useState<{id:number;text:string;type:'success'|'error'}[]>([]);const[authOpen,setAuthOpen]=useState(false);
 const notify=useCallback((text:string,type:'success'|'error'='success')=>{const id=Date.now()+Math.random();setToasts(t=>[...t.slice(-3),{id,text,type}]);setTimeout(()=>setToasts(t=>t.filter(x=>x.id!==id)),6500);},[]);
 const refreshUser=useCallback(async()=>{try{const d=await api<{user:Identity|null;setupRequired:boolean}>('/api/auth');setUser(d.user);setSetupRequired(d.setupRequired);}catch{}},[]);
 useEffect(()=>{
@@ -42,8 +46,20 @@ export function Badge({children,tone='',className}:{children:ReactNode;tone?:str
 export function Status({status}:{status:string}){return <span className={cn('badge','status-'+status)}><i className="status-dot"/>{({in_progress:'In progress',waiting_on_member:'Awaiting member',waiting_on_vendor:'Awaiting vendor'} as Record<string,string>)[status]||status.replaceAll('_',' ').replace(/^./,c=>c.toUpperCase())}</span>;}
 export function Priority({priority}:{priority:string}){return <span className={cn('badge','priority-'+priority)}><span style={{fontSize:11}}>≋</span>{priority.replace(/^./,c=>c.toUpperCase())}</span>;}
 export function SearchField({value,onChange,placeholder='Search…'}:{value:string;onChange:(value:string)=>void;placeholder?:string}){return <div className="search-input"><Search size={14}/><input value={value} placeholder={placeholder} aria-label={placeholder} onChange={e=>onChange(e.target.value)}/></div>;}
-export function Empty({title,detail,action}:{title:string;detail?:string;action?:ReactNode}){return <div className="empty-state"><Inbox size={29}/><h3>{title}</h3>{detail&&<p>{detail}</p>}{action}</div>;}
-export function Loading(){return <div className="stack" aria-label="Loading"><div className="skeleton"/><div className="skeleton"/><div className="skeleton"/></div>;}
+export function Empty({title,detail,action,art='inbox'}:{title:string;detail?:string;action?:ReactNode;art?:ArtVariant}){return <div className="empty-state"><EmptyArt variant={art}/><h3>{title}</h3>{detail&&<p>{detail}</p>}{action}</div>;}
+export function Loading({rows=3,variant='block'}:{rows?:number;variant?:'block'|'list'|'card'}){
+  if(variant==='list')return <div className="skeleton-list" aria-label="Loading" aria-busy="true">{Array.from({length:rows}).map((_,i)=><div className="skeleton-row" key={i} style={{animationDelay:(i*90)+'ms'}}><div className="skeleton sk-avatar"/><div className="grow"><div className="skeleton sk-line" style={{width:'42%'}}/><div className="skeleton sk-line sk-sm" style={{width:'68%'}}/></div><div className="skeleton sk-pill"/></div>)}</div>;
+  if(variant==='card')return <div className="skeleton-cards" aria-label="Loading" aria-busy="true">{Array.from({length:rows}).map((_,i)=><div className="skeleton sk-card" key={i} style={{animationDelay:(i*90)+'ms'}}/>)}</div>;
+  return <div className="stack" aria-label="Loading" aria-busy="true">{Array.from({length:rows}).map((_,i)=><div className="skeleton" key={i} style={{animationDelay:(i*90)+'ms'}}/>)}</div>;
+}
+/** Animated SVG progress ring — used for scores, SLA health and completeness. */
+export function ProgressRing({value,size=56,stroke=5,tone,label}:{value:number;size?:number;stroke?:number;tone?:string;label?:string}){
+  const r=(size-stroke)/2, c=2*Math.PI*r, pct=Math.max(0,Math.min(100,value));
+  return <span className="progress-ring" style={{width:size,height:size,color:tone}} role="img" aria-label={label||`${pct}%`}>
+    <svg width={size} height={size}><circle cx={size/2} cy={size/2} r={r} strokeWidth={stroke} className="pr-track"/>
+    <circle cx={size/2} cy={size/2} r={r} strokeWidth={stroke} className="pr-value" strokeDasharray={c} strokeDashoffset={c-(pct/100)*c} strokeLinecap="round" transform={`rotate(-90 ${size/2} ${size/2})`}/></svg>
+    <b>{Math.round(pct)}<i>%</i></b></span>;
+}
 export function Switch({checked,onChange,label}:{checked:boolean;onChange:(v:boolean)=>void;label:string}){return <button type="button" role="switch" aria-checked={checked} aria-label={label} onClick={()=>onChange(!checked)} className={cn('toggle',checked&&'on')}/>;}
 export function Field({label,children,hint,wide=false}:{label:string;children:ReactNode;hint?:string;wide?:boolean}){return <div className={cn('field',wide&&'wide')}><label><span>{label}</span>{children}</label>{hint&&<span className="field-hint">{hint}</span>}</div>;}
 export function AuthDialog({open,onClose}:{open:boolean;onClose:()=>void}){const{setupRequired,user,refreshUser,notify}=useApp();const[email,setEmail]=useState(''),[name,setName]=useState(''),[password,setPassword]=useState(''),[staffId,setStaffId]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState('');const[staff,setStaff]=useState<{id:number;name:string}[]>([]);

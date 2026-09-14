@@ -64,7 +64,7 @@ export function CommandCenter({directory=false}:{directory?:boolean}){
       {selected.length>0&&<div className="ticket-toolbar" style={{background:'var(--accent-soft)'}}><Badge tone="blue">{selected.length} selected</Badge><button className="btn btn-sm" onClick={()=>setBulk(true)}>Update status</button><button className="text-btn" onClick={()=>setSelected([])}>Clear selection</button></div>}
       {loading?<div style={{padding:20}}><Loading/></div>
         :error?<div className="error-box" style={{margin:20}}>{error}<button className="text-btn" onClick={()=>void reload()}>Retry</button></div>
-        :!filtered.length?<Empty title={tab==='mine'&&!user?'Sign in for your personal queue':'All clear here'} detail={tab==='mine'&&!user?'Link your staff profile to see assigned tickets.':'No tickets match these filters.'} action={<button className="btn" onClick={reset}>Show all tickets</button>}/>
+        :!filtered.length?<Empty art="search" title={tab==='mine'&&!user?'Sign in for your personal queue':'All clear here'} detail={tab==='mine'&&!user?'Link your staff profile to see assigned tickets.':'No tickets match these filters.'} action={<button className="btn" onClick={reset}>Show all tickets</button>}/>
         :view==='board'?<Kanban tickets={filtered} onSelect={setDetail}/>
         :view==='matrix'?<MatrixView tickets={filtered} onCell={openMatrixCell}/>
         :view==='feed'?<FeedView tickets={filtered} onSelect={setDetail}/>

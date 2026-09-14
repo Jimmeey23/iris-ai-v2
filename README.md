@@ -43,7 +43,7 @@ The supplied project did not contain `data/historic-tickets.json`. **Settings â†
 
 Iris retrieves relevant historical examples as context. This is retrieval-assisted learning, **not** model fine-tuning. It does not export the private resolution table to OpenAI.
 
-Athena workflows were inspected at https://github.com/Jimmeey23/Athena-Ai, specifically `src/lib/intake-templates.ts`, `src/lib/trainer-evaluation-core.ts` and the Fillout functions. Adapted workflow definitions include hosted classes, instructor punctuality, late arrival, class experience, studio environment and four assessment rubrics. No form IDs or submissions have been fabricated or copied from private accounts.
+Iris Ai workflows were inspected at https://github.com/Jimmeey23/Athena-Ai, specifically `src/lib/intake-templates.ts`, `src/lib/trainer-evaluation-core.ts` and the Fillout functions. Adapted workflow definitions include hosted classes, instructor punctuality, late arrival, class experience, studio environment and four assessment rubrics. No form IDs or submissions have been fabricated or copied from private accounts.
 
 Fillout exact-submission imports use the actual submission ID. Set `FILLOUT_WEBHOOK_SECRET` or its encrypted integration equivalent and send `X-Fillout-Webhook-Secret` to `POST /api/webhooks/fillout`. Configure label mapping and score scale (`5` or `weight`) when needed. Missing rubric fields are rejected rather than silently scored as zero.
 

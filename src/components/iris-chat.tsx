@@ -13,7 +13,7 @@ import {STUDIOS} from '@/lib/constants';
 import {toPlainText,toMarkdown,toJson,downloadText} from '@/lib/chat-export';
 
 export function IrisChat({presetCategory,presetSubcategory}:{presetCategory?:string;presetSubcategory?:string}){
-  const{notify,user}=useApp();
+  const{notify,user,theme}=useApp();
   const[turn,setTurn]=useState<IrisTurn>();
   const[messages,setMessages]=useState<IrisMessage[]>([]);
   const[text,setText]=useState('');
@@ -154,7 +154,7 @@ export function IrisChat({presetCategory,presetSubcategory}:{presetCategory?:str
           <div className="chat-head">
             <div className="chat-identity">
               <div className={'avatar-ring'+(speaking?' speaking':'')}>
-                <img src="/images/iris-avatar.jpg" alt="Iris" />
+                <img src={theme==="dark"?"/images/iris-avatar-dark.webp":"/images/iris-avatar-light.webp"} alt="Iris" />
               </div>
               <div>
                 <strong>Iris</strong>
@@ -183,14 +183,14 @@ export function IrisChat({presetCategory,presetSubcategory}:{presetCategory?:str
             <div className="chat-day">Internal ticket logging · Physique 57 India</div>
             {!turn&&busy?<Loading/>:messages.map((m,i)=>(
               <div className={'chat-message '+(m.role==='user'?'user':'')} key={i}>
-                {m.role==='assistant'&&<span className="msg-avatar"><img src="/images/iris-avatar.jpg" alt=""/></span>}
+                {m.role==='assistant'&&<span className="msg-avatar"><img src={theme==="dark"?"/images/iris-avatar-dark.webp":"/images/iris-avatar-light.webp"} alt=""/></span>}
                 <div className="bubble">{m.content.startsWith('__')?'Selection made from Momence':m.content}</div>
               </div>
             ))}
-            {busy&&turn&&<div className="chat-message"><span className="msg-avatar"><img src="/images/iris-avatar.jpg" alt=""/></span><div className="bubble"><span className="chat-status"><i/><i/><i/></span></div></div>}
+            {busy&&turn&&<div className="chat-message"><span className="msg-avatar"><img src={theme==="dark"?"/images/iris-avatar-dark.webp":"/images/iris-avatar-light.webp"} alt=""/></span><div className="bubble"><span className="chat-status"><i/><i/><i/></span></div></div>}
             {!busy&&turn?.lookup&&turn.phase!=='complete'&&(
               <div style={{margin:'0 0 24px 36px'}}>
-                <MultiSelect module={turn.lookup} value={[]} onChange={(opts:PickerOption[])=>{const o=opts[0];if(o)void send(undefined,o.label,{module:turn.lookup!,id:String(o.id)});}} placeholder={turn.lookup==='members'?'Search members by name, email or phone…':'Search classes by name, trainer or studio…'}/>
+                <MultiSelect module={turn.lookup} value={[]} studio={turn.lookupFilters?.studio} sessionTypes={turn.lookupFilters?.sessionTypes} onChange={(opts:PickerOption[])=>{const o=opts[0];if(o)void send(undefined,o.label,{module:turn.lookup!,id:String(o.id)});}} placeholder={turn.lookup==='members'?'Search members by name, email or phone…':'Search classes by name, trainer or studio…'}/>
               </div>
             )}
             {!busy&&turn?.options.length&&turn.phase!=='complete'?(

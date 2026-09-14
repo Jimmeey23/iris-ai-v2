@@ -1,2 +1,2 @@
-import {CommandCenter} from '@/components/command-center';
-export default function HomePage(){return <CommandCenter/>;}
+import {LandingHero} from '@/components/landing-hero';
+export default function HomePage(){return <LandingHero/>;}

@@ -11,6 +11,10 @@ export const ticketInputSchema=z.object({
 export type TicketInput=z.infer<typeof ticketInputSchema>;
 export type AdvancedDraft=TicketInput&{title:string;summary:string;priority:'critical'|'high'|'medium'|'low';severity:string;assignedStaffId:number|null;assignedStaffName:string;assignedStaffEmail:string;assignedStaffRole:string;departmentId:string;departmentName:string;slaHours:number;slaLabel:string;resolutionRequired:boolean;tags:string[];opsChecklist:string[];memberFacingUpdate:string;internalBrief:string;routingReason:string;};
 export type TicketRecord=AdvancedDraft&{id:number;ticketNumber:string;status:string;createdAt:string;updatedAt:string;slaDueAt:string|null;resolvedAt:string|null;version:number;isEscalated:boolean;};
+/** Columns the board, dashboard and link picker actually render. The full row carries
+ *  `customFields` and the long-form text, which together are ~85% of the table's bytes
+ *  and are never read by a list view — `listTickets` selects only these. */
+export type TicketListRecord=Pick<TicketRecord,'id'|'ticketNumber'|'title'|'status'|'priority'|'category'|'subcategory'|'studio'|'memberName'|'assignedStaffId'|'assignedStaffName'|'departmentName'|'kind'|'source'|'resolutionRequired'|'slaDueAt'|'resolvedAt'|'createdAt'|'version'>;
 export type PickerModule='members'|'sessions'|'trainers'|'studios'|'formats'|'memberships';
 export type StructuredField={id:string;label:string;type:'text'|'textarea'|'number'|'datetime-local'|'select'|'rating'|'multiselect';required?:boolean;options?:string[];section?:string;weight?:number;dependsOn?:string;dependsOnValue?:string;module?:PickerModule;multi?:boolean;helper?:string};
 export type GuidedTemplate={id:string;title:string;description:string;category:string;subcategory:string;kind:TicketInput['kind'];featured?:boolean;icon:string;fields:StructuredField[];provenance?:string;classContext?:boolean;};
