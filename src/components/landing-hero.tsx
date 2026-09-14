@@ -97,7 +97,7 @@ export function LandingHero(){
       {!introDone&&<IntroOverlay palette={pal} onDone={()=>setIntroDone(true)}/>}
       <div className="lb-bg" aria-hidden="true"/>
       <header className="lb-top">
-        <Link href="/" className="lb-brand"><IrisLockup size={32} palette={pal}/></Link>
+        <Link href="/" className="lb-brand"><IrisLockup size={46} palette={pal}/></Link>
         <nav className="lb-nav"><Link href="/iris">Iris</Link><Link href="/tickets">Tickets</Link><Link href="/templates">Templates</Link><Link href="/reports">Reports</Link><Link href="/dashboard" className="btn btn-primary btn-sm">Enter workspace <ArrowUpRight size={12}/></Link></nav>
       </header>
 
