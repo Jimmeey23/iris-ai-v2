@@ -4,6 +4,9 @@ export const BRAND = {
   tagline: "Member care, choreographed.",
 };
 
+/** `momenceLocationId` is the live Momence `inPersonLocation.id`, verified against the API.
+ *  Momence hosts four locations; Kenkere House and Copper & Cloves are not among them, so
+ *  they carry `null` and session lookups for those studios stay unfiltered rather than empty. */
 export const STUDIOS = [
   {
     id: "kwality",
@@ -11,6 +14,7 @@ export const STUDIOS = [
     city: "Mumbai",
     region: "Mumbai",
     studioIds: [1],
+    momenceLocationId: 9030,
     address: "Kwality House, Kemps Corner, Mumbai",
   },
   {
@@ -19,6 +23,7 @@ export const STUDIOS = [
     city: "Mumbai",
     region: "Bandra",
     studioIds: [2],
+    momenceLocationId: 29821,
     address: "Supreme HQ, Bandra, Mumbai",
   },
   {
@@ -27,6 +32,7 @@ export const STUDIOS = [
     city: "Bengaluru",
     region: "Bengaluru",
     studioIds: [3],
+    momenceLocationId: null,
     address: "Kenkere House, Bengaluru",
   },
   {
@@ -35,6 +41,7 @@ export const STUDIOS = [
     city: "Mumbai",
     region: "Mumbai",
     studioIds: [1],
+    momenceLocationId: 181416,
     address: "Courtside, Mumbai",
   },
   {
@@ -43,6 +50,7 @@ export const STUDIOS = [
     city: "Bengaluru",
     region: "Bengaluru",
     studioIds: [3],
+    momenceLocationId: null,
     address: "the Studio by Copper & Cloves, Bengaluru",
   },
 ] as const;

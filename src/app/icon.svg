@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" fill="none">
+  <defs>
+    <linearGradient id="fb" x1="0" y1="0" x2="1" y2="0.4">
+      <stop offset="0" stop-color="#f0d489"/><stop offset="1" stop-color="#8a6a2f"/>
+    </linearGradient>
+    <linearGradient id="fs" x1="1" y1="0" x2="0" y2="0.4">
+      <stop offset="0" stop-color="#ffe9b0"/><stop offset="0.5" stop-color="#d9ab45"/><stop offset="1" stop-color="#8a6a2f"/>
+    </linearGradient>
+    <linearGradient id="fd" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f4e3b2"/><stop offset="0.5" stop-color="#a8843a"/><stop offset="1" stop-color="#f4e3b2"/>
+    </linearGradient>
+    <radialGradient id="fi" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#ffe9bf"/><stop offset="0.4" stop-color="#d9a23c"/><stop offset="0.75" stop-color="#8a5f1c"/><stop offset="1" stop-color="#241705"/>
+    </radialGradient>
+    <radialGradient id="fp" cx="0.4" cy="0.35" r="0.8">
+      <stop offset="0" stop-color="#241705"/><stop offset="1" stop-color="#0c0803"/>
+    </radialGradient>
+    <linearGradient id="fg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffe9b0"/><stop offset="1" stop-color="#c9902a"/>
+    </linearGradient>
+    <linearGradient id="fn" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#171207"/><stop offset="1" stop-color="#070502"/>
+    </linearGradient>
+    <clipPath id="fic"><circle cx="60" cy="60" r="25"/></clipPath>
+    <clipPath id="fir"><rect x="60" y="33" width="27" height="54"/></clipPath>
+  </defs>
+  <rect x="2" y="2" width="116" height="116" rx="24" fill="url(#fn)" stroke="#e8b64f" stroke-opacity="0.28"/>
+  <g stroke="#e0b04f" stroke-opacity="0.35" stroke-width="1" fill="none">
+    <path d="M14 30 V 14 H 30"/><path d="M90 106 H 106 V 90"/>
+  </g>
+  <circle cx="30" cy="14" r="1.6" fill="#d9a23c" fill-opacity="0.6"/>
+  <circle cx="90" cy="106" r="1.6" fill="#d9a23c" fill-opacity="0.6"/>
+  <path d="M60 24.5 C 42 25 22 38 8 60 C 22 82 42 95 60 95.5" stroke="url(#fb)" stroke-width="6" stroke-linecap="round"/>
+  <path d="M60 24.5 C 78 25 98 38 112 60 C 98 82 78 95 60 95.5" stroke="url(#fs)" stroke-width="6" stroke-linecap="round"/>
+  <circle cx="60" cy="60" r="25" fill="url(#fi)"/>
+  <g stroke="#ffe1a0" stroke-width="0.7" fill="none" stroke-linecap="round">
+    <path d="M52.5 55.5 Q 44 49 34.5 46" opacity="0.5"/>
+    <path d="M51.5 60 Q 41 58 31 57" opacity="0.42"/>
+    <path d="M52.5 64.5 Q 44 68 35 71" opacity="0.48"/>
+    <path d="M56 52 Q 51 44 44 38" opacity="0.36"/>
+    <path d="M56 68 Q 51 76 44 82" opacity="0.36"/>
+    <path d="M49.5 57 Q 39 52 32.5 51.5" opacity="0.3"/>
+    <path d="M49.5 63 Q 39 68 32.5 68.5" opacity="0.3"/>
+  </g>
+  <g clip-path="url(#fic)">
+    <g clip-path="url(#fir)">
+      <rect x="60" y="33" width="27" height="54" fill="#0c0a06"/>
+      <g stroke="#e0b04f" stroke-width="0.9" fill="none" stroke-linecap="round" opacity="0.9">
+        <path d="M70.5 55.5 L 78 51 L 84 51"/>
+        <path d="M70.5 60 L 80 60 L 86 56"/>
+        <path d="M70.5 64.5 L 78 69 L 84 69"/>
+        <path d="M66 52 L 70 46 L 78 44 L 82 40"/>
+        <path d="M66 68 L 70 74 L 78 76 L 82 80"/>
+        <path d="M74 57 L 74 63"/>
+      </g>
+      <g fill="#ffd98a">
+        <circle cx="84" cy="51" r="0.95"/><circle cx="86" cy="56" r="0.95"/><circle cx="84" cy="69" r="0.95"/>
+        <circle cx="82" cy="40" r="0.95"/><circle cx="82" cy="80" r="0.95"/>
+      </g>
+      <circle cx="60" cy="60" r="20" stroke="#7a5a20" stroke-width="0.7" opacity="0.5"/>
+    </g>
+  </g>
+  <path d="M60 50.5 A9.5 9.5 0 1 0 60 69.5" stroke="url(#fg)" stroke-width="2.4" stroke-linecap="round"/>
+  <path d="M60 50.5 A9.5 9.5 0 1 1 60 69.5" stroke="url(#fs)" stroke-width="2.4" stroke-linecap="round"/>
+  <circle cx="60" cy="60" r="9.5" fill="url(#fp)"/>
+  <circle cx="60" cy="60" r="9.5" stroke="#e8b64f" stroke-width="1.4"/>
+  <text x="60" y="63.4" text-anchor="middle" font-family="ui-sans-serif, system-ui, sans-serif" font-size="9.5" font-weight="700" fill="#ffe9b0">Ai</text>
+  <line x1="60" y1="22" x2="60" y2="98" stroke="url(#fd)" stroke-width="1.5" stroke-linecap="round"/>
+  <path d="M104 27 l1.3 3.2 3.2 1.3 -3.2 1.3 -1.3 3.2 -1.3 -3.2 -3.2 -1.3 3.2 -1.3 z" fill="#ffe9b0" opacity="0.75"/>
+</svg>

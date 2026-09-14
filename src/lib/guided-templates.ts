@@ -4,7 +4,7 @@ import {slugify} from './utils';
 const select=(id:string,label:string,options:readonly string[],required=true,helper?:string):StructuredField=>({id,label,type:'select',options:[...options],required,helper});
 const text=(id:string,label:string,required=true,helper?:string):StructuredField=>({id,label,type:'textarea',required,helper});
 const num=(id:string,label:string,required=false,helper?:string):StructuredField=>({id,label,type:'number',required,helper});
-const attribution='Adapted from Athena-Ai intake workflows and Fillout trainer evaluations';
+const attribution='Adapted from Iris Ai intake workflows and Fillout trainer evaluations';
 const baseFields:StructuredField[]=[select('impact','How much did this affect the member or the floor?',['Minor inconvenience','Noticeably affected the experience','Member or class could not proceed as normal','Safety concern']),text('requestedResolution','What needs to happen next?',false,'What would a good outcome look like — a fix, a follow-up, a policy check?')];
 const rubric=(prefix:string,items:[string,number][]):StructuredField[]=>items.map(([label,weight],i)=>({id:prefix+i,label,type:'rating',required:true,weight,section:'Assessment scorecard'}));
 const powerCycle: [string,number][]=[['Attendance & bike fill rate',12.5],['Retention & repeat riders',12.5],['Member connection',12.5],['Member feedback',12.5],['Motivation & USP',8],['Musicality & beat matching',10],['Energy, vocals & command',10],['Programming & sequencing',8],['Safety, setup & form',8],['Work ethics & core values',6]];

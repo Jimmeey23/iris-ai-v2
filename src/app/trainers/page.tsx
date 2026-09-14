@@ -33,7 +33,7 @@ export default function TrainersPage(){
       </div>
       <div style={{marginBottom:20}}><SearchField value={q} onChange={setQ} placeholder="Find a trainer…"/></div>
       {error&&<div className="error-box">{error}</div>}
-      {busy?<Loading/>:!filtered.length?<Empty title="No trainers found"/>:(
+      {busy?<Loading/>:!filtered.length?<Empty art="people" title="No trainers found"/>:(
         <div className="entity-grid rise-stagger">
           {filtered.map(t=>(
             <button key={t.name} className="card entity-card" onClick={()=>setActive(t)}>
@@ -67,13 +67,13 @@ export default function TrainersPage(){
               {active.assessments.length?(
                 <div className="table-wrap"><table className="data-table"><thead><tr><th>Ticket</th><th>Studio</th><th>Evaluator</th><th>Score</th><th>Date</th></tr></thead>
                 <tbody>{active.assessments.map(a=><tr key={a.id}><td className="ticket-id">{a.ticketNumber}</td><td>{a.studio||'—'}</td><td>{a.evaluator}</td><td><Badge tone={a.score>=80?'green':a.score>=65?'amber':'red'}>{a.score}%</Badge></td><td>{indiaDate(a.createdAt,true)}</td></tr>)}</tbody></table></div>
-              ):<Empty title="No weighted assessments logged yet" detail="Use a trainer assessment template to record one."/>}
+              ):<Empty art="clipboard" title="No weighted assessments logged yet" detail="Use a trainer assessment template to record one."/>}
             </section>
             <section>
               <h3 style={{fontSize:14,marginBottom:12}}>Recent feedback & compliments</h3>
               {active.recentFeedback.length?active.recentFeedback.map(f=>(
                 <div className="related-ticket" key={f.id}><div><small className="muted">{f.ticketNumber} · {f.subcategory}</small><p>{f.title}</p></div><Badge tone={f.kind==='compliment'?'green':f.sentiment==='negative'?'red':''}>{f.kind==='compliment'?'Compliment':f.sentiment||'neutral'}</Badge></div>
-              )):<Empty title="No feedback logged yet"/>}
+              )):<Empty art="spark" title="No feedback logged yet"/>}
             </section>
           </div>
         </Modal>

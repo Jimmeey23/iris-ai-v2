@@ -1,19 +1,36 @@
 import { config } from "dotenv";
-import type { Config } from "drizzle-kit";
+import { defineConfig } from "drizzle-kit";
 
-config({ path: ".env.local" });
-config();
+config({ path: ".env" });
 
-const databaseUrl = process.env.DATABASE_URL;
+const url = process.env.DATABASE_URL;
 
-if (!databaseUrl) {
-  throw new Error("DATABASE_URL is required to run Drizzle commands.");
+if (!url) {
+  throw new Error("DATABASE_URL is required");
 }
 
-export default {
+export default defineConfig({
   dialect: "postgresql",
   schema: "./src/db/schema.ts",
-  dbCredentials: {
-    url: databaseUrl,
-  },
-} satisfies Config;
+  // Scoped to this app's tables so push never touches other tables that share
+  // the Supabase `public` schema (e.g. brand_documents, n8n_chat_histories).
+  tablesFilter: [
+    "app_settings",
+    "app_users",
+    "audit_logs",
+    "auth_sessions",
+    "chat_messages",
+    "chat_sessions",
+    "delivery_logs",
+    "departments",
+    "import_runs",
+    "integrations",
+    "staff",
+    "ticket_activities",
+    "ticket_comments",
+    "ticket_links",
+    "ticket_resolutions",
+    "tickets",
+  ],
+  dbCredentials: { url, ssl: url.includes("supabase.com") ? { rejectUnauthorized: false } : false },
+});

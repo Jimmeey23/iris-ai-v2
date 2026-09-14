@@ -3,6 +3,47 @@ import type { CollectedTicket, TicketPriority } from "./types";
 
 type Hit = { category: string; subcategory: string; score: number };
 
+/** Colloquial names staff actually use for each studio. Order matters — more specific first. */
+const STUDIO_ALIASES: Array<[string, string[]]> = [
+  ["Kwality House, Kemps Corner", ["kwality", "kemps", "kemp's", "kempscorner", "kemps corner", "kh ", " kh", "khkc", "kwality house"]],
+  ["Supreme HQ, Bandra", ["supreme", "shq", "s.h.q", "bandra", "supreme hq"]],
+  ["Kenkere House, Bengaluru", ["kenkere", "kenkere house", "indiranagar", "blr kenkere"]],
+  ["Courtside, Mumbai", ["courtside", "court side"]],
+  ["the Studio by Copper & Cloves, Bengaluru", ["copper", "cloves", "copper & cloves", "copper and cloves", "c&c", "cnc studio", "cc studio"]],
+];
+export function matchStudio(text: string): string | undefined {
+  const lower = " " + text.toLowerCase().replace(/[^a-z0-9&'. ]+/g, " ") + " ";
+  for (const [name, aliases] of STUDIO_ALIASES) {
+    for (const a of aliases) {
+      const needle = a.startsWith(" ") || a.endsWith(" ") ? a : " " + a + " ";
+      if (lower.includes(needle) || lower.replace(/\s+/g, " ").includes(a)) return name;
+    }
+  }
+  // "studio 1 / studio 2" style references default to the flagship if nothing else given
+  return undefined;
+}
+const SYSTEM_ALIASES: Array<[string, RegExp]> = [
+  ["Momence", /\bmomence\b/i], ["POS / card machine", /\b(pos|card machine|swipe|payment terminal)\b/i], ["Wi-Fi / router", /\b(wi-?fi|wifi|router|internet|network)\b/i],
+  ["Front desk iPad", /\b(ipad|tablet)\b/i], ["Website / mobile app", /\b(website|mobile app|the app|app crash)\b/i], ["Payment gateway (Stripe / Razorpay)", /\b(stripe|razorpay|gateway)\b/i],
+  ["Audio / mic system", /\b(mic|microphone|headset|speaker|speakers|audio|sound system)\b/i], ["CCTV / surveillance", /\b(cctv|camera)\b/i], ["Access control / door lock", /\b(door lock|access control|keypad)\b/i],
+  ["Cash counting machine", /\bcash (counting|machine)\b/i], ["Yellow Messenger", /\byellow messenger\b/i],
+  ["Air conditioning / HVAC", /\b(a\.?c\.?|ac|air ?con|hvac|cooling|warm air)\b/i], ["Steam room", /\bsteam\b/i], ["Shower / plumbing", /\b(shower|tap|plumb|leak)/i], ["Lighting", /\b(light|lights|lighting)\b/i], ["PowerCycle bike", /\b(bike|bikes|flywheel|pedal)\b/i],
+];
+export function matchSystem(text: string): string | undefined {
+  for (const [name, re] of SYSTEM_ALIASES) if (re.test(text)) return name;
+  return undefined;
+}
+const AREA_ALIASES: Array<[string, RegExp]> = [
+  ["Cycle studio", /\b(cycle studio|spin room|powercycle studio)\b/i], ["Strength Lab floor", /\bstrength lab\b/i],
+  ["Main studio floor", /\b(studio ?1|studio one|main (studio|floor)|barre (studio|room)|the floor)\b/i], ["Reception / lobby", /\b(reception|lobby|front desk|entrance)\b/i],
+  ["Locker room", /\b(locker|changing room|change room)\b/i], ["Showers / washroom", /\b(shower|washroom|bathroom|toilet|restroom|loo)\b/i], ["Member lounge", /\b(lounge|waiting area|cafe)\b/i],
+  ["Boutique", /\b(boutique|retail|merch)\b/i], ["Parking / valet", /\b(parking|valet|car park)\b/i], ["Back office", /\b(back office|office|staff room)\b/i], ["Staircase / corridor", /\b(stairs|staircase|corridor|hallway)\b/i],
+];
+export function matchArea(text: string): string | undefined {
+  for (const [name, re] of AREA_ALIASES) if (re.test(text)) return name;
+  return undefined;
+}
+
 const EXTRA_KEYWORDS: Record<string, string[]> = {
   "Time Change": ["reschedule", "different time", "change the time", "move my class", "slot"],
   "Level Change": ["too advanced", "too beginner", "level", "foundations", "intermediate"],
@@ -265,64 +306,93 @@ function tokenize(text: string) {
     .filter((t) => t.length > 1);
 }
 
+const GENERIC_TOKENS = new Set([
+  "studio", "studios", "issue", "issues", "not", "working", "problem", "problems", "class", "classes",
+  "member", "members", "client", "clients", "and", "the", "for", "with", "too", "low", "high", "poor",
+  "general", "other", "system", "systems", "availability", "concerns", "policy", "management", "process",
+  "options", "preferences", "items", "staff", "trainer", "trainers", "instructor", "front", "desk", "time",
+]);
+/** Strong, unambiguous phrases that should dominate classification regardless of other token noise. */
+const DOMINANT_PHRASES: Array<[RegExp, string, string, number]> = [
+  [/\b(a\.?c\.?|ac|acs|air ?con(ditioning|ditioner)?|hvac|cooling|warm air|hot air|not cooling|no cooling|blowing warm|blowing hot)\b/i, "Repair and Maintenance", "AC and HVAC Issues", 30],
+  [/\b(bike|bikes|spin bike|flywheel|pedal|pedals|resistance knob|cycle seat)\b/i, "Repair and Maintenance", "Broken Equipment Not Repaired", 26],
+  [/\b(leak|leaking|leakage|dripping|flooded|flooding|water on the floor)\b/i, "Repair and Maintenance", "Plumbing Leaks", 28],
+  [/\b(steam room|steam)\b/i, "Studio Amenities and Facilities", "Steam Room Not Working", 26],
+  [/\b(shower|showers|water pressure)\b/i, "Studio Amenities and Facilities", "Shower Water Pressure", 22],
+  [/\b(locker|lockers)\b(?!.*(stolen|theft|missing))/i, "Studio Amenities and Facilities", "Locker Availability", 18],
+  [/\b(wi-?fi|wifi|internet|router|network)\b/i, "Tech Issues", "Studio Wi-Fi Not Working", 26],
+  [/\b(mic|mics|microphone|headset)\b/i, "Tech Issues", "Mic Not Working", 26],
+  [/\b(speaker|speakers|static|crackl)/i, "Tech Issues", "Speakers Static Noise", 24],
+  [/\b(momence)\b/i, "Operating Systems", "Moments Notice", 22],
+  [/\b(pos|card machine|swipe machine|payment terminal)\b/i, "Operating Systems", "POS System Malfunctions", 24],
+  [/\b(ipad|i-pad|tablet)\b/i, "Operating Systems", "iPad Functionality", 24],
+  [/\b(cctv|camera|surveillance)\b/i, "Safety and Security", "CCTV Malfunction", 24],
+  [/\b(fire exit|emergency exit|exit blocked)\b/i, "Safety and Security", "Emergency Exits Blocked", 30],
+  [/\b(harass|harassed|harassment|inappropriate)\b/i, "Safety and Security", "Harassment Reports", 30],
+  [/\b(stolen|theft|stole|missing (bag|phone|wallet|watch|airpods|jewell?ery))\b/i, "Theft and Lost Items", "Stolen Personal Items", 28],
+  [/\b(lost (my|a|her|his)|left behind|misplaced)\b/i, "Theft and Lost Items", "Misplaced Valuables", 22],
+  [/\b(smell|smells|odou?r|stink|stinks|musty)\b/i, "Class Experience", "Bad Odour", 24],
+  [/\b(cockroach|lizard|pest|pests|insects|rat|mice)\b/i, "Repair and Maintenance", "Pest Control Needed", 28],
+  [/\b(towel|towels)\b/i, "Repair and Maintenance", "Towel Availability Issues", 22],
+  [/\b(soap|sanitizer|tissue|toiletries|shampoo)\b/i, "Repair and Maintenance", "Toiletries and Supplies Low", 22],
+  [/\b(light|lights|lighting|bulb|flicker)/i, "Repair and Maintenance", "Lighting Issues", 20],
+  [/\b(door lock|lock (is )?broken|can'?t lock)\b/i, "Repair and Maintenance", "Door Lock Issues", 26],
+  [/\b(water dispenser|drinking water|water cooler)\b/i, "Repair and Maintenance", "Water Dispenser Issues", 26],
+  [/\b(valet|parking)\b/i, "Studio Amenities and Facilities", "Valet Issues", 22],
+  [/\b(waitlist|wait list|waitlisted)\b/i, "Scheduling", "Waitlist Concerns", 26],
+  [/\b(late|punctual|started late|on time)\b.*\b(trainer|instructor|teacher)\b|\b(trainer|instructor|teacher)\b.*\b(late|punctual|started late)\b/i, "Trainer Feedback", "Trainer Punctuality Issues", 26],
+  [/\b(refund|charged twice|double charged|overcharged|wrong charge)\b/i, "Pricing and Memberships", "Refund and Cancellation Policy Issue", 26],
+  [/\b(freeze|pause|hold)\b.*\b(membership|pack)\b/i, "Pricing and Memberships", "Membership Pause and Freeze Policy", 26],
+  [/\b(rude|attitude|unprofessional)\b.*\b(front desk|reception)\b|\b(front desk|reception)\b.*\b(rude|attitude|unprofessional)\b/i, "Customer Service and Communication", "Front Desk Attitude", 26],
+  [/\b(too (hot|cold|warm|chilly)|freezing|sweating buckets)\b/i, "Class Experience", "Studio Temperature Too Hot/Cold", 20],
+  [/\b(loved|amazing|fantastic|brilliant|wonderful|compliment|shout ?out)\b/i, "Class Experience", "Instructor Energy and Motivation", 14],
+];
+
 export function classifyIssue(text: string): Hit[] {
   const hay = text.toLowerCase();
   const tokens = new Set(tokenize(text));
-  const hits: Hit[] = [];
+  const scores = new Map<string, Hit>();
+  const bump = (category: string, subcategory: string, n: number) => {
+    const key = `${category}::${subcategory}`;
+    const cur = scores.get(key) ?? { category, subcategory, score: 0 };
+    cur.score += n;
+    scores.set(key, cur);
+  };
+
+  for (const [re, category, subcategory, weight] of DOMINANT_PHRASES) {
+    if (re.test(text)) bump(category, subcategory, weight);
+  }
 
   for (const [category, subs] of Object.entries(CATEGORY_MAP)) {
     for (const subcategory of subs) {
       let score = 0;
-      const needles = [
-        subcategory.toLowerCase(),
-        ...subcategory.toLowerCase().split(/\W+/).filter((w) => w.length > 3),
-        ...(EXTRA_KEYWORDS[subcategory] ?? []),
-      ];
-      for (const needle of needles) {
-        if (needle.length < 3) continue;
-        if (hay.includes(needle)) score += needle.split(" ").length > 1 ? 6 : 3;
+      const subLower = subcategory.toLowerCase();
+      if (hay.includes(subLower)) score += 12;
+      for (const needle of EXTRA_KEYWORDS[subcategory] ?? []) {
+        if (needle.length >= 3 && hay.includes(needle)) score += needle.split(" ").length > 1 ? 7 : 4;
       }
-      for (const token of subcategory.toLowerCase().split(/\W+/)) {
-        if (token.length > 3 && tokens.has(token)) score += 2;
+      for (const token of subLower.split(/\W+/)) {
+        if (token.length > 3 && !GENERIC_TOKENS.has(token) && tokens.has(token)) score += 2;
       }
-      if (category === "Theft and Lost Items" && /(stole|stolen|theft|missing bag|lost my)/.test(hay)) {
-        score += 2;
-      }
-      if (category === "Safety and Security" && /(unsafe|harass|emergency|cctv|fire)/.test(hay)) {
-        score += 2;
-      }
-      if (score > 0) hits.push({ category, subcategory, score });
+      if (score > 0) bump(category, subcategory, score);
     }
   }
 
-  hits.sort((a, b) => b.score - a.score);
-  const seen = new Set<string>();
-  const uniqueHits: Hit[] = [];
-  for (const hit of hits) {
-    const key = `${hit.category}::${hit.subcategory}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    uniqueHits.push(hit);
-  }
-  return uniqueHits.slice(0, 5);
+  return [...scores.values()].sort((a, b) => b.score - a.score).slice(0, 5);
 }
 
 export function extractEntities(text: string): Partial<CollectedTicket> {
   const extracted: Partial<CollectedTicket> = {};
   const lower = text.toLowerCase();
 
-  for (const studio of STUDIOS) {
-    const needles = [
-      studio.name.toLowerCase(),
-      studio.id,
-      ...(studio.region === "Bandra" ? ["bandra"] : []),
-      studio.name.toLowerCase().split(",")[0],
-    ];
-    if (needles.some((n) => n.trim() && lower.includes(n.trim()))) {
-      extracted.studio = studio.name;
-      break;
-    }
-  }
+  const studioHit = matchStudio(text);
+  if (studioHit) extracted.studio = studioHit;
+
+  const sys = matchSystem(text);
+  if (sys) extracted.systemName = sys;
+  const area = matchArea(text);
+  if (area) extracted.area = area;
+  if (/\b(blocking|can'?t (run|teach|hold) (the )?class|class (had to|was) (stop|cancel|move))/i.test(text)) extracted.isClassImpacted = "Yes, blocking now";
 
   const trainerHit = TRAINERS.find((trainer) => lower.includes(trainer.toLowerCase()));
   if (trainerHit) extracted.trainer = trainerHit;
