@@ -268,8 +268,23 @@ pre{font:12px/1.7 var(--font-mono);white-space:pre-wrap;overflow-wrap:anywhere;c
 .email-preview iframe{width:100%;border:0;height:520px;background:#fff}
 
 /* Fillout embed */
-.fillout-embed{border:1px solid var(--border);border-radius:14px;overflow:hidden;background:var(--surface);min-height:640px}
-.fillout-embed iframe{width:100%;height:640px;border:0}
+/* Named `form-embed`, not `fillout-embed`: the embed script injects its own
+   `.fillout-embed-*` elements into the host, and a shared class name would style
+   Fillout's internals — its own loading div would inherit the overlay below. */
+.form-embed{position:relative;border-top:1px solid var(--border);overflow:hidden;background:var(--surface)}
+.form-embed iframe{width:100%;height:100%;border:0}
+.form-embed-loading{position:absolute;inset:0;z-index:2;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:var(--surface)}
+.form-embed-skeleton{display:flex;flex-direction:column;gap:10px;width:100%;max-width:420px;padding:0 24px}
+.form-embed-skeleton .skeleton-line{border-radius:8px;background:linear-gradient(100deg,var(--surface-2) 8%,var(--surface-3) 22%,var(--surface-2) 36%);background-size:220% 100%;animation:shimmer 1.5s ease-in-out infinite,fade-in .3s both}
+
+/* Forms board */
+.form-card{display:flex;flex-direction:column;gap:0}
+.form-card.active{border-color:var(--accent);box-shadow:0 10px 30px -14px color-mix(in srgb,var(--accent) 45%,transparent)}
+.form-card-icon{display:grid;place-items:center;width:36px;height:36px;border-radius:11px;background:var(--surface-3);color:var(--secondary);font-size:16px;line-height:1}
+.form-card-icon.accent{background:var(--accent-soft);color:var(--accent)}
+.form-card-add{display:flex;flex-direction:column;align-items:flex-start;gap:10px;border-style:dashed;background:transparent}
+.form-card-add:hover{border-color:var(--accent);border-style:dashed}
+.icon-btn.sm{height:26px;width:26px;border-radius:7px}
 
 /* Trend chart legend colour swap for dual-axis */
 .chart-legend i.green{background:var(--green)}

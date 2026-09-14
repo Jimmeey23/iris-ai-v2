@@ -59,23 +59,45 @@ export function studioIdsFor(studioName?: string | null) {
   return studio ? [...studio.studioIds] : [];
 }
 
+const PRIORITY_RANK: Record<TicketPriority, number> = { low: 0, medium: 1, high: 2, critical: 3 };
+const atLeast = (current: TicketPriority, floor: TicketPriority) =>
+  PRIORITY_RANK[floor] > PRIORITY_RANK[current] ? floor : current;
+
+/**
+ * Iris and the guided templates phrase these answers as full sentences
+ * ("Yes, blocking now", "Yes — happening now"), so match on the stem rather than
+ * on equality: an exact `=== "Yes"` test silently stopped matching every value the
+ * intake flow can actually produce, which left class impact and danger unscored.
+ */
+const saysYes = (value?: string) => /^\s*yes\b/i.test(value ?? "");
+const willBlockSoon = (value?: string) => /^\s*not yet/i.test(value ?? "");
+
 export function inferPriority(input: {
   category?: string;
   subcategory?: string;
   isImmediateDanger?: string;
   isClassImpacted?: string;
+  impact?: string;
 }): TicketPriority {
-  if (input.isImmediateDanger === "Yes") return "critical";
-  if (input.subcategory && CRITICAL_SUBS.has(input.subcategory)) return "critical";
-  if (input.category === "Safety and Security") return "critical";
-  if (input.subcategory && HIGH_SUBS.has(input.subcategory)) return "high";
-  if (input.isClassImpacted === "Yes") return "high";
-  if (input.category === "Theft and Lost Items") return "high";
-  if (input.category === "Tech Issues" || input.category === "Operating Systems") return "high";
-  if (input.category === "Pricing and Memberships") return "medium";
-  if (input.category === "Brand Feedback") return "low";
-  if (input.category === "Miscellaneous") return "low";
-  return "medium";
+  // Baseline from the taxonomy alone, most severe rule last.
+  let priority: TicketPriority = "medium";
+  if (input.category === "Brand Feedback" || input.category === "Miscellaneous") priority = "low";
+  if (input.category === "Pricing and Memberships") priority = "medium";
+  if (input.category === "Theft and Lost Items") priority = "high";
+  if (input.category === "Tech Issues" || input.category === "Operating Systems") priority = "high";
+  if (input.subcategory && HIGH_SUBS.has(input.subcategory)) priority = "high";
+  if (input.category === "Safety and Security") priority = "critical";
+  if (input.subcategory && CRITICAL_SUBS.has(input.subcategory)) priority = "critical";
+
+  // What the reporter observed can only raise the priority, never lower it — a staff
+  // member calling an HVAC outage a "minor inconvenience" must not defuse the ticket,
+  // and a blocked class must outrank whatever the taxonomy alone would have said.
+  if (saysYes(input.isImmediateDanger)) priority = atLeast(priority, "critical");
+  if (input.impact === "Safety concern") priority = atLeast(priority, "critical");
+  if (saysYes(input.isClassImpacted)) priority = atLeast(priority, "high");
+  if (willBlockSoon(input.isClassImpacted)) priority = atLeast(priority, "high");
+  if (input.impact === "Could not proceed as normal") priority = atLeast(priority, "high");
+  return priority;
 }
 
 export function inferSeverity(priority: TicketPriority) {
