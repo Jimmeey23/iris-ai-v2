@@ -16,7 +16,10 @@ const template=input.templateId?(await configuredTemplates()).find(t=>t.id===inp
 if(template)for(const field of template.fields.filter(f=>f.required)){const val=input.customFields[field.id];if(val===undefined||val===null||val==='')throw new ApiError(`${field.label} is required.`);if(field.type==='rating'&&(!Number.isFinite(Number(val))||Number(val)<0||Number(val)>5))throw new ApiError(`${field.label} must be scored from 0 to 5.`);}
 const calculatedScore=template?scoreAssessment(template.fields,input.customFields):null;if(calculatedScore!==null)input.customFields.evaluationScore=calculatedScore;
 const praise=input.kind==='compliment'||input.kind==='feedback'&&input.sentiment==='positive';const noSla=input.kind==='assessment'||praise&&cfg.positiveNoSla;
-const priority=noSla?'low':input.category==='Safety and Security'?'critical':input.priority||inferPriority({category:input.category,subcategory:input.subcategory,isClassImpacted:String(input.customFields.isClassImpacted||'')});
+// The intake answers ride in customFields — they are not columns on the schema — so
+// they have to be read back out here or the reporter's own urgency signal never
+// reaches the priority rules.
+const priority=noSla?'low':input.category==='Safety and Security'?'critical':input.priority||inferPriority({category:input.category,subcategory:input.subcategory,isClassImpacted:String(input.customFields.isClassImpacted||''),isImmediateDanger:String(input.customFields.isImmediateDanger||''),impact:input.impact});
 const departmentId=cfg.categoryDepartments[input.category]||'operations';const[dept]=await db.select().from(departments).where(eq(departments.id,departmentId));if(!dept?.active)throw new ApiError('The routing department is inactive. Ask an administrator to update the routing rule.');
 const people=await db.select().from(staff).where(and(eq(staff.isActive,true),eq(staff.department,dept.name)));
 const ids=studioIdsFor(input.studio);const override=cfg.routingOwners[input.category+'::'+input.studio]||cfg.routingOwners[input.category];

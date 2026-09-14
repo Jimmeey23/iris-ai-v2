@@ -1,5 +1,5 @@
 import { CATEGORY_MAP, CLASS_FORMATS, MEMBERSHIPS, STUDIOS, TRAINERS } from "./constants";
-import type { CollectedTicket, TicketPriority } from "./types";
+import type { CollectedTicket } from "./types";
 
 type Hit = { category: string; subcategory: string; score: number };
 
@@ -19,7 +19,9 @@ export function matchStudio(text: string): string | undefined {
       if (lower.includes(needle) || lower.replace(/\s+/g, " ").includes(a)) return name;
     }
   }
-  // "studio 1 / studio 2" style references default to the flagship if nothing else given
+  // A room reference ("studio 1", "studio 2") names a room inside a location, not a
+  // location — resolving it to a site would silently mis-file the ticket, so leave it
+  // unset and let the flow ask which studio this is.
   return undefined;
 }
 const SYSTEM_ALIASES: Array<[string, RegExp]> = [
@@ -448,12 +450,6 @@ export function inferSentiment(text: string) {
   if (/(disappointed|frustrated|annoyed|unhappy|issue|problem)/.test(lower)) return "frustrated";
   if (/(thank you|grateful|love|amazing|appreciate)/.test(lower)) return "positive";
   return "neutral";
-}
-
-export function inferPriorityHint(text: string): TicketPriority | undefined {
-  if (/(emergency|unsafe|stolen|harass|data breach|fire)/i.test(text)) return "critical";
-  if (/(overcharged|can't book|ac not|mic not|wifi down)/i.test(text)) return "high";
-  return undefined;
 }
 
 export function topCategoryOptions(text: string) {

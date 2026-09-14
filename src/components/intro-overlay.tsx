@@ -63,6 +63,10 @@ export function IntroOverlay({onDone,palette='gold'}:{onDone:()=>void;palette?:'
     if(sessionStorage.getItem('iris-intro-seen')){finish.current();return;}
 
     const el=video.current;
+    // React does not emit `muted` into the SSR markup (it sets the DOM property on
+    // hydration), so a clip that carries an audio track is treated as unmuted and
+    // blocked by autoplay policy. Assert it here before asking to play.
+    if(el){el.muted=true;el.defaultMuted=true;}
     // Attempt playback. Browsers only autoplay muted inline video, and even then
     // the promise can reject — fall back to a plain timed curtain when it does.
     const play=el?.play();
