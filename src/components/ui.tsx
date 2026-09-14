@@ -46,6 +46,28 @@ export function Badge({children,tone='',className}:{children:ReactNode;tone?:str
 export function Status({status}:{status:string}){return <span className={cn('badge','status-'+status)}><i className="status-dot"/>{({in_progress:'In progress',waiting_on_member:'Awaiting member',waiting_on_vendor:'Awaiting vendor'} as Record<string,string>)[status]||status.replaceAll('_',' ').replace(/^./,c=>c.toUpperCase())}</span>;}
 export function Priority({priority}:{priority:string}){return <span className={cn('badge','priority-'+priority)}><span style={{fontSize:11}}>≋</span>{priority.replace(/^./,c=>c.toUpperCase())}</span>;}
 export function SearchField({value,onChange,placeholder='Search…'}:{value:string;onChange:(value:string)=>void;placeholder?:string}){return <div className="search-input"><Search size={14}/><input value={value} placeholder={placeholder} aria-label={placeholder} onChange={e=>onChange(e.target.value)}/></div>;}
+/**
+ * Counts from the previously shown figure up to `value` whenever it changes, so the metric
+ * cards can render instantly at zero and animate as soon as the data lands. Reduced-motion
+ * users get the final figure with no animation.
+ */
+export function CountUp({value,format,duration=900}:{value:number;format?:(n:number)=>string;duration?:number}){
+  const[shown,setShown]=useState(value);
+  const from=useRef(value);
+  useEffect(()=>{
+    const target=Number.isFinite(value)?value:0;
+    if(window.matchMedia('(prefers-reduced-motion: reduce)').matches){from.current=target;setShown(target);return;}
+    const start=performance.now(),origin=from.current;let raf=0;
+    const tick=(now:number)=>{
+      const p=Math.min(1,(now-start)/duration);
+      setShown(origin+(target-origin)*(1-Math.pow(1-p,3)));
+      if(p<1)raf=requestAnimationFrame(tick);else from.current=target;
+    };
+    raf=requestAnimationFrame(tick);
+    return()=>{cancelAnimationFrame(raf);from.current=target;};
+  },[value,duration]);
+  return <>{format?format(shown):Math.round(shown).toString()}</>;
+}
 export function Empty({title,detail,action,art='inbox'}:{title:string;detail?:string;action?:ReactNode;art?:ArtVariant}){return <div className="empty-state"><EmptyArt variant={art}/><h3>{title}</h3>{detail&&<p>{detail}</p>}{action}</div>;}
 export function Loading({rows=3,variant='block'}:{rows?:number;variant?:'block'|'list'|'card'}){
   if(variant==='list')return <div className="skeleton-list" aria-label="Loading" aria-busy="true">{Array.from({length:rows}).map((_,i)=><div className="skeleton-row" key={i} style={{animationDelay:(i*90)+'ms'}}><div className="skeleton sk-avatar"/><div className="grow"><div className="skeleton sk-line" style={{width:'42%'}}/><div className="skeleton sk-line sk-sm" style={{width:'68%'}}/></div><div className="skeleton sk-pill"/></div>)}</div>;

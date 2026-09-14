@@ -1,8 +1,8 @@
 "use client";
 import {useEffect,useMemo,useState} from 'react';
-import {GraduationCap,Star,Heart,TriangleAlert,ChevronRight} from 'lucide-react';
+import {GraduationCap,Star,Heart,TriangleAlert,ChevronRight,DownloadCloud,Loader2} from 'lucide-react';
 import {Shell} from '@/components/shell';
-import {api,SearchField,Badge,Loading,Empty,Modal,Avatar} from '@/components/ui';
+import {api,SearchField,Badge,Loading,Empty,Modal,Avatar,useApp} from '@/components/ui';
 import {indiaDate} from '@/lib/display';
 
 type Assessment={id:number;ticketNumber:string;studio:string|null;createdAt:string;score:number;evaluator:string;title:string};
@@ -15,14 +15,31 @@ export default function TrainersPage(){
   const[busy,setBusy]=useState(true);
   const[error,setError]=useState('');
   const[active,setActive]=useState<Trainer>();
+  const[syncing,setSyncing]=useState(false);
+  const{notify,user}=useApp();
 
-  useEffect(()=>{void api<{trainers:Trainer[]}>('/api/trainers').then(d=>setTrainers(d.trainers)).catch(e=>setError(e.message)).finally(()=>setBusy(false));},[]);
+  const load=()=>api<{trainers:Trainer[]}>('/api/trainers').then(d=>setTrainers(d.trainers)).catch(e=>setError(e.message)).finally(()=>setBusy(false));
+  useEffect(()=>{void load();},[]);
+
+  /** Pulls historic Fillout submissions in as assessment tickets, then refreshes the scorecards. */
+  async function syncFillout(){
+    setSyncing(true);
+    try{
+      const d=await api<{imported:number;skipped:number;failed:number;forms:{formId:string;failures:{reason:string}[]}[]}>('/api/fillout',{method:'POST',body:JSON.stringify({})});
+      const reason=d.forms.flatMap(f=>f.failures).map(f=>f.reason)[0];
+      notify(d.imported?`${d.imported} assessment${d.imported===1?'':'s'} imported${d.skipped?`, ${d.skipped} already on file`:''}${d.failed?`, ${d.failed} could not be read`:''}.`
+        :d.skipped?`Every submission is already on file (${d.skipped}).`
+        :`Nothing imported.${reason?' '+reason:''}`,d.imported||d.skipped?'success':'error');
+      await load();
+    }catch(e){notify((e as Error).message,'error');}
+    finally{setSyncing(false);}
+  }
   const filtered=useMemo(()=>trainers.filter(t=>!q||t.name.toLowerCase().includes(q.toLowerCase())),[trainers,q]);
   const withScores=trainers.filter(t=>t.avgScore!==null);
   const orgAvg=withScores.length?Math.round(withScores.reduce((n,t)=>n+(t.avgScore||0),0)/withScores.length):null;
 
   return (
-    <Shell title="Trainer reviews, consolidated." eyebrow="TRAINING & QUALITY" action={<Badge tone="blue"><GraduationCap size={12}/>{trainers.length} trainers tracked</Badge>}>
+    <Shell title="Trainer reviews, consolidated." eyebrow="TRAINING & QUALITY" action={<div className="flex-row">{user?.role==='admin'&&<button className="btn" disabled={syncing} onClick={()=>void syncFillout()}>{syncing?<Loader2 size={13} className="animate-spin"/>:<DownloadCloud size={14}/>}{syncing?'Importing…':'Import Fillout history'}</button>}<Badge tone="blue"><GraduationCap size={12}/>{trainers.length} trainers tracked</Badge></div>}>
       <div className="iris-banner">
         <div className="iris-orb"><GraduationCap size={24}/></div>
         <div className="grow">

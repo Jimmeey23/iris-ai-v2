@@ -282,8 +282,17 @@ pre{font:12px/1.7 var(--font-mono);white-space:pre-wrap;overflow-wrap:anywhere;c
   linear-gradient(color-mix(in srgb,var(--l-text) 4%,transparent) 1px,transparent 1px),linear-gradient(90deg,color-mix(in srgb,var(--l-text) 4%,transparent) 1px,transparent 1px);
   background-size:auto,auto,72px 72px,72px 72px;mask-image:radial-gradient(ellipse 90% 80% at 50% 30%,#000 30%,transparent 100%)}
 .lb-top{position:relative;z-index:5;display:flex;align-items:center;justify-content:space-between;padding:22px 5vw;max-width:1600px;margin:0 auto;animation:fade-in .8s both}
-.lb-brand{display:flex;align-items:center;gap:11px;color:var(--l-gold)}
-.lb-brand .iris-lockup-name{color:var(--l-text)}.lb-brand .iris-lockup-text small{color:var(--l-muted)}.lb-brand span{display:flex;flex-direction:column;color:var(--l-text);font-family:var(--font-display);font-size:17px;letter-spacing:-.03em;line-height:1}.lb-brand b{font-weight:700}.lb-brand small{font-family:var(--font-mono);font-size:8px;letter-spacing:.18em;text-transform:uppercase;color:var(--l-muted);margin-top:4px}
+.lb-brand{display:flex;align-items:center;color:var(--l-gold)}
+/* Scope every rule to the lockup's own parts. A bare `.lb-brand span` also matches the
+   lockup wrapper and the wordmark — both are spans — which stacked the mark above the
+   text and broke IRIS / Ai onto separate lines. */
+.lb-brand .iris-lockup{align-items:center;gap:14px}
+.lb-brand .iris-lockup-text{gap:6px;justify-content:center}
+.lb-brand .iris-lockup-name{display:block;color:var(--l-text);font-family:var(--font-display);font-size:27px;font-weight:700;letter-spacing:-.035em;line-height:1;white-space:nowrap}
+.lb-brand .iris-lockup-name b{font-weight:700}
+.lb-brand .iris-lockup-name i{font-style:normal;color:var(--l-gold);text-shadow:0 0 18px color-mix(in srgb,var(--l-gold) 50%,transparent)}
+.lb-brand .iris-lockup-text small{font-family:var(--font-mono);font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:var(--l-muted);margin-top:0;white-space:nowrap}
+@media(max-width:560px){.lb-brand .iris-lockup-name{font-size:21px}.lb-brand .iris-lockup{gap:10px}}
 .lb-nav{display:flex;align-items:center;gap:26px;font-size:12.5px;color:var(--l-muted)}.lb-nav a:not(.btn):hover{color:var(--l-text)}
 
 .lb-stage{position:relative;z-index:2;max-width:1600px;margin:0 auto;padding:10px 5vw 40px;min-height:calc(100dvh - 82px);display:grid;grid-template-columns:1fr minmax(380px,520px) 1fr;gap:40px;align-items:center}
