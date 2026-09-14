@@ -3,6 +3,7 @@ import {db} from '@/db';
 import {tickets} from '@/db/schema';
 import {TRAINERS} from '@/lib/constants';
 import {requireWorkspace,errorResponse} from '@/lib/auth';
+import {syncTrainerReviewsThrottled,reviewSourceBreakdown} from '@/lib/trainer-reviews';
 export const dynamic='force-dynamic';
 
 function performanceBand(scorePercent:number):string{
@@ -15,6 +16,10 @@ function bandTone(band:string):string{return band==='On-track performance'?'gree
 export async function GET(){
   try{
     await requireWorkspace();
+    // Pull any new external submissions before aggregating, so the tab reflects what has been
+    // submitted to the Fillout form and the two Zite apps rather than only what was logged here.
+    // Throttled internally, and a source being unreachable must never blank the page.
+    await syncTrainerReviewsThrottled().catch(()=>null);
     const rows=await db.select().from(tickets).orderBy(desc(tickets.createdAt));
     const trainerNames=new Set<string>(TRAINERS);
     for(const t of rows)if(t.trainer)for(const name of t.trainer.split(',').map(s=>s.trim()))if(name)trainerNames.add(name);
@@ -40,6 +45,6 @@ export async function GET(){
         recentFeedback:feedback.slice(0,8).map(t=>({id:t.id,ticketNumber:t.ticketNumber,title:t.title,subcategory:t.subcategory,sentiment:t.sentiment,status:t.status,createdAt:t.createdAt.toISOString(),kind:t.kind})),
       };
     }).sort((a,b)=>b.totalTickets-a.totalTickets);
-    return Response.json({trainers:profiles});
+    return Response.json({trainers:profiles,sources:await reviewSourceBreakdown().catch(()=>[])});
   }catch(e){return errorResponse(e);}
 }

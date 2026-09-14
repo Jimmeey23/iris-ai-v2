@@ -11,6 +11,7 @@ type Trainer={name:string;totalTickets:number;assessmentCount:number;feedbackCou
 
 export default function TrainersPage(){
   const[trainers,setTrainers]=useState<Trainer[]>([]);
+  const[sources,setSources]=useState<{label:string;count:number}[]>([]);
   const[q,setQ]=useState('');
   const[busy,setBusy]=useState(true);
   const[error,setError]=useState('');
@@ -18,18 +19,26 @@ export default function TrainersPage(){
   const[syncing,setSyncing]=useState(false);
   const{notify,user}=useApp();
 
-  const load=()=>api<{trainers:Trainer[]}>('/api/trainers').then(d=>setTrainers(d.trainers)).catch(e=>setError(e.message)).finally(()=>setBusy(false));
-  useEffect(()=>{void load();},[]);
+  const load=()=>api<{trainers:Trainer[];sources:{label:string;count:number}[]}>('/api/trainers').then(d=>{setTrainers(d.trainers);setSources(d.sources||[]);}).catch(e=>setError(e.message)).finally(()=>setBusy(false));
+  // The API pulls new external submissions (throttled) on every read, so refreshing a visible
+  // tab is what makes a submission to the form or either Zite app show up without a reload.
+  useEffect(()=>{
+    void load();
+    const tick=()=>{if(!document.hidden)void load();};
+    const timer=setInterval(tick,60000);
+    document.addEventListener('visibilitychange',tick);
+    return()=>{clearInterval(timer);document.removeEventListener('visibilitychange',tick);};
+  },[]);
 
-  /** Pulls historic Fillout submissions in as assessment tickets, then refreshes the scorecards. */
+  /** Pulls the Fillout form and both Zite apps in now, then refreshes the scorecards. */
   async function syncFillout(){
     setSyncing(true);
     try{
-      const d=await api<{imported:number;skipped:number;failed:number;forms:{formId:string;failures:{reason:string}[]}[]}>('/api/fillout',{method:'POST',body:JSON.stringify({})});
-      const reason=d.forms.flatMap(f=>f.failures).map(f=>f.reason)[0];
-      notify(d.imported?`${d.imported} assessment${d.imported===1?'':'s'} imported${d.skipped?`, ${d.skipped} already on file`:''}${d.failed?`, ${d.failed} could not be read`:''}.`
-        :d.skipped?`Every submission is already on file (${d.skipped}).`
-        :`Nothing imported.${reason?' '+reason:''}`,d.imported||d.skipped?'success':'error');
+      const d=await api<{imported:number;skipped:number;failed:number;sources:{label:string;error?:string}[]}>('/api/trainer-reviews',{method:'POST',body:JSON.stringify({})});
+      const broken=d.sources.find(x=>x.error);
+      notify(d.imported?`${d.imported} new assessment${d.imported===1?'':'s'} recorded${d.skipped?`, ${d.skipped} already on file`:''}.`
+        :broken?`${broken.label}: ${broken.error}`
+        :`Up to date — ${d.skipped} assessment${d.skipped===1?'':'s'} already on file.`,d.imported||!broken?'success':'error');
       await load();
     }catch(e){notify((e as Error).message,'error');}
     finally{setSyncing(false);}
@@ -39,12 +48,13 @@ export default function TrainersPage(){
   const orgAvg=withScores.length?Math.round(withScores.reduce((n,t)=>n+(t.avgScore||0),0)/withScores.length):null;
 
   return (
-    <Shell title="Trainer reviews, consolidated." eyebrow="TRAINING & QUALITY" action={<div className="flex-row">{user?.role==='admin'&&<button className="btn" disabled={syncing} onClick={()=>void syncFillout()}>{syncing?<Loader2 size={13} className="animate-spin"/>:<DownloadCloud size={14}/>}{syncing?'Importing…':'Import Fillout history'}</button>}<Badge tone="blue"><GraduationCap size={12}/>{trainers.length} trainers tracked</Badge></div>}>
+    <Shell title="Trainer reviews, consolidated." eyebrow="TRAINING & QUALITY" action={<div className="flex-row">{user&&<button className="btn" disabled={syncing} onClick={()=>void syncFillout()}>{syncing?<Loader2 size={13} className="animate-spin"/>:<DownloadCloud size={14}/>}{syncing?'Syncing…':'Sync assessments'}</button>}<Badge tone="blue"><GraduationCap size={12}/>{trainers.length} trainers tracked</Badge></div>}>
       <div className="iris-banner">
         <div className="iris-orb"><GraduationCap size={24}/></div>
         <div className="grow">
           <h2>Every assessment and every piece of feedback, in one scorecard.</h2>
           <p>Weighted evaluation scores, member compliments and logged concerns — combined per trainer so coaching conversations start from evidence.</p>
+          {sources.length>0&&<div className="flex-row wrap" style={{marginTop:10,gap:6}}>{sources.map(s=><Badge key={s.label}>{s.label} · {s.count}</Badge>)}</div>}
         </div>
         {orgAvg!==null&&<Badge tone={orgAvg>=80?'green':orgAvg>=65?'amber':'red'}>Org average {orgAvg}%</Badge>}
       </div>
