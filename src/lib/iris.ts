@@ -111,13 +111,29 @@ const isMemberReport=c.reportedBy===REPORTED_BY_OPTIONS[1];
 if(!c.description||String(c.description).length<12)choose('description',c.reportedBy===REPORTED_BY_OPTIONS[1]?'What did the member tell you?':c.reportedBy===REPORTED_BY_OPTIONS[0]?'What did you see?':'Go ahead — describe what happened, in as much detail as you have.');
 else if(!c.reportedBy)choose('reportedBy','Quick context: how did this come to you?',[...REPORTED_BY_OPTIONS]);
 else if(c.category&&c.subcategory&&c._categoryInferred&&!c._categoryConfirmed){fieldKey='confirmCategory';question=`I've read this as ${String(c.subcategory).toLowerCase()} (${c.category}). File it there?`;opts=[{label:`Yes — ${c.subcategory}`,value:'__accept_category__'},{label:'No, let me pick the category',value:'__reject_category__'}];}
-else if(!c.category)choose('category',praise?'Who or what deserves the recognition?':'Which area does this fall under?',Object.keys(cfg.taxonomy));
+else if(!c.category){
+  if(c._guess&&typeof c._guess==='object'&&'score'in c._guess&&(c._guess as unknown as {score:number}).score>3){
+    c.category=(c._guess as unknown as {category:string}).category;
+    c.subcategory=(c._guess as unknown as {subcategory:string}).subcategory;
+    c._categoryInferred=true;
+    return runIris({...input,message:undefined,collected:c,patch:undefined});
+  }
+  choose('category',praise?'Who or what deserves the recognition?':'Which area does this fall under?',Object.keys(cfg.taxonomy));
+}
 else if(!c.subcategory)choose('subcategory',praise?'What stood out most?':'Which of these best matches it?',cfg.taxonomy[String(c.category)]);
 // SMART MEMBER LOOKUP: If staff observed it themselves (not member-reported), skip member lookup entirely
 else if(!c.memberLookupDone&&isStudioReport&&!c.memberName){c.memberLookupDone=true;c.memberName='Studio team observation';c.memberEmail='';c.studioReport=true;return runIris({...input,message:undefined,collected:c,patch:undefined});}
 // Only ask member lookup if the report came from a member
-else if(!c.memberLookupDone){const involvesMember=[REPORTED_BY_OPTIONS[1] as string,REPORTED_BY_OPTIONS[2] as string].includes(String(c.reportedBy));fieldKey='memberLookup';lookup='members';question=involvesMember?'Who is this member? Search Momence, or skip if you'd rather not name them yet.':'Is this about a specific member, or a general studio observation?';opts=[{label:'Not member-specific',value:'__studio_report__'},{label:'Enter member details manually',value:'__manual_member__'}];}
-else if(classRelated&&!c.sessionLookupDone){fieldKey='sessionLookup';lookup='sessions';question='Which class was this? Pick the session and I'll pull in the trainer, studio and time.';
+else if(!c.memberLookupDone){
+  const involvesMember=[REPORTED_BY_OPTIONS[1] as string,REPORTED_BY_OPTIONS[2] as string].includes(String(c.reportedBy));
+  fieldKey='memberLookup';
+  lookup='members';
+  const q1=`Who is this member? Search Momence, or skip if you'd rather not name them yet.`;
+  const q2='Is this about a specific member, or a general studio observation?';
+  question=involvesMember?q1:q2;
+  opts=[{label:'Not member-specific',value:'__studio_report__'},{label:'Enter member details manually',value:'__manual_member__'}];
+}
+else if(classRelated&&!c.sessionLookupDone){fieldKey='sessionLookup';lookup='sessions';question=`Which class was this? Pick the session and I'll pull in the trainer, studio and time.`;
 const hosted=c.hostedClass===true||c.classFormat==='Studio Hosted Class';
 lookupFilters={studio:typeof c.studio==='string'&&c.studio!=='—'?c.studio:undefined,sessionTypes:hosted?['private']:undefined};
 opts=[{label:'Session not listed / enter manually',value:'__manual_session__'},...(hosted?[]:[{label:'It was a hosted / private class',value:'__hosted_class__'}])];}
