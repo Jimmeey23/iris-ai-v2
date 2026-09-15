@@ -1,6 +1,6 @@
 "use client";
 import {useEffect,useState,useRef} from 'react';
-import {Sparkles,ArrowUp,Plus,FileCheck2,ShieldCheck,CheckCircle2,Send,ArrowUpRight,Loader2,PencilLine,LockKeyhole,Mic,Copy,Eraser,Download,ChevronDown,Volume2,VolumeX,FileText,FileJson,FileType,Image as ImageIcon} from 'lucide-react';
+import {Sparkles,ArrowUp,Plus,FileCheck2,ShieldCheck,CheckCircle2,Send,ArrowUpRight,Loader2,PencilLine,LockKeyhole,Mic,Copy,Eraser,Download,ChevronDown,Volume2,VolumeX,FileText,FileJson,FileType,Trash2,Image as ImageIcon} from 'lucide-react';
 import {api,useApp,Modal,Field,Badge,Loading} from './ui';
 import {MultiSelect} from './multi-select';
 import {DraftDocument} from './ticket-composer';
@@ -22,6 +22,8 @@ export function IrisChat({presetCategory,presetSubcategory}:{presetCategory?:str
   const[draftOpen,setDraftOpen]=useState(false);
   const[editOpen,setEditOpen]=useState(false);
   const[resetOpen,setResetOpen]=useState(false);
+  const[discardOpen,setDiscardOpen]=useState(false);
+  const[clearOpen,setClearOpen]=useState(false);
   const[exportOpen,setExportOpen]=useState(false);
   const[edits,setEdits]=useState<Record<string,string>>({});
   const[ticketId,setTicketId]=useState<number>();
@@ -93,12 +95,33 @@ export function IrisChat({presetCategory,presetSubcategory}:{presetCategory?:str
     }catch(e){setError((e as Error).message);}finally{setBusy(false);lock.current=false;}
   }
 
-  function edit(){const d=turn?.draft;if(!d)return;setEdits({title:d.title,description:d.description,studio:d.studio,requestedResolution:d.requestedResolution||'',memberName:d.memberName,incidentAt:d.incidentAt,kind:d.kind});setEditOpen(true);}
+  function edit(){
+    const d=turn?.draft;if(!d)return;
+    const r=d as unknown as Record<string,unknown>;
+    const pick=(k:string)=>typeof r[k]==='string'?r[k] as string:'';
+    setEdits({title:d.title,description:d.description,kind:d.kind,category:pick('category'),subcategory:pick('subcategory'),studio:d.studio,memberName:d.memberName,memberEmail:pick('memberEmail'),memberPhone:pick('memberPhone'),classFormat:pick('classFormat'),trainer:pick('trainer'),membership:pick('membership'),incidentAt:d.incidentAt,impact:pick('impact'),preferredContact:pick('preferredContact'),requestedResolution:d.requestedResolution||''});
+    setEditOpen(true);
+  }
+
+  /** Throws away the server-side conversation (and therefore the draft) and starts a clean one. */
+  async function discard(message:string){
+    const current=turnRef.current;
+    lock.current=true;setBusy(true);setError('');
+    try{
+      if(current&&current.phase!=='complete')await api('/api/iris/discard',{method:'POST',body:JSON.stringify({sessionId:current.sessionId})});
+      localStorage.removeItem('iris-conversation');
+      turnRef.current=undefined;setTurn(undefined);setMessages([]);setEdits({});setTicketId(undefined);
+      setDraftOpen(false);setEditOpen(false);
+      notify(message);
+    }catch(e){setError((e as Error).message);notify((e as Error).message,'error');}
+    finally{setBusy(false);lock.current=false;}
+    await start(true);
+  }
   function toggleVoiceMode(){const next=!voiceMode;setVoiceMode(next);localStorage.setItem('iris-voice-replies',next?'1':'0');notify(next?'Iris will speak her replies back to you.':'Spoken replies turned off.');}
 
   function exportMeta(){return{staffName:user?.name||'Studio staff',startedAt:startedAt.current,ticketNumber:turn?.ticket?.ticketNumber};}
   async function copyChat(){await navigator.clipboard.writeText(toPlainText(messages,exportMeta())).then(()=>notify('Transcript copied to clipboard.')).catch(()=>notify('Clipboard access was blocked by the browser.','error'));setExportOpen(false);}
-  function clearChat(){setMessages(turn?[{role:'assistant',content:turn.message}]:[]);notify('Chat view cleared — your ticket progress is unaffected.');}
+  function clearChat(){void discard('Chat and draft cleared.');}
   async function exportAs(kind:'txt'|'md'|'json'|'png'|'pdf'|'docx'){
     setExportOpen(false);
     const meta=exportMeta();
@@ -165,7 +188,7 @@ export function IrisChat({presetCategory,presetSubcategory}:{presetCategory?:str
             <div className="chat-toolbar">
               <button className={'icon-btn'+(voiceMode?' active':'')} title={voiceMode?'Voice replies on':'Voice replies off'} aria-label="Toggle spoken replies" onClick={toggleVoiceMode}>{voiceMode?<Volume2 size={15}/>:<VolumeX size={15}/>}</button>
               <button className="icon-btn" title="Copy transcript" aria-label="Copy transcript to clipboard" onClick={()=>void copyChat()}><Copy size={15}/></button>
-              <button className="icon-btn" title="Clear chat view" aria-label="Clear chat view" onClick={clearChat}><Eraser size={15}/></button>
+              <button className="icon-btn" title="Clear chat and draft" aria-label="Clear chat and draft" onClick={()=>setClearOpen(true)}><Eraser size={15}/></button>
               <div style={{position:'relative'}} ref={exportRef}>
                 <button className="icon-btn" title="Export chat" aria-label="Export chat" onClick={()=>setExportOpen(v=>!v)}><Download size={15}/></button>
                 {exportOpen&&(
@@ -202,6 +225,7 @@ export function IrisChat({presetCategory,presetSubcategory}:{presetCategory?:str
               <div className="info-box" style={{margin:'0 0 20px 36px',alignItems:'center'}}>
                 <FileCheck2 size={21}/>
                 <div className="grow"><strong style={{fontSize:12}}>Ticket ready to review</strong><p style={{fontSize:11}}>Check the member, class, ownership and follow-up plan.</p></div>
+                <button className="btn" onClick={()=>setDiscardOpen(true)}><Trash2 size={12}/>Discard</button>
                 <button className="btn btn-primary" onClick={()=>setDraftOpen(true)}>Review draft <ArrowUpRight size={12}/></button>
               </div>
             )}
@@ -250,13 +274,14 @@ export function IrisChat({presetCategory,presetSubcategory}:{presetCategory?:str
           {turn?.draft&&(
             <div className="builder-footer">
               <button className="btn btn-primary" onClick={()=>setDraftOpen(true)}><FileCheck2 size={13}/>Review complete ticket</button>
+              {turn?.phase!=='complete'&&<button className="btn" style={{marginTop:8}} onClick={()=>setDiscardOpen(true)}><Trash2 size={13}/>Discard draft</button>}
             </div>
           )}
         </aside>
       </div>
 
-      <Modal open={draftOpen} onClose={()=>setDraftOpen(false)} title="A clean, structured ticket" description="Review every detail before approving it." size="wide" footer={<><button className="btn" onClick={edit}><PencilLine size={13}/>Edit details</button><button className="btn btn-primary" disabled={busy||turn?.phase==='complete'} onClick={()=>void approve()}>{busy?<Loader2 size={13} className="animate-spin"/>:<Send size={13}/>} {turn?.phase==='complete'?'Already logged':'Approve & log ticket'}</button></>}>{turn?.draft&&<DraftDocument draft={turn.draft} onEdit={edit}/>}</Modal>
-      <Modal open={editOpen} onClose={()=>setEditOpen(false)} title="Fine-tune the details" description="Edits rebuild the draft and rerun routing." footer={<><button className="btn" onClick={()=>setEditOpen(false)}>Cancel</button><button className="btn btn-primary" disabled={busy} onClick={()=>{void send(undefined,'Updated the draft details.',undefined,edits).then(()=>setEditOpen(false));}}>Update draft</button></>}>
+      <Modal open={draftOpen} onClose={()=>setDraftOpen(false)} title="A clean, structured ticket" description="Review every detail before approving it." size="wide" footer={<><button className="btn" disabled={busy||turn?.phase==='complete'} onClick={()=>setDiscardOpen(true)}><Trash2 size={13}/>Discard draft</button><button className="btn" disabled={turn?.phase==='complete'} onClick={edit}><PencilLine size={13}/>Edit details</button><button className="btn btn-primary" disabled={busy||turn?.phase==='complete'} onClick={()=>void approve()}>{busy?<Loader2 size={13} className="animate-spin"/>:<Send size={13}/>} {turn?.phase==='complete'?'Already logged':'Approve & log ticket'}</button></>}>{turn?.draft&&<DraftDocument draft={turn.draft} onEdit={edit}/>}</Modal>
+      <Modal open={editOpen} onClose={()=>setEditOpen(false)} title="Fine-tune the details" description="Edits rebuild the draft and rerun routing." footer={<><button className="btn" onClick={()=>setEditOpen(false)}>Cancel</button><button className="btn btn-primary" disabled={busy} onClick={()=>{const patch=Object.fromEntries(Object.entries(edits).filter(([,v])=>v.trim()!==''));void send(undefined,'Updated the draft details.',undefined,patch).then(()=>setEditOpen(false));}}>Update draft</button></>}>
         <div className="form-grid">{Object.entries(edits).map(([k,v])=>(
           <Field key={k} label={k.replace(/([A-Z])/g,' $1')} wide={k==='description'||k==='requestedResolution'}>
             {k==='studio'?<select value={v} onChange={e=>setEdits(s=>({...s,[k]:e.target.value}))}>{STUDIOS.map(s=><option key={s.id}>{s.name}</option>)}</select>
@@ -266,8 +291,14 @@ export function IrisChat({presetCategory,presetSubcategory}:{presetCategory?:str
           </Field>
         ))}</div>
       </Modal>
-      <Modal open={resetOpen} onClose={()=>setResetOpen(false)} title="Start a fresh conversation?" description="The current conversation stays saved in the database." size="narrow" footer={<><button className="btn" onClick={()=>setResetOpen(false)}>Keep chatting</button><button className="btn btn-primary" onClick={()=>{setResetOpen(false);void start(true);}}>Start fresh</button></>}>
-        <p className="secondary">Any ticket you\u2019ve already approved won\u2019t change. Iris will start a new one from a clean slate.</p>
+      <Modal open={resetOpen} onClose={()=>setResetOpen(false)} title="Start a fresh conversation?" description="This clears the current chat and any unapproved draft." size="narrow" footer={<><button className="btn" onClick={()=>setResetOpen(false)}>Keep chatting</button><button className="btn btn-primary" onClick={()=>{setResetOpen(false);void discard('Started a fresh conversation. The old draft was discarded.');}}>Start fresh</button></>}>
+        <p className="secondary">Any ticket you\u2019ve already approved won\u2019t change. The unapproved draft is deleted and Iris starts from a clean slate.</p>
+      </Modal>
+      <Modal open={clearOpen} onClose={()=>setClearOpen(false)} title="Clear this chat?" description="The transcript and the unapproved draft are both deleted." size="narrow" footer={<><button className="btn" onClick={()=>setClearOpen(false)}>Cancel</button><button className="btn btn-primary" onClick={()=>{setClearOpen(false);clearChat();}}><Eraser size={13}/>Clear chat and draft</button></>}>
+        <p className="secondary">Export the transcript first if you need a copy. Tickets already logged are not affected.</p>
+      </Modal>
+      <Modal open={discardOpen} onClose={()=>setDiscardOpen(false)} title="Discard this draft?" description="Nothing is filed and the draft is deleted." size="narrow" footer={<><button className="btn" onClick={()=>setDiscardOpen(false)}>Keep draft</button><button className="btn btn-primary" onClick={()=>{setDiscardOpen(false);void discard('Draft discarded. Iris is ready for a new ticket.');}}><Trash2 size={13}/>Discard draft</button></>}>
+        <p className="secondary">If you only need a few corrections, close this and use <strong>Edit details</strong> instead \u2014 that keeps everything Iris already captured.</p>
       </Modal>
       {ticketId&&<TicketDialog open id={ticketId} onClose={()=>setTicketId(undefined)}/>}
     </>
