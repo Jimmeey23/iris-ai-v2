@@ -216,7 +216,7 @@ export function IrisChat({presetCategory,presetSubcategory}:{presetCategory?:str
                 <MultiSelect module={turn.lookup} value={[]} studio={turn.lookupFilters?.studio} sessionTypes={turn.lookupFilters?.sessionTypes} onChange={(opts:PickerOption[])=>{const o=opts[0];if(o)void send(undefined,o.label,{module:turn.lookup!,id:String(o.id)});}} placeholder={turn.lookup==='members'?'Search members by name, email or phone…':'Search classes by name, trainer or studio…'}/>
               </div>
             )}
-            {!busy&&turn?.options.length&&turn.phase!=='complete'?(
+            {!busy&&turn?.options?.length&&turn.phase!=='complete'?(
               <div className="chat-options">
                 {turn.options.map(o=><button className="btn" key={o.value} onClick={()=>void send(o.value,o.label)}>{o.label}</button>)}
               </div>
