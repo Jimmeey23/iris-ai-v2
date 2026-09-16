@@ -78,7 +78,7 @@ async function fetchFilloutForm(source:ReviewSource):Promise<NormalisedReview[]>
   if(!c.api_key)throw new ApiError('Connect Fillout in Integrations to read trainer assessment submissions.',503);
   const out:NormalisedReview[]=[];
   for(let offset=0;offset<1000;offset+=150){
-    const res=await fetch(`${FILLOUT_API}/forms/${encodeURIComponent(source.id)}/submissions?limit=150&offset=${offset}`,{
+    const res=await fetch(`${FILLOUT_API}/forms/${encodeURIComponent(source.id)}/submissions?limit=150&offset=${offset}&sort=desc`,{
       headers:{Authorization:'Bearer '+c.api_key,Accept:'application/json'},cache:'no-store',signal:AbortSignal.timeout(30000),
     });
     if(!res.ok)throw new ApiError(`${source.label} returned ${res.status} from Fillout.`,502);
@@ -115,17 +115,18 @@ export async function fetchReviews(source:ReviewSource){
 let lastSync=0;let inflight:Promise<SyncResult>|undefined;
 /** How stale the tab is allowed to be. Each pass is three upstream calls, so this keeps a
  *  busy page from hammering them while still reading as live. */
-const SYNC_TTL_MS=60000;
+const SYNC_TTL_MS=20000;
 
-export type SyncResult={imported:number;skipped:number;failed:number;
-  sources:{label:string;id:string;imported:number;skipped:number;failed:number;total:number;error?:string}[]};
+export type SyncResult={imported:number;skipped:number;failed:number;unmatched:number;lastSync:string;
+  sources:{label:string;id:string;imported:number;skipped:number;failed:number;unmatched:number;total:number;
+    unmatchedStudios:string[];error?:string}[]};
 
 /** Files any submission not already on record. Safe to call repeatedly. */
 export async function syncTrainerReviews():Promise<SyncResult>{
   const cfg=await getConfig();
-  const result:SyncResult={imported:0,skipped:0,failed:0,sources:[]};
+  const result:SyncResult={imported:0,skipped:0,failed:0,unmatched:0,lastSync:new Date().toISOString(),sources:[]};
   for(const source of reviewSources()){
-    const entry={label:source.label,id:source.id,imported:0,skipped:0,failed:0,total:0} as SyncResult['sources'][number];
+    const entry={label:source.label,id:source.id,imported:0,skipped:0,failed:0,unmatched:0,total:0,unmatchedStudios:[]} as SyncResult['sources'][number];
     let reviews:NormalisedReview[]=[];
     try{reviews=await fetchReviews(source);}
     catch(e){entry.error=e instanceof Error?e.message:'Could not be read';result.sources.push(entry);continue;}
@@ -136,8 +137,10 @@ export async function syncTrainerReviews():Promise<SyncResult>{
     for(const review of reviews){
       if(known.has(review.sourceRef)){entry.skipped++;continue;}
       // Rows whose studio is not one of ours are the app's own sample data, not P57 records.
+      // Counted separately from duplicates: a studio label the workspace does not recognise is a
+      // mapping problem to fix, and reporting it as "already on file" is what hid it before.
       const studio=cfg.studios.find(s=>s.toLowerCase()===review.studio.toLowerCase());
-      if(!studio){entry.skipped++;continue;}
+      if(!studio){entry.unmatched++;if(!entry.unmatchedStudios.includes(review.studio))entry.unmatchedStudios.push(review.studio||'(blank)');continue;}
       try{
         const when=review.at&&!Number.isNaN(Date.parse(review.at))?review.at:new Date().toISOString();
         const description=[review.strengths&&`Key strengths: ${review.strengths}`,
@@ -165,12 +168,16 @@ export async function syncTrainerReviews():Promise<SyncResult>{
         entry.imported++;
       }catch{entry.failed++;}
     }
-    result.imported+=entry.imported;result.skipped+=entry.skipped;result.failed+=entry.failed;
+    result.imported+=entry.imported;result.skipped+=entry.skipped;result.failed+=entry.failed;result.unmatched+=entry.unmatched;
     result.sources.push(entry);
   }
   lastSync=Date.now();
+  result.lastSync=new Date(lastSync).toISOString();
   return result;
 }
+
+/** When the last pass finished, for the "last synced" line on the reviews tab. */
+export function lastSyncAt(){return lastSync?new Date(lastSync).toISOString():null;}
 
 /** Sync unless a pass ran within the TTL, so the reviews tab reads live without thrashing. */
 export async function syncTrainerReviewsThrottled():Promise<SyncResult|null>{
