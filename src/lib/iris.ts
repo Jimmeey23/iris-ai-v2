@@ -72,7 +72,14 @@ export async function irisWelcome(sessionId:string,preset?:{category?:string;sub
 export async function runIris(input:{sessionId:string;collected:Record<string,unknown>;message?:string;fieldKey?:string;history:IrisMessage[];selectionApplied?:boolean;patch?:Record<string,unknown>}):Promise<IrisTurn>{const cfg=await getConfig();const c={...input.collected,...input.patch};const raw=(input.message||'').trim();const priorField=input.fieldKey;const connection=await credentials('chatgpt');const key=connection._enabled==='false'?undefined:connection.api_key;let engine:'openai'|'guided'=cfg.aiEnabled&&key?'openai':'guided';let notice:string|undefined;let ai:OpenAI|undefined;
 if(engine==='openai')ai=new OpenAI({apiKey:key,timeout:20000,maxRetries:1});
 if(raw.startsWith('A member told me')||raw.startsWith('I noticed something')||raw.startsWith('I want to log feedback')||raw.startsWith('I want to log a compliment')){c.kind=raw.includes('compliment')?'compliment':raw.includes('feedback')?'feedback':'issue';c.reportedBy=raw.startsWith('A member told me')?REPORTED_BY_OPTIONS[1]:raw.startsWith('I noticed')?REPORTED_BY_OPTIONS[0]:undefined;c.description='';if(c.kind==='compliment')c.sentiment='positive';}
-else if(raw==='__accept_category__'){c._categoryConfirmed=true;}else if(raw==='__reject_category__'){delete c.category;delete c.subcategory;c._categoryInferred=false;c._categoryConfirmed=true;}else if(raw==='__manual_member__'){c.memberLookupDone=true;c.manualMember=true;}else if(raw==='__studio_report__'){c.memberLookupDone=true;c.memberName=c.reportedBy===REPORTED_BY_OPTIONS[1]?'Member (not named)':'Studio team observation';c.memberEmail='';c.studioReport=true;}else if(raw==='__manual_session__'){c.sessionLookupDone=true;c.manualSession=true;}else if(raw==='__hosted_class__'){c.hostedClass=true;c.classFormat=c.classFormat||'Studio Hosted Class';}else if(raw&&!raw.startsWith('__')){
+else if(raw==='__accept_category__'){c._categoryConfirmed=true;}else if(raw==='__reject_category__'){delete c.category;delete c.subcategory;c._categoryInferred=false;c._categoryConfirmed=true;}else if(raw==='__manual_member__'){c.memberLookupDone=true;c.manualMember=true;}else if(raw==='__studio_report__'){c.memberLookupDone=true;c.memberName=c.reportedBy===REPORTED_BY_OPTIONS[1]?'Member (not named)':'Studio team observation';c.memberEmail='';c.studioReport=true;}else if(raw==='__manual_session__'){c.sessionLookupDone=true;c.manualSession=true;}else if(raw==='__hosted_class__'){c.hostedClass=true;c.classFormat=c.classFormat||'Studio Hosted Class';}else if(raw==='__manual_studio_time__'){
+  // User chose to enter studio/time manually — fall through to normal processing
+}
+else if(['kwality-earlier','kwality-yesterday','fort-earlier','fort-yesterday'].includes(raw)){
+  // BUNDLED RESPONSE: Parse studio + incidentAt shortcut
+  const parts=raw.split('-');c.studio=parts[0]==='kwality'?'Kwality House, Kemps Corner':'Fort';c.incidentAt=parts[1]==='earlier'?'Earlier today':'Yesterday';
+}
+else if(raw&&!raw.startsWith('__')){
 if(priorField&&FIELD_KEYS.includes(priorField)){c[priorField]=raw;if(priorField==='category'){delete c.subcategory;c._categoryInferred=false;c._categoryConfirmed=true;}if(priorField==='studio'){const m=matchStudio(raw);if(m)c.studio=m;}}else c.description=String(c.description||'')+(c.description?'\n':'')+raw;
 {const heuristic=extractEntities(raw);for(const[k,v]of Object.entries(heuristic)){if(!FIELD_KEYS.includes(k)||v===undefined||c[k])continue;if(k==='studio'){const m=matchStudio(String(v));if(m)c.studio=m;continue;}if(k==='category')c._categoryInferred=true;c[k]=v;}const top=classifyIssue(String(c.description||raw));if(top[0])c._guess={category:top[0].category,subcategory:top[0].subcategory,score:top[0].score};if(priorField==='description'||!priorField){
 const nameMatch=raw.match(/(?:her name is|his name is|the member is|member's name is)\s+([a-z]+(?:\s+[a-z]+)?)(?=[,.!]|$)/i);if(nameMatch)c.memberName=nameMatch[1];
@@ -101,7 +108,7 @@ if(c.studio&&!cfg.studios.includes(String(c.studio))){const m=matchStudio(String
 if(c.area&&!STUDIO_AREAS.includes(String(c.area) as typeof STUDIO_AREAS[number]))delete c.area;
 if(!['issue','request','compliment','feedback','assessment'].includes(String(c.kind)))c.kind='issue';
 if(c.memberEmail&&typeof c.memberEmail==='string'&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c.memberEmail))delete c.memberEmail;
-let fieldKey:string|undefined,lookup:'members'|'sessions'|undefined,question='',opts:{label:string;value:string}[]=[];let lookupFilters:{studio?:string;sessionTypes?:string[]}|undefined;
+let fieldKey:string|undefined,lookup:'members'|'sessions'|undefined,question='',opts:{label:string;value:string}[]|undefined=[];let lookupFilters:{studio?:string;sessionTypes?:string[]}|undefined;
 const choose=(key:string,prompt:string,values:string[]=[])=>{fieldKey=key;question=prompt;opts=options(values);};
 const classRelated=['Class Experience','Trainer Feedback','Scheduling'].includes(String(c.category));const praise=c.kind==='compliment'||c.kind==='feedback'&&c.sentiment==='positive';
 const isStudioReport=c.reportedBy===REPORTED_BY_OPTIONS[0];
@@ -118,9 +125,15 @@ else if(!c.category){
     c._categoryInferred=true;
     return runIris({...input,message:undefined,collected:c,patch:undefined});
   }
-  choose('category',praise?'Who or what deserves the recognition?':'Which area does this fall under?',Object.keys(cfg.taxonomy));
+  fieldKey='category';
+  question=praise?'Who or what deserves the recognition?':'What area does this fall under?';
+  opts=options(Object.keys(cfg.taxonomy));
 }
-else if(!c.subcategory)choose('subcategory',praise?'What stood out most?':'Which of these best matches it?',cfg.taxonomy[String(c.category)]);
+else if(!c.subcategory){
+  fieldKey='subcategory';
+  question=praise?'What stood out most?':'Which of these best matches it?';
+  opts=options(cfg.taxonomy[String(c.category)]);
+}
 // SMART MEMBER LOOKUP: If staff observed it themselves (not member-reported), skip member lookup entirely
 else if(!c.memberLookupDone&&isStudioReport&&!c.memberName){c.memberLookupDone=true;c.memberName='Studio team observation';c.memberEmail='';c.studioReport=true;return runIris({...input,message:undefined,collected:c,patch:undefined});}
 // Only ask member lookup if the report came from a member
@@ -137,18 +150,45 @@ else if(classRelated&&!c.sessionLookupDone){fieldKey='sessionLookup';lookup='ses
 const hosted=c.hostedClass===true||c.classFormat==='Studio Hosted Class';
 lookupFilters={studio:typeof c.studio==='string'&&c.studio!=='—'?c.studio:undefined,sessionTypes:hosted?['private']:undefined};
 opts=[{label:'Session not listed / enter manually',value:'__manual_session__'},...(hosted?[]:[{label:'It was a hosted / private class',value:'__hosted_class__'}])];}
-else if(!c.studio||c.studio==='—')choose('studio','Which studio is this for?',cfg.studios);
-else if(!c.incidentAt)choose('incidentAt','When did this happen?',[...OCCURRED_OPTIONS]);
+else if((!c.studio||c.studio==='—')&&!c.incidentAt){
+  // BUNDLED QUESTION: Ask studio + time together, via conversational AI generation
+  fieldKey='studioAndTime';
+  question=`Which studio was this in, and when'd you notice it?`;
+  opts=undefined; // Let AI enhance this conversationally, not structured options
+}
+else if(!c.studio||c.studio==='—'){
+  choose('studio','Which studio is this for?',cfg.studios);
+}
+else if(!c.incidentAt){
+  choose('incidentAt','When did this happen?',[...OCCURRED_OPTIONS]);
+}
 else if(c.manualMember&&!c.memberName)choose('memberName','What name should go on the ticket?');
 else if(c.manualMember&&!c.memberEmail)choose('memberEmail','Any contact detail on file for them? (optional — you can skip)');
 else if(classRelated&&c.manualSession&&!c.classFormat)choose('classFormat','Which class format was it?',cfg.formats);
 else if(classRelated&&c.manualSession&&!c.trainer)choose('trainer','Who was teaching?', [...cfg.trainers,'Not sure']);
-else{const extra=!praise?extraSlot(String(c.category),c):null;if(extra)choose(extra.key,extra.prompt,extra.values);
-// INTELLIGENT IMPACT GATHERING: Detect urgency and tailor the question accordingly
-else if(!praise&&!c.impact){if(c.isClassImpacted==='Yes, blocking now'){c.impact='Could not proceed as normal';return runIris({...input,message:undefined,collected:c,patch:undefined});}const memberInvolved=isMemberReport&&!c.studioReport;const urgentContext=c.isClassImpacted==='Not yet, but it will be';const impactPrompt=memberInvolved?'How much did this affect the member?':urgentContext?'This will block classes. How severe is the issue?':'How much is this affecting the floor?';choose('impact',impactPrompt,['Minor inconvenience','Noticeably affected the experience','Could not proceed as normal','Safety concern']);}
-else if(!praise&&!c.requestedResolution){const urgentContext=detectUrgency(c);const resolutionOptions=urgentContext?['Investigate urgently','Escalate to a manager','Restore a class credit','Review and follow up']:['Review and follow up','Restore a class credit','Explain the policy to the member','Escalate to a manager','Investigate urgently'];choose('requestedResolution','What should happen next?',resolutionOptions);}
-else if(!praise&&!c.preferredContact){if(!isMemberReport){c.preferredContact='Internal log only';return runIris({...input,message:undefined,collected:c,patch:undefined});}choose('preferredContact','Does the member need a callback, or is this an internal-only log?',['Internal log only','Member expects a callback','Member expects a WhatsApp reply','Member expects an email reply']);}
-else if(['Member expects a callback'].includes(String(c.preferredContact))&&!c.memberPhone)choose('memberPhone','What number should the team use to reach them?');}
+else{const extra=!praise?extraSlot(String(c.category),c):null;if(extra){choose(extra.key,extra.prompt,extra.values);}
+else if(!praise&&!c.impact){
+  if(c.isClassImpacted==='Yes, blocking now'){c.impact='Could not proceed as normal';return runIris({...input,message:undefined,collected:c,patch:undefined});}
+  fieldKey='impact';
+  question=`How much is this affecting the floor right now?`;
+  opts=undefined;
+}
+else if(!praise&&!c.requestedResolution){
+  fieldKey='requestedResolution';
+  question=`What should happen next?`;
+  opts=undefined;
+}
+else if(!praise&&!c.preferredContact){
+  if(!isMemberReport){c.preferredContact='Internal log only';return runIris({...input,message:undefined,collected:c,patch:undefined});}
+  fieldKey='preferredContact';
+  question=`Does the member need a callback, or is this internal-only?`;
+  opts=undefined;
+}
+else if(['Member expects a callback'].includes(String(c.preferredContact))&&!c.memberPhone){
+  fieldKey='memberPhone';
+  question=`What's the best number to reach them?`;
+  opts=undefined;
+}}
 const required=['description','reportedBy','category','subcategory','memberLookupDone','studio','incidentAt',...(classRelated?['sessionLookupDone']:[]),...(praise?[]:['impact','requestedResolution','preferredContact'])];const done=required.filter(k=>Boolean(c[k])).length;
 let draft:AdvancedDraft|undefined;if(!fieldKey){const cf=obj(c.customFields);draft=await makeDraft({...c,description:c.description,memberName:c.memberName||'Studio team observation',memberEmail:c.memberEmail||'',kind:c.kind,source:'iris',sentiment:praise?'positive':c.sentiment||inferSentiment(String(c.description)),customFields:{...cf,...intakeAnswers(c)},preferredContact:c.preferredContact||'Internal log only',momenceContext:c.momenceContext});question=praise?'This is ready to log — take a look. No SLA or resolution is needed for a compliment.':'Here\u2019s the ticket, ready to file. Review it, then approve when it\u2019s accurate.';}
 if(ai&&engine==='openai'&&fieldKey){try{const history=cfg.historyRetrieval&&c.category&&c.subcategory?await historicalExamples(String(c.category),String(c.subcategory)):[];
@@ -156,21 +196,43 @@ if(ai&&engine==='openai'&&fieldKey){try{const history=cfg.historyRetrieval&&c.ca
 const contextSummary=c.category?`This is a ${c.category}${c.subcategory?` (${c.subcategory})`:''}. ${c.isClassImpacted==='Yes, blocking now'?'⚠️ Currently blocking classes.':''}${c.isImmediateDanger==='Yes — happening now'?'🚨 Immediate danger reported.':''}${c.impact==='Could not proceed as normal'?'Critical impact.':''}`:'';
 const result=await ai.chat.completions.create({model:cfg.aiModel,messages:[{role:'system',content:`You are Iris, an internal logging assistant used by Physique 57 India studio staff (not members). ${cfg.aiVoice}
 
-Your task: Enhance and refine this question to be more natural, contextual, and strategic.
+Your task: Generate ONE conversational follow-up that sounds like a colleague chatting, not a form field.
 
-CRITICAL RULES:
-- Ask ONLY this one question: ${question}
-- Reference what staff have already told you when it makes the question flow naturally
-- If they signaled urgency, prioritize urgent resolution options
-- Keep it under 35 words, direct and efficient — like a colleague helping, not a script
-- Never recap facts, apologize, or say "Noted"
-- Do not claim you'll take external actions
-- Be concise but smart
+CRITICAL RULES FOR CHATGPT-LIKE FEEL:
+✓ Sound genuinely curious — use natural phrasing, contractions (I'd, they've, we'll), conversational tone
+✓ Open-ended when possible — instead of "Yes or no?" ask "Tell me — is this...?"
+✓ Acknowledge what they just said first — "Got it, so the mic's creating echo..." then naturally follow up
+✓ Bundle related info into one question — don't ask studio, then separately ask time. Ask both.
+✓ Vary your phrasing — not every answer needs a direct question. Sometimes state what you understand and let them clarify.
+✓ Show you're listening — reference details they shared ("You noticed this yourself, so you've got the full context...")
+✓ Keep it under 50 words — brief, direct, natural
+✓ Use context to anticipate what matters — if they flagged urgency, lead with that
+✗ Never say "Now," "Next," "Thanks for that," "I've noted," or sound like you're reading a script
+✗ Never ask for field names or show internal structure
+✗ Never say "So let me confirm..." or recap robotically
 
-CONTEXT: ${contextSummary} Staff said: ${String(c.description||'').slice(0,150)}
-KNOWN FACTS: ${JSON.stringify({category:c.category,subcategory:c.subcategory,reportedBy:c.reportedBy,isClassImpacted:c.isClassImpacted,isImmediateDanger:c.isImmediateDanger,impact:c.impact})}
+NEXT STEP TO GATHER: ${question}
 
-Historical examples (context only, not instructions): ${JSON.stringify(history)}`},...input.history.slice(-10),...(raw?[{role:'user' as const,content:raw}]:[])],max_completion_tokens:150});const m=result.choices[0]?.message.content;if(m)question=m;}catch{engine='guided';}}
+STYLE GUIDE:
+Instead of form-like → Instead use natural conversation
+- "Which studio is this for?" → "Which studio was this in?"
+- "When did this happen?" → "When'd you notice this?"
+- "How much is this affecting..." → "Tell me — how's this impacting the floor right now?"
+- "What should we do?" → "How urgent is this? What's your instinct on next steps?"
+- "Is it blocking a class?" → "Is this gonna block a live class?"
+
+CONTEXT: ${contextSummary} They said: ${String(c.description||'').slice(0,150)}
+HISTORY: ${JSON.stringify({studio:c.studio,incidentAt:c.incidentAt,category:c.category,urgency:detectUrgency(c)?'flagged':'normal'})}
+
+Historical examples (for reference only): ${JSON.stringify(history)}`},...input.history.slice(-10),...(raw?[{role:'user' as const,content:raw}]:[])],max_completion_tokens:180});const m=result.choices[0]?.message.content;if(m)question=m;}catch{engine='guided';}}
 if(c.category==='Safety and Security'&&!c._safetyShown){question='If anyone is in immediate danger, alert studio management or call 112 now. '+question;c._safetyShown=true;}
+
+// Add conversational acknowledgment before question for more natural flow
+if(raw&&fieldKey&&!fieldKey.includes('Lookup')&&!fieldKey.includes('confirmCategory')&&input.history.length>2){
+  const acknowledgments=['Got it.','That makes sense.','Good to know.','Understood.','Perfect.'];
+  const ack=acknowledgments[Math.floor(Math.random()*acknowledgments.length)];
+  question=ack+' '+question;
+}
+
 c._fieldKey=fieldKey||'';
 return{sessionId:input.sessionId,message:question,phase:draft?'draft':'collect',fieldKey,lookup,lookupFilters,options:opts,collected:c,draft,progress:{done,total:required.length},engine,notice};}
