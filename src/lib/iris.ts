@@ -54,6 +54,27 @@ const FIELD_DESCRIPTIONS: Record<string, string> = {
 function applyMessageFacts(c:Record<string,unknown>,raw:string){
   if(!raw)return;
   const source=raw.toLowerCase();
+
+  // Run deep context extraction for slangs, trainers, areas, and formats
+  const context=extractContext(raw);
+  for(const[k,v]of Object.entries(context)){
+    if(v!==undefined&&v!==''&&(c[k]===undefined||c[k]===''||c[k]==='—')){
+      c[k]=v;
+    }
+  }
+
+  // Slang studio match takes priority
+  if(context.studio)c.studio=context.studio;
+  else if(!c.studio||c.studio==='—'){
+    const studio=matchStudio(raw);if(studio)c.studio=studio;
+  }
+
+  if(context.incidentAt&&!c.incidentAt)c.incidentAt=context.incidentAt;
+  else{
+    const when=normalizeAnswer('incidentAt',raw,OCCURRED_OPTIONS);
+    if(when)c.incidentAt=when;
+  }
+
   if(/\b(colleague|coworker|co-worker|team(?:mate| member)?|associate|staff)\b.*\b(flagged|told|reported|mentioned|raised|said)\b|\b(flagged|told|reported|mentioned|raised|said)\b.*\bby (?:a |my )?(colleague|coworker|associate|staff)\b/i.test(raw)){
     c.reportedBy=REPORTED_BY_OPTIONS[2];
     c.memberLookupDone=true;
@@ -61,23 +82,41 @@ function applyMessageFacts(c:Record<string,unknown>,raw:string){
     c.memberEmail='';
     c.studioReport=true;
   }
-  else if(/\b(member|client|community member|guest)\b.*\b(told|said|reported|mentioned|shared|asked|complained)\b/i.test(raw))c.reportedBy=REPORTED_BY_OPTIONS[1];
-  else if(/\b(i |we )(noticed|saw|found|spotted|observed)\b/i.test(raw))c.reportedBy=REPORTED_BY_OPTIONS[0];
+  else if(/\b(member|client|community member|guest)\b.*\b(told|said|reported|mentioned|shared|asked|complained)\b/i.test(raw)){
+    c.reportedBy=REPORTED_BY_OPTIONS[1];
+  }
+  else if(/\b(i |we )(noticed|saw|found|spotted|observed|checked)\b/i.test(raw)){
+    c.reportedBy=REPORTED_BY_OPTIONS[0];
+    c.memberLookupDone=true;
+    c.memberName='Studio team observation';
+    c.memberEmail='';
+    c.studioReport=true;
+  }
 
-  const studio=matchStudio(raw);if(studio)c.studio=studio;
-  const when=normalizeAnswer('incidentAt',raw,OCCURRED_OPTIONS);if(when)c.incidentAt=when;
-  const context=extractContext(raw);
-  for(const key of ['area','classFormat','trainer','isClassImpacted'] as const)if(context[key]&&!c[key])c[key]=context[key];
   const entities=extractEntities(raw);
   for(const key of ['area','systemName'] as const)if(entities[key]&&!c[key])c[key]=entities[key];
 
-  const top=classifyIssue(raw)[0];
-  // Strong operational signals (lights, leaks, bikes, etc.) are not ambiguous enough
-  // to make a staff member approve an obvious classification before we can ask where
-  // the problem is. Lower-confidence classification still uses the normal confirmation.
-  if(top&&top.score>=12){c.category=top.category;c.subcategory=top.subcategory;c._categoryInferred=true;c._categoryConfirmed=true;}
-  else if(top&&!c.category){c.category=top.category;c.subcategory=top.subcategory;c._categoryInferred=true;}
-  if(top&&top.score>=12&&!c.reportedBy){c.reportedBy=REPORTED_BY_OPTIONS[0];c._reportedByAssumed=true;}
+  if(context.category&&!c.category){
+    c.category=context.category;
+    c.subcategory=context.subcategory;
+    c._categoryInferred=true;
+    c._categoryConfirmed=true;
+  } else if(!c.category){
+    const top=classifyIssue(raw)[0];
+    if(top&&top.score>=6){
+      c.category=top.category;
+      c.subcategory=top.subcategory;
+      c._categoryInferred=true;
+      if(top.score>=10)c._categoryConfirmed=true;
+    }
+  }
+
+  if(c.reportedBy!==REPORTED_BY_OPTIONS[1]){
+    c.memberLookupDone=true;
+    if(!c.memberName)c.memberName='Studio team observation';
+    c.memberEmail='';
+    c.studioReport=true;
+  }
   if(/\b(not member-specific|not a member issue|general (?:studio )?observation|no member involved|colleague|internal)\b/i.test(source)){
     c.memberLookupDone=true;c.studioReport=true;c.memberName='Studio team observation';c.memberEmail='';
   }
@@ -326,9 +365,9 @@ else if((!c.studio||c.studio==='—')&&!c.incidentAt&&!c._bundleTried){
   opts=undefined; // Let AI enhance this conversationally, not structured options
 }
 else if(!c.studio||c.studio==='—'){
-  // Studio cannot be skipped or guessed: it is what routes the ticket to a site. If the answer
-  // has not landed, say why it is needed instead of repeating the same words verbatim.
-  choose('studio',(asked.studio||0)>=2?'I can\u2019t file this without the location \u2014 which studio was it? Pick one below.':'Which studio is this for?',cfg.studios);
+  // Studio cannot be skipped or guessed: it is what routes the ticket to a site.
+  const contextNote = c.area ? `Noted for ${c.area}${c.trainer ? ` (${c.trainer}'s session)` : ''}. ` : '';
+  choose('studio',contextNote+((asked.studio||0)>=2?'I can\u2019t file this without the location \u2014 which studio was it? Pick one below.':'Which studio location center was this at?'),cfg.studios);
 }
 else if(!c.incidentAt){
   choose('incidentAt','When did this happen?',[...OCCURRED_OPTIONS]);
