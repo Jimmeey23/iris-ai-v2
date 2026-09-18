@@ -15,10 +15,57 @@ const handler=()=>void load();window.addEventListener('iris:tickets-updated',han
 return()=>{clearInterval(interval);window.removeEventListener('iris:tickets-updated',handler);document.removeEventListener('visibilitychange',onVisible);};},[load,poll,user,pollSeconds]);return{tickets,loading,error,reload:load};}
 function Sparkline({tickets,color}:{tickets:TicketListRecord[];color:string}){const counts=Array.from({length:7},(_,i)=>tickets.filter(t=>{const diff=Math.floor((Date.now()-new Date(t.createdAt).getTime())/86400000);return diff===6-i;}).length);const max=Math.max(1,...counts);const points=counts.map((n,i)=>`${i*12},${26-n/max*23}`).join(' ');return <svg viewBox="0 0 74 30" className="metric-spark" aria-label="Last seven days"><polyline points={points} fill="none" stroke={color} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>;}
 export function Stats({tickets}:{tickets:TicketListRecord[]}){const open=tickets.filter(t=>!['resolved','closed','recorded'].includes(t.status));const closed=tickets.filter(t=>['resolved','closed'].includes(t.status));const urgent=open.filter(t=>['high','critical'].includes(t.priority));const cards=[{label:'Total tickets',value:tickets.length,note:'Every conversation, accounted for',icon:Ticket,tone:'',rows:tickets,color:'var(--accent)'},{label:'Active conversations',value:open.length,note:'In the hands of your team',icon:Clock3,tone:'purple',rows:open,color:'var(--purple)'},{label:'Needs attention',value:urgent.length,note:'High & critical priority',icon:TriangleAlert,tone:'amber',rows:urgent,color:'var(--amber)'},{label:'Resolved with care',value:closed.length,note:'A better member experience',icon:CheckCircle2,tone:'green',rows:closed,color:'var(--green)'}];return <div className="metric-grid">{cards.map(c=>{const Icon=c.icon;return <div className="card metric" key={c.label}><div className="between"><span className="metric-name">{c.label}</span><span className={'metric-icon '+c.tone}><Icon size={14}/></span></div><div className="between"><strong className="metric-number"><CountUp value={c.value} format={n=>Math.round(n).toString().padStart(2,'0')}/></strong><Sparkline tickets={c.rows} color={c.color}/></div><div className="metric-note">{c.tone==='green'&&<CheckCircle2 size={10}/>} {c.note}</div></div>;})}</div>;}
-export function SlaBadge({ticket}:{ticket:TicketListRecord}){if(!ticket.resolutionRequired||!ticket.slaDueAt)return <span className="muted" style={{fontSize:10}}>No SLA</span>;if(['resolved','closed'].includes(ticket.status))return <span className="badge green">Completed</span>;const due=new Date(ticket.slaDueAt).getTime()-Date.now();const remaining=Math.ceil(Math.abs(due)/3600000);return <span style={{fontSize:10,color:due<0?'var(--red)':due<7200000?'var(--amber)':'var(--secondary)',whiteSpace:'nowrap'}}>{due<0?`${remaining}h overdue`:`${remaining}h remaining`}</span>;}
-export function TicketTable({tickets,onSelect,selected,onToggle}:{tickets:TicketListRecord[];onSelect?:(id:number)=>void;selected?:number[];onToggle?:(id:number)=>void}){return <div className="table-wrap"><table className="data-table"><thead><tr>{onToggle&&<th style={{width:15}}/>}<th>TICKET & MEMBER</th><th>CATEGORY</th><th>STATUS</th><th>PRIORITY</th><th>OWNER</th><th>SLA</th></tr></thead><tbody>{tickets.map(t=><tr key={t.id} onClick={()=>onSelect?onSelect(t.id):window.location.assign('/tickets/'+t.id)}>{onToggle&&<td onClick={e=>e.stopPropagation()}><input aria-label={'Select '+t.ticketNumber} type="checkbox" checked={selected?.includes(t.id)||false} onChange={()=>onToggle(t.id)}/></td>}<td><p className="ticket-name">{t.title}</p><div className="ticket-meta"><span className="ticket-id">{t.ticketNumber}</span><span>·</span><span>{t.memberName}</span><span>·</span><span>{relativeTime(t.createdAt)}</span></div></td><td><span className="category-cell" style={{display:'block'}}>{t.category}</span></td><td><Status status={t.status}/></td><td><Priority priority={t.priority}/></td><td><div className="mini-owner"><Avatar name={t.assignedStaffName||'Unassigned'} tone="purple"/><span>{t.assignedStaffName?.split(' ')[0]||'—'}</span></div></td><td><SlaBadge ticket={t}/></td></tr>)}</tbody></table></div>;}
-export function TicketCard({ticket:t,onSelect}:{ticket:TicketListRecord;onSelect?:(id:number)=>void}){return <button className="ticket-card" onClick={()=>onSelect?onSelect(t.id):window.location.assign('/tickets/'+t.id)}><div className="between"><span className="accent" style={{fontSize:10}}>{t.ticketNumber}</span><Priority priority={t.priority}/></div><h3>{t.title}</h3><p>{t.memberName} · {t.studio?.split(',')[0]}</p><div className="between" style={{marginTop:15}}><Status status={t.status}/><Avatar name={t.assignedStaffName||'Unassigned'} tone="purple"/></div><div style={{marginTop:10}}><SlaBadge ticket={t}/></div></button>;}
+
+/** Format milliseconds into a human-readable countdown string */
+function formatCountdown(ms: number): string {
+  const abs = Math.abs(ms);
+  const totalHours = Math.floor(abs / 3600000);
+  const days = Math.floor(totalHours / 24);
+  const hours = totalHours % 24;
+  const minutes = Math.floor((abs % 3600000) / 60000);
+  if (days > 0) return `${days}d ${hours}h`;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  return `${minutes}m`;
+}
+
+/** Oversized SLA Countdown Timer — prominent display for all ticket views */
+export function SlaCountdown({ticket, large=false}:{ticket:TicketListRecord; large?:boolean}){
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 30000); // Update every 30s
+    return () => clearInterval(id);
+  }, []);
+
+  if(!ticket.resolutionRequired||!ticket.slaDueAt){
+    return <div className={`sla-countdown none ${large?'sla-countdown-lg':''}`}>
+      <span className="sla-countdown-value">—</span>
+      <span className="sla-countdown-label">No SLA</span>
+    </div>;
+  }
+  if(['resolved','closed'].includes(ticket.status)){
+    return <div className={`sla-countdown done ${large?'sla-countdown-lg':''}`}>
+      <span className="sla-countdown-value">✓</span>
+      <span className="sla-countdown-label">Resolved</span>
+    </div>;
+  }
+  const due = new Date(ticket.slaDueAt).getTime();
+  const ms = due - now;
+  const state = slaState(ticket.slaDueAt, ticket.status);
+  const display = formatCountdown(ms);
+
+  return <div className={`sla-countdown ${state} ${large?'sla-countdown-lg':''}`}>
+    <span className="sla-countdown-value">{ms < 0 ? `−${display}` : display}</span>
+    <span className="sla-countdown-label">{ms < 0 ? 'overdue' : 'remaining'}</span>
+  </div>;
+}
+
+/** Legacy wrapper for backward-compat */
+export function SlaBadge({ticket}:{ticket:TicketListRecord}){return <SlaCountdown ticket={ticket}/>;}
+
+export function TicketTable({tickets,onSelect,selected,onToggle}:{tickets:TicketListRecord[];onSelect?:(id:number)=>void;selected?:number[];onToggle?:(id:number)=>void}){return <div className="table-wrap"><table className="data-table"><thead><tr>{onToggle&&<th style={{width:15}}/>}<th>TICKET & MEMBER</th><th>CATEGORY</th><th>STATUS</th><th>PRIORITY</th><th>OWNER</th><th style={{textAlign:'right'}}>SLA TIMER</th></tr></thead><tbody>{tickets.map(t=><tr key={t.id} onClick={()=>onSelect?onSelect(t.id):window.location.assign('/tickets/'+t.id)}>{onToggle&&<td onClick={e=>e.stopPropagation()}><input aria-label={'Select '+t.ticketNumber} type="checkbox" checked={selected?.includes(t.id)||false} onChange={()=>onToggle(t.id)}/></td>}<td><p className="ticket-name">{t.title}</p><div className="ticket-meta"><span className="ticket-id">{t.ticketNumber}</span><span>·</span><span>{t.memberName}</span><span>·</span><span>{relativeTime(t.createdAt)}</span></div></td><td><span className="category-cell" style={{display:'block'}}>{t.category}</span></td><td><Status status={t.status}/></td><td><Priority priority={t.priority}/></td><td><div className="mini-owner"><Avatar name={t.assignedStaffName||'Unassigned'} tone="purple"/><span>{t.assignedStaffName?.split(' ')[0]||'—'}</span></div></td><td><SlaCountdown ticket={t}/></td></tr>)}</tbody></table></div>;}
+export function TicketCard({ticket:t,onSelect}:{ticket:TicketListRecord;onSelect?:(id:number)=>void}){return <button className="ticket-card" onClick={()=>onSelect?onSelect(t.id):window.location.assign('/tickets/'+t.id)}><div className="between"><span className="accent" style={{fontSize:10}}>{t.ticketNumber}</span><Priority priority={t.priority}/></div><h3>{t.title}</h3><p>{t.memberName} · {t.studio?.split(',')[0]}</p><div className="between" style={{marginTop:15}}><Status status={t.status}/><Avatar name={t.assignedStaffName||'Unassigned'} tone="purple"/></div><SlaCountdown ticket={t}/></button>;}
 export function Kanban({tickets,onSelect}:{tickets:TicketListRecord[];onSelect?:(id:number)=>void}){const columns=[{id:'new',label:'Incoming',states:['new','triaged']},{id:'assigned',label:'Assigned',states:['assigned']},{id:'in_progress',label:'In progress',states:['in_progress']},{id:'waiting',label:'Awaiting response',states:['waiting_on_member','waiting_on_vendor']},{id:'done',label:'Completed',states:['resolved','closed','recorded']}];return <div className="kanban">{columns.map(c=>{const rows=tickets.filter(t=>c.states.includes(t.status));return <div className="kanban-column" key={c.id}><div className="kanban-head"><strong style={{fontWeight:500}}>{c.label}</strong><Badge>{rows.length}</Badge></div>{rows.map(t=><TicketCard key={t.id} ticket={t} onSelect={onSelect}/>)}{!rows.length&&<p className="muted" style={{fontSize:11,padding:15,textAlign:'center'}}>All clear here.</p>}</div>;})}</div>;}
+
 export function filterTickets(tickets:TicketListRecord[],query:string,studio:string,priority:string,assignee:string){return tickets.filter(t=>(!studio||t.studio===studio)&&(!priority||t.priority===priority)&&(!assignee||t.assignedStaffName===assignee)&&(!query||(t.title+' '+t.memberName+' '+t.ticketNumber+' '+t.category).toLowerCase().includes(query.toLowerCase())));}
 
 const STATUS_BUCKETS=[{id:'new',label:'New / triaged',states:['new','triaged']},{id:'active',label:'In progress',states:['assigned','in_progress']},{id:'waiting',label:'Waiting',states:['waiting_on_member','waiting_on_vendor']},{id:'done',label:'Done',states:['resolved','closed','recorded']}];

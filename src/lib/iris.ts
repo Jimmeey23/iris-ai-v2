@@ -4,11 +4,11 @@ import {extractEntities,inferSentiment,classifyIssue,matchStudio} from './classi
 import {makeDraft,historicalExamples} from './tickets';
 import {listMomence,obj} from './momence';
 import {extractContext,determineSkippableFields} from './context-extractor';
-import {STUDIO_AREAS,SYSTEMS,OCCURRED_OPTIONS,REPORTED_BY_OPTIONS} from './constants';
+import {STUDIO_AREAS,SYSTEMS,OCCURRED_OPTIONS,REPORTED_BY_OPTIONS,STAGES_SC3_PARTS,STAGES_SC3_TROUBLESHOOTING,CYCLE_INTAKE_QUESTIONS} from './constants';
 import type {IrisTurn,IrisMessage} from './iris-contract';
 import type {AdvancedDraft} from './ticket-contract';
 
-const FIELD_KEYS=['category','subcategory','kind','description','studio','classFormat','trainer','membership','memberName','memberEmail','memberPhone','incidentAt','preferredContact','requestedResolution','impact','sentiment','area','systemName','itemDescription','lastSeen','isClassImpacted','isImmediateDanger','alreadyReported','channelOfIssue','reportedBy'];
+const FIELD_KEYS=['category','subcategory','kind','description','studio','classFormat','trainer','membership','memberName','memberEmail','memberPhone','incidentAt','preferredContact','requestedResolution','impact','sentiment','area','systemName','itemDescription','lastSeen','isClassImpacted','isImmediateDanger','alreadyReported','channelOfIssue','reportedBy','bikeNumber','cycleIssueType','cyclePart','cycleFirstOrRecurring','cycleReporterAction'];
 const options=(values:string[])=>values.map(value=>({label:value,value}));
 
 /** Fields whose offered chips are the whole answer space: a value that is not one of them is
@@ -17,8 +17,8 @@ const options=(values:string[])=>values.map(value=>({label:value,value}));
  *  asked again rather than written onto the ticket as prose. */
 const ENUM_FIELDS=new Set(['category','subcategory','studio','reportedBy','incidentAt','area','systemName','isClassImpacted','isImmediateDanger','alreadyReported','lastSeen','channelOfIssue','classFormat']);
 /** Fields the flow can file without, once asking has clearly stopped working. */
-const SKIPPABLE=new Set(['impact','requestedResolution','preferredContact','area','alreadyReported','isClassImpacted','systemName','itemDescription','lastSeen','channelOfIssue','trainer','classFormat','incidentAt']);
-const SKIP_VALUE:Record<string,string>={trainer:'Not sure',incidentAt:'Ongoing / recurring'};
+const SKIPPABLE=new Set(['impact','requestedResolution','preferredContact','area','alreadyReported','isClassImpacted','systemName','itemDescription','lastSeen','channelOfIssue','trainer','classFormat','incidentAt','cycleIssueType','cyclePart','cycleFirstOrRecurring','cycleReporterAction']);
+const SKIP_VALUE:Record<string,string>={trainer:'Not sure',incidentAt:'Ongoing / recurring',cycleFirstOrRecurring:'Not sure',cycleReporterAction:'Not specified'};
 const SKIPPED='Not specified';
 /** How many times one field may be asked before the flow stops waiting on it. Without this a
  *  question whose answer never lands is asked forever — the conversation reads as a loop and
@@ -208,13 +208,35 @@ function extraSlot(category:string,c:Record<string,unknown>):{key:string;prompt:
   if(category==='Theft and Lost Items'&&!c.itemDescription)return{key:'itemDescription',prompt:'What item is missing? A short description is enough.',values:[]};
   if(category==='Theft and Lost Items'&&!c.lastSeen)return{key:'lastSeen',prompt:'Where was it last seen?',values:['Locker','Studio floor','Lounge','Valet','Boutique','Changing room']};
   if(category==='Customer Service and Communication'&&!c.channelOfIssue)return{key:'channelOfIssue',prompt:'Where did this interaction happen?',values:['Front desk','Phone','WhatsApp','Email','Social media']};
+
+  // PowerCycle / Stages SC3 bike-specific intake questions
+  const isCycleRelated=isMaintenance&&(/\b(bike|cycle|powercycle|power cycle|spin|pedal|flywheel|resistance|crank|handlebar|fitloc|console|saddle|belt|sprint\s?shift)\b/i.test(String(c.description||''))||/powercycle/i.test(String(c.area||''))||/powercycle/i.test(String(c.classFormat||'')));
+  if(isCycleRelated){
+    if(!c.bikeNumber)return{key:'bikeNumber',prompt:'Which bike number is this about? (e.g. Bike #3, Bike 7)',values:[]};
+    if(!c.cycleIssueType){
+      // Auto-match from description if possible
+      const desc=String(c.description||'').toLowerCase();
+      const autoMatch=STAGES_SC3_TROUBLESHOOTING.find(t=>t.keywords.some(kw=>desc.includes(kw)));
+      if(autoMatch){c.cycleIssueType=autoMatch.symptom;c.cyclePart=STAGES_SC3_PARTS.find(p=>p.id===autoMatch.partId)?.name;return null;}
+      return{key:'cycleIssueType',prompt:'What exactly is the issue with this bike?',values:STAGES_SC3_TROUBLESHOOTING.map(t=>t.symptom)};
+    }
+    if(!c.cyclePart){
+      // Auto-fill from matched troubleshooting entry
+      const matched=STAGES_SC3_TROUBLESHOOTING.find(t=>t.symptom===c.cycleIssueType);
+      if(matched){c.cyclePart=STAGES_SC3_PARTS.find(p=>p.id===matched.partId)?.name;}
+      else return{key:'cyclePart',prompt:'Which part of the bike is affected?',values:STAGES_SC3_PARTS.map(p=>p.name)};
+    }
+    if(!c.cycleFirstOrRecurring)return{key:'cycleFirstOrRecurring',prompt:'Is this the first time this has happened on this bike, or has it happened before?',values:['First time','Recurring \u2014 happened before','Not sure']};
+    if(!c.cycleReporterAction)return{key:'cycleReporterAction',prompt:'What did you do when you noticed it?',values:['Took bike out of rotation','Flagged it but class continued','Member reported mid-class','Noticed during setup/walkthrough']};
+  }
+
   return null;
 }
 
 /** The intake answers that belong on the ticket. Undefined keys are dropped so the
  *  stored JSON stays readable. */
 function intakeAnswers(c:Record<string,unknown>){
-  const out:Record<string,unknown>={reportedBy:c.reportedBy,sessionContext:c.sessionContext,area:c.area,systemName:c.systemName,isClassImpacted:c.isClassImpacted,isImmediateDanger:c.isImmediateDanger,alreadyReported:c.alreadyReported,itemDescription:c.itemDescription,lastSeen:c.lastSeen,channelOfIssue:c.channelOfIssue,occurredAt:occurredAtIso(c.incidentAt)};
+  const out:Record<string,unknown>={reportedBy:c.reportedBy,sessionContext:c.sessionContext,area:c.area,systemName:c.systemName,isClassImpacted:c.isClassImpacted,isImmediateDanger:c.isImmediateDanger,alreadyReported:c.alreadyReported,itemDescription:c.itemDescription,lastSeen:c.lastSeen,channelOfIssue:c.channelOfIssue,occurredAt:occurredAtIso(c.incidentAt),bikeNumber:c.bikeNumber,cycleIssueType:c.cycleIssueType,cyclePart:c.cyclePart,cycleFirstOrRecurring:c.cycleFirstOrRecurring,cycleReporterAction:c.cycleReporterAction};
   for(const k of Object.keys(out))if(out[k]===undefined||out[k]==='')delete out[k];
   return out;
 }
@@ -337,7 +359,16 @@ Studio Knowledge & Room Layouts:
 - Supreme HQ Bandra: 3 studios (2 regular studios: Studio 1 & 2 of capacity 13 pax each, 1 PowerCycle studio capacity 13 pax), Lobby / Reception, Lockers, Washrooms.
 - Kenkere House (Bengaluru): 2 studios (Studio 1 & 2 of capacity 13 pax each), Lobby / Reception, Washroom & changing.
 - Courtside (Mumbai) & Copper & Cloves (Bengaluru): Main Studio Floor, Reception, Lounge.
+
+PowerCycle / Stages SC3 Bike Knowledge (use when issue involves bikes/cycles):
+- Model: Stages SC3 / SC3.20 / SC3.22 indoor cycles
+- Key parts: ${STAGES_SC3_PARTS.map(p=>`${p.name} (${p.tools}${p.torque?', torque: '+p.torque:''})`).join('; ')}
+- Common issues: ${STAGES_SC3_TROUBLESHOOTING.map(t=>`"${t.symptom}" → ${t.partId}, severity: ${t.severity}`).join('; ')}
+- CRITICAL: Left pedal (CR-L) is REVERSE THREADED. Flywheel scraping = immediately remove bike from rotation.
+- When a bike issue is reported, extract: bikeNumber (e.g. "Bike #3"), cycleIssueType (symptom match), cyclePart (affected part), cycleFirstOrRecurring (first time / recurring).
+
 Do not guess a member, class, date, studio or contact detail — a room reference such as "Studio 1" or "Studio 2" names a room inside a location and is NOT a studio, so leave studio unset for those unless it's a unique room like His Space, Her Space, or Brain Cell (which automatically implies Kwality House). Do not convert safety reports into compliments. Heuristic classification hint (trust it unless the message clearly contradicts it): ${JSON.stringify(c._guess||null)}. Studio aliases: kemps/kwality→Kwality House, Kemps Corner; shq/supreme/bandra→Supreme HQ, Bandra; kenkere/indiranagar→Kenkere House, Bengaluru; courtside→Courtside, Mumbai; copper/cloves/c&c→the Studio by Copper & Cloves, Bengaluru. Current facts: ${JSON.stringify(c)}. Correct earlier facts when explicitly corrected. Tools provide suggestions, not identity verification.`},...input.history.slice(-12),{role:'user',content:raw}];
+
 let result=await ai.chat.completions.create({model:cfg.aiModel,messages,tools:toolDefs,response_format:{type:'json_object'},max_completion_tokens:1200});
 const calls=result.choices[0]?.message.tool_calls;if(calls?.length){messages.push(result.choices[0].message);for(const call of calls){if(call.type!=='function')continue;let output:unknown;try{const args=obj(JSON.parse(call.function.arguments));if(!['members','sessions'].includes(String(args.module)))throw new Error('Invalid module');const found=await listMomence(args.module as 'members'|'sessions',{query:String(args.query||''),pageSize:5});output={source:found.source,suggestions:found.items.map(i=>({id:i.id,name:i.name}))};}catch{output={error:'Lookup unavailable. Ask the user to search and select manually.'};}messages.push({role:'tool',tool_call_id:call.id,content:JSON.stringify(output)});}result=await ai.chat.completions.create({model:cfg.aiModel,messages,response_format:{type:'json_object'},max_completion_tokens:1200});}
 const fields=obj(obj(JSON.parse(result.choices[0]?.message.content||'{}')).fields);for(const[k,v]of Object.entries(fields)){if(!FIELD_KEYS.includes(k)||typeof v!=='string'||v.length>=20000)continue;
