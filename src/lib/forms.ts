@@ -32,7 +32,7 @@ export type EmbeddedForm={
 /**
  * The four forms the studios actually use. Their ids match the import sources in
  * `trainer-reviews.ts`, so a submission made here is the same submission the
- * trainer reviews tab later pulls in — the assertion below keeps that true.
+ * trainer reviews tab later pulls in — `unimportedBuiltInForms` keeps that true.
  */
 export const BUILT_IN_FORMS:EmbeddedForm[]=[
   {key:'strength',name:'Strength Lab feedback',blurb:'Trainer QA & Assessment — FIT & Strength Lab',template:'Strength Lab',embedId:'srq1c6n7br',embedKind:'zite-v2',height:700,icon:'◈',apiPollable:false,custom:false},
@@ -44,6 +44,19 @@ export const BUILT_IN_FORMS:EmbeddedForm[]=[
 /** The import source, if any, that collects what this form receives. */
 export function importSourceFor(embedId:string){
   return TRAINER_REVIEW_SOURCES.find(s=>s.id===embedId);
+}
+
+/**
+ * Built-in forms with no import source. A form here is collecting submissions that never
+ * become assessment tickets, so they are absent from the trainer reviews tab and from every
+ * report — which is exactly how the Barre assessment went unrecorded. Non-empty is a bug.
+ */
+export function unimportedBuiltInForms(){
+  return BUILT_IN_FORMS.filter(f=>!importSourceFor(f.embedId)).map(f=>f.name);
+}
+if(process.env.NODE_ENV!=='production'){
+  const missing=unimportedBuiltInForms();
+  if(missing.length)console.warn(`[forms] No trainer-review import source for: ${missing.join(', ')}. Their submissions will not reach the trainer reviews tab or any report.`);
 }
 
 export const customFormSchema=z.object({

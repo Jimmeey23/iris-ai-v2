@@ -27,7 +27,8 @@ function prettyLabel(key:string){
  */
 function ceilingFor(value:number){return value<=5?5:value<=10?10:100;}
 
-const NOISE=/^(id|submissionid|submittedat|createdat|updatedat|trainername|evaluatorname|location|sessionname|classdate|performanceband|totalscore|keystrengths|areasforimprovement|coachingactionplan|sectionnotes|evaluationscore|evaluator|sourceband|sourcelabel|sourceref|strengths|improvements|coachingplan|scorecard|fillout|sourceworkflow|scorescale|calculatedscore)$/i;
+// Trailing "1"/"2" covers Fillout's duplicated question labels, e.g. "Trainer Name (1)".
+const NOISE=/^(id|submissionid|submittedat|createdat|updatedat|trainername|evaluatorname|location|sessionname|classdate|performanceband|totalscore|keystrengths|areasforimprovement|coachingactionplan|sectionnotes|evaluationscore|evaluator|sourceband|sourcelabel|sourceref|strengths|improvements|coachingplan|scorecard|fillout|sourceworkflow|scorescale|calculatedscore)\d*$/i;
 
 /** Splits a submission's recorded scorecard into numeric rubric rows and free-text answers. */
 function readScorecard(raw:unknown){

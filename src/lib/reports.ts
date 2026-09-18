@@ -1,7 +1,9 @@
 import {CATEGORY_MAP,DEPARTMENT_RECORDS,STUDIOS} from './constants';
 import {slugify} from './utils';
 
-export type TicketLike={id:number;ticketNumber:string;title:string;summary:string;description:string;category:string;subcategory:string;status:string;priority:string;severity:string;sentiment:string|null;kind:string;studio:string|null;classFormat:string|null;trainer:string|null;membership:string|null;incidentAt:string|null;memberName:string;memberEmail:string|null;assignedStaffId:number|null;assignedStaffName:string|null;departmentId:string|null;departmentName:string|null;slaHours:number;slaDueAt:string|null;resolutionRequired:boolean;source:string;tags:string[];isEscalated:boolean;resolvedAt:string|null;closedAt:string|null;createdAt:string;updatedAt:string};
+export type TicketLike={id:number;ticketNumber:string;title:string;summary:string;description:string;category:string;subcategory:string;status:string;priority:string;severity:string;sentiment:string|null;kind:string;studio:string|null;classFormat:string|null;trainer:string|null;membership:string|null;incidentAt:string|null;memberName:string;memberEmail:string|null;assignedStaffId:number|null;assignedStaffName:string|null;departmentId:string|null;departmentName:string|null;slaHours:number;slaDueAt:string|null;resolutionRequired:boolean;source:string;tags:string[];isEscalated:boolean;resolvedAt:string|null;closedAt:string|null;createdAt:string;updatedAt:string;
+  /** The assessment scorecard and its source live here, not in a column. */
+  customFields?:Record<string,unknown>};
 
 export type ReportColumn={key:string;label:string};
 export type ReportDef={
@@ -48,7 +50,14 @@ export function buildReportCatalogue():ReportDef[]{
     makeSimple('unassigned','Unassigned queue','Tickets waiting in a department queue without a named owner.','Operational',t=>t.assignedStaffId===null),
     makeSimple('resolution-time','Resolution time analysis','Resolved tickets with the time taken from creation to resolution.','Performance',t=>Boolean(t.resolvedAt),[{key:'resolutionHours',label:'Resolution (h)'}],t=>({resolutionHours:t.resolvedAt?hoursBetween(t.createdAt,t.resolvedAt).toFixed(1):'—'})),
     makeSimple('trainer-feedback','Trainer feedback summary','All trainer-related feedback and issues raised.','People',t=>t.category==='Trainer Feedback'&&t.kind!=='assessment',[{key:'trainer',label:'Trainer'}],t=>({trainer:t.trainer||'—'})),
-    makeSimple('trainer-assessments','Trainer assessment scorecards','Completed weighted evaluations for trainers.','People',t=>t.kind==='assessment',[{key:'trainer',label:'Trainer'}],t=>({trainer:t.trainer||'—'})),
+    // The score, evaluator and form the assessment came from are the point of this report —
+    // without them the rows were indistinguishable from any other trainer ticket.
+    makeSimple('trainer-assessments','Trainer assessment scorecards','Completed evaluations for trainers, with their score and the form each came from.','People',t=>t.kind==='assessment',
+      [{key:'trainer',label:'Trainer'},{key:'evaluationScore',label:'Score (%)'},{key:'evaluator',label:'Evaluated by'},{key:'sessionName',label:'Class / level'},{key:'reviewSource',label:'Source form'}],
+      t=>{const cf=t.customFields||{};const score=Number(cf.evaluationScore);
+        return{trainer:t.trainer||'—',evaluationScore:Number.isFinite(score)&&score>0?score:'—',
+          evaluator:String(cf.evaluator||'—')||'—',sessionName:String(cf.sessionName||t.classFormat||'—')||'—',
+          reviewSource:String(cf.sourceLabel||'Logged in IRIS')};}),
     makeSimple('safety-incidents','Safety & security incidents','All logged safety and security concerns, for management review.','Compliance',t=>t.category==='Safety and Security'),
     makeSimple('theft-register','Theft & lost items register','Every reported theft or missing item, with last-seen context.','Compliance',t=>t.category==='Theft and Lost Items'),
     makeSimple('compliments','Compliments & positive feedback','Record-only appreciation and positive member feedback.','Sentiment',t=>t.kind==='compliment'||t.sentiment==='positive'),

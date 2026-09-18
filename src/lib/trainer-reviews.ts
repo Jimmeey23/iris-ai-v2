@@ -7,8 +7,9 @@ import {credentials,getConfig} from './config';
 import {ApiError} from './auth';
 
 /**
- * Trainer assessments arrive from three places, all owned by the same Fillout organisation:
- * a Fillout form, and two Zite apps (Zite is Fillout's app builder — a Zite app is a "flow",
+ * Trainer assessments arrive from four places, all owned by the same Fillout organisation:
+ * two Fillout forms (the weighted Barre assessment and the non-technical, member-facing
+ * assessment), and two Zite apps (Zite is Fillout's app builder — a Zite app is a "flow",
  * not a form, so the Forms API cannot read it and its public flow API is used instead).
  *
  * Every source is normalised to one shape and filed as an `assessment` ticket, which is what
@@ -18,6 +19,7 @@ import {ApiError} from './auth';
 export type ReviewSource={id:string;kind:'fillout-form'|'zite-app';label:string};
 
 export const TRAINER_REVIEW_SOURCES:ReviewSource[]=[
+  {id:'dSw2VkfdGqus',kind:'fillout-form',label:'Training Quality Assessment — Barre'},
   {id:'syTsvPww8nus',kind:'fillout-form',label:'Training Quality Assessment — by staff'},
   {id:'srq1c6n7br',kind:'zite-app',label:'Trainer QA & Assessment — FIT & Lab'},
   {id:'pdtcpzhxas',kind:'zite-app',label:'Feedback Tracker Pro'},
@@ -28,8 +30,10 @@ export function reviewSources():ReviewSource[]{
   const raw=process.env.TRAINER_REVIEW_SOURCES?.trim();
   if(!raw)return TRAINER_REVIEW_SOURCES;
   return raw.split(',').map(part=>{
-    const [kind,id]=part.trim().split(':');
-    return{id:(id||'').trim(),kind:kind.trim()==='fillout-form'?'fillout-form':'zite-app',label:(id||'').trim()} as ReviewSource;
+    const [kind,id,...label]=part.trim().split(':');
+    const trimmed=(id||'').trim();
+    return{id:trimmed,kind:kind.trim()==='fillout-form'?'fillout-form':'zite-app',
+      label:label.join(':').trim()||TRAINER_REVIEW_SOURCES.find(s=>s.id===trimmed)?.label||trimmed} as ReviewSource;
   }).filter(s=>s.id);
 }
 
@@ -72,7 +76,17 @@ async function fetchZite(source:ReviewSource):Promise<NormalisedReview[]>{
   }).filter(r=>r.trainer&&r.sourceRef.split(':')[2]);
 }
 
-/** The Fillout form's submissions, whose ratings are recorded out of 5 per question. */
+/**
+ * Question types Fillout uses for a scored answer. The label is not a reliable signal — the
+ * Barre rubric names its criteria "❖ Pre-Class Setup & Vibe" with no "rate"/"score" in the
+ * text — so the question's own type decides what counts towards the evaluation score.
+ */
+const SCORED_TYPES=new Set(['NumberInput','StarRating','Slider','OpinionScale','ScaleRating','Rating','NumberRating','Ranking']);
+/** Fillout does not send a denominator, so the nearest conventional ceiling above the value
+ *  is used — the same rule the trainer reports apply when drawing a rubric row. */
+const ceilingFor=(v:number)=>v<=5?5:v<=10?10:100;
+
+/** The Fillout forms' submissions, whose scored questions are normalised to one 0-100 score. */
 async function fetchFilloutForm(source:ReviewSource):Promise<NormalisedReview[]>{
   const c=await credentials('fillout');
   if(!c.api_key)throw new ApiError('Connect Fillout in Integrations to read trainer assessment submissions.',503);
@@ -85,18 +99,25 @@ async function fetchFilloutForm(source:ReviewSource):Promise<NormalisedReview[]>
     const rows=arr(obj(await res.json()).responses);
     for(const row of rows){
       const r=obj(row);
-      const answers=arr(r.questions).map(q=>({name:str(obj(q).name),value:obj(q).value}));
+      const answers=arr(r.questions).map(q=>({name:str(obj(q).name),type:str(obj(q).type),value:obj(q).value}));
       const pick=(re:RegExp)=>answers.find(a=>re.test(a.name)&&a.value!=null&&str(a.value)!=='')?.value;
-      const ratings=answers.filter(a=>typeof a.value==='number'&&/rate|score/i.test(a.name)).map(a=>Number(a.value));
-      // Questions are scored out of 5; the workspace keeps assessments as a percentage.
-      const score=ratings.length?Math.round(ratings.reduce((n,v)=>n+v,0)/(ratings.length*5)*100):null;
+      // A scored question is one Fillout typed as scored, or one whose label says so. Both are
+      // required: the Barre rubric only declares itself through the type, and a form that asks
+      // "Rate ... on 5" as a plain input only declares itself through the label.
+      const ratings=answers
+        .filter(a=>typeof a.value==='number'&&(SCORED_TYPES.has(a.type)||/\brate|\bscore|rating/i.test(a.name)))
+        .map(a=>Number(a.value));
+      // Each question carries its own ceiling, so a 0-5 rubric and a 0-10 one average together.
+      const score=ratings.length
+        ?Math.round(ratings.reduce((n,v)=>n+v/ceilingFor(v),0)/ratings.length*100)
+        :null;
       out.push({
         sourceRef:`fillout:${source.id}:${str(r.submissionId)}`,sourceLabel:source.label,
         trainer:str(pick(/trainer\s*name/i)||pick(/trainer|instructor/i)),
         evaluator:str(pick(/evaluated\s*by|evaluator|assessor/i))||'Not recorded',
         studio:str(pick(/center|centre|studio|location/i)),
         sessionName:str(pick(/level|class\s*(type|format|name)/i)),
-        at:str(pick(/class\s*date/i)||r.submissionTime),
+        at:str(pick(/class\s*date|^date/i)||r.submissionTime),
         score,band:'',
         strengths:str(pick(/strength|what went well/i)),improvements:str(pick(/improve|development|focus/i)),
         coachingPlan:str(pick(/coaching|action plan|next steps/i)),
@@ -119,14 +140,14 @@ const SYNC_TTL_MS=20000;
 
 export type SyncResult={imported:number;skipped:number;failed:number;unmatched:number;lastSync:string;
   sources:{label:string;id:string;imported:number;skipped:number;failed:number;unmatched:number;total:number;
-    unmatchedStudios:string[];error?:string}[]};
+    unmatchedStudios:string[];failures:{sourceRef:string;reason:string}[];error?:string}[]};
 
 /** Files any submission not already on record. Safe to call repeatedly. */
 export async function syncTrainerReviews():Promise<SyncResult>{
   const cfg=await getConfig();
   const result:SyncResult={imported:0,skipped:0,failed:0,unmatched:0,lastSync:new Date().toISOString(),sources:[]};
   for(const source of reviewSources()){
-    const entry={label:source.label,id:source.id,imported:0,skipped:0,failed:0,unmatched:0,total:0,unmatchedStudios:[]} as SyncResult['sources'][number];
+    const entry={label:source.label,id:source.id,imported:0,skipped:0,failed:0,unmatched:0,total:0,unmatchedStudios:[],failures:[]} as SyncResult['sources'][number];
     let reviews:NormalisedReview[]=[];
     try{reviews=await fetchReviews(source);}
     catch(e){entry.error=e instanceof Error?e.message:'Could not be read';result.sources.push(entry);continue;}
@@ -151,7 +172,8 @@ export async function syncTrainerReviews():Promise<SyncResult>{
         const draft=await makeDraft({
           title:`Trainer assessment · ${review.trainer}${review.sessionName?` · ${review.sessionName}`:''}`,
           description,category:'Trainer Feedback',subcategory:'Knowledge and Competence',kind:'assessment',
-          studio,trainer:review.trainer,memberName:review.evaluator||'External assessment',memberEmail:'',
+          studio,trainer:review.trainer,classFormat:review.sessionName||undefined,
+          memberName:review.evaluator||'External assessment',memberEmail:'',
           incidentAt:when,source:'fillout',preferredContact:'No follow-up needed',sentiment:'neutral',
           customFields:{
             evaluator:review.evaluator,
@@ -166,7 +188,12 @@ export async function syncTrainerReviews():Promise<SyncResult>{
         });
         await createTicketFromDraft(draft,'fillout','form',{sourceRef:review.sourceRef});
         entry.imported++;
-      }catch{entry.failed++;}
+      }catch(e){
+        entry.failed++;
+        // Without the reason a failed row is indistinguishable from one that was never there,
+        // which is what made the missing assessments impossible to diagnose from the tab.
+        if(entry.failures.length<10)entry.failures.push({sourceRef:review.sourceRef,reason:e instanceof Error?e.message:'Import failed'});
+      }
     }
     result.imported+=entry.imported;result.skipped+=entry.skipped;result.failed+=entry.failed;result.unmatched+=entry.unmatched;
     result.sources.push(entry);
