@@ -1,9 +1,9 @@
 "use client";
 import Link from 'next/link';import {usePathname,useRouter} from 'next/navigation';import {useEffect,useState,type ReactNode} from 'react';
-import {LayoutDashboard,Sparkles,Ticket,Layers,ChartNoAxesCombined,Users,Blocks,Settings,ChevronDown,ChevronRight,Search,Bell,Menu,PanelLeft,Building2,ArrowUpRight,Command,LifeBuoy,FileBarChart2,GraduationCap,ClipboardList} from 'lucide-react';
+import {LayoutDashboard,Sparkles,Ticket,Layers,ChartNoAxesCombined,Users,Blocks,Settings,ChevronDown,ChevronRight,Search,Bell,Menu,PanelLeft,Building2,ArrowUpRight,Command,LifeBuoy,FileBarChart2,GraduationCap,ClipboardList,Radio} from 'lucide-react';
 import {useApp,ThemeToggle,Avatar,Modal,api,SearchField,Badge} from './ui';
 import {IrisLockup} from './iris-mark';
-const nav=[{href:'/dashboard',label:'Overview',icon:LayoutDashboard},{href:'/iris',label:'Iris assistant',icon:Sparkles,ai:true},{href:'/tickets',label:'All tickets',icon:Ticket},{href:'/templates',label:'Template library',icon:Layers},{href:'/reports',label:'Reports library',icon:FileBarChart2},{href:'/analytics',label:'Trend dashboard',icon:ChartNoAxesCombined},{href:'/trainers',label:'Trainer reviews',icon:GraduationCap},{href:'/forms',label:'Evaluation forms',icon:ClipboardList}];
+const nav=[{href:'/dashboard',label:'Overview',icon:LayoutDashboard},{href:'/iris',label:'Iris assistant',icon:Sparkles,ai:true},{href:'/radar',label:'Ops Radar & Heatmap',icon:Radio,live:true},{href:'/tickets',label:'All tickets',icon:Ticket},{href:'/templates',label:'Template library',icon:Layers},{href:'/reports',label:'Reports library',icon:FileBarChart2},{href:'/analytics',label:'Trend dashboard',icon:ChartNoAxesCombined},{href:'/trainers',label:'Trainer reviews',icon:GraduationCap},{href:'/forms',label:'Evaluation forms',icon:ClipboardList}];
 const org=[{href:'/momence',label:'Momence',icon:Building2},{href:'/staff',label:'People & teams',icon:Users},{href:'/integrations',label:'Integrations',icon:Blocks},{href:'/settings',label:'Settings',icon:Settings}];
 export {Badge};
 export function Shell({
@@ -54,7 +54,7 @@ export function Shell({
         {nav.map(n => {
           const Icon = n.icon;
           const active = path === n.href || (path === '/' && n.href === '/dashboard');
-          return <Link key={n.href} href={n.href} className={'nav-link' + (active ? ' active' : '')} onClick={() => setMobile(false)}><Icon size={16} />{n.label}{n.ai && <span className="nav-ai">AI</span>}{n.href === '/tickets' && <span className="nav-count">{items.length}</span>}</Link>;
+          return <Link key={n.href} href={n.href} className={'nav-link' + (active ? ' active' : '')} onClick={() => setMobile(false)}><Icon size={16} />{n.label}{n.ai && <span className="nav-ai">AI</span>}{n.href === '/radar' && <span className="nav-radar-pill">LIVE</span>}{n.href === '/tickets' && <span className="nav-count">{items.length}</span>}</Link>;
         })}
         <div className="nav-heading">ORGANIZATION</div>
         {org.map(n => {

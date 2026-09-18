@@ -1,4 +1,5 @@
 "use client";
+import Link from 'next/link';
 import { useEffect, useState, useRef, useMemo } from 'react';
 import {
   Sparkles,
@@ -27,6 +28,7 @@ import {
   Zap,
   Gift,
   MessageSquare,
+  Radio,
 } from 'lucide-react';
 import { api, useApp, Modal, Field, Badge, Loading } from './ui';
 import { MultiSelect } from './multi-select';
@@ -608,6 +610,18 @@ export function IrisChat({ presetCategory, presetSubcategory }: { presetCategory
                 {voiceMode ? <Volume2 size={13} className="voice-icon-pulse" /> : <VolumeX size={13} />}
                 <span className="btn-txt">{voiceMode ? 'Voice ON' : 'Voice'}</span>
               </button>
+              <Link
+                href="/radar"
+                className="toolbar-pill-btn radar-pill-btn"
+                title="Live Studio Floor Operations Radar & SLA Countdown Heatmap"
+              >
+                <Radio size={12.5} className="radar-icon-pulse" />
+                <span className="btn-txt">Ops Radar</span>
+                <span className="tab-live-badge">
+                  <span className="badge-pulse-dot" />
+                  LIVE
+                </span>
+              </Link>
               <button
                 className="toolbar-pill-btn"
                 title="7-Day Chat History"

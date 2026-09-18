@@ -96,8 +96,8 @@ export function CommandCenter({directory=false}:{directory?:boolean}){
             <div className="insight-footer"><span>Based on your live ticket data</span><RefreshCw size={11}/></div>
           </section>
           <section className="card studio-pulse">
-            <div className="between"><h3>Studio pulse</h3><Link className="text-btn" href="/analytics"><ArrowUpRight size={14}/></Link></div>
-            <p className="muted" style={{fontSize:10,marginTop:5}}>Active tickets across your studios</p>
+            <div className="between"><h3>Studio pulse</h3><Link className="text-btn" href="/radar">Ops Radar <ArrowUpRight size={14}/></Link></div>
+            <p className="muted" style={{fontSize:10,marginTop:5}}>Active tickets across your studios · Live Radar</p>
             {STUDIOS.map((s,i)=>{const count=open.filter(t=>t.studio===s.name).length;return <div className="studio-row" key={s.id}><div className="between"><span>{s.name.split(',')[0].replace('the Studio by ','')}</span><strong>{count}</strong></div><div className="progress-bar"><span style={{width:(open.length?count/open.length*100:0)+'%',background:i%2?'var(--purple)':'var(--accent)'}}/></div></div>;})}
           </section>
           <section className="card quick-templates">
