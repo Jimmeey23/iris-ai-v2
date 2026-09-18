@@ -10,6 +10,48 @@ import type {AdvancedDraft} from './ticket-contract';
 const FIELD_KEYS=['category','subcategory','kind','description','studio','classFormat','trainer','membership','memberName','memberEmail','memberPhone','incidentAt','preferredContact','requestedResolution','impact','sentiment','area','systemName','itemDescription','lastSeen','isClassImpacted','isImmediateDanger','alreadyReported','channelOfIssue','reportedBy'];
 const options=(values:string[])=>values.map(value=>({label:value,value}));
 
+/** Fields whose offered chips are the whole answer space: a value that is not one of them is
+ *  not a rougher version of the answer, it is unusable. Routing, SLA rules, dedup and every
+ *  report read these by exact value, so an unmatched answer is dropped and the question is
+ *  asked again rather than written onto the ticket as prose. */
+const ENUM_FIELDS=new Set(['category','subcategory','studio','reportedBy','incidentAt','area','systemName','isClassImpacted','isImmediateDanger','alreadyReported','lastSeen','channelOfIssue','classFormat']);
+/** Fields the flow can file without, once asking has clearly stopped working. */
+const SKIPPABLE=new Set(['impact','requestedResolution','preferredContact','area','alreadyReported','isClassImpacted','systemName','itemDescription','lastSeen','channelOfIssue','trainer','classFormat','incidentAt']);
+const SKIP_VALUE:Record<string,string>={trainer:'Not sure',incidentAt:'Ongoing / recurring'};
+const SKIPPED='Not specified';
+/** How many times one field may be asked before the flow stops waiting on it. Without this a
+ *  question whose answer never lands is asked forever — the conversation reads as a loop and
+ *  no ticket is ever produced. */
+const ASK_LIMIT=3;
+/** After this many Iris turns, every skippable field is filled in so the draft can be reached. */
+const HARD_CAP=18;
+
+const TIME_SYNONYMS:Record<string,string>={'right now':'Just now','just now':'Just now','moment ago':'Just now','this morning':'Earlier today','this afternoon':'Earlier today','this evening':'Earlier today','earlier today':'Earlier today','today':'Earlier today','yesterday':'Yesterday','this week':'Earlier this week','few days':'Earlier this week','last week':'Last week','keeps happening':'Ongoing / recurring','every day':'Ongoing / recurring','recurring':'Ongoing / recurring','ongoing':'Ongoing / recurring'};
+
+/** Maps a typed answer onto one of the values that were offered. Staff type "this morning",
+ *  "yes" or "no", not "Earlier today" or "Yes, blocking now". */
+function normalizeAnswer(key:string,raw:string,values:readonly string[]):string|undefined{
+  const t=raw.trim().toLowerCase();if(!t)return undefined;if(!values.length)return raw.trim();
+  const exact=values.find(v=>v.toLowerCase()===t);if(exact)return exact;
+  if(/^(yes|yeah|yep|yup|y|correct|true)\b/.test(t)){const hit=values.find(v=>/^yes/i.test(v));if(hit)return hit;}
+  // "No" means the negative option, not merely the first option that begins with the letters
+  // n-o: "Not yet, but it will be" is a yes with a delay and must never absorb a plain "no".
+  if(/^(no|nope|nah|n|none|false)\b/.test(t)){const hit=values.find(v=>/^no\b/i.test(v))||values.find(v=>/^(not|no)\b/i.test(v));if(hit)return hit;}
+  if(key==='incidentAt')for(const[phrase,value]of Object.entries(TIME_SYNONYMS))if(t.includes(phrase)&&values.includes(value))return value;
+  if(t.length>=4){const contains=values.find(v=>v.toLowerCase().includes(t)||t.includes(v.toLowerCase()));if(contains)return contains;}
+  const words=new Set(t.split(/[^a-z0-9]+/).filter(w=>w.length>3));
+  let best:{value:string;score:number}|undefined;
+  for(const v of values){const score=v.toLowerCase().split(/[^a-z0-9]+/).filter(w=>w.length>3&&words.has(w)).length;if(score&&(!best||score>best.score))best={value:v,score};}
+  return best?.value;
+}
+
+/** Per-field ask counts, read back off the session so they survive between requests. */
+function askCounts(c:Record<string,unknown>):Record<string,number>{
+  const out:Record<string,number>={};
+  for(const[k,v]of Object.entries(obj(c._asked)))out[k]=Number(v)||0;
+  return out;
+}
+
 /** Context-aware urgency detection — returns true if this ticket signals time-sensitivity or blocking issues. */
 function detectUrgency(c:Record<string,unknown>):boolean{
   const blocking=c.isClassImpacted==='Yes, blocking now'||c.isImmediateDanger==='Yes — happening now';
@@ -80,7 +122,33 @@ else if(['kwality-earlier','kwality-yesterday','fort-earlier','fort-yesterday'].
   const parts=raw.split('-');c.studio=parts[0]==='kwality'?'Kwality House, Kemps Corner':'Fort';c.incidentAt=parts[1]==='earlier'?'Earlier today':'Yesterday';
 }
 else if(raw&&!raw.startsWith('__')){
-if(priorField&&FIELD_KEYS.includes(priorField)){c[priorField]=raw;if(priorField==='category'){delete c.subcategory;c._categoryInferred=false;c._categoryConfirmed=true;}if(priorField==='studio'){const m=matchStudio(raw);if(m)c.studio=m;}}else c.description=String(c.description||'')+(c.description?'\n':'')+raw;
+if(priorField==='studioAndTime'){
+  // The bundled question has no field of its own: its answer carries two. Before this split
+  // existed the answer matched no known field and was appended to the description, leaving
+  // studio and time empty — so the same question came back every turn, forever.
+  const m=matchStudio(raw);if(m)c.studio=m;
+  const when=normalizeAnswer('incidentAt',raw,OCCURRED_OPTIONS);if(when)c.incidentAt=when;
+  if(!m&&!when)c.description=String(c.description||'')+(c.description?'\n':'')+raw;
+}
+else if(priorField==='confirmCategory'){
+  // The chips send sentinels, but staff also just type "yes". Without this the reply matched no
+  // field, landed in the description, and the confirmation was asked again on every turn.
+  const v=normalizeAnswer('confirmCategory',raw,['yes','no']);
+  if(v==='yes')c._categoryConfirmed=true;
+  else if(v==='no'){delete c.category;delete c.subcategory;c._categoryInferred=false;c._categoryConfirmed=true;}
+  else c.description=String(c.description||'')+(c.description?'\n':'')+raw;
+}
+else if(priorField==='memberLookup'){c.memberLookupDone=true;c.manualMember=true;c.memberName=raw.slice(0,120);}
+else if(priorField==='sessionLookup'){c.sessionLookupDone=true;c.manualSession=true;c.description=String(c.description||'')+(c.description?'\n':'')+raw;}
+else if(priorField&&FIELD_KEYS.includes(priorField)){
+  const offered=Array.isArray(c._options)?(c._options as unknown[]).filter((v):v is string=>typeof v==='string'&&!v.startsWith('__')):[];
+  const strict=ENUM_FIELDS.has(priorField)&&offered.length>0;
+  const value=strict?normalizeAnswer(priorField,raw,offered):raw;
+  if(value!==undefined)c[priorField]=value;
+  if(priorField==='category'&&value!==undefined){delete c.subcategory;c._categoryInferred=false;c._categoryConfirmed=true;}
+  if(priorField==='studio'){const m=matchStudio(raw);if(m)c.studio=m;else if(strict&&value===undefined)delete c.studio;}
+}
+else if(!/^(yes|no|ok|okay|nope|yeah|yep|nah|sure|thanks|thank you)\W*$/i.test(raw))c.description=String(c.description||'')+(c.description?'\n':'')+raw;
 {const heuristic=extractEntities(raw);for(const[k,v]of Object.entries(heuristic)){if(!FIELD_KEYS.includes(k)||v===undefined||c[k])continue;if(k==='studio'){const m=matchStudio(String(v));if(m)c.studio=m;continue;}if(k==='category')c._categoryInferred=true;c[k]=v;}const top=classifyIssue(String(c.description||raw));if(top[0])c._guess={category:top[0].category,subcategory:top[0].subcategory,score:top[0].score};if(priorField==='description'||!priorField){
 const nameMatch=raw.match(/(?:her name is|his name is|the member is|member's name is)\s+([a-z]+(?:\s+[a-z]+)?)(?=[,.!]|$)/i);if(nameMatch)c.memberName=nameMatch[1];
 if(/\b(loved|love|amazing|compliment|wonderful|excellent|fantastic|appreciation)\b/i.test(raw)&&!/(but |however|unsafe|complaint|not |didn.t)/i.test(raw)){c.kind='compliment';c.sentiment='positive';}else c.kind=c.kind||'issue';
@@ -108,6 +176,10 @@ if(c.studio&&!cfg.studios.includes(String(c.studio))){const m=matchStudio(String
 if(c.area&&!STUDIO_AREAS.includes(String(c.area) as typeof STUDIO_AREAS[number]))delete c.area;
 if(!['issue','request','compliment','feedback','assessment'].includes(String(c.kind)))c.kind='issue';
 if(c.memberEmail&&typeof c.memberEmail==='string'&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c.memberEmail))delete c.memberEmail;
+const asked=askCounts(c);
+// A long conversation that still has open optional fields is a conversation that is not
+// converging. Fill them in so the draft — the point of the whole exchange — is reachable.
+if(input.history.filter(m=>m.role==='assistant').length>=HARD_CAP)for(const k of SKIPPABLE)if(!c[k])c[k]=SKIP_VALUE[k]||SKIPPED;
 let fieldKey:string|undefined,lookup:'members'|'sessions'|undefined,question='',opts:{label:string;value:string}[]|undefined=[];let lookupFilters:{studio?:string;sessionTypes?:string[]}|undefined;
 const choose=(key:string,prompt:string,values:string[]=[])=>{fieldKey=key;question=prompt;opts=options(values);};
 const classRelated=['Class Experience','Trainer Feedback','Scheduling'].includes(String(c.category));const praise=c.kind==='compliment'||c.kind==='feedback'&&c.sentiment==='positive';
@@ -150,20 +222,23 @@ else if(classRelated&&!c.sessionLookupDone){fieldKey='sessionLookup';lookup='ses
 const hosted=c.hostedClass===true||c.classFormat==='Studio Hosted Class';
 lookupFilters={studio:typeof c.studio==='string'&&c.studio!=='—'?c.studio:undefined,sessionTypes:hosted?['private']:undefined};
 opts=[{label:'Session not listed / enter manually',value:'__manual_session__'},...(hosted?[]:[{label:'It was a hosted / private class',value:'__hosted_class__'}])];}
-else if((!c.studio||c.studio==='—')&&!c.incidentAt){
-  // BUNDLED QUESTION: Ask studio + time together, via conversational AI generation
+else if((!c.studio||c.studio==='—')&&!c.incidentAt&&!c._bundleTried){
+  // BUNDLED QUESTION: ask studio + time together. Asked once — if the answer resolves
+  // neither, the two fields are asked separately, with chips.
   fieldKey='studioAndTime';
   question=`Which studio was this in, and when'd you notice it?`;
   opts=undefined; // Let AI enhance this conversationally, not structured options
 }
 else if(!c.studio||c.studio==='—'){
-  choose('studio','Which studio is this for?',cfg.studios);
+  // Studio cannot be skipped or guessed: it is what routes the ticket to a site. If the answer
+  // has not landed, say why it is needed instead of repeating the same words verbatim.
+  choose('studio',(asked.studio||0)>=2?'I can\u2019t file this without the location \u2014 which studio was it? Pick one below.':'Which studio is this for?',cfg.studios);
 }
 else if(!c.incidentAt){
   choose('incidentAt','When did this happen?',[...OCCURRED_OPTIONS]);
 }
 else if(c.manualMember&&!c.memberName)choose('memberName','What name should go on the ticket?');
-else if(c.manualMember&&!c.memberEmail)choose('memberEmail','Any contact detail on file for them? (optional — you can skip)');
+else if(c.manualMember&&!c.memberEmail&&!(asked.memberEmail||0))choose('memberEmail','Any contact detail on file for them? (optional \u2014 you can skip)');
 else if(classRelated&&c.manualSession&&!c.classFormat)choose('classFormat','Which class format was it?',cfg.formats);
 else if(classRelated&&c.manualSession&&!c.trainer)choose('trainer','Who was teaching?', [...cfg.trainers,'Not sure']);
 else{const extra=!praise?extraSlot(String(c.category),c):null;if(extra){choose(extra.key,extra.prompt,extra.values);}
@@ -184,55 +259,55 @@ else if(!praise&&!c.preferredContact){
   question=`Does the member need a callback, or is this internal-only?`;
   opts=undefined;
 }
-else if(['Member expects a callback'].includes(String(c.preferredContact))&&!c.memberPhone){
+else if(['Member expects a callback'].includes(String(c.preferredContact))&&!c.memberPhone&&!(asked.memberPhone||0)){
   fieldKey='memberPhone';
   question=`What's the best number to reach them?`;
   opts=undefined;
 }}
+if(fieldKey&&(asked[fieldKey]||0)>=ASK_LIMIT){
+  if(fieldKey==='studioAndTime'){c._bundleTried=true;return runIris({...input,message:undefined,collected:c,patch:undefined});}
+  if(SKIPPABLE.has(fieldKey)){c[fieldKey]=SKIP_VALUE[fieldKey]||SKIPPED;return runIris({...input,message:undefined,collected:c,patch:undefined});}
+  if(fieldKey==='confirmCategory'){c._categoryConfirmed=true;return runIris({...input,message:undefined,collected:c,patch:undefined});}
+  if(fieldKey==='memberLookup'){c.memberLookupDone=true;c.studioReport=true;c.memberName=c.memberName||'Studio team observation';return runIris({...input,message:undefined,collected:c,patch:undefined});}
+  if(fieldKey==='sessionLookup'){c.sessionLookupDone=true;c.manualSession=true;return runIris({...input,message:undefined,collected:c,patch:undefined});}
+}
+if(fieldKey)asked[fieldKey]=(asked[fieldKey]||0)+1;
+c._asked=asked;
 const required=['description','reportedBy','category','subcategory','memberLookupDone','studio','incidentAt',...(classRelated?['sessionLookupDone']:[]),...(praise?[]:['impact','requestedResolution','preferredContact'])];const done=required.filter(k=>Boolean(c[k])).length;
-let draft:AdvancedDraft|undefined;if(!fieldKey){const cf=obj(c.customFields);draft=await makeDraft({...c,description:c.description,memberName:c.memberName||'Studio team observation',memberEmail:c.memberEmail||'',kind:c.kind,source:'iris',sentiment:praise?'positive':c.sentiment||inferSentiment(String(c.description)),customFields:{...cf,...intakeAnswers(c)},preferredContact:c.preferredContact||'Internal log only',momenceContext:c.momenceContext});question=praise?'This is ready to log — take a look. No SLA or resolution is needed for a compliment.':'Here\u2019s the ticket, ready to file. Review it, then approve when it\u2019s accurate.';}
-if(ai&&engine==='openai'&&fieldKey){try{const history=cfg.historyRetrieval&&c.category&&c.subcategory?await historicalExamples(String(c.category),String(c.subcategory)):[];
-// Build context-aware system prompt that references what we know, understands urgency, and synthesizes naturally
-const contextSummary=c.category?`This is a ${c.category}${c.subcategory?` (${c.subcategory})`:''}. ${c.isClassImpacted==='Yes, blocking now'?'⚠️ Currently blocking classes.':''}${c.isImmediateDanger==='Yes — happening now'?'🚨 Immediate danger reported.':''}${c.impact==='Could not proceed as normal'?'Critical impact.':''}`:'';
-const result=await ai.chat.completions.create({model:cfg.aiModel,messages:[{role:'system',content:`You are Iris, an internal logging assistant used by Physique 57 India studio staff (not members). ${cfg.aiVoice}
+let draft:AdvancedDraft|undefined;if(!fieldKey){const cf=obj(c.customFields);draft=await makeDraft({...c,description:c.description,memberName:c.memberName||'Studio team observation',memberEmail:c.memberEmail||'',kind:c.kind,source:'iris',sentiment:praise?'positive':c.sentiment||inferSentiment(String(c.description)),customFields:{...cf,...intakeAnswers(c)},preferredContact:c.preferredContact||'Internal log only',momenceContext:c.momenceContext});// The recap is the deliverable: the reporter needs to see the routing, priority and SLA the
+// ticket will carry before approving it, not just be told that a ticket exists.
+const recap=['• '+draft.title,`• ${draft.category} → ${draft.subcategory}`,`• ${draft.departmentName}${draft.assignedStaffName?` · ${draft.assignedStaffName}`:''}`,`• ${draft.priority} priority${draft.resolutionRequired&&draft.slaLabel?` · ${draft.slaLabel}`:''}`,`• ${draft.studio}${draft.incidentAt?` · ${draft.incidentAt}`:''}`].join('\n');
+question=(praise?'This is ready to log — no SLA or resolution is needed for a compliment.':'Here\u2019s the ticket, ready to file.')+'\n\n'+recap+'\n\nReview it, then approve when it\u2019s accurate.';}
+// The model writes the acknowledgement; the question itself is always the guided wording.
+// Letting it write the question drifted the meaning — asked to rephrase "how much is this
+// affecting the floor right now?" it produced "how long has the mic been an issue?", and the
+// answer was then stored as the impact. Earlier it asked about class impact while filing the
+// reply under "how did this come to you", then asked the same thing again next turn.
+if(ai&&engine==='openai'&&fieldKey&&!fieldKey.includes('Lookup')){
+  const guided=question;
+  try{
+    const history=cfg.historyRetrieval&&c.category&&c.subcategory?await historicalExamples(String(c.category),String(c.subcategory)):[];
+    const known=JSON.stringify({kind:c.kind,category:c.category,subcategory:c.subcategory,studio:c.studio,area:c.area,when:c.incidentAt,reportedBy:c.reportedBy,classImpact:c.isClassImpacted,urgency:detectUrgency(c)?'flagged':'normal'});
+    const result=await ai.chat.completions.create({model:cfg.aiModel,messages:[{role:'system',content:`You are Iris, the internal logging assistant for Physique 57 India studio staff (never members). ${cfg.aiVoice}
+You are collecting facts so this report becomes a ticket. You are not a chat companion and you never close the conversation.
+Facts already collected — never ask for these again and do not read them back: ${known}
+What they reported: ${String(c.description||'').slice(0,300)}
+${history.length?`Similar past tickets, for tone only: ${JSON.stringify(history)}`:''}
 
-Your task: Generate ONE conversational follow-up that sounds like a colleague chatting, not a form field.
-
-CRITICAL RULES FOR CHATGPT-LIKE FEEL:
-✓ Sound genuinely curious — use natural phrasing, contractions (I'd, they've, we'll), conversational tone
-✓ Open-ended when possible — instead of "Yes or no?" ask "Tell me — is this...?"
-✓ Acknowledge what they just said first — "Got it, so the mic's creating echo..." then naturally follow up
-✓ Bundle related info into one question — don't ask studio, then separately ask time. Ask both.
-✓ Vary your phrasing — not every answer needs a direct question. Sometimes state what you understand and let them clarify.
-✓ Show you're listening — reference details they shared ("You noticed this yourself, so you've got the full context...")
-✓ Keep it under 50 words — brief, direct, natural
-✓ Use context to anticipate what matters — if they flagged urgency, lead with that
-✗ Never say "Now," "Next," "Thanks for that," "I've noted," or sound like you're reading a script
-✗ Never ask for field names or show internal structure
-✗ Never say "So let me confirm..." or recap robotically
-
-NEXT STEP TO GATHER: ${question}
-
-STYLE GUIDE:
-Instead of form-like → Instead use natural conversation
-- "Which studio is this for?" → "Which studio was this in?"
-- "When did this happen?" → "When'd you notice this?"
-- "How much is this affecting..." → "Tell me — how's this impacting the floor right now?"
-- "What should we do?" → "How urgent is this? What's your instinct on next steps?"
-- "Is it blocking a class?" → "Is this gonna block a live class?"
-
-CONTEXT: ${contextSummary} They said: ${String(c.description||'').slice(0,150)}
-HISTORY: ${JSON.stringify({studio:c.studio,incidentAt:c.incidentAt,category:c.category,urgency:detectUrgency(c)?'flagged':'normal'})}
-
-Historical examples (for reference only): ${JSON.stringify(history)}`},...input.history.slice(-10),...(raw?[{role:'user' as const,content:raw}]:[])],max_completion_tokens:180});const m=result.choices[0]?.message.content;if(m)question=m;}catch{engine='guided';}}
+Write ONE acknowledgement of their last message: at most 12 words, plain text, no markdown, contractions welcome. Do not ask a question. Do not greet. Do not say "Thanks for that", "I've noted", "anything else", "feel free" or "let me know". Output the sentence only.`},...input.history.slice(-8),...(raw?[{role:'user' as const,content:raw}]:[])],max_completion_tokens:60});
+    const ack=(result.choices[0]?.message.content||'').trim().replace(/^["']|["']$/g,'');
+    // An ack that drifted into small talk, asked its own question or ran long is dropped: the
+    // guided question stands on its own, and a wrong ack is worse than none.
+    const chatter=/(anything else|feel free|reach out|happy to help|let me know|no worries|keep an eye|thank|i'?ll |i will |i have (noted|logged))/i;
+    const echo=/^(yes|no|okay|ok|sure|right|correct)\b[.!]?$/i.test(ack);
+    if(ack&&!echo&&!ack.includes('?')&&ack.split(/\s+/).length<=16&&!chatter.test(ack))question=ack.replace(/\s+$/,'')+' '+guided;
+  }catch{engine='guided';}
+}
 if(c.category==='Safety and Security'&&!c._safetyShown){question='If anyone is in immediate danger, alert studio management or call 112 now. '+question;c._safetyShown=true;}
 
-// Add conversational acknowledgment before question for more natural flow
-if(raw&&fieldKey&&!fieldKey.includes('Lookup')&&!fieldKey.includes('confirmCategory')&&input.history.length>2){
-  const acknowledgments=['Got it.','That makes sense.','Good to know.','Understood.','Perfect.'];
-  const ack=acknowledgments[Math.floor(Math.random()*acknowledgments.length)];
-  question=ack+' '+question;
-}
+// The acknowledgement is written once, by the model, inside the block above. A second canned
+// one prefixed here is what produced "Understood. Understood, you spotted the mic issue...".
 
 c._fieldKey=fieldKey||'';
+c._options=(opts||[]).map(o=>o.value);
 return{sessionId:input.sessionId,message:question,phase:draft?'draft':'collect',fieldKey,lookup,lookupFilters,options:opts,collected:c,draft,progress:{done,total:required.length},engine,notice};}
