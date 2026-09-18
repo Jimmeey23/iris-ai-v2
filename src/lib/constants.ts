@@ -94,7 +94,100 @@ export const STUDIO_AREAS = [
   "Staircase / corridor",
   "Cycle studio",
   "Strength Lab floor",
+  // Studio-specific designated rooms & spaces
+  "Studio 1",
+  "Studio 2",
+  "Strength Studio",
+  "PowerCycle Studio",
+  "His Space",
+  "Her Space",
+  "GUEST WASHROOM",
+  "Brain Cell",
+  "Pantry",
+  "Lockers & Changing",
+  "Washrooms",
+  "Washroom & Changing",
 ] as const;
+
+export type StudioRoom = {
+  name: string;
+  capacity?: number;
+  category: "studio" | "washroom" | "workspace" | "common";
+  description: string;
+};
+
+export const STUDIO_LAYOUTS: Record<string, { studioName: string; rooms: StudioRoom[] }> = {
+  kwality: {
+    studioName: "Kwality House, Kemps Corner",
+    rooms: [
+      { name: "Studio 1", capacity: 22, category: "studio", description: "Studio 1 (capacity: 22 pax)" },
+      { name: "Studio 2", capacity: 13, category: "studio", description: "Studio 2 (capacity: 13 pax)" },
+      { name: "Strength Studio", capacity: 7, category: "studio", description: "Strength Studio (capacity: 7 pax)" },
+      { name: "PowerCycle Studio", capacity: 10, category: "studio", description: "PowerCycle Studio (capacity: 10 pax)" },
+      { name: "His Space", category: "washroom", description: "His Space (men's washroom & changing)" },
+      { name: "Her Space", category: "washroom", description: "Her Space (women's washroom & changing)" },
+      { name: "GUEST WASHROOM", category: "washroom", description: "Guest Washroom" },
+      { name: "Brain Cell", category: "workspace", description: "Brain Cell (office space)" },
+      { name: "Pantry", category: "workspace", description: "Pantry (staff kitchen)" },
+      { name: "Lobby / Reception", category: "common", description: "Lobby & Reception desk" },
+    ],
+  },
+  supreme: {
+    studioName: "Supreme HQ, Bandra",
+    rooms: [
+      { name: "Studio 1", capacity: 13, category: "studio", description: "Studio 1 (capacity: 13 pax)" },
+      { name: "Studio 2", capacity: 13, category: "studio", description: "Studio 2 (capacity: 13 pax)" },
+      { name: "PowerCycle Studio", capacity: 13, category: "studio", description: "PowerCycle Studio (capacity: 13 pax)" },
+      { name: "Lobby / Reception", category: "common", description: "Lobby & Reception desk" },
+      { name: "Lockers & Changing", category: "washroom", description: "Lockers & shower rooms" },
+      { name: "Washrooms", category: "washroom", description: "Studio washrooms" },
+    ],
+  },
+  kenkere: {
+    studioName: "Kenkere House, Bengaluru",
+    rooms: [
+      { name: "Studio 1", capacity: 13, category: "studio", description: "Studio 1 (capacity: 13 pax)" },
+      { name: "Studio 2", capacity: 13, category: "studio", description: "Studio 2 (capacity: 13 pax)" },
+      { name: "Lobby / Reception", category: "common", description: "Lobby & Reception desk" },
+      { name: "Washroom & Changing", category: "washroom", description: "Washrooms & changing area" },
+    ],
+  },
+  courtside: {
+    studioName: "Courtside, Mumbai",
+    rooms: [
+      { name: "Main Studio Floor", category: "studio", description: "Main studio floor" },
+      { name: "Reception / Lobby", category: "common", description: "Reception & check-in" },
+      { name: "Member Lounge", category: "common", description: "Member lounge" },
+    ],
+  },
+  copper: {
+    studioName: "the Studio by Copper & Cloves, Bengaluru",
+    rooms: [
+      { name: "Main Studio Floor", category: "studio", description: "Main studio floor" },
+      { name: "Reception", category: "common", description: "Reception" },
+      { name: "Changing Area", category: "washroom", description: "Changing area & washroom" },
+    ],
+  },
+};
+
+export function getStudioRoomsForStudio(studioNameOrId?: string): StudioRoom[] {
+  if (!studioNameOrId) {
+    const all: StudioRoom[] = [];
+    for (const s of Object.values(STUDIO_LAYOUTS)) {
+      for (const r of s.rooms) {
+        if (!all.some((x) => x.name === r.name)) all.push(r);
+      }
+    }
+    return all;
+  }
+  const low = studioNameOrId.toLowerCase();
+  if (low.includes("kwality") || low.includes("kemps")) return STUDIO_LAYOUTS.kwality.rooms;
+  if (low.includes("supreme") || low.includes("bandra") || low.includes("shq")) return STUDIO_LAYOUTS.supreme.rooms;
+  if (low.includes("kenkere") || low.includes("indiranagar")) return STUDIO_LAYOUTS.kenkere.rooms;
+  if (low.includes("courtside")) return STUDIO_LAYOUTS.courtside.rooms;
+  if (low.includes("copper") || low.includes("cloves")) return STUDIO_LAYOUTS.copper.rooms;
+  return STUDIO_LAYOUTS.kwality.rooms;
+}
 
 export const SYSTEMS = [
   "Momence",

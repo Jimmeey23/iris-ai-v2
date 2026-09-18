@@ -6,5 +6,122 @@ import {IrisLockup} from './iris-mark';
 const nav=[{href:'/dashboard',label:'Overview',icon:LayoutDashboard},{href:'/iris',label:'Iris assistant',icon:Sparkles,ai:true},{href:'/tickets',label:'All tickets',icon:Ticket},{href:'/templates',label:'Template library',icon:Layers},{href:'/reports',label:'Reports library',icon:FileBarChart2},{href:'/analytics',label:'Trend dashboard',icon:ChartNoAxesCombined},{href:'/trainers',label:'Trainer reviews',icon:GraduationCap},{href:'/forms',label:'Evaluation forms',icon:ClipboardList}];
 const org=[{href:'/momence',label:'Momence',icon:Building2},{href:'/staff',label:'People & teams',icon:Users},{href:'/integrations',label:'Integrations',icon:Blocks},{href:'/settings',label:'Settings',icon:Settings}];
 export {Badge};
-export function Shell({children,title='Overview',eyebrow,action}:{children:ReactNode;title?:string;eyebrow?:string;action?:ReactNode}){const path=usePathname(),router=useRouter();const{user,openAuth,workspaceName}=useApp();const[mobile,setMobile]=useState(false),[searchOpen,setSearchOpen]=useState(false),[notifications,setNotifications]=useState(false),[query,setQuery]=useState(''),[items,setItems]=useState<{id:number;title:string;ticketNumber:string;memberName:string;status:string;priority:string}[]>([]);useEffect(()=>{void api<{tickets:typeof items}>('/api/tickets').then(d=>setItems(d.tickets)).catch(()=>{});},[user]);useEffect(()=>{const handler=(e:KeyboardEvent)=>{if((e.metaKey||e.ctrlKey)&&e.key==='k'){e.preventDefault();setSearchOpen(v=>!v);}if(e.key==='Escape')setMobile(false);};window.addEventListener('keydown',handler);return()=>window.removeEventListener('keydown',handler);},[]);
-const routes=[...nav,...org];const activeName=routes.find(n=>path.startsWith(n.href))?.label||(path==='/'?'Overview':title);const openItems=items.filter(t=>!['resolved','closed','recorded'].includes(t.status));return <div className="workspace">{mobile&&<div className="sidebar-scrim" onClick={()=>setMobile(false)}/>}<aside className={'sidebar'+(mobile?' open':'')}><Link className="brand" href="/"><IrisLockup size={30}/></Link><Link href="/settings" className="workspace-selector"><div className="mini-spark"><Sparkles size={15}/></div><div className="grow"><strong style={{fontWeight:500}}>IRIS workspace</strong><div className="muted" style={{fontSize:9}}>{workspaceName}</div></div><ChevronDown size={13}/></Link><div className="nav-heading">WORKSPACE</div>{nav.map(n=>{const Icon=n.icon;const active=path===n.href||path==='/'&&n.href==='/dashboard';return <Link key={n.href} href={n.href} className={'nav-link'+(active?' active':'')} onClick={()=>setMobile(false)}><Icon size={16}/>{n.label}{n.ai&&<span className="nav-ai">AI</span>}{n.href==='/tickets'&&<span className="nav-count">{items.length}</span>}</Link>;})}<div className="nav-heading">ORGANIZATION</div>{org.map(n=>{const Icon=n.icon;return <Link key={n.href} href={n.href} className={'nav-link'+(path.startsWith(n.href)?' active':'')} onClick={()=>setMobile(false)}><Icon size={16}/>{n.label}</Link>;})}<div className="sidebar-bottom"><div className="help-card"><div className="flex-row"><Sparkles size={14} className="accent"/><strong style={{fontSize:11,fontWeight:500}}>Log it with Iris</strong></div><p>Turn what you saw — or what a member told you — into a clean ticket.</p><Link href="/iris" className="text-btn">Start logging <ArrowUpRight size={13}/></Link></div><button className="user-button" onClick={openAuth}><Avatar name={user?.name||'Guest'} tone="purple"/><div className="grow"><strong>{user?.name||'Preview workspace'}</strong><small>{user?user.role+' access':'Sign in to your account'}</small></div><ChevronDown size={13} className="muted"/></button></div></aside><div className="workspace-main"><header className="topbar"><div className="flex-row"><button className="icon-btn mobile-menu" onClick={()=>setMobile(true)} aria-label="Open navigation"><Menu size={19}/></button><div className="breadcrumb"><PanelLeft size={15}/><span>Workspace</span><ChevronRight size={11}/><strong>{activeName}</strong></div></div><div className="topbar-actions"><button className="topbar-search" onClick={()=>setSearchOpen(true)}><Search size={14}/><span>Search tickets, staff, modules…</span><kbd>⌘ K</kbd></button><span className="topbar-divider"/><ThemeToggle/><button className="icon-btn" aria-label="Open notifications" onClick={()=>setNotifications(true)} style={{position:'relative'}}><Bell size={17}/>{openItems.some(t=>t.priority==='critical')&&<i style={{position:'absolute',top:3,right:2,width:5,height:5,borderRadius:9,background:'var(--red)',border:'1px solid var(--surface)'}}/>}</button><span className="topbar-divider"/><button style={{background:'none',border:0,padding:0}} onClick={openAuth} aria-label="Account"><Avatar name={user?.name||'IRIS'} tone="purple"/></button></div></header><main className="content"><div className="page-heading"><div>{eyebrow&&<div className="eyebrow">{eyebrow}</div>}<h1>{title}</h1></div>{action}</div>{children}<footer className="page-footer"><span><span className="live-label"><i/></span>Every issue logged. Every follow-up tracked.</span><span>Crafted for Physique 57 India <span style={{color:'var(--accent)'}}>✧</span></span></footer></main></div><Modal open={searchOpen} onClose={()=>setSearchOpen(false)} title="Find your way" description="Search tickets or jump to a workspace module." size="narrow"><div className="stack"><SearchField value={query} onChange={setQuery} placeholder="Search tickets, staff or modules…"/>{routes.filter(n=>!query||n.label.toLowerCase().includes(query.toLowerCase())).map(n=><button className="related-ticket" key={n.href} onClick={()=>{router.push(n.href);setSearchOpen(false);}}><span>{n.label}</span><ArrowUpRight size={14}/></button>)}{items.filter(t=>query&&(t.title+' '+t.ticketNumber+' '+t.memberName).toLowerCase().includes(query.toLowerCase())).slice(0,10).map(t=><Link href={'/tickets/'+t.id} onClick={()=>setSearchOpen(false)} key={t.id} className="related-ticket"><div><small>{t.ticketNumber}</small><p>{t.title}</p></div><ChevronRight size={14}/></Link>)}</div></Modal><Modal open={notifications} onClose={()=>setNotifications(false)} title="Your attention, thoughtfully directed" description="Live priority tickets in the workspace." size="narrow"><div className="stack">{openItems.filter(t=>['critical','high'].includes(t.priority)).map(t=><Link key={t.id} href={'/tickets/'+t.id} onClick={()=>setNotifications(false)} className="related-ticket"><div><small>{t.ticketNumber}</small><p>{t.title}</p></div><Badge tone={t.priority==='critical'?'red':'amber'}>{t.priority}</Badge></Link>)}{!openItems.some(t=>['critical','high'].includes(t.priority))&&<p className="secondary">No urgent tickets need attention.</p>}</div></Modal></div>;}
+export function Shell({
+  children,
+  title = 'Overview',
+  eyebrow,
+  action,
+  hideHeading = false,
+  hideFooter = false,
+  fullHeight = false,
+  banner,
+}: {
+  children: ReactNode;
+  title?: string;
+  eyebrow?: string;
+  action?: ReactNode;
+  hideHeading?: boolean;
+  hideFooter?: boolean;
+  fullHeight?: boolean;
+  banner?: ReactNode;
+}) {
+  const path = usePathname(), router = useRouter();
+  const { user, openAuth, workspaceName } = useApp();
+  const [mobile, setMobile] = useState(false), [searchOpen, setSearchOpen] = useState(false), [notifications, setNotifications] = useState(false), [query, setQuery] = useState(''), [items, setItems] = useState<{ id: number; title: string; ticketNumber: string; memberName: string; status: string; priority: string }[]>([]);
+  useEffect(() => { void api<{ tickets: typeof items }>('/api/tickets').then(d => setItems(d.tickets)).catch(() => {}); }, [user]);
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') { e.preventDefault(); setSearchOpen(v => !v); }
+      if (e.key === 'Escape') setMobile(false);
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
+  const routes = [...nav, ...org];
+  const activeName = routes.find(n => path.startsWith(n.href))?.label || (path === '/' ? 'Overview' : title);
+  const openItems = items.filter(t => !['resolved', 'closed', 'recorded'].includes(t.status));
+  return (
+    <div className="workspace">
+      {mobile && <div className="sidebar-scrim" onClick={() => setMobile(false)} />}
+      <aside className={'sidebar' + (mobile ? ' open' : '')}>
+        <Link className="brand" href="/"><IrisLockup size={30} /></Link>
+        <Link href="/settings" className="workspace-selector">
+          <div className="mini-spark"><Sparkles size={15} /></div>
+          <div className="grow"><strong style={{ fontWeight: 500 }}>IRIS workspace</strong><div className="muted" style={{ fontSize: 9 }}>{workspaceName}</div></div>
+          <ChevronDown size={13} />
+        </Link>
+        <div className="nav-heading">WORKSPACE</div>
+        {nav.map(n => {
+          const Icon = n.icon;
+          const active = path === n.href || (path === '/' && n.href === '/dashboard');
+          return <Link key={n.href} href={n.href} className={'nav-link' + (active ? ' active' : '')} onClick={() => setMobile(false)}><Icon size={16} />{n.label}{n.ai && <span className="nav-ai">AI</span>}{n.href === '/tickets' && <span className="nav-count">{items.length}</span>}</Link>;
+        })}
+        <div className="nav-heading">ORGANIZATION</div>
+        {org.map(n => {
+          const Icon = n.icon;
+          return <Link key={n.href} href={n.href} className={'nav-link' + (path.startsWith(n.href) ? ' active' : '')} onClick={() => setMobile(false)}><Icon size={16} />{n.label}</Link>;
+        })}
+        <div className="sidebar-bottom">
+          <div className="help-card">
+            <div className="flex-row"><Sparkles size={14} className="accent" /><strong style={{ fontSize: 11, fontWeight: 500 }}>Log it with Iris</strong></div>
+            <p>Turn what you saw — or what a member told you — into a clean ticket.</p>
+            <Link href="/iris" className="text-btn">Start logging <ArrowUpRight size={13} /></Link>
+          </div>
+          <button className="user-button" onClick={openAuth}>
+            <Avatar name={user?.name || 'Guest'} tone="purple" />
+            <div className="grow"><strong>{user?.name || 'Preview workspace'}</strong><small>{user ? user.role + ' access' : 'Sign in to your account'}</small></div>
+            <ChevronDown size={13} className="muted" />
+          </button>
+        </div>
+      </aside>
+      <div className="workspace-main">
+        <header className="topbar">
+          <div className="flex-row">
+            <button className="icon-btn mobile-menu" onClick={() => setMobile(true)} aria-label="Open navigation"><Menu size={19} /></button>
+            <div className="breadcrumb"><PanelLeft size={15} /><span>Workspace</span><ChevronRight size={11} /><strong>{activeName}</strong></div>
+          </div>
+          <div className="topbar-actions">
+            <button className="topbar-search" onClick={() => setSearchOpen(true)}><Search size={14} /><span>Search tickets, staff, modules…</span><kbd>⌘ K</kbd></button>
+            <span className="topbar-divider" />
+            <ThemeToggle />
+            <button className="icon-btn" aria-label="Open notifications" onClick={() => setNotifications(true)} style={{ position: 'relative' }}>
+              <Bell size={17} />
+              {openItems.some(t => t.priority === 'critical') && <i style={{ position: 'absolute', top: 3, right: 2, width: 5, height: 5, borderRadius: 9, background: 'var(--red)', border: '1px solid var(--surface)' }} />}
+            </button>
+            <span className="topbar-divider" />
+            <button style={{ background: 'none', border: 0, padding: 0 }} onClick={openAuth} aria-label="Account"><Avatar name={user?.name || 'IRIS'} tone="purple" /></button>
+          </div>
+        </header>
+        {banner}
+        <main className={'content' + (fullHeight ? ' content-full-height' : '') + (banner ? ' has-banner' : '')}>
+          {!hideHeading && (
+            <div className="page-heading">
+              <div>{eyebrow && <div className="eyebrow">{eyebrow}</div>}<h1>{title}</h1></div>
+              {action}
+            </div>
+          )}
+          {children}
+          {!hideFooter && (
+            <footer className="page-footer">
+              <span><span className="live-label"><i /></span>Every issue logged. Every follow-up tracked.</span>
+              <span>Crafted for Physique 57 India <span style={{ color: 'var(--accent)' }}>✧</span></span>
+            </footer>
+          )}
+        </main>
+      </div>
+      <Modal open={searchOpen} onClose={() => setSearchOpen(false)} title="Find your way" description="Search tickets or jump to a workspace module." size="narrow">
+        <div className="stack">
+          <SearchField value={query} onChange={setQuery} placeholder="Search tickets, staff or modules…" />
+          {routes.filter(n => !query || n.label.toLowerCase().includes(query.toLowerCase())).map(n => <button className="related-ticket" key={n.href} onClick={() => { router.push(n.href); setSearchOpen(false); }}><span>{n.label}</span><ArrowUpRight size={14} /></button>)}
+          {items.filter(t => query && (t.title + ' ' + t.ticketNumber + ' ' + t.memberName).toLowerCase().includes(query.toLowerCase())).slice(0, 10).map(t => <Link href={'/tickets/' + t.id} onClick={() => setSearchOpen(false)} key={t.id} className="related-ticket"><div><small>{t.ticketNumber}</small><p>{t.title}</p></div><ChevronRight size={14} /></Link>)}
+        </div>
+      </Modal>
+      <Modal open={notifications} onClose={() => setNotifications(false)} title="Your attention, thoughtfully directed" description="Live priority tickets in the workspace." size="narrow">
+        <div className="stack">
+          {openItems.filter(t => ['critical', 'high'].includes(t.priority)).map(t => <Link key={t.id} href={'/tickets/' + t.id} onClick={() => setNotifications(false)} className="related-ticket"><div><small>{t.ticketNumber}</small><p>{t.title}</p></div><Badge tone={t.priority === 'critical' ? 'red' : 'amber'}>{t.priority}</Badge></Link>)}
+          {!openItems.some(t => ['critical', 'high'].includes(t.priority)) && <p className="secondary">No urgent tickets need attention.</p>}
+        </div>
+      </Modal>
+    </div>
+  );
+}

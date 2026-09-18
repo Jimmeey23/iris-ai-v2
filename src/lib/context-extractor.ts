@@ -31,6 +31,11 @@ export function extractStudio(text: string): string | undefined {
     if (regex.test(text)) return canonical;
   }
 
+  // Auto-infer Kwality House for spaces unique to Kemps Corner
+  if (/\b(his\s*space|her\s*space|guest\s*washroom|brain\s*cell|pantry)\b/i.test(text)) {
+    return "Kwality House, Kemps Corner";
+  }
+
   // Canonical name substring matching
   const lower = text.toLowerCase();
   for (const studio of STUDIOS) {
@@ -60,21 +65,28 @@ export function extractTrainer(text: string): string | undefined {
   return undefined;
 }
 
-/** Extract studio room or area (e.g. Studio 1, Locker room, Washroom) */
+/** Extract studio room or area (e.g. Studio 1, His Space, Brain Cell, PowerCycle Studio) */
 export function extractArea(text: string): string | undefined {
   if (!text) return undefined;
 
-  // Specific room patterns
-  if (/\b(studio\s*1|studio\s*one|main\s*(studio|floor)|barre\s*(studio|room))\b/i.test(text)) return "Main studio floor";
-  if (/\b(studio\s*2|studio\s*two|studio\s*3|strength\s*(studio|floor|lab)|strength\s*room)\b/i.test(text)) return "Strength Lab floor";
-  if (/\b(cycle\s*(studio|room)|spin\s*room|powercycle\s*(studio|room)|bike\s*room)\b/i.test(text)) return "Cycle studio";
-  if (/\b(locker|locker\s*room|changing\s*room|change\s*room)\b/i.test(text)) return "Locker room";
-  if (/\b(shower|showers|washroom|washrooms|bathroom|bathrooms|restroom|restrooms|toilet|toilets|loo)\b/i.test(text)) return "Showers / washroom";
+  // Specific designated studio spaces & rooms
+  if (/\b(his\s*space|men'?s\s*washroom|men'?s\s*room)\b/i.test(text)) return "His Space";
+  if (/\b(her\s*space|women'?s\s*washroom|women'?s\s*room|ladies\s*room)\b/i.test(text)) return "Her Space";
+  if (/\b(guest\s*washroom|guest\s*restroom|guest\s*toilet)\b/i.test(text)) return "GUEST WASHROOM";
+  if (/\b(brain\s*cell|braincell|office\s*space|staff\s*office)\b/i.test(text)) return "Brain Cell";
+  if (/\b(pantry|kitchen|staff\s*pantry)\b/i.test(text)) return "Pantry";
+  if (/\b(powercycle\s*(?:studio|room)?|power\s*cycle|spin\s*studio|cycle\s*studio)\b/i.test(text)) return "PowerCycle Studio";
+  if (/\b(strength\s*(?:studio|floor|lab)|strength\s*room)\b/i.test(text)) return "Strength Studio";
+  if (/\b(studio\s*1|studio\s*one)\b/i.test(text)) return "Studio 1";
+  if (/\b(studio\s*2|studio\s*two)\b/i.test(text)) return "Studio 2";
+  if (/\b(locker|locker\s*room|changing\s*room|lockers\s*&\s*changing)\b/i.test(text)) return "Lockers & Changing";
+  if (/\b(washroom\s*&\s*changing)\b/i.test(text)) return "Washroom & Changing";
+  if (/\b(washroom|washrooms|bathroom|bathrooms|restroom|restrooms|toilets?)\b/i.test(text)) return "Washrooms";
   if (/\b(reception|lobby|front\s*desk|entrance)\b/i.test(text)) return "Reception / lobby";
   if (/\b(lounge|member\s*lounge|waiting\s*area|cafe)\b/i.test(text)) return "Member lounge";
   if (/\b(boutique|retail|merch|merchandise\s*display)\b/i.test(text)) return "Boutique";
   if (/\b(valet|parking|car\s*park)\b/i.test(text)) return "Parking / valet";
-  if (/\b(back\s*office|staff\s*room|office)\b/i.test(text)) return "Back office";
+  if (/\b(back\s*office)\b/i.test(text)) return "Back office";
   if (/\b(staircase|stairs|corridor|hallway)\b/i.test(text)) return "Staircase / corridor";
 
   // Check canonical STUDIO_AREAS

@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import {
   Sparkles,
   ArrowUp,
@@ -24,6 +24,9 @@ import {
   Image as ImageIcon,
   Clock,
   ExternalLink,
+  Zap,
+  Gift,
+  MessageSquare,
 } from 'lucide-react';
 import { api, useApp, Modal, Field, Badge, Loading } from './ui';
 import { MultiSelect } from './multi-select';
@@ -34,11 +37,13 @@ import type { VoiceCommand } from './voice-input';
 import { IrisContextBar } from './iris-context-bar';
 import { FileUpload, AttachmentPreviewList } from './file-upload';
 import type { UploadedFile } from './file-upload';
+import { MomenceActionCenter } from './momence-action-center';
 import type { IrisTurn, IrisMessage } from '@/lib/iris-contract';
 import type { PickerOption } from '@/lib/ticket-contract';
 import { display } from '@/lib/display';
 import { STUDIOS } from '@/lib/constants';
 import { toPlainText, toMarkdown, toJson, downloadText } from '@/lib/chat-export';
+import { extractContext } from '@/lib/context-extractor';
 
 interface HistorySessionItem {
   id: string;
@@ -76,17 +81,35 @@ export function IrisChat({ presetCategory, presetSubcategory }: { presetCategory
   const [speaking, setSpeaking] = useState(false);
   const [attachments, setAttachments] = useState<UploadedFile[]>([]);
   const [uploadingFiles, setUploadingFiles] = useState(false);
+  const [rightPanelTab, setRightPanelTab] = useState<'builder' | 'action_center'>('builder');
   const scroller = useRef<HTMLDivElement>(null);
   const lock = useRef(false);
   const turnRef = useRef<IrisTurn | undefined>(undefined);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const exportRef = useRef<HTMLDivElement>(null);
   const startedAt = useRef(new Date().toISOString());
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     const v = localStorage.getItem('iris-voice-replies');
     if (v) setVoiceMode(v === '1');
   }, []);
+
+  // Auto-resize chat textarea: compact initially, expands only as text grows
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      const scrollHeight = textareaRef.current.scrollHeight;
+      const targetHeight = text ? Math.min(Math.max(scrollHeight, 38), 160) : 38;
+      textareaRef.current.style.height = `${targetHeight}px`;
+    }
+  }, [text]);
+
+  // Real-time context heuristic extraction as user types or speaks
+  const liveContext = useMemo(() => {
+    if (!text.trim()) return {};
+    return extractContext(text.trim());
+  }, [text]);
 
   useEffect(() => {
     function onDoc(e: MouseEvent) {
@@ -99,10 +122,16 @@ export function IrisChat({ presetCategory, presetSubcategory }: { presetCategory
   function apply(d: IrisTurn, replace = false) {
     turnRef.current = d;
     setTurn(d);
-    localStorage.setItem('iris-conversation', d.sessionId);
-    setMessages((m) =>
-      d.history || (replace ? [{ role: 'assistant', content: d.message }] : [...m, { role: 'assistant', content: d.message }])
-    );
+    if (d.sessionId) {
+      localStorage.setItem('iris-conversation', d.sessionId);
+    }
+    if (d.history && d.history.length > 0) {
+      setMessages(d.history);
+    } else if (replace) {
+      setMessages(d.message ? [{ role: 'assistant', content: d.message }] : []);
+    } else if (d.message) {
+      setMessages((m) => [...m, { role: 'assistant', content: d.message }]);
+    }
   }
 
   async function start(fresh = false) {
@@ -211,8 +240,8 @@ export function IrisChat({ presetCategory, presetSubcategory }: { presetCategory
     setBusy(true);
     setError('');
 
-    // Combine any pending context selections from the top context bar with explicit patches
-    const mergedPatch = { ...pendingContext, ...(patch || {}) };
+    // Combine real-time detected context, manual context tab overrides, and explicit patches
+    const mergedPatch = { ...liveContext, ...pendingContext, ...(patch || {}) };
 
     // Upload files if any are attached
     let uploadedIds: string[] = [];
@@ -405,11 +434,10 @@ export function IrisChat({ presetCategory, presetSubcategory }: { presetCategory
     setError('');
     try {
       const d = await api<IrisTurn>('/api/iris/chat?sessionId=' + encodeURIComponent(id));
-      if (d.sessionId) {
-        apply(d, true);
-        setHistoryOpen(false);
-        notify('Resumed past intake session.');
-      }
+      const targetSession = { ...d, sessionId: d.sessionId || id };
+      apply(targetSession, true);
+      setHistoryOpen(false);
+      notify('Resumed past intake session.');
     } catch (e) {
       notify((e as Error).message, 'error');
     } finally {
@@ -540,24 +568,48 @@ export function IrisChat({ presetCategory, presetSubcategory }: { presetCategory
             <div className="chat-identity">
               <div className={'avatar-ring' + (speaking ? ' speaking' : '')}>
                 <img src={theme === 'dark' ? '/images/iris-avatar-dark.webp' : '/images/iris-avatar-light.webp'} alt="Iris" />
+                <span className="live-avatar-pulse" />
               </div>
-              <div>
-                <strong>Iris</strong>
-                <p>ops-intelligence.assistant</p>
+              <div className="chat-identity-meta">
+                <div className="chat-identity-title">
+                  <strong>Iris</strong>
+                  <span className="chat-agent-pill openai-badge" title="Powered by OpenAI GPT-4o">
+                    <svg className="openai-icon" viewBox="0 0 24 24" width="11" height="11" fill="currentColor">
+                      <path d="M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.9894 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1683a.071.071 0 0 1 .038.052v5.5826a4.5045 4.5045 0 0 1-4.4945 4.4947zm-9.6607-4.1254a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1408-1.6464zM2.3408 7.8956a4.485 4.485 0 0 1 2.3655-1.9728V11.6a.7664.7664 0 0 0 .3879.6765l5.8144 3.3543-2.0201 1.1683a.0757.0757 0 0 1-.071 0l-4.8303-2.7866A4.504 4.504 0 0 1 2.3408 7.8956zm16.0993 3.8558L12.5973 8.3829l2.02-1.1636a.0757.0757 0 0 1 .071 0l4.8303 2.7913a4.4944 4.4944 0 0 1-.6765 8.1042v-5.6772a.79.79 0 0 0-.3879-.6813l-.014-.0084zm2.0106-3.0231l-.142-.0852-4.7735-2.7818a.7759.7759 0 0 0-.7854 0L9.409 9.2297V6.8974a.0662.0662 0 0 1 .0284-.0615l4.8303-2.7866a4.4992 4.4992 0 0 1 6.6802 4.66zM8.3065 12.863l-2.02-1.1635a.0804.0804 0 0 1-.038-.0567V6.0748a4.4992 4.4992 0 0 1 7.3757-3.4537l-.142.0805L8.704 5.4598a.7948.7948 0 0 0-.3927.6813l-.0048 6.7219zm4.4945-2.5855l2.5855-1.4922 2.5855 1.4922v2.9844l-2.5855 1.4922-2.5855-1.4922z" />
+                    </svg>
+                    <span>OpenAI</span>
+                  </span>
+                </div>
+                <div className="chat-identity-sub">
+                  <span className="live-dot-glow" />
+                  <span className="sub-text">
+                    {busy
+                      ? 'Analyzing studio context & logs…'
+                      : speaking
+                      ? 'Speaking voice response…'
+                      : 'Physique 57 Ops Intelligence · Real-time Assistant'}
+                  </span>
+                </div>
               </div>
-              <Badge tone={turn?.engine === 'openai' ? 'green' : 'blue'}>{turn?.engine === 'openai' ? 'OpenAI live' : 'Smart logic'}</Badge>
+              <div className="engine-status-tag">
+                <span className={`engine-badge ${turn?.engine === 'openai' ? 'gpt' : 'smart'}`}>
+                  <span className="engine-dot" />
+                  {turn?.engine === 'openai' ? 'GPT-4o' : 'Smart Heuristics'}
+                </span>
+              </div>
             </div>
             <div className="chat-toolbar">
               <button
-                className={'icon-btn' + (voiceMode ? ' active' : '')}
+                className={'toolbar-pill-btn' + (voiceMode ? ' active' : '')}
                 title={voiceMode ? 'Voice replies ON (Tap to mute)' : 'Voice replies OFF (Tap to enable voice answers)'}
                 aria-label="Toggle spoken replies"
                 onClick={toggleVoiceMode}
               >
-                {voiceMode ? <Volume2 size={15} /> : <VolumeX size={15} />}
+                {voiceMode ? <Volume2 size={13} className="voice-icon-pulse" /> : <VolumeX size={13} />}
+                <span className="btn-txt">{voiceMode ? 'Voice ON' : 'Voice'}</span>
               </button>
               <button
-                className="icon-btn"
+                className="toolbar-pill-btn"
                 title="7-Day Chat History"
                 aria-label="View 7-day chat history"
                 onClick={() => {
@@ -565,17 +617,19 @@ export function IrisChat({ presetCategory, presetSubcategory }: { presetCategory
                   void loadHistory();
                 }}
               >
-                <History size={15} />
+                <History size={13} />
+                <span className="btn-txt">History</span>
+                <span className="history-pill">7d</span>
               </button>
-              <button className="icon-btn" title="Copy transcript" aria-label="Copy transcript to clipboard" onClick={() => void copyChat()}>
-                <Copy size={15} />
+              <button className="icon-btn toolbar-icon" title="Copy transcript" aria-label="Copy transcript to clipboard" onClick={() => void copyChat()}>
+                <Copy size={13} />
               </button>
-              <button className="icon-btn" title="Clear chat and draft" aria-label="Clear chat and draft" onClick={() => setClearOpen(true)}>
-                <Eraser size={15} />
+              <button className="icon-btn toolbar-icon" title="Clear chat and draft" aria-label="Clear chat and draft" onClick={() => setClearOpen(true)}>
+                <Eraser size={13} />
               </button>
               <div style={{ position: 'relative' }} ref={exportRef}>
-                <button className="icon-btn" title="Export chat" aria-label="Export chat" onClick={() => setExportOpen((v) => !v)}>
-                  <Download size={15} />
+                <button className="icon-btn toolbar-icon" title="Export chat" aria-label="Export chat" onClick={() => setExportOpen((v) => !v)}>
+                  <Download size={13} />
                 </button>
                 {exportOpen && (
                   <div className="card" style={{ position: 'absolute', right: 0, top: 40, zIndex: 20, width: 190, padding: 6 }}>
@@ -602,25 +656,6 @@ export function IrisChat({ presetCategory, presetSubcategory }: { presetCategory
               </button>
             </div>
           </div>
-
-          {/* TOP CONTEXT BAR: Dropdowns for Studio, Category, Subcategory, Area, Trainer, Class */}
-          {turn?.phase !== 'complete' && (
-            <IrisContextBar
-              turn={turn}
-              pendingContext={pendingContext}
-              onContextChange={(updates) =>
-                setPendingContext((prev) => {
-                  const next = { ...prev };
-                  for (const [k, v] of Object.entries(updates)) {
-                    if (v === undefined) delete next[k];
-                    else next[k] = v;
-                  }
-                  return next;
-                })
-              }
-              onResetContext={() => setPendingContext({})}
-            />
-          )}
 
           <div className="chat-scroll" ref={scroller}>
             <div className="chat-day">Internal ticket logging · Physique 57 India</div>
@@ -694,6 +729,24 @@ export function IrisChat({ presetCategory, presetSubcategory }: { presetCategory
                 </button>
               </div>
             )}
+            {(turn?.phase === 'draft' || turn?.phase === 'complete') && (
+              <div className="chat-action-callout" style={{ margin: '0 0 16px 36px' }}>
+                <div className="action-callout-text">
+                  <Zap size={13} className="accent" />
+                  <span>
+                    <strong>1-Click Momence Resolution Available:</strong> Grant class credit or draft WhatsApp care message.
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-primary action-callout-btn"
+                  onClick={() => setRightPanelTab('action_center')}
+                >
+                  <Gift size={12} />
+                  Open Action Center
+                </button>
+              </div>
+            )}
             {turn?.phase === 'complete' && turn.ticket && (
               <div className="card card-pad" style={{ marginLeft: 36, background: 'var(--green-bg)' }}>
                 <CheckCircle2 size={25} style={{ color: 'var(--green)', marginBottom: 12 }} />
@@ -727,6 +780,24 @@ export function IrisChat({ presetCategory, presetSubcategory }: { presetCategory
                 if (text.trim() || attachments.length > 0) void send(text.trim());
               }}
             >
+              {/* Context Bar positioned DIRECTLY ABOVE the chat input box */}
+              <IrisContextBar
+                turn={turn}
+                pendingContext={pendingContext}
+                liveContext={liveContext}
+                onContextChange={(updates) =>
+                  setPendingContext((prev) => {
+                    const next = { ...prev };
+                    for (const [k, v] of Object.entries(updates)) {
+                      if (v === undefined) delete next[k];
+                      else next[k] = v;
+                    }
+                    return next;
+                  })
+                }
+                onResetContext={() => setPendingContext({})}
+              />
+
               <div className="compose-box">
                 {attachments.length > 0 && (
                   <AttachmentPreviewList
@@ -735,7 +806,8 @@ export function IrisChat({ presetCategory, presetSubcategory }: { presetCategory
                   />
                 )}
                 <textarea
-                  rows={2}
+                  ref={textareaRef}
+                  rows={1}
                   aria-label="Message Iris"
                   value={text}
                   onChange={(e) => setText(e.target.value)}
@@ -801,63 +873,122 @@ export function IrisChat({ presetCategory, presetSubcategory }: { presetCategory
         </section>
 
         <aside className="card builder-panel">
-          <div className="builder-head">
-            <div className="between">
-              <h3>Live ticket builder</h3>
-              <Badge tone="purple">SCHEMA</Badge>
-            </div>
-            <p className="muted" style={{ fontSize: 10, marginTop: 6 }}>
-              Fields populate as the conversation continues.
-            </p>
-            <div className="builder-progress">
-              {Array.from({ length: turn?.progress.total || 8 }).map((_, i) => (
-                <span key={i} className={i < (turn?.progress.done || 0) ? 'done' : ''} />
-              ))}
-            </div>
+          {/* Top Segmented Controller */}
+          <div className="panel-tab-header">
+            <button
+              type="button"
+              className={`panel-tab-btn ${rightPanelTab === 'builder' ? 'active' : ''}`}
+              onClick={() => setRightPanelTab('builder')}
+            >
+              <FileCheck2 size={12.5} />
+              <span>Ticket Spec</span>
+              <span className="tab-count-pill">
+                {Object.keys(collected).filter((k) => fieldOrder.some(([f]) => f === k && collected[k])).length}/8
+              </span>
+            </button>
+            <button
+              type="button"
+              className={`panel-tab-btn action-tab ${rightPanelTab === 'action_center' ? 'active' : ''}`}
+              onClick={() => setRightPanelTab('action_center')}
+            >
+              <Zap size={12.5} className="action-zap" />
+              <span>Momence Actions</span>
+              <span className="tab-live-badge">
+                <span className="badge-pulse-dot" />
+                LIVE
+              </span>
+            </button>
           </div>
-          <div className="builder-body">
-            {!Object.keys(collected).some((k) => fieldOrder.some(([key]) => key === k)) ? (
-              <div className="builder-empty">
-                Waiting for the first details…
-                <br />
-                Mention studio, issue, trainer, or area.
-              </div>
-            ) : (
-              fieldOrder
-                .filter(([key]) => collected[key] !== undefined && collected[key] !== '')
-                .map(([key, label]) => (
-                  <div className="builder-line" key={key}>
-                    <span className="k">{label}:</span>
-                    <span className="v">{display(collected[key])}</span>
-                  </div>
-                ))
-            )}
-            {collected.category === 'Safety and Security' && (
-              <div style={{ marginTop: 16 }}>
-                <span className="k mono" style={{ fontSize: 10 }}>
-                  severity_signal
-                </span>
-                <div className="severity-meter">
-                  {[0, 1, 2].map((i) => (
-                    <span key={i} style={{ background: 'var(--red)' }} />
+
+          {rightPanelTab === 'builder' ? (
+            <>
+              <div className="builder-head">
+                <div className="between">
+                  <h3>Live ticket builder</h3>
+                  <Badge tone="purple">SCHEMA</Badge>
+                </div>
+                <p className="muted" style={{ fontSize: 10, marginTop: 6 }}>
+                  Fields populate as the conversation continues.
+                </p>
+                <div className="builder-progress">
+                  {Array.from({ length: turn?.progress.total || 8 }).map((_, i) => (
+                    <span key={i} className={i < (turn?.progress.done || 0) ? 'done' : ''} />
                   ))}
                 </div>
               </div>
-            )}
-          </div>
-          {turn?.draft && (
-            <div className="builder-footer">
-              <button className="btn btn-primary" onClick={() => setDraftOpen(true)}>
-                <FileCheck2 size={13} />
-                Review complete ticket
-              </button>
-              {turn?.phase !== 'complete' && (
-                <button className="btn" style={{ marginTop: 8 }} onClick={() => setDiscardOpen(true)}>
-                  <Trash2 size={13} />
-                  Discard draft
-                </button>
+              <div className="builder-body">
+                {!Object.keys(collected).some((k) => fieldOrder.some(([key]) => key === k)) ? (
+                  <div className="builder-empty">
+                    Waiting for the first details…
+                    <br />
+                    Mention studio, issue, trainer, or area.
+                  </div>
+                ) : (
+                  fieldOrder
+                    .filter(([key]) => collected[key] !== undefined && collected[key] !== '')
+                    .map(([key, label]) => (
+                      <div className="builder-line" key={key}>
+                        <span className="k">{label}:</span>
+                        <span className="v">{display(collected[key])}</span>
+                      </div>
+                    ))
+                )}
+                {collected.category === 'Safety and Security' && (
+                  <div style={{ marginTop: 16 }}>
+                    <span className="k mono" style={{ fontSize: 10 }}>
+                      severity_signal
+                    </span>
+                    <div className="severity-meter">
+                      {[0, 1, 2].map((i) => (
+                        <span key={i} style={{ background: 'var(--red)' }} />
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+              {turn?.draft && (
+                <div className="builder-footer">
+                  <button className="btn btn-primary" onClick={() => setDraftOpen(true)}>
+                    <FileCheck2 size={13} />
+                    Review complete ticket
+                  </button>
+                  {turn?.phase !== 'complete' && (
+                    <button className="btn" style={{ marginTop: 8 }} onClick={() => setDiscardOpen(true)}>
+                      <Trash2 size={13} />
+                      Discard draft
+                    </button>
+                  )}
+                </div>
               )}
-            </div>
+            </>
+          ) : (
+            <>
+              <div className="builder-head action-hub-head">
+                <div className="between">
+                  <div>
+                    <h3>Momence Operations Hub</h3>
+                    <p className="muted" style={{ fontSize: 10, marginTop: 3 }}>
+                      Live member compensation &amp; roster controls
+                    </p>
+                  </div>
+                  <Badge tone="green">SYNC ACTIVE</Badge>
+                </div>
+              </div>
+              <div className="builder-body-action-center">
+                <MomenceActionCenter
+                  memberId={String(collected.momenceMemberId || pendingContext.momenceMemberId || '481102')}
+                  memberName={String(collected.memberName || pendingContext.memberName || 'Priya Mehta')}
+                  memberEmail={String(collected.memberEmail || '')}
+                  studio={String(collected.studio || pendingContext.studio || '')}
+                  category={String(collected.category || pendingContext.category || '')}
+                  subcategory={String(collected.subcategory || pendingContext.subcategory || '')}
+                  sessionId={String(collected.momenceSessionId || pendingContext.momenceSessionId || '')}
+                  classFormat={String(collected.classFormat || pendingContext.classFormat || '')}
+                  trainer={String(collected.trainer || pendingContext.trainer || '')}
+                  issueSummary={String(collected.title || collected.description || '')}
+                />
+              </div>
+            </>
           )}
         </aside>
       </div>
