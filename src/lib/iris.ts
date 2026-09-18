@@ -41,6 +41,7 @@ const FIELD_DESCRIPTIONS: Record<string, string> = {
   systemName: "which system or equipment is acting up (e.g. mic, lights, sound system)",
   category: "what main operational area this issue falls under",
   subcategory: "what specific subcategory best matches this issue",
+  confirmCategory: "whether the inferred ticket category matches what occurred",
   memberName: "the name of the member involved",
 };
 
@@ -103,15 +104,16 @@ function applyMessageFacts(c:Record<string,unknown>,raw:string){
     c._categoryConfirmed=true;
   } else if(!c.category){
     const top=classifyIssue(raw)[0];
-    if(top&&top.score>=6){
+    if(top&&top.score>=5){
       c.category=top.category;
       c.subcategory=top.subcategory;
       c._categoryInferred=true;
-      if(top.score>=10)c._categoryConfirmed=true;
+      if(top.score>=6)c._categoryConfirmed=true;
     }
   }
 
-  if(c.reportedBy!==REPORTED_BY_OPTIONS[1]){
+  const isFacilityCat = ['Repair and Maintenance','Studio Amenities and Facilities','Tech Issues','Operating Systems'].includes(String(c.category));
+  if(isFacilityCat || c.reportedBy!==REPORTED_BY_OPTIONS[1]){
     c.memberLookupDone=true;
     if(!c.memberName)c.memberName='Studio team observation';
     c.memberEmail='';
@@ -123,21 +125,26 @@ function applyMessageFacts(c:Record<string,unknown>,raw:string){
 }
 
 function defaultOperationalFields(c:Record<string,unknown>){
-  const maintenance=['Repair and Maintenance','Studio Amenities and Facilities','Tech Issues','Operating Systems','Safety and Security'].includes(String(c.category));
+  const maintenance=['Repair and Maintenance','Studio Amenities and Facilities','Tech Issues','Operating Systems','Safety and Security','Inventory and Supplies'].includes(String(c.category));
   if(!maintenance)return;
   if(!c.impact||c._operationalImpactDefault){
-    c.impact=c.isClassImpacted==='Yes, blocking now'?'Could not proceed as normal':c.isClassImpacted==='Not yet, but it will be'?'Likely to affect an upcoming session':`Operational issue reported${c.area?` in ${c.area}`:''}`;
+    c.impact=c.isClassImpacted==='Yes, blocking now'?`Class interrupted / blocking floor operations in ${c.area||'studio'}`:c.isClassImpacted==='Not yet, but it will be'?`Likely to affect upcoming sessions in ${c.area||'studio'}`:`Operational issue reported${c.area?` in ${c.area}`:''}`;
     c._operationalImpactDefault=true;
   }
   if(!c.requestedResolution||c._operationalResolutionDefault){
-    c.requestedResolution=`Inspect and resolve ${String(c.subcategory||'issue').toLowerCase()}${c.area?` in ${c.area}`:''}.`;
+    const sub=String(c.subcategory||'issue').toLowerCase();
+    c.requestedResolution=`Inspect and resolve ${sub}${c.area?` in ${c.area}`:''}.`;
     c._operationalResolutionDefault=true;
   }
   if(!c.preferredContact||c._operationalContactDefault){
-    if(c.reportedBy!==REPORTED_BY_OPTIONS[1]){
-      c.preferredContact='Internal log only';
-      c._operationalContactDefault=true;
-    }
+    c.preferredContact='Internal log only';
+    c._operationalContactDefault=true;
+  }
+  if(!c.memberLookupDone){
+    c.memberLookupDone=true;
+    c.memberName=c.memberName||'Studio team observation';
+    c.memberEmail='';
+    c.studioReport=true;
   }
 }
 
@@ -223,7 +230,52 @@ function occurredAtIso(value:unknown):string|undefined{
   return offset===undefined?undefined:new Date(now-offset).toISOString();
 }
 
-export async function irisWelcome(sessionId:string,preset?:{category?:string;subcategory?:string}):Promise<IrisTurn>{const c=preset?.category?{category:preset.category,subcategory:preset.subcategory}:{};return{sessionId,message:preset?.category?'Good — let’s log this properly. What did you see, or what were you told?':'Hi, I’m Iris — your team’s logging assistant. Tell me what you noticed on the floor, or what a member told you, and I’ll turn it into a clean ticket for the right department.',phase:'welcome',fieldKey:'description',options:[{label:'A member reported an issue to me',value:'A member told me about an issue and I need to log it.'},{label:'I noticed something myself',value:'I noticed something on the floor that needs attention.'},{label:'Trainer or class feedback',value:'I want to log feedback about a class or a trainer.'},{label:'Log a compliment',value:'I want to log a compliment a member shared.'}],collected:c,progress:{done:0,total:8},engine:(await credentials('chatgpt')).api_key?'openai':'guided'};}
+function getIstTimeGreeting(): string {
+  try {
+    const formatter = new Intl.DateTimeFormat('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      hour: 'numeric',
+      hour12: false,
+    });
+    const hour = parseInt(formatter.format(new Date()), 10);
+    if (hour >= 5 && hour < 12) return 'Good morning';
+    if (hour >= 12 && hour < 17) return 'Good afternoon';
+    if (hour >= 17 && hour < 22) return 'Good evening';
+    return 'Good evening';
+  } catch {
+    return 'Hello';
+  }
+}
+
+export async function irisWelcome(
+  sessionId: string,
+  preset?: { category?: string; subcategory?: string }
+): Promise<IrisTurn> {
+  const c = preset?.category ? { category: preset.category, subcategory: preset.subcategory } : {};
+  const greeting = getIstTimeGreeting();
+
+  let message = `${greeting}! I'm Iris, your studio operations co-pilot across Kwality House, Supreme HQ Bandra, Kenkere House & Courtside.\n\nTell me what you noticed on the floor, in any studio room, or what a member flagged. You can speak with voice or type naturally — I'll capture all details, room capacities, and route it to the right department.`;
+
+  if (preset?.category) {
+    message = `${greeting}! Let's log this ${preset.category}${preset.subcategory ? ` · ${preset.subcategory}` : ''} ticket.\n\nGo ahead and describe what happened on the floor, or who flagged it — I'll compile the ticket details directly.`;
+  }
+
+  return {
+    sessionId,
+    message,
+    phase: 'welcome',
+    fieldKey: 'description',
+    options: [
+      { label: 'A member reported an issue to me', value: 'A member told me about an issue and I need to log it.' },
+      { label: 'I noticed something myself on the floor', value: 'I noticed something on the floor that needs attention.' },
+      { label: 'Trainer or class scheduling feedback', value: 'I want to log feedback about a class or a trainer.' },
+      { label: 'Log a compliment from a member', value: 'I want to log a compliment a member shared.' },
+    ],
+    collected: c,
+    progress: { done: 0, total: 8 },
+    engine: (await credentials('chatgpt')).api_key ? 'openai' : 'guided',
+  };
+}
 
 export async function runIris(input:{sessionId:string;collected:Record<string,unknown>;message?:string;fieldKey?:string;history:IrisMessage[];selectionApplied?:boolean;patch?:Record<string,unknown>}):Promise<IrisTurn>{const cfg=await getConfig();const c={...input.collected,...input.patch};const raw=(input.message||'').trim();const priorField=input.fieldKey;const connection=await credentials('chatgpt');const key=connection._enabled==='false'?undefined:connection.api_key;let engine:'openai'|'guided'=cfg.aiEnabled&&key?'openai':'guided';let notice:string|undefined;let ai:OpenAI|undefined;
 if(engine==='openai')ai=new OpenAI({apiKey:key,timeout:20000,maxRetries:1});
@@ -279,7 +331,13 @@ const top=classifyIssue(String(c.description||raw));if(top[0])c._guess={category
 const nameMatch=raw.match(/(?:her name is|his name is|the member is|member's name is)\s+([a-z]+(?:\s+[a-z]+)?)(?=[,.!]|$)/i);if(nameMatch)c.memberName=nameMatch[1];
 if(/\b(loved|love|amazing|compliment|wonderful|excellent|fantastic|appreciation)\b/i.test(raw)&&!/(but |however|unsafe|complaint|not |didn.t)/i.test(raw)){c.kind='compliment';c.sentiment='positive';}else c.kind=c.kind||'issue';
 if(ai){try{const toolDefs:OpenAI.Chat.Completions.ChatCompletionTool[]=[{type:'function',function:{name:'find_momence',description:'Find member or session suggestions from Momence to help identify who or what this is about. Never select a record on the user’s behalf.',parameters:{type:'object',properties:{module:{type:'string',enum:['members','sessions']},query:{type:'string'}},required:['module','query'],additionalProperties:false}}}];
-const messages:OpenAI.Chat.Completions.ChatCompletionMessageParam[]=[{role:'system',content:`You are Iris, the internal logging assistant for Physique 57 India studio staff. Staff use you to record issues, snags and feedback they noticed or were told about by a member — you do not talk to members directly. Extract only facts explicitly provided. Return JSON {"fields":{...}}. Allowed fields: ${FIELD_KEYS.join(',')}. kind: issue/request/compliment/feedback. Exact taxonomy: ${JSON.stringify(cfg.taxonomy)}. Exact studios: ${JSON.stringify(cfg.studios)}. Do not guess a member, class, date, studio or contact detail — a room reference such as "Studio 1" or "Studio 2" names a room inside a location and is NOT a studio, so leave studio unset for those. Do not convert safety reports into compliments. Heuristic classification hint (trust it unless the message clearly contradicts it): ${JSON.stringify(c._guess||null)}. Studio aliases: kemps/kwality→Kwality House, Kemps Corner; shq/supreme/bandra→Supreme HQ, Bandra; kenkere→Kenkere House, Bengaluru; courtside→Courtside, Mumbai; copper/cloves/c&c→the Studio by Copper & Cloves, Bengaluru. Current facts: ${JSON.stringify(c)}. Correct earlier facts when explicitly corrected. Tools provide suggestions, not identity verification.`},...input.history.slice(-12),{role:'user',content:raw}];
+const messages:OpenAI.Chat.Completions.ChatCompletionMessageParam[]=[{role:'system',content:`You are Iris, the internal logging assistant for Physique 57 India studio staff. Staff use you to record issues, snags and feedback they noticed or were told about by a member — you do not talk to members directly. Extract only facts explicitly provided. Return JSON {"fields":{...}}. Allowed fields: ${FIELD_KEYS.join(',')}. kind: issue/request/compliment/feedback. Exact taxonomy: ${JSON.stringify(cfg.taxonomy)}. Exact studios: ${JSON.stringify(cfg.studios)}.
+Studio Knowledge & Room Layouts:
+- Kwality House (Kemps Corner): Studio 1 (capacity: 22 pax), Studio 2 (capacity: 13 pax), Strength Studio (capacity: 7 pax), PowerCycle Studio (capacity: 10 pax), His Space (men's washroom), Her Space (women's washroom), GUEST WASHROOM, Brain Cell (office space), Pantry, Lobby / Reception. Note: "His Space", "Her Space", "Guest Washroom", "Brain Cell", and "Pantry" are strictly at Kwality House!
+- Supreme HQ Bandra: 3 studios (2 regular studios: Studio 1 & 2 of capacity 13 pax each, 1 PowerCycle studio capacity 13 pax), Lobby / Reception, Lockers, Washrooms.
+- Kenkere House (Bengaluru): 2 studios (Studio 1 & 2 of capacity 13 pax each), Lobby / Reception, Washroom & changing.
+- Courtside (Mumbai) & Copper & Cloves (Bengaluru): Main Studio Floor, Reception, Lounge.
+Do not guess a member, class, date, studio or contact detail — a room reference such as "Studio 1" or "Studio 2" names a room inside a location and is NOT a studio, so leave studio unset for those unless it's a unique room like His Space, Her Space, or Brain Cell (which automatically implies Kwality House). Do not convert safety reports into compliments. Heuristic classification hint (trust it unless the message clearly contradicts it): ${JSON.stringify(c._guess||null)}. Studio aliases: kemps/kwality→Kwality House, Kemps Corner; shq/supreme/bandra→Supreme HQ, Bandra; kenkere/indiranagar→Kenkere House, Bengaluru; courtside→Courtside, Mumbai; copper/cloves/c&c→the Studio by Copper & Cloves, Bengaluru. Current facts: ${JSON.stringify(c)}. Correct earlier facts when explicitly corrected. Tools provide suggestions, not identity verification.`},...input.history.slice(-12),{role:'user',content:raw}];
 let result=await ai.chat.completions.create({model:cfg.aiModel,messages,tools:toolDefs,response_format:{type:'json_object'},max_completion_tokens:1200});
 const calls=result.choices[0]?.message.tool_calls;if(calls?.length){messages.push(result.choices[0].message);for(const call of calls){if(call.type!=='function')continue;let output:unknown;try{const args=obj(JSON.parse(call.function.arguments));if(!['members','sessions'].includes(String(args.module)))throw new Error('Invalid module');const found=await listMomence(args.module as 'members'|'sessions',{query:String(args.query||''),pageSize:5});output={source:found.source,suggestions:found.items.map(i=>({id:i.id,name:i.name}))};}catch{output={error:'Lookup unavailable. Ask the user to search and select manually.'};}messages.push({role:'tool',tool_call_id:call.id,content:JSON.stringify(output)});}result=await ai.chat.completions.create({model:cfg.aiModel,messages,response_format:{type:'json_object'},max_completion_tokens:1200});}
 const fields=obj(obj(JSON.parse(result.choices[0]?.message.content||'{}')).fields);for(const[k,v]of Object.entries(fields)){if(!FIELD_KEYS.includes(k)||typeof v!=='string'||v.length>=20000)continue;
@@ -315,17 +373,28 @@ const isColleagueReport=c.reportedBy===REPORTED_BY_OPTIONS[2];
 const isMemberReport=c.reportedBy===REPORTED_BY_OPTIONS[1];
 
 // CONTEXT-AWARE FLOW: Skip redundant questions based on what we already know
+const isFacilityCat = ['Repair and Maintenance','Studio Amenities and Facilities','Tech Issues','Operating Systems'].includes(String(c.category));
+
 if(!c.description||String(c.description).length<12){
   // Only ask description if welcome was processed (meaning reportedBy is set)
   const descPrompt=c.reportedBy===REPORTED_BY_OPTIONS[1]?'What did the member tell you?':c.reportedBy===REPORTED_BY_OPTIONS[0]?'What did you see?':'Go ahead — describe what happened, in as much detail as you have.';
   choose('description',descPrompt);
 }
-else if(c.category&&c.subcategory&&c._categoryInferred&&!c._categoryConfirmed){fieldKey='confirmCategory';question=`I've read this as ${String(c.subcategory).toLowerCase()} (${c.category}). File it there?`;opts=[{label:`Yes — ${c.subcategory}`,value:'__accept_category__'},{label:'No, let me pick the category',value:'__reject_category__'}];}
+else if(c.category&&c.subcategory&&c._categoryInferred&&!c._categoryConfirmed){
+  if(c.area || c.studio || isFacilityCat || (c._guess && typeof c._guess === 'object' && 'score' in c._guess && (c._guess as {score:number}).score >= 5)){
+    c._categoryConfirmed = true;
+    return runIris({...input,message:undefined,collected:c,patch:undefined});
+  }
+  fieldKey='confirmCategory';
+  question=`I've read this as ${String(c.subcategory).toLowerCase()} (${c.category}). File it there?`;
+  opts=[{label:`Yes — ${c.subcategory}`,value:'__accept_category__'},{label:'No, let me pick the category',value:'__reject_category__'}];
+}
 else if(!c.category){
   if(c._guess&&typeof c._guess==='object'&&'score'in c._guess&&(c._guess as unknown as {score:number}).score>3){
     c.category=(c._guess as unknown as {category:string}).category;
     c.subcategory=(c._guess as unknown as {subcategory:string}).subcategory;
     c._categoryInferred=true;
+    c._categoryConfirmed=true;
     return runIris({...input,message:undefined,collected:c,patch:undefined});
   }
   fieldKey='category';
@@ -337,8 +406,8 @@ else if(!c.subcategory){
   question=praise?'What stood out most?':'Which of these best matches it?';
   opts=options(cfg.taxonomy[String(c.category)]);
 }
-// SMART MEMBER LOOKUP: If staff observed it themselves or colleague reported it, skip member lookup entirely
-else if(!c.memberLookupDone&&(isStudioReport||isColleagueReport||c.studioReport)){
+// SMART MEMBER LOOKUP: If staff observed it themselves, colleague reported, facility issue, or non-member issue, skip member lookup entirely
+else if(!c.memberLookupDone&&(isStudioReport||isColleagueReport||c.studioReport||isFacilityCat||!isMemberReport)){
   c.memberLookupDone=true;c.memberName=c.memberName||'Studio team observation';c.memberEmail='';c.studioReport=true;
   return runIris({...input,message:undefined,collected:c,patch:undefined});
 }
@@ -358,18 +427,19 @@ const hosted=c.hostedClass===true||c.classFormat==='Studio Hosted Class';
 lookupFilters={studio:typeof c.studio==='string'&&c.studio!=='—'?c.studio:undefined,sessionTypes:hosted?['private']:undefined};
 opts=[{label:'Session not listed / enter manually',value:'__manual_session__'},...(hosted?[]:[{label:'It was a hosted / private class',value:'__hosted_class__'}])];}
 else if((!c.studio||c.studio==='—')&&!c.incidentAt&&!c._bundleTried){
-  // BUNDLED QUESTION: ask studio + time together. Asked once — if the answer resolves
-  // neither, the two fields are asked separately, with chips.
   fieldKey='studioAndTime';
   question=`Which studio is this for, and when'd you notice it?`;
-  opts=undefined; // Let AI enhance this conversationally, not structured options
+  opts=undefined;
 }
 else if(!c.studio||c.studio==='—'){
-  // Studio cannot be skipped or guessed: it is what routes the ticket to a site.
   const contextNote = c.area ? `Noted for ${c.area}${c.trainer ? ` (${c.trainer}'s session)` : ''}. ` : '';
   choose('studio',contextNote+((asked.studio||0)>=2?'I can\u2019t file this without the location \u2014 which studio was it? Pick one below.':'Which studio location center was this at?'),cfg.studios);
 }
 else if(!c.incidentAt){
+  if(isFacilityCat){
+    c.incidentAt = 'Earlier today';
+    return runIris({...input,message:undefined,collected:c,patch:undefined});
+  }
   choose('incidentAt','When did this happen?',[...OCCURRED_OPTIONS]);
 }
 else if(c.manualMember&&!c.memberName)choose('memberName','What name should go on the ticket?');
@@ -443,7 +513,9 @@ ${history.length?`Similar past tickets for reference: ${JSON.stringify(history)}
 
 Your task: Write a single smart, context-aware question asking for: ${targetDesc}.
 CRITICAL GUIDELINES:
-- If the user already mentioned a room (e.g. "Studio 2", "Strength Studio"), acknowledge that room, and ask ONLY for the missing facility studio location center (e.g. Kwality House Kemps Corner, Supreme HQ Bandra, Fort, Kenkere House).
+- Studio knowledge: Kwality House (Kemps Corner) has Studio 1 (22 pax), Studio 2 (13 pax), Strength Studio (7 pax), PowerCycle Studio (10 pax), His Space, Her Space, Guest Washroom, Brain Cell, Pantry. Supreme HQ (Bandra) has 3 studios (2 regular of 13 pax, 1 PowerCycle of 13 pax), Lockers. Kenkere House has 2 studios (13 pax each).
+- If the user already mentioned a room (e.g. "Studio 2", "Strength Studio"), acknowledge that room, and ask ONLY for the missing facility studio location center (e.g. Kwality House Kemps Corner, Supreme HQ Bandra, Kenkere House).
+- If "His Space", "Her Space", "Guest Washroom", "Brain Cell", or "Pantry" is mentioned, that is already Kwality House Kemps Corner, so NEVER ask for studio!
 - Do NOT ask who reported the issue if context shows it's a staff or colleague report.
 - Do NOT ask for facts already in context.
 - Keep it brief, conversational, and direct (one sentence, max 20 words).

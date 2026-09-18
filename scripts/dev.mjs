@@ -51,7 +51,12 @@ const child = spawn(
   [fileURLToPath(new URL('../node_modules/next/dist/bin/next', import.meta.url)), 'dev', '-p', String(port), ...process.argv.slice(2)],
   {
     stdio: 'inherit',
-    env: { ...process.env, NEXT_DIST_DIR: distDir, PORT: String(port) },
+    env: {
+      ...process.env,
+      NODE_OPTIONS: process.env.NODE_OPTIONS || '--max-old-space-size=4096',
+      NEXT_DIST_DIR: distDir,
+      PORT: String(port),
+    },
   },
 );
 
