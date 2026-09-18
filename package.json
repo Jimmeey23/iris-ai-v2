@@ -8,7 +8,7 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "db:push": "drizzle-kit push",
-    "db:seed": "tsx scripts/seed.ts"
+    "db:seed": "npx tsx -r dotenv/config src/lib/seed.ts"
   },
   "dependencies": {
     "@playwright/test": "^1.63.0",

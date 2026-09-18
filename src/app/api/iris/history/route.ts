@@ -1,159 +1,140 @@
 /**
- * PHASE 5: Chat History Retention API
- * Retrieve past chat sessions with 7-day TTL
- * List conversations with search/filter capability
+ * Chat History Retention API
+ * Scoped to individual users via browserKey / user auth with 7-day retention.
  */
 
 import { db } from "@/db";
 import { chatSessions, chatMessages } from "@/db/schema";
-import { sql, isNull, gt, or, lt, and, isNotNull } from "drizzle-orm";
+import { sql, gt, or, and, eq, desc, isNull } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
+import { browserKey, requireWorkspace, ApiError, errorResponse } from "@/lib/auth";
+
+export const dynamic = "force-dynamic";
 
 /**
  * GET /api/iris/history
- * Retrieve past chat sessions for the current user
- *
- * Query params:
- *   - limit: number (default 10)
- *   - offset: number (default 0)
- *   - search?: string (search in session title/description)
- *   - sessionId?: string (retrieve specific session with full message history)
- *
- * Returns: { sessions: Array<{id, createdAt, messageCount, lastMessage, ticketNumber}>, total }
+ * Retrieve 7-day chat history for the current individual user
  */
 export async function GET(request: NextRequest) {
   try {
+    await requireWorkspace();
+    const owner = await browserKey();
     const searchParams = request.nextUrl.searchParams;
-    const limit = parseInt(searchParams.get("limit") || "10");
+    const limit = Math.min(parseInt(searchParams.get("limit") || "20"), 50);
     const offset = parseInt(searchParams.get("offset") || "0");
-    const search = searchParams.get("search");
     const sessionId = searchParams.get("sessionId");
+
+    const now = new Date();
+    const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
     // If retrieving specific session, return full conversation
     if (sessionId) {
-      const session = await db.query.chatSessions.findFirst({
-        where: (c) => sql`${c.id} = ${sessionId}`,
-      });
+      const [session] = await db
+        .select()
+        .from(chatSessions)
+        .where(
+          and(
+            eq(chatSessions.id, sessionId),
+            eq(chatSessions.ownerKey, owner),
+            or(isNull(chatSessions.expiresAt), gt(chatSessions.expiresAt, now))
+          )
+        );
 
       if (!session) {
-        return NextResponse.json({ error: "Session not found" }, { status: 404 });
-      }
-
-      // Check if session has expired
-      if (session.expiresAt && new Date(session.expiresAt) < new Date()) {
-        return NextResponse.json(
-          { error: "Session expired" },
-          { status: 410 }
-        );
+        return NextResponse.json({ error: "Conversation not found or expired" }, { status: 404 });
       }
 
       // Get messages for this session
-      const messages = await db.query.chatMessages.findMany({
-        where: (m) => sql`${m.sessionId} = ${sessionId}`,
-        orderBy: (m) => m.createdAt,
-      });
+      const messages = await db
+        .select()
+        .from(chatMessages)
+        .where(eq(chatMessages.sessionId, sessionId))
+        .orderBy(chatMessages.createdAt);
 
       return NextResponse.json({
         session,
-        messages,
+        messages: messages.map((m) => ({
+          id: m.id,
+          role: m.role,
+          content: m.content,
+          attachmentIds: m.attachmentIds || [],
+          meta: m.meta,
+          createdAt: m.createdAt,
+        })),
         messageCount: messages.length,
       });
     }
 
-    // List sessions (only active, not expired)
-    const now = new Date();
-    let query = db.query.chatSessions.findMany({
-      where: (s) =>
-        or(isNull(s.expiresAt), gt(s.expiresAt, now)),
-      limit,
-      offset,
-      orderBy: (s) => [sql`${s.updatedAt} DESC`],
-    });
+    // List individual sessions for current user within 1 week
+    const sessions = await db
+      .select()
+      .from(chatSessions)
+      .where(
+        and(
+          eq(chatSessions.ownerKey, owner),
+          or(isNull(chatSessions.expiresAt), gt(chatSessions.expiresAt, now)),
+          gt(chatSessions.createdAt, oneWeekAgo)
+        )
+      )
+      .orderBy(desc(chatSessions.updatedAt))
+      .limit(limit)
+      .offset(offset);
 
-    // TODO: Add search filtering by collected fields (studio, category, etc.)
-
-    const sessions = await query;
-
-    // Get message count for each session
     const sessionsWithCount = await Promise.all(
       sessions.map(async (session) => {
         const [{ count }] = await db
           .select({ count: sql<number>`COUNT(*)` })
           .from(chatMessages)
-          .where(sql`${chatMessages.sessionId} = ${session.id}`);
+          .where(eq(chatMessages.sessionId, session.id));
 
-        // Get last message for preview
-        const lastMsg = await db.query.chatMessages.findFirst({
-          where: (m) => sql`${m.sessionId} = ${session.id}`,
-          orderBy: (m) => sql`${m.createdAt} DESC`,
-        });
+        const [lastMsg] = await db
+          .select()
+          .from(chatMessages)
+          .where(eq(chatMessages.sessionId, session.id))
+          .orderBy(desc(chatMessages.createdAt))
+          .limit(1);
+
+        const descText = String(session.collected?.description || "");
+        const title =
+          session.ticketNumber
+            ? `Ticket ${session.ticketNumber}`
+            : descText
+            ? descText.slice(0, 60) + (descText.length > 60 ? "..." : "")
+            : "Support Intake";
 
         return {
           id: session.id,
+          title,
+          phase: session.phase,
           createdAt: session.createdAt,
+          updatedAt: session.updatedAt,
+          ticketId: session.ticketId,
           ticketNumber: session.ticketNumber,
-          messageCount: count || 0,
-          lastMessage: lastMsg?.content?.substring(0, 100),
+          messageCount: Number(count) || 0,
+          lastMessage: lastMsg?.content ? lastMsg.content.slice(0, 120) : undefined,
           collected: session.collected,
         };
       })
     );
 
-    // Get total count for pagination - count all active (not expired) sessions
-    const totalResult = await db
+    const [{ total }] = await db
       .select({ total: sql<number>`COUNT(*)` })
       .from(chatSessions)
-      .where(or(isNull(chatSessions.expiresAt), gt(chatSessions.expiresAt, now)));
-    
-    const total = totalResult[0]?.total || 0;
+      .where(
+        and(
+          eq(chatSessions.ownerKey, owner),
+          or(isNull(chatSessions.expiresAt), gt(chatSessions.expiresAt, now)),
+          gt(chatSessions.createdAt, oneWeekAgo)
+        )
+      );
 
     return NextResponse.json({
       sessions: sessionsWithCount,
-      total,
+      total: Number(total) || 0,
       limit,
       offset,
     });
   } catch (error) {
-    console.error("History API error:", error);
-    return NextResponse.json(
-      { error: "Failed to retrieve history" },
-      { status: 500 }
-    );
-  }
-}
-
-/**
- * POST /api/iris/history/cleanup
- * Run cleanup: delete expired sessions (admin/cron only)
- * Called via background cron job
- */
-export async function DELETE(request: NextRequest) {
-  try {
-    const authHeader = request.headers.get("authorization");
-    const expectedToken = process.env.CRON_SECRET;
-
-    // Simple auth check (use proper auth in production)
-    if (!expectedToken || authHeader !== `Bearer ${expectedToken}`) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
-    }
-
-    const now = new Date();
-    const result = await db
-      .delete(chatSessions)
-      .where(and(isNotNull(chatSessions.expiresAt), lt(chatSessions.expiresAt, now)));
-
-    return NextResponse.json({
-      message: "Cleanup completed",
-      deletedCount: result.rowCount,
-    });
-  } catch (error) {
-    console.error("Cleanup error:", error);
-    return NextResponse.json(
-      { error: "Cleanup failed" },
-      { status: 500 }
-    );
+    return errorResponse(error);
   }
 }
