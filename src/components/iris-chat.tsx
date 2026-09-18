@@ -727,14 +727,13 @@ export function IrisChat({ presetCategory, presetSubcategory }: { presetCategory
                 if (text.trim() || attachments.length > 0) void send(text.trim());
               }}
             >
-              {attachments.length > 0 && (
-                <AttachmentPreviewList
-                  files={attachments}
-                  onRemove={(id) => setAttachments((prev) => prev.filter((f) => f.id !== id))}
-                />
-              )}
               <div className="compose-box">
-                <FileUpload onFilesSelected={(files) => setAttachments(files)} files={attachments} />
+                {attachments.length > 0 && (
+                  <AttachmentPreviewList
+                    files={attachments}
+                    onRemove={(id) => setAttachments((prev) => prev.filter((f) => f.id !== id))}
+                  />
+                )}
                 <textarea
                   rows={2}
                   aria-label="Message Iris"
@@ -754,33 +753,41 @@ export function IrisChat({ presetCategory, presetSubcategory }: { presetCategory
                       : 'Speak or type what you noticed (e.g. "Water leak in locker room at kemps during Rohan\'s class")…'
                   }
                 />
-                <VoiceInput
-                  disabled={busy}
-                  onVoiceCommand={handleVoiceCommand}
-                  onVoiceUsed={() => {
-                    if (!voiceMode) {
-                      setVoiceMode(true);
-                      localStorage.setItem('iris-voice-replies', '1');
-                    }
-                  }}
-                  onText={(v) => {
-                    const clean = v.trim();
-                    const cmd = parseVoiceCommand(clean);
-                    if (cmd) {
-                      handleVoiceCommand(cmd);
-                    } else {
-                      setText((t) => (t ? t + ' ' + clean : clean));
-                    }
-                  }}
-                />
-                <button
-                  type="submit"
-                  className="icon-btn send"
-                  disabled={busy || (!text.trim() && attachments.length === 0)}
-                  aria-label="Send message"
-                >
-                  <ArrowUp size={17} />
-                </button>
+                <div className="compose-actions-bar">
+                  <div className="compose-actions-left">
+                    <FileUpload onFilesSelected={(files) => setAttachments(files)} files={attachments} />
+                  </div>
+                  <div className="compose-actions-right">
+                    <VoiceInput
+                      disabled={busy}
+                      onVoiceCommand={handleVoiceCommand}
+                      onVoiceUsed={() => {
+                        if (!voiceMode) {
+                          setVoiceMode(true);
+                          localStorage.setItem('iris-voice-replies', '1');
+                        }
+                      }}
+                      onText={(v) => {
+                        const clean = v.trim();
+                        const cmd = parseVoiceCommand(clean);
+                        if (cmd) {
+                          handleVoiceCommand(cmd);
+                        } else {
+                          setText((t) => (t ? t + ' ' + clean : clean));
+                        }
+                      }}
+                    />
+                    <button
+                      type="submit"
+                      className={`icon-btn compose-action-btn send-btn ${text.trim() || attachments.length > 0 ? 'active' : ''}`}
+                      disabled={busy || (!text.trim() && attachments.length === 0)}
+                      aria-label="Send message"
+                      title="Send message (Enter)"
+                    >
+                      <ArrowUp size={15} />
+                    </button>
+                  </div>
+                </div>
               </div>
               <div className="compose-hint">
                 <span>ENTER TO SEND · VOICE COMMANDS SUPPORTED</span>

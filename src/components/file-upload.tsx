@@ -114,7 +114,7 @@ export function FileUpload({
   }
 
   return (
-    <div className="flex items-center gap-1">
+    <>
       <input
         ref={inputRef}
         type="file"
@@ -122,7 +122,7 @@ export function FileUpload({
         onChange={(e) => {
           if (e.target.files && e.target.files.length > 0) {
             processFiles(e.target.files);
-            e.target.value = ""; // Reset input so same file can be re-selected
+            e.target.value = "";
           }
         }}
         className="hidden"
@@ -130,21 +130,21 @@ export function FileUpload({
       />
       <button
         onClick={() => inputRef.current?.click()}
-        className="icon-btn attach-btn text-stone-500 hover:text-stone-800 dark:hover:text-stone-200 transition-colors"
+        className="icon-btn compose-action-btn attach-btn"
         type="button"
         title="Attach photo, document, or PDF (+)"
         aria-label="Attach file"
       >
-        <Plus size={17} />
+        <Plus size={15} />
       </button>
 
       {error && (
-        <div className="text-[11px] text-red-500 flex items-center gap-1 ml-1 animate-fadeIn">
-          <AlertCircle size={11} />
-          <span>{error}</span>
-        </div>
+        <span className="upload-error-inline" title={error}>
+          <AlertCircle size={10} />
+          {error}
+        </span>
       )}
-    </div>
+    </>
   );
 }
 
@@ -159,34 +159,25 @@ export function AttachmentPreviewList({
   if (!files || files.length === 0) return null;
 
   return (
-    <div className="flex flex-wrap gap-2 px-3 py-1.5 bg-stone-100/70 dark:bg-stone-900/70 border-t border-stone-200 dark:border-stone-800">
+    <div className="compose-attachment-tray">
       {files.map((file) => (
-        <div
-          key={file.id}
-          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-white dark:bg-stone-800 text-stone-800 dark:text-stone-200 text-xs border border-stone-200 dark:border-stone-700 shadow-sm"
-        >
+        <div key={file.id} className="attachment-chip">
           {file.preview ? (
-            <img
-              src={file.preview}
-              alt={file.fileName}
-              className="w-4 h-4 rounded object-cover flex-shrink-0"
-            />
+            <img src={file.preview} alt={file.fileName} className="attachment-thumb" />
           ) : file.fileType?.includes("pdf") ? (
-            <FileText size={13} className="text-red-500 flex-shrink-0" />
+            <FileText size={12} className="attachment-type-icon pdf" />
           ) : (
-            <ImageIcon size={13} className="text-blue-500 flex-shrink-0" />
+            <ImageIcon size={12} className="attachment-type-icon" />
           )}
-          <span className="truncate max-w-[130px] font-medium text-[11px]">
-            {file.fileName}
-          </span>
+          <span className="attachment-name">{file.fileName}</span>
           {onRemove && (
             <button
               onClick={() => onRemove(file.id)}
-              className="text-stone-400 hover:text-stone-700 dark:hover:text-stone-100 p-0.5 rounded transition-colors"
+              className="attachment-remove"
               type="button"
               title="Remove attachment"
             >
-              <X size={11} />
+              <X size={10} />
             </button>
           )}
         </div>
