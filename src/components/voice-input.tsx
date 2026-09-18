@@ -188,10 +188,10 @@ export function VoiceInput({
       disabled={disabled || processing || !supported}
       title={!supported ? 'Voice input is not available in this browser' : recording ? 'Stop listening' : 'Speak to Iris (Voice Command or Dictation)'}
       aria-label={recording ? 'Stop voice dictation' : 'Start voice dictation'}
-      className={'icon-btn' + (recording ? ' voice-recording' : '')}
+      className={'icon-btn compose-action-btn' + (recording ? ' voice-recording' : '')}
       onClick={() => void start()}
     >
-      {processing ? <Loader2 size={15} className="animate-spin" /> : recording ? <Square size={13} /> : <Mic size={15} />}
+      {processing ? <Loader2 size={14} className="animate-spin" /> : recording ? <Square size={12} /> : <Mic size={14} />}
     </button>
   );
 }
