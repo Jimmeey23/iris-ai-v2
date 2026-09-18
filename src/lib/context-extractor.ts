@@ -167,14 +167,42 @@ export function extractClassContext(text: string): {
   return result;
 }
 
-/** Extract studio area/location (studio floor, boutique, lounge, etc.) */
+/** Extract studio area/location (studio 1/2/3, strength studio, studio floor, boutique, lounge, etc.) */
 export function extractArea(text: string): string | undefined {
   if (!text) return undefined;
   const lower = text.toLowerCase();
 
-  const areas = ["studio floor", "lounge", "boutique", "changing room", "locker", "bathroom"];
+  const studioRoomMatch = text.match(/\b(studio\s*[1-9]|strength\s*(?:studio|lab)|barre\s*studio|main\s*studio(?:\s*floor)?)\b/i);
+  if (studioRoomMatch) {
+    const raw = studioRoomMatch[0];
+    if (/studio\s*1/i.test(raw)) return "Studio 1";
+    if (/studio\s*2/i.test(raw)) return "Studio 2";
+    if (/studio\s*3/i.test(raw)) return "Studio 3";
+    if (/strength/i.test(raw)) return "Strength Studio";
+    if (/barre/i.test(raw)) return "Barre Studio";
+    if (/main/i.test(raw)) return "Main Studio Floor";
+  }
+
+  const areas = [
+    "studio floor",
+    "main studio floor",
+    "lounge",
+    "boutique",
+    "changing room",
+    "locker room",
+    "locker",
+    "bathroom",
+    "restroom",
+    "reception",
+    "front desk",
+    "valet",
+  ];
   for (const area of areas) {
-    if (lower.includes(area)) return area;
+    if (lower.includes(area)) {
+      return area === "studio floor" || area === "main studio floor"
+        ? "Main Studio Floor"
+        : area.charAt(0).toUpperCase() + area.slice(1);
+    }
   }
 
   return undefined;
@@ -185,6 +213,7 @@ export function extractArea(text: string): string | undefined {
  * Used by IRIS to skip asking for known fields
  */
 export function extractContext(message: string): Record<string, unknown> {
+  if (!message) return {};
   const studio = extractStudio(message);
   const { category, subcategory, confidence } = extractCategory(message);
   const { class: cls, trainer, sessionType } = extractClassContext(message);
@@ -200,6 +229,13 @@ export function extractContext(message: string): Record<string, unknown> {
   if (trainer) extracted.trainer = trainer;
   if (sessionType) extracted.classFormat = sessionType;
   if (area) extracted.area = area;
+
+  // Extract class impact signals directly from prose
+  if (/\b(during class|in class|mid-class|middle of class|class in progress|while teaching|during a session)\b/i.test(message)) {
+    extracted.isClassImpacted = "Yes, blocking now";
+  } else if (/\b(before class|upcoming class|next class|will be in class|about to start)\b/i.test(message)) {
+    extracted.isClassImpacted = "Not yet, but it will be";
+  }
 
   return extracted;
 }

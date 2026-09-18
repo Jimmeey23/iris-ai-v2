@@ -1,12 +1,12 @@
 /**
- * PHASE 4: File Attachments UI
- * Drag-and-drop file upload with preview for images, PDFs, and documents
+ * File Attachments UI
+ * Compact '+' icon upload button with preview chips for images, PDFs, and documents
  */
 
 "use client";
 
 import { useState, useRef } from "react";
-import { Upload, FileIcon, X, AlertCircle } from "lucide-react";
+import { Plus, FileIcon, X, AlertCircle } from "lucide-react";
 
 export interface UploadedFile {
   id: string;
@@ -40,7 +40,6 @@ export function FileUpload({
   maxSize = MAX_SIZE_DEFAULT,
   maxFiles = 5,
 }: FileUploadProps) {
-  const [isDragging, setIsDragging] = useState(false);
   const [error, setError] = useState<string>();
   const [files, setFiles] = useState<UploadedFile[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -56,18 +55,18 @@ export function FileUpload({
     const newFiles: UploadedFile[] = [];
 
     if (fileList.length + files.length > maxFiles) {
-      setError(`Maximum ${maxFiles} files allowed`);
+      setError(`Max ${maxFiles} files allowed`);
       return;
     }
 
     Array.from(fileList).forEach((file) => {
       if (!ALLOWED_TYPES.includes(file.type)) {
-        setError(`File type not supported: ${file.type}`);
+        setError(`Type not supported: ${file.name}`);
         return;
       }
 
       if (file.size > maxSize) {
-        setError(`File too large: ${file.name} (max ${formatFileSize(maxSize)})`);
+        setError(`Too large: ${file.name} (max ${formatFileSize(maxSize)})`);
         return;
       }
 
@@ -79,7 +78,6 @@ export function FileUpload({
         fileSize: file.size,
       };
 
-      // Generate preview for images
       if (file.type.startsWith("image/")) {
         const reader = new FileReader();
         reader.onload = (e) => {
@@ -101,92 +99,65 @@ export function FileUpload({
     });
   }
 
+  function removeFile(fileId: string) {
+    const updated = files.filter((f) => f.id !== fileId);
+    setFiles(updated);
+    onFilesSelected(updated);
+  }
+
   return (
-    <div className="space-y-3">
-      <div
-        onDragOver={(e) => {
-          e.preventDefault();
-          setIsDragging(true);
+    <div className="flex flex-col gap-1 inline-flex align-middle">
+      <input
+        ref={inputRef}
+        type="file"
+        multiple
+        onChange={(e) => {
+          if (e.target.files) processFiles(e.target.files);
         }}
-        onDragLeave={() => setIsDragging(false)}
-        onDrop={(e) => {
-          e.preventDefault();
-          setIsDragging(false);
-          processFiles(e.dataTransfer.files);
-        }}
-        className={`rounded-lg border-2 border-dashed p-4 text-center transition-colors ${
-          isDragging
-            ? "border-blue-400 bg-blue-50"
-            : "border-stone-300 bg-stone-50 hover:border-stone-400"
-        }`}
+        className="hidden"
+        accept={ALLOWED_TYPES.join(",")}
+      />
+      <button
+        onClick={() => inputRef.current?.click()}
+        className="icon-btn attach-btn"
+        type="button"
+        title="Attach photo or document (+)"
+        aria-label="Attach file"
       >
-        <input
-          ref={inputRef}
-          type="file"
-          multiple
-          onChange={(e) => {
-            if (e.target.files) processFiles(e.target.files);
-          }}
-          className="hidden"
-          accept={ALLOWED_TYPES.join(",")}
-        />
-        <button
-          onClick={() => inputRef.current?.click()}
-          className="mx-auto flex flex-col items-center gap-2"
-          type="button"
-        >
-          <Upload className="w-6 h-6 text-stone-400" />
-          <span className="text-sm font-medium text-stone-600">
-            Drag files here or click to browse
-          </span>
-          <span className="text-xs text-stone-500">
-            Images, PDFs, Word, Excel (max {formatFileSize(maxSize)})
-          </span>
-        </button>
-      </div>
+        <Plus size={18} />
+      </button>
 
       {error && (
-        <div className="flex gap-2 rounded-lg bg-red-50 p-3 text-sm text-red-700">
-          <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+        <div className="text-xs text-red-500 flex items-center gap-1 mt-1">
+          <AlertCircle size={12} />
           <span>{error}</span>
         </div>
       )}
 
       {files.length > 0 && (
-        <div className="grid gap-2">
+        <div className="flex flex-wrap gap-2 my-1">
           {files.map((file) => (
             <div
               key={file.id}
-              className="flex items-center gap-3 rounded-lg bg-stone-50 p-3 border border-stone-200"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-stone-100 text-stone-700 text-xs border border-stone-200"
             >
               {file.preview ? (
                 <img
                   src={file.preview}
                   alt={file.fileName}
-                  className="w-10 h-10 rounded object-cover flex-shrink-0"
+                  className="w-4 h-4 rounded object-cover flex-shrink-0"
                 />
               ) : (
-                <FileIcon className="w-10 h-10 text-stone-400 flex-shrink-0" />
+                <FileIcon size={12} className="text-stone-500 flex-shrink-0" />
               )}
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-stone-900 truncate">
-                  {file.fileName}
-                </p>
-                <p className="text-xs text-stone-500">
-                  {formatFileSize(file.fileSize)}
-                </p>
-              </div>
+              <span className="truncate max-w-[120px] font-medium">{file.fileName}</span>
               <button
-                onClick={() => {
-                  const updated = files.filter((f) => f.id !== file.id);
-                  setFiles(updated);
-                  onFilesSelected(updated);
-                }}
-                className="p-1.5 text-stone-400 hover:text-stone-600 hover:bg-stone-200 rounded transition-colors"
+                onClick={() => removeFile(file.id)}
+                className="hover:text-stone-900 p-0.5 rounded-full"
                 type="button"
-                title="Remove file"
+                title="Remove attachment"
               >
-                <X className="w-4 h-4" />
+                <X size={12} />
               </button>
             </div>
           ))}
