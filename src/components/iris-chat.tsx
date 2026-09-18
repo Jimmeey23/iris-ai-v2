@@ -6,6 +6,9 @@ import {MultiSelect} from './multi-select';
 import {DraftDocument} from './ticket-composer';
 import {TicketDialog} from './ticket-detail';
 import {VoiceInput} from './voice-input';
+import {IrisContextBar} from './iris-context-bar';
+import {FileUpload} from './file-upload';
+import type {UploadedFile} from './file-upload';
 import type {IrisTurn,IrisMessage} from '@/lib/iris-contract';
 import type {PickerOption} from '@/lib/ticket-contract';
 import {display} from '@/lib/display';
@@ -29,6 +32,8 @@ export function IrisChat({presetCategory,presetSubcategory}:{presetCategory?:str
   const[ticketId,setTicketId]=useState<number>();
   const[voiceMode,setVoiceMode]=useState(false);
   const[speaking,setSpeaking]=useState(false);
+  const[attachments,setAttachments]=useState<UploadedFile[]>([]);
+  const[uploadingFiles,setUploadingFiles]=useState(false);
   const scroller=useRef<HTMLDivElement>(null);
   const lock=useRef(false);
   const turnRef=useRef<IrisTurn|undefined>(undefined);
@@ -78,11 +83,24 @@ export function IrisChat({presetCategory,presetSubcategory}:{presetCategory?:str
     const current=turnRef.current;if(!current||lock.current)return;lock.current=true;setBusy(true);setError('');
     const shown=label||message;if(shown)setMessages(m=>[...m,{role:'user',content:shown}]);
     try{
-      const d=await api<IrisTurn>('/api/iris/chat',{method:'POST',body:JSON.stringify({sessionId:current.sessionId,message,selection,patch})});
-      apply(d);setText('');
+      const d=await api<IrisTurn>('/api/iris/chat',{method:'POST',body:JSON.stringify({sessionId:current.sessionId,message,selection,patch,attachmentIds:attachments.map(a=>a.id)})});
+      apply(d);setText('');setAttachments([]);
       if(fromVoice||voiceMode)void speak(d.message);
     }catch(e){setError((e as Error).message);if(shown)setMessages(m=>m.slice(0,-1));}
     finally{setBusy(false);lock.current=false;}
+  }
+
+  async function handleFilesSelected(files:UploadedFile[]){
+    if(!turn)return;
+    setUploadingFiles(true);
+    try{
+      const formData=new FormData();formData.append('sessionId',turn.sessionId);
+      files.forEach(f=>{formData.append('file',new File([(f.preview||'')],f.fileName,{type:f.fileType}))});
+      const result=await api<{attachments:Array<{id:string;fileName:string}>}>('/api/iris/upload',{method:'POST',body:formData});
+      setAttachments(prev=>[...prev,...files]);
+      notify(`${files.length} file(s) attached`);
+    }catch(e){notify((e as Error).message,'error');}
+    finally{setUploadingFiles(false);}
   }
 
   async function approve(){
@@ -242,6 +260,9 @@ export function IrisChat({presetCategory,presetSubcategory}:{presetCategory?:str
           </div>
           {turn?.phase!=='complete'&&(
             <form className="chat-compose" onSubmit={e=>{e.preventDefault();if(text.trim())void send(text.trim());}}>
+              <IrisContextBar turn={turn} onContextChange={(updates)=>{}} />
+              <FileUpload onFilesSelected={handleFilesSelected} />
+              {attachments.length>0&&<div className="text-xs text-stone-600 px-4 py-2">📎 {attachments.length} file(s) attached</div>}
               <div className="compose-box">
                 <textarea rows={2} aria-label="Message Iris" value={text} onChange={e=>setText(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();if(text.trim()&&!busy)void send(text.trim());}}} placeholder={turn?.lookup?'Search above, or add more detail…':turn?.phase==='draft'?'Tell Iris what to change…':'Log what you saw or what a member told you…'}/>
                 <VoiceInput disabled={busy} onVoiceUsed={()=>{if(!voiceMode){setVoiceMode(true);localStorage.setItem('iris-voice-replies','1');}}} onText={v=>setText(t=>t?t+' '+v:v)}/>

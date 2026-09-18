@@ -3,6 +3,7 @@ import {getConfig,credentials} from './config';
 import {extractEntities,inferSentiment,classifyIssue,matchStudio} from './classifier';
 import {makeDraft,historicalExamples} from './tickets';
 import {listMomence,obj} from './momence';
+import {extractContext,determineSkippableFields} from './context-extractor';
 import {STUDIO_AREAS,SYSTEMS,OCCURRED_OPTIONS,REPORTED_BY_OPTIONS} from './constants';
 import type {IrisTurn,IrisMessage} from './iris-contract';
 import type {AdvancedDraft} from './ticket-contract';
@@ -70,8 +71,8 @@ function extraSlot(category:string,c:Record<string,unknown>):{key:string;prompt:
   const isStudioReport=c.reportedBy===REPORTED_BY_OPTIONS[0];
   const skipDuplicateCheck=isStudioReport&&c.incidentAt==='Earlier today';
   
-  // URGENCY CHECK: If this is blocking RIGHT NOW, skip optional dedup question
-  const isUrgent=c.isClassImpacted==='Yes, blocking now'||c.isImmediateDanger==='Yes — happening now';
+  // URGENCY CHECK: If this is blocking RIGHT NOW or needs urgent attention, skip optional dedup question
+  const isUrgent=c.isClassImpacted==='Yes, blocking now'||c.isImmediateDanger==='Yes — happening now'||c.isImmediateDanger==='No, but it needs urgent attention';
   
   // For maintenance/facilities: ask location, then impact, skip dedup if urgent
   if(isMaintenance&&!c.area)return{key:'area',prompt:'Where in the studio is this?',values:[...STUDIO_AREAS]};
@@ -152,7 +153,10 @@ else if(priorField&&FIELD_KEYS.includes(priorField)){
   if(priorField==='studio'){const m=matchStudio(raw);if(m)c.studio=m;else if(strict&&value===undefined)delete c.studio;}
 }
 else if(!/^(yes|no|ok|okay|nope|yeah|yep|nah|sure|thanks|thank you)\W*$/i.test(raw))c.description=String(c.description||'')+(c.description?'\n':'')+raw;
-{const heuristic=extractEntities(raw);for(const[k,v]of Object.entries(heuristic)){if(!FIELD_KEYS.includes(k)||v===undefined||c[k])continue;if(k==='studio'){const m=matchStudio(String(v));if(m)c.studio=m;continue;}if(k==='category')c._categoryInferred=true;c[k]=v;}const top=classifyIssue(String(c.description||raw));if(top[0])c._guess={category:top[0].category,subcategory:top[0].subcategory,score:top[0].score};if(priorField==='description'||!priorField){
+{const heuristic=extractEntities(raw);for(const[k,v]of Object.entries(heuristic)){if(!FIELD_KEYS.includes(k)||v===undefined||c[k])continue;if(k==='studio'){const m=matchStudio(String(v));if(m)c.studio=m;continue;}if(k==='category')c._categoryInferred=true;c[k]=v;}
+// PHASE 1: Extract context from first message using smarter entity recognition
+if(!priorField||priorField==='description'){const contextExtracted=extractContext(String(c.description||raw));for(const[k,v]of Object.entries(contextExtracted)){if(!c[k])c[k]=v;}}
+const top=classifyIssue(String(c.description||raw));if(top[0])c._guess={category:top[0].category,subcategory:top[0].subcategory,score:top[0].score};if(priorField==='description'||!priorField){
 const nameMatch=raw.match(/(?:her name is|his name is|the member is|member's name is)\s+([a-z]+(?:\s+[a-z]+)?)(?=[,.!]|$)/i);if(nameMatch)c.memberName=nameMatch[1];
 if(/\b(loved|love|amazing|compliment|wonderful|excellent|fantastic|appreciation)\b/i.test(raw)&&!/(but |however|unsafe|complaint|not |didn.t)/i.test(raw)){c.kind='compliment';c.sentiment='positive';}else c.kind=c.kind||'issue';
 if(ai){try{const toolDefs:OpenAI.Chat.Completions.ChatCompletionTool[]=[{type:'function',function:{name:'find_momence',description:'Find member or session suggestions from Momence to help identify who or what this is about. Never select a record on the user’s behalf.',parameters:{type:'object',properties:{module:{type:'string',enum:['members','sessions']},query:{type:'string'}},required:['module','query'],additionalProperties:false}}}];
@@ -284,8 +288,8 @@ if(fieldKey&&(asked[fieldKey]||0)>=ASK_LIMIT){
 if(fieldKey)asked[fieldKey]=(asked[fieldKey]||0)+1;
 c._asked=asked;
 const required=['description','reportedBy','category','subcategory','memberLookupDone','studio','incidentAt',...(classRelated?['sessionLookupDone']:[]),...(praise?[]:['impact','requestedResolution','preferredContact'])];
-// URGENCY OVERRIDE: If blocking right now or immediate danger, skip to draft early
-const isBlockingNow=c.isClassImpacted==='Yes, blocking now'||c.isImmediateDanger==='Yes — happening now';
+// URGENCY OVERRIDE: If blocking right now or needs urgent attention, skip to draft early
+const isBlockingNow=c.isClassImpacted==='Yes, blocking now'||c.isImmediateDanger==='Yes — happening now'||c.isImmediateDanger==='No, but it needs urgent attention';
 const urgentRequired=isBlockingNow?required.filter(k=>!['alreadyReported','preferredContact','impact','requestedResolution','trainer','classFormat'].includes(k)):required;
 let draft:AdvancedDraft|undefined;if(!fieldKey){const cf=obj(c.customFields);draft=await makeDraft({...c,description:c.description,memberName:c.memberName||'Studio team observation',memberEmail:c.memberEmail||'',kind:c.kind,source:'iris',sentiment:praise?'positive':c.sentiment||inferSentiment(String(c.description)),customFields:{...cf,...intakeAnswers(c)},preferredContact:c.preferredContact||'Internal log only',momenceContext:c.momenceContext});// The recap is the deliverable: the reporter needs to see the routing, priority and SLA the
 // ticket will carry before approving it, not just be told that a ticket exists.
