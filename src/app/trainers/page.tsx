@@ -9,7 +9,7 @@ import {relativeTime} from '@/lib/utils';
 /** How often the tab asks the server to pull the form and the two Zite apps again. */
 const POLL_MS=20000;
 
-type SyncSource={label:string;id:string;imported:number;skipped:number;failed:number;unmatched:number;total:number;unmatchedStudios:string[];error?:string};
+type SyncSource={label:string;id:string;imported:number;skipped:number;failed:number;unmatched:number;total:number;unmatchedStudios:string[];failures:{sourceRef:string;reason:string}[];error?:string};
 type SyncResult={imported:number;skipped:number;failed:number;unmatched:number;lastSync:string;sources:SyncSource[]};
 
 export default function TrainersPage(){
@@ -53,7 +53,7 @@ export default function TrainersPage(){
     return()=>{clearInterval(timer);document.removeEventListener('visibilitychange',tick);};
   },[listening]);
 
-  /** Pulls the Fillout form and both Zite apps in now, then refreshes the scorecards. */
+  /** Pulls both Fillout forms and both Zite apps in now, then refreshes the scorecards. */
   async function syncFillout(){
     setSyncing(true);
     try{
@@ -66,6 +66,10 @@ export default function TrainersPage(){
         :d.imported?`${d.imported} new assessment${d.imported===1?'':'s'} recorded${d.skipped?`, ${d.skipped} already on file`:''}.`
         :`Up to date — ${d.skipped} assessment${d.skipped===1?'':'s'} already on file.`;
       notify(broken?message:message,broken?'error':'success');
+      // A row that threw on import is reported with its reason rather than silently dropped.
+      const failures=d.sources.flatMap(s=>(s.failures||[]).map(f=>`${s.label}: ${f.reason}`));
+      const reasons=[...new Set(failures)].slice(0,3);
+      if(reasons.length)notify(`${d.failed} submission${d.failed===1?'':'s'} could not be recorded — ${reasons.join(' · ')}`,'error');
       if(unmatchedStudios.length)notify(`${d.unmatched} submission${d.unmatched===1?'':'s'} skipped — unrecognised studio: ${unmatchedStudios.join(', ')}. Add the studio in Settings, or correct the form's studio field.`,'error');
       setLastSync(d.lastSync);
       await load();
