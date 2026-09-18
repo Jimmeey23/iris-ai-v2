@@ -342,40 +342,4 @@ export async function ensureSeeded() {
   await seedPromise;
 }
 
-export async function persistSession(
-  sessionId: string,
-  phase: string,
-  collected: Record<string, unknown>,
-  draft?: Record<string, unknown> | null,
-  ticket?: { id: number; ticketNumber: string } | null,
-) {
-  const existing = await db.select().from(chatSessions).where(eq(chatSessions.id, sessionId)).limit(1);
-  const payload = {
-    phase,
-    collected,
-    missing: [],
-    draft: draft ?? null,
-    ticketId: ticket?.id ?? null,
-    ticketNumber: ticket?.ticketNumber ?? null,
-    updatedAt: new Date(),
-  };
-  if (existing.length) {
-    await db.update(chatSessions).set(payload).where(eq(chatSessions.id, sessionId));
-  } else {
-    await db.insert(chatSessions).values({ id: sessionId, ...payload });
-  }
-}
 
-export async function persistMessage(
-  sessionId: string,
-  role: string,
-  content: string,
-  meta?: Record<string, unknown>,
-) {
-  await db.insert(chatMessages).values({
-    sessionId,
-    role,
-    content,
-    meta: meta ?? null,
-  });
-}

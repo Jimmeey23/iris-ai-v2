@@ -1,7 +1,6 @@
 "use client";
 import {useEffect,useCallback,useState} from 'react';import {CalendarDays,Ticket,Clock3,CheckCircle2,TriangleAlert,ChevronRight,ArrowUpRight} from 'lucide-react';
 import {api,Avatar,Badge,Status,Priority,useApp,Empty,CountUp} from './ui';import {relativeTime,slaState} from '@/lib/utils';import type {TicketListRecord} from '@/lib/ticket-contract';
-export type TicketRow=TicketListRecord;
 /** Slowest acceptable refresh. The board also reloads on `iris:tickets-updated` and on tab focus. */
 const POLL_FLOOR=60000;
 export function useTickets(poll=true){const[tickets,setTickets]=useState<TicketListRecord[]>([]),[loading,setLoading]=useState(true),[error,setError]=useState('');const{user,pollSeconds}=useApp();const load=useCallback(async()=>{try{const d=await api<{tickets:TicketListRecord[]}>('/api/tickets');setTickets(d.tickets);setError('');}catch(e){setError((e as Error).message);}finally{setLoading(false);}},[]);useEffect(()=>{void load();
@@ -60,7 +59,6 @@ export function SlaCountdown({ticket, large=false}:{ticket:TicketListRecord; lar
 }
 
 /** Legacy wrapper for backward-compat */
-export function SlaBadge({ticket}:{ticket:TicketListRecord}){return <SlaCountdown ticket={ticket}/>;}
 
 export function TicketTable({tickets,onSelect,selected,onToggle}:{tickets:TicketListRecord[];onSelect?:(id:number)=>void;selected?:number[];onToggle?:(id:number)=>void}){return <div className="table-wrap"><table className="data-table"><thead><tr>{onToggle&&<th style={{width:15}}/>}<th>TICKET & MEMBER</th><th>CATEGORY</th><th>STATUS</th><th>PRIORITY</th><th>OWNER</th><th style={{textAlign:'right'}}>SLA TIMER</th></tr></thead><tbody>{tickets.map(t=><tr key={t.id} onClick={()=>onSelect?onSelect(t.id):window.location.assign('/tickets/'+t.id)}>{onToggle&&<td onClick={e=>e.stopPropagation()}><input aria-label={'Select '+t.ticketNumber} type="checkbox" checked={selected?.includes(t.id)||false} onChange={()=>onToggle(t.id)}/></td>}<td><p className="ticket-name">{t.title}</p><div className="ticket-meta"><span className="ticket-id">{t.ticketNumber}</span><span>·</span><span>{t.memberName}</span><span>·</span><span>{relativeTime(t.createdAt)}</span></div></td><td><span className="category-cell" style={{display:'block'}}>{t.category}</span></td><td><Status status={t.status}/></td><td><Priority priority={t.priority}/></td><td><div className="mini-owner"><Avatar name={t.assignedStaffName||'Unassigned'} tone="purple"/><span>{t.assignedStaffName?.split(' ')[0]||'—'}</span></div></td><td><SlaCountdown ticket={t}/></td></tr>)}</tbody></table></div>;}
 export function TicketCard({ticket:t,onSelect}:{ticket:TicketListRecord;onSelect?:(id:number)=>void}){return <button className="ticket-card" onClick={()=>onSelect?onSelect(t.id):window.location.assign('/tickets/'+t.id)}><div className="between"><span className="accent" style={{fontSize:10}}>{t.ticketNumber}</span><Priority priority={t.priority}/></div><h3>{t.title}</h3><p>{t.memberName} · {t.studio?.split(',')[0]}</p><div className="between" style={{marginTop:15}}><Status status={t.status}/><Avatar name={t.assignedStaffName||'Unassigned'} tone="purple"/></div><SlaCountdown ticket={t}/></button>;}

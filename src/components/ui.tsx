@@ -7,7 +7,10 @@ import {cn,initials} from '@/lib/utils';
 import type {Identity} from '@/lib/auth';
 import {setDisplayTimezone} from '@/lib/display';
 
-export async function api<T=Record<string,unknown>>(url:string,init?:RequestInit):Promise<T>{const res=await fetch(url,{...init,headers:{'Content-Type':'application/json',...init?.headers},cache:'no-store'});let data:unknown;try{data=await res.json();}catch{throw new Error('The server returned an unexpected response. Please retry.');}if(!res.ok){const r=data as {error?:string;details?:{path?:string[];message?:string}[]};throw new Error(r.details?.[0]?.message?`${r.details[0].path?.join('.')||'Field'}: ${r.details[0].message}`:r.error||'Request failed');}return data as T;}
+export async function api<T=Record<string,unknown>>(url:string,init?:RequestInit):Promise<T>{// FormData must set its own multipart Content-Type: it carries the boundary, and forcing
+// application/json here makes the server's formData() parse throw.
+const isForm=typeof FormData!=='undefined'&&init?.body instanceof FormData;
+const res=await fetch(url,{...init,headers:{...(isForm?{}:{'Content-Type':'application/json'}),...init?.headers},cache:'no-store'});let data:unknown;try{data=await res.json();}catch{throw new Error('The server returned an unexpected response. Please retry.');}if(!res.ok){const r=data as {error?:string;details?:{path?:string[];message?:string}[]};throw new Error(r.details?.[0]?.message?`${r.details[0].path?.join('.')||'Field'}: ${r.details[0].message}`:r.error||'Request failed');}return data as T;}
 type AppContextType={theme:'light'|'dark';toggleTheme:()=>void;notify:(text:string,type?:'success'|'error')=>void;user:Identity|null;setupRequired:boolean;refreshUser:()=>Promise<void>;pollSeconds:number;workspaceName:string;themePlaceholder?:string;view:string;setView:(view:string)=>void;openAuth:()=>void};
 const AppContext=createContext<AppContextType|null>(null);
 export function useApp(){const c=useContext(AppContext);if(!c)throw new Error('App provider missing');return c;}
@@ -75,13 +78,6 @@ export function Loading({rows=3,variant='block'}:{rows?:number;variant?:'block'|
   return <div className="stack" aria-label="Loading" aria-busy="true">{Array.from({length:rows}).map((_,i)=><div className="skeleton" key={i} style={{animationDelay:(i*90)+'ms'}}/>)}</div>;
 }
 /** Animated SVG progress ring — used for scores, SLA health and completeness. */
-export function ProgressRing({value,size=56,stroke=5,tone,label}:{value:number;size?:number;stroke?:number;tone?:string;label?:string}){
-  const r=(size-stroke)/2, c=2*Math.PI*r, pct=Math.max(0,Math.min(100,value));
-  return <span className="progress-ring" style={{width:size,height:size,color:tone}} role="img" aria-label={label||`${pct}%`}>
-    <svg width={size} height={size}><circle cx={size/2} cy={size/2} r={r} strokeWidth={stroke} className="pr-track"/>
-    <circle cx={size/2} cy={size/2} r={r} strokeWidth={stroke} className="pr-value" strokeDasharray={c} strokeDashoffset={c-(pct/100)*c} strokeLinecap="round" transform={`rotate(-90 ${size/2} ${size/2})`}/></svg>
-    <b>{Math.round(pct)}<i>%</i></b></span>;
-}
 export function Switch({checked,onChange,label}:{checked:boolean;onChange:(v:boolean)=>void;label:string}){return <button type="button" role="switch" aria-checked={checked} aria-label={label} onClick={()=>onChange(!checked)} className={cn('toggle',checked&&'on')}/>;}
 export function Field({label,children,hint,wide=false}:{label:string;children:ReactNode;hint?:string;wide?:boolean}){return <div className={cn('field',wide&&'wide')}><label><span>{label}</span>{children}</label>{hint&&<span className="field-hint">{hint}</span>}</div>;}
 export function AuthDialog({open,onClose}:{open:boolean;onClose:()=>void}){const{setupRequired,user,refreshUser,notify}=useApp();const[email,setEmail]=useState(''),[name,setName]=useState(''),[password,setPassword]=useState(''),[staffId,setStaffId]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState('');const[staff,setStaff]=useState<{id:number;name:string}[]>([]);
