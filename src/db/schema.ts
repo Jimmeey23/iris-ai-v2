@@ -17,11 +17,15 @@ export const ticketActivities = pgTable("ticket_activities", {
   id: serial("id").primaryKey(), ticketId: integer("ticket_id").notNull().references(() => tickets.id, { onDelete: "cascade" }), actorName: text("actor_name").notNull(), action: text("action").notNull(), detail: text("detail"), createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 export const chatSessions = pgTable("chat_sessions", {
-  id: text("id").primaryKey(), phase: text("phase").notNull().default("welcome"), collected: jsonb("collected").$type<Record<string, unknown>>().notNull(), missing: jsonb("missing").$type<string[]>().notNull(), draft: jsonb("draft").$type<Record<string, unknown>>(), ticketId: integer("ticket_id"), ticketNumber: text("ticket_number"), createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(), updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(), ownerKey: text("owner_key"), version: integer("version").notNull().default(1),
-});
+  id: text("id").primaryKey(), phase: text("phase").notNull().default("welcome"), collected: jsonb("collected").$type<Record<string, unknown>>().notNull(), missing: jsonb("missing").$type<string[]>().notNull(), draft: jsonb("draft").$type<Record<string, unknown>>(), ticketId: integer("ticket_id"), ticketNumber: text("ticket_number"), createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(), updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(), ownerKey: text("owner_key"), version: integer("version").notNull().default(1), expiresAt: timestamp("expires_at", { withTimezone: true }),
+}, (t) => [index("chat_sessions_expires_at_idx").on(t.expiresAt)]);
 export const chatMessages = pgTable("chat_messages", {
-  id: serial("id").primaryKey(), sessionId: text("session_id").notNull(), role: text("role").notNull(), content: text("content").notNull(), meta: jsonb("meta").$type<Record<string, unknown>>(), createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  id: serial("id").primaryKey(), sessionId: text("session_id").notNull(), role: text("role").notNull(), content: text("content").notNull(), meta: jsonb("meta").$type<Record<string, unknown>>(), attachmentIds: jsonb("attachment_ids").$type<string[]>().default([]), createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 },(t)=>[index("chat_message_session_idx").on(t.sessionId)]);
+
+export const chatAttachments = pgTable("chat_attachments", {
+  id: text("id").primaryKey(), sessionId: text("session_id").notNull(), fileName: text("file_name").notNull(), fileType: text("file_type").notNull(), fileSize: integer("file_size").notNull(), storageUrl: text("storage_url").notNull(), uploadedBy: text("uploaded_by"), createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [index("chat_attachments_session_idx").on(t.sessionId)]);
 export const appUsers = pgTable("app_users", {
   id: serial("id").primaryKey(), email: text("email").notNull().unique(), name: text("name").notNull(), passwordHash: text("password_hash").notNull(), role: text("role").notNull().default("agent"), staffId: integer("staff_id").references(() => staff.id), active: boolean("active").notNull().default(true), createdAt: timestamp("created_at",{withTimezone:true}).defaultNow().notNull(),
 },(t)=>[uniqueIndex("app_users_staff_profile_idx").on(t.staffId)]);
