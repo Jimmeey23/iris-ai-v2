@@ -29,6 +29,47 @@ const HARD_CAP=18;
 
 const TIME_SYNONYMS:Record<string,string>={'right now':'Just now','just now':'Just now','moment ago':'Just now','this morning':'Earlier today','this afternoon':'Earlier today','this evening':'Earlier today','earlier today':'Earlier today','today':'Earlier today','yesterday':'Yesterday','this week':'Earlier this week','few days':'Earlier this week','last week':'Last week','keeps happening':'Ongoing / recurring','every day':'Ongoing / recurring','recurring':'Ongoing / recurring','ongoing':'Ongoing / recurring'};
 
+/**
+ * Pull facts from every substantive message before treating it as the answer to the
+ * previous prompt. Staff routinely answer a different, more important detail in the
+ * same breath ("Strength Lab, this morning") than the one Iris last asked for. The
+ * old order turned that into, for example, a member name and then asked the same
+ * location question again.
+ */
+function applyMessageFacts(c:Record<string,unknown>,raw:string){
+  if(!raw)return;
+  const source=raw.toLowerCase();
+  if(/\b(colleague|coworker|co-worker|team(?:mate| member)?|associate)\b.*\b(flagged|told|reported|mentioned|raised)\b|\b(flagged|told|reported|mentioned|raised)\b.*\bby (?:a |my )?(colleague|coworker|associate)\b/i.test(raw))c.reportedBy=REPORTED_BY_OPTIONS[2];
+  else if(/\b(member|client|community member|guest)\b.*\b(told|said|reported|mentioned|shared|asked|complained)\b/i.test(raw))c.reportedBy=REPORTED_BY_OPTIONS[1];
+  else if(/\b(i |we )(noticed|saw|found|spotted|observed)\b/i.test(raw))c.reportedBy=REPORTED_BY_OPTIONS[0];
+
+  const studio=matchStudio(raw);if(studio)c.studio=studio;
+  const when=normalizeAnswer('incidentAt',raw,OCCURRED_OPTIONS);if(when)c.incidentAt=when;
+  const context=extractContext(raw);
+  for(const key of ['area','classFormat','trainer'] as const)if(context[key]&&!c[key])c[key]=context[key];
+  const entities=extractEntities(raw);
+  for(const key of ['area','systemName'] as const)if(entities[key]&&!c[key])c[key]=entities[key];
+
+  const top=classifyIssue(raw)[0];
+  // Strong operational signals (lights, leaks, bikes, etc.) are not ambiguous enough
+  // to make a staff member approve an obvious classification before we can ask where
+  // the problem is. Lower-confidence classification still uses the normal confirmation.
+  if(top&&top.score>=12){c.category=top.category;c.subcategory=top.subcategory;c._categoryInferred=true;c._categoryConfirmed=true;}
+  else if(top&&!c.category){c.category=top.category;c.subcategory=top.subcategory;c._categoryInferred=true;}
+  if(top&&top.score>=12&&!c.reportedBy){c.reportedBy=REPORTED_BY_OPTIONS[0];c._reportedByAssumed=true;}
+  if(/\b(not member-specific|not a member issue|general (?:studio )?observation|no member involved)\b/i.test(source)){
+    c.memberLookupDone=true;c.studioReport=true;c.memberName='Studio team observation';c.memberEmail='';
+  }
+}
+
+function defaultOperationalFields(c:Record<string,unknown>){
+  const maintenance=['Repair and Maintenance','Studio Amenities and Facilities','Tech Issues','Operating Systems','Safety and Security'].includes(String(c.category));
+  if(!maintenance)return;
+  if(!c.impact||c._operationalImpactDefault){c.impact=c.isClassImpacted==='Yes, blocking now'?'Could not proceed as normal':c.isClassImpacted==='Not yet, but it will be'?'Likely to affect an upcoming session':'Operational issue reported';c._operationalImpactDefault=true;}
+  if(!c.requestedResolution){c.requestedResolution=`Inspect and resolve the reported ${String(c.subcategory||'issue').toLowerCase()}.`;c._operationalResolutionDefault=true;}
+  if(!c.preferredContact)c.preferredContact='Internal log only';
+}
+
 /** Maps a typed answer onto one of the values that were offered. Staff type "this morning",
  *  "yes" or "no", not "Earlier today" or "Yes, blocking now". */
 function normalizeAnswer(key:string,raw:string,values:readonly string[]):string|undefined{
@@ -77,12 +118,10 @@ function extraSlot(category:string,c:Record<string,unknown>):{key:string;prompt:
   // For maintenance/facilities: ask location, then impact, skip dedup if urgent
   if(isMaintenance&&!c.area)return{key:'area',prompt:'Where in the studio is this?',values:[...STUDIO_AREAS]};
   if(isMaintenance&&!c.isClassImpacted)return{key:'isClassImpacted',prompt:'Is it affecting a live class right now?',values:['Yes, blocking now','Not yet, but it will be','No, comfort / back-office only']};
-  if(isMaintenance&&!skipDuplicateCheck&&!isUrgent&&!c.alreadyReported)return{key:'alreadyReported',prompt:'Has this already been reported or logged by someone else?',values:['Not that I know of','Yes — already logged','Yes — told a manager, not logged']};
   
   // For tech issues: ask system, then impact, skip dedup if urgent
   if(isTech&&!c.systemName)return{key:'systemName',prompt:'Which system or piece of equipment is acting up?',values:[...SYSTEMS]};
   if(isTech&&!c.isClassImpacted)return{key:'isClassImpacted',prompt:'Is it blocking a class or booking right now?',values:['Yes, blocking now','Not yet, but it will be','No, comfort / back-office only']};
-  if(isTech&&!skipDuplicateCheck&&!isUrgent&&!c.alreadyReported)return{key:'alreadyReported',prompt:'Has this already been reported or logged by someone else?',values:['Not that I know of','Yes — already logged','Yes — told a manager, not logged']};
   
   // Safety: urgent impact escalation — ask about immediate danger FIRST, skip duplicate check if urgent
   if(category==='Safety and Security'&&!c.isImmediateDanger)return{key:'isImmediateDanger',prompt:'Is anyone in immediate danger right now?',values:['Yes — happening now','No, but it needs urgent attention']};
@@ -126,6 +165,10 @@ else if(['kwality-earlier','kwality-yesterday','fort-earlier','fort-yesterday'].
   const parts=raw.split('-');c.studio=parts[0]==='kwality'?'Kwality House, Kemps Corner':'Fort';c.incidentAt=parts[1]==='earlier'?'Earlier today':'Yesterday';
 }
 else if(raw&&!raw.startsWith('__')){
+// Extract cross-cutting facts first. This is deliberately before pending-field binding:
+// a location/time update must not become a member name merely because Iris happened to
+// be showing the member picker in the previous turn.
+applyMessageFacts(c,raw);
 if(priorField==='studioAndTime'){
   // The bundled question has no field of its own: its answer carries two. Before this split
   // existed the answer matched no known field and was appended to the description, leaving
@@ -142,7 +185,11 @@ else if(priorField==='confirmCategory'){
   else if(v==='no'){delete c.category;delete c.subcategory;c._categoryInferred=false;c._categoryConfirmed=true;}
   else c.description=String(c.description||'')+(c.description?'\n':'')+raw;
 }
-else if(priorField==='memberLookup'){c.memberLookupDone=true;c.manualMember=true;c.memberName=raw.slice(0,120);}
+else if(priorField==='memberLookup'){
+  if(c.reportedBy!==REPORTED_BY_OPTIONS[1]||c.memberLookupDone){
+    c.memberLookupDone=true;c.studioReport=true;c.memberName=c.memberName||'Studio team observation';c.memberEmail='';
+  }else{c.memberLookupDone=true;c.manualMember=true;c.memberName=raw.slice(0,120);}
+}
 else if(priorField==='sessionLookup'){c.sessionLookupDone=true;c.manualSession=true;c.description=String(c.description||'')+(c.description?'\n':'')+raw;}
 else if(priorField&&FIELD_KEYS.includes(priorField)){
   const offered=Array.isArray(c._options)?(c._options as unknown[]).filter((v):v is string=>typeof v==='string'&&!v.startsWith('__')):[];
@@ -154,8 +201,9 @@ else if(priorField&&FIELD_KEYS.includes(priorField)){
 }
 else if(!/^(yes|no|ok|okay|nope|yeah|yep|nah|sure|thanks|thank you)\W*$/i.test(raw))c.description=String(c.description||'')+(c.description?'\n':'')+raw;
 {const heuristic=extractEntities(raw);for(const[k,v]of Object.entries(heuristic)){if(!FIELD_KEYS.includes(k)||v===undefined||c[k])continue;if(k==='studio'){const m=matchStudio(String(v));if(m)c.studio=m;continue;}if(k==='category')c._categoryInferred=true;c[k]=v;}
-// PHASE 1: Extract context from first message using smarter entity recognition
-if(!priorField||priorField==='description'){const contextExtracted=extractContext(String(c.description||raw));for(const[k,v]of Object.entries(contextExtracted)){if(!c[k])c[k]=v;}}
+// Keep scanning the whole conversation, rather than only the first description. A later
+// answer often supplies the room, location or timing that was missing at the start.
+{const contextExtracted=extractContext(raw);for(const[k,v]of Object.entries(contextExtracted)){if(!c[k])c[k]=v;}}
 const top=classifyIssue(String(c.description||raw));if(top[0])c._guess={category:top[0].category,subcategory:top[0].subcategory,score:top[0].score};if(priorField==='description'||!priorField){
 const nameMatch=raw.match(/(?:her name is|his name is|the member is|member's name is)\s+([a-z]+(?:\s+[a-z]+)?)(?=[,.!]|$)/i);if(nameMatch)c.memberName=nameMatch[1];
 if(/\b(loved|love|amazing|compliment|wonderful|excellent|fantastic|appreciation)\b/i.test(raw)&&!/(but |however|unsafe|complaint|not |didn.t)/i.test(raw)){c.kind='compliment';c.sentiment='positive';}else c.kind=c.kind||'issue';
@@ -183,6 +231,7 @@ if(c.studio&&!cfg.studios.includes(String(c.studio))){const m=matchStudio(String
 if(c.area&&!STUDIO_AREAS.includes(String(c.area) as typeof STUDIO_AREAS[number]))delete c.area;
 if(!['issue','request','compliment','feedback','assessment'].includes(String(c.kind)))c.kind='issue';
 if(c.memberEmail&&typeof c.memberEmail==='string'&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c.memberEmail))delete c.memberEmail;
+defaultOperationalFields(c);
 const asked=askCounts(c);
 // A long conversation that still has open optional fields is a conversation that is not
 // converging. Fill them in so the draft — the point of the whole exchange — is reachable.
@@ -198,10 +247,6 @@ if(!c.description||String(c.description).length<12){
   // Only ask description if welcome was processed (meaning reportedBy is set)
   const descPrompt=c.reportedBy===REPORTED_BY_OPTIONS[1]?'What did the member tell you?':c.reportedBy===REPORTED_BY_OPTIONS[0]?'What did you see?':'Go ahead — describe what happened, in as much detail as you have.';
   choose('description',descPrompt);
-}
-else if(!c.reportedBy){
-  // Should not happen if welcome was processed, but safety fallback
-  choose('reportedBy','Quick context: how did this come to you?',[...REPORTED_BY_OPTIONS]);
 }
 else if(c.category&&c.subcategory&&c._categoryInferred&&!c._categoryConfirmed){fieldKey='confirmCategory';question=`I've read this as ${String(c.subcategory).toLowerCase()} (${c.category}). File it there?`;opts=[{label:`Yes — ${c.subcategory}`,value:'__accept_category__'},{label:'No, let me pick the category',value:'__reject_category__'}];}
 else if(!c.category){
@@ -224,7 +269,7 @@ else if(!c.subcategory){
 else if(!c.memberLookupDone&&isStudioReport&&!c.memberName){c.memberLookupDone=true;c.memberName='Studio team observation';c.memberEmail='';c.studioReport=true;return runIris({...input,message:undefined,collected:c,patch:undefined});}
 // Only ask member lookup if the report came from a member
 else if(!c.memberLookupDone){
-  const involvesMember=[REPORTED_BY_OPTIONS[1] as string,REPORTED_BY_OPTIONS[2] as string].includes(String(c.reportedBy));
+  const involvesMember=String(c.reportedBy)===REPORTED_BY_OPTIONS[1];
   fieldKey='memberLookup';
   lookup='members';
   const q1=`Who is this member? Search Momence, or skip if you'd rather not name them yet.`;
@@ -287,7 +332,10 @@ if(fieldKey&&(asked[fieldKey]||0)>=ASK_LIMIT){
 }
 if(fieldKey)asked[fieldKey]=(asked[fieldKey]||0)+1;
 c._asked=asked;
-const required=['description','reportedBy','category','subcategory','memberLookupDone','studio','incidentAt',...(classRelated?['sessionLookupDone']:[]),...(praise?[]:['impact','requestedResolution','preferredContact'])];
+// Reporter identity is useful context, but it must not block an operational ticket. For
+// non-member reports there is no member to identify, and the maintenance defaults above
+// provide an actionable next step without asking staff to type "fix it".
+const required=['description','category','subcategory','studio','incidentAt',...(isMemberReport?['memberLookupDone']:[]),...(classRelated?['sessionLookupDone']:[]),...(praise?[]:['impact','requestedResolution','preferredContact'])];
 // URGENCY OVERRIDE: If blocking right now or needs urgent attention, skip to draft early
 const isBlockingNow=c.isClassImpacted==='Yes, blocking now'||c.isImmediateDanger==='Yes — happening now'||c.isImmediateDanger==='No, but it needs urgent attention';
 const urgentRequired=isBlockingNow?required.filter(k=>!['alreadyReported','preferredContact','impact','requestedResolution','trainer','classFormat'].includes(k)):required;
