@@ -202,12 +202,4 @@ export function allTemplates(): TicketTemplate[] {
   return list;
 }
 
-export function templateById(id: string) {
-  return allTemplates().find((t) => t.id === id) ?? null;
-}
 
-export function templatesFor(category?: string) {
-  const all = allTemplates();
-  if (!category || category === "all") return all;
-  return all.filter((t) => t.category === category);
-}

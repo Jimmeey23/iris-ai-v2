@@ -1,8 +1,3 @@
-export const BRAND = {
-  name: "Physique 57 India",
-  product: "IRIS Command",
-  tagline: "Member care, choreographed.",
-};
 
 /** `momenceLocationId` is the live Momence `inPersonLocation.id`, verified against the API.
  *  Momence hosts four locations; Kenkere House and Copper & Cloves are not among them, so
@@ -1116,21 +1111,6 @@ export const PRIORITY_SLA_HOURS: Record<string, number> = {
   low: 72,
 };
 
-export const CATEGORY_ICONS: Record<string, string> = {
-  Scheduling: "CalendarClock",
-  "Class Experience": "Sparkles",
-  "Trainer Feedback": "UserRound",
-  "Repair and Maintenance": "Wrench",
-  "Studio Amenities and Facilities": "Building2",
-  "Operating Systems": "MonitorCog",
-  "Tech Issues": "Cpu",
-  "Pricing and Memberships": "CreditCard",
-  "Customer Service and Communication": "MessageCircleHeart",
-  "Brand Feedback": "BadgeCheck",
-  "Safety and Security": "ShieldAlert",
-  "Theft and Lost Items": "PackageSearch",
-  Miscellaneous: "Layers",
-};
 
 /* ------------------------------------------------------------------ */
 /* Stages SC3 / PowerCycle Bike Knowledge Base                         */

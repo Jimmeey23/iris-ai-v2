@@ -1,12 +1,3 @@
-export type TicketStatus =
-  | "new"
-  | "triaged"
-  | "assigned"
-  | "in_progress"
-  | "waiting_on_member"
-  | "waiting_on_vendor"
-  | "resolved"
-  | "closed";
 
 export type TicketPriority = "low" | "medium" | "high" | "critical";
 
@@ -25,16 +16,6 @@ export type IntakeFieldType =
   | "date"
   | "longtext";
 
-export type IntakeField = {
-  key: string;
-  label: string;
-  prompt: string;
-  type: IntakeFieldType;
-  required: boolean;
-  allowOther?: boolean;
-  options?: ChatOption[];
-  helper?: string;
-};
 
 export type CollectedTicket = {
   narrative?: string;
@@ -105,18 +86,3 @@ export type TicketDraft = {
   momenceContext?: Record<string, unknown>;
 };
 
-export type IrisTurnResponse = {
-  sessionId: string;
-  assistantMessage: string;
-  inputMode: "text" | "buttons" | "draft" | "complete";
-  options: ChatOption[];
-  allowFreeText: boolean;
-  placeholder?: string;
-  fieldKey?: string;
-  draft?: TicketDraft;
-  collected: CollectedTicket;
-  progress: { step: number; total: number; label: string };
-  phase: string;
-  insights?: string[];
-  ticket?: { id: number; ticketNumber: string };
-};

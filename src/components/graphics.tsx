@@ -119,18 +119,6 @@ export function EmptyArt({ variant = 'inbox' }: { variant?: ArtVariant }) {
 }
 
 /** Decorative dot-grid backdrop for section headers and hero panels. */
-export function DotGrid({ className }: { className?: string }) {
-  return (
-    <svg className={className} aria-hidden="true" width="100%" height="100%">
-      <defs>
-        <pattern id="iris-dots" width="22" height="22" patternUnits="userSpaceOnUse">
-          <circle cx="1.5" cy="1.5" r="1.5" fill="currentColor" fillOpacity="0.5" />
-        </pattern>
-      </defs>
-      <rect width="100%" height="100%" fill="url(#iris-dots)" />
-    </svg>
-  );
-}
 
 /** Thin concentric "radar" rings — used behind stat blocks and the Iris orb. */
 export function RadarRings({ className }: { className?: string }) {

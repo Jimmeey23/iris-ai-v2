@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/db';
 import { tickets, ticketActivities } from '@/db/schema';
 import { eq, notInArray, desc } from 'drizzle-orm';
-import { requireWorkspace, errorResponse, requireAgent, currentUser } from '@/lib/auth';
+import { requireWorkspace, errorResponse, requireAgent, currentUser, sameOrigin } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -592,6 +592,7 @@ export async function GET(req: NextRequest) {
 /** 1-Click Fast Resolution or Dispatch from the Operations Radar */
 export async function POST(req: NextRequest) {
   try {
+    sameOrigin(req);
     await requireAgent();
     const user = await currentUser();
     const body = await req.json();

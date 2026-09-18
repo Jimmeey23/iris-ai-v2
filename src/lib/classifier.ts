@@ -452,8 +452,3 @@ export function inferSentiment(text: string) {
   return "neutral";
 }
 
-export function topCategoryOptions(text: string) {
-  const hits = classifyIssue(text);
-  const cats = Array.from(new Set(hits.map((h) => h.category))).slice(0, 4);
-  return cats;
-}

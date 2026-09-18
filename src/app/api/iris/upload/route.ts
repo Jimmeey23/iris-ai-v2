@@ -5,6 +5,7 @@
  */
 
 import { db } from "@/db";
+import { sameOrigin, requireWorkspace, errorResponse } from "@/lib/auth";
 import { chatAttachments } from "@/db/schema";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -33,6 +34,8 @@ const ALLOWED_TYPES = [
  */
 export async function POST(request: NextRequest) {
   try {
+    sameOrigin(request);
+    await requireWorkspace();
     const formData = await request.formData();
     const sessionId = formData.get("sessionId") as string;
     const files = formData.getAll("file") as File[];
@@ -92,10 +95,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ attachments });
   } catch (error) {
-    console.error("Upload error:", error);
-    return NextResponse.json(
-      { error: "Upload failed" },
-      { status: 500 }
-    );
+    return errorResponse(error);
   }
 }
