@@ -17,7 +17,6 @@
     "isolatedModules": true,
     "jsx": "react-jsx",
     "incremental": true,
-    "baseUrl": ".",
     "paths": {
       "@/*": [
         "./src/*"
@@ -35,10 +34,8 @@
     "**/*.tsx",
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts",
-    ".next-3001/types/**/*.ts",
-    ".next-3001/dev/types/**/*.ts",
-    ".next-3002/types/**/*.ts",
-    ".next-3002/dev/types/**/*.ts"
+    ".next-*/types/**/*.ts",
+    ".next-*/dev/types/**/*.ts"
   ],
   "exclude": [
     "node_modules"
