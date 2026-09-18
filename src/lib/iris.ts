@@ -70,19 +70,22 @@ function extraSlot(category:string,c:Record<string,unknown>):{key:string;prompt:
   const isStudioReport=c.reportedBy===REPORTED_BY_OPTIONS[0];
   const skipDuplicateCheck=isStudioReport&&c.incidentAt==='Earlier today';
   
-  // For maintenance/facilities: ask location, then impact, then dedup check (in that order, skip if redundant)
+  // URGENCY CHECK: If this is blocking RIGHT NOW, skip optional dedup question
+  const isUrgent=c.isClassImpacted==='Yes, blocking now'||c.isImmediateDanger==='Yes — happening now';
+  
+  // For maintenance/facilities: ask location, then impact, skip dedup if urgent
   if(isMaintenance&&!c.area)return{key:'area',prompt:'Where in the studio is this?',values:[...STUDIO_AREAS]};
   if(isMaintenance&&!c.isClassImpacted)return{key:'isClassImpacted',prompt:'Is it affecting a live class right now?',values:['Yes, blocking now','Not yet, but it will be','No, comfort / back-office only']};
-  if(isMaintenance&&!skipDuplicateCheck&&!c.alreadyReported)return{key:'alreadyReported',prompt:'Has this already been reported or logged by someone else?',values:['Not that I know of','Yes — already logged','Yes — told a manager, not logged']};
+  if(isMaintenance&&!skipDuplicateCheck&&!isUrgent&&!c.alreadyReported)return{key:'alreadyReported',prompt:'Has this already been reported or logged by someone else?',values:['Not that I know of','Yes — already logged','Yes — told a manager, not logged']};
   
-  // For tech issues: ask system, then impact, then dedup check
+  // For tech issues: ask system, then impact, skip dedup if urgent
   if(isTech&&!c.systemName)return{key:'systemName',prompt:'Which system or piece of equipment is acting up?',values:[...SYSTEMS]};
   if(isTech&&!c.isClassImpacted)return{key:'isClassImpacted',prompt:'Is it blocking a class or booking right now?',values:['Yes, blocking now','Not yet, but it will be','No, comfort / back-office only']};
-  if(isTech&&!skipDuplicateCheck&&!c.alreadyReported)return{key:'alreadyReported',prompt:'Has this already been reported or logged by someone else?',values:['Not that I know of','Yes — already logged','Yes — told a manager, not logged']};
+  if(isTech&&!skipDuplicateCheck&&!isUrgent&&!c.alreadyReported)return{key:'alreadyReported',prompt:'Has this already been reported or logged by someone else?',values:['Not that I know of','Yes — already logged','Yes — told a manager, not logged']};
   
   // Safety: urgent impact escalation — ask about immediate danger FIRST, skip duplicate check if urgent
   if(category==='Safety and Security'&&!c.isImmediateDanger)return{key:'isImmediateDanger',prompt:'Is anyone in immediate danger right now?',values:['Yes — happening now','No, but it needs urgent attention']};
-  if(category==='Safety and Security'&&!detectUrgency(c)&&!c.alreadyReported)return{key:'alreadyReported',prompt:'Has this already been flagged to a manager or security?',values:['Yes','Not yet']};
+  if(category==='Safety and Security'&&!isUrgent&&!c.alreadyReported)return{key:'alreadyReported',prompt:'Has this already been flagged to a manager or security?',values:['Yes','Not yet']};
   
   if(category==='Theft and Lost Items'&&!c.itemDescription)return{key:'itemDescription',prompt:'What item is missing? A short description is enough.',values:[]};
   if(category==='Theft and Lost Items'&&!c.lastSeen)return{key:'lastSeen',prompt:'Where was it last seen?',values:['Locker','Studio floor','Lounge','Valet','Boutique','Changing room']};
@@ -113,7 +116,7 @@ export async function irisWelcome(sessionId:string,preset?:{category?:string;sub
 
 export async function runIris(input:{sessionId:string;collected:Record<string,unknown>;message?:string;fieldKey?:string;history:IrisMessage[];selectionApplied?:boolean;patch?:Record<string,unknown>}):Promise<IrisTurn>{const cfg=await getConfig();const c={...input.collected,...input.patch};const raw=(input.message||'').trim();const priorField=input.fieldKey;const connection=await credentials('chatgpt');const key=connection._enabled==='false'?undefined:connection.api_key;let engine:'openai'|'guided'=cfg.aiEnabled&&key?'openai':'guided';let notice:string|undefined;let ai:OpenAI|undefined;
 if(engine==='openai')ai=new OpenAI({apiKey:key,timeout:20000,maxRetries:1});
-if(raw.startsWith('A member told me')||raw.startsWith('I noticed something')||raw.startsWith('I want to log feedback')||raw.startsWith('I want to log a compliment')){c.kind=raw.includes('compliment')?'compliment':raw.includes('feedback')?'feedback':'issue';c.reportedBy=raw.startsWith('A member told me')?REPORTED_BY_OPTIONS[1]:raw.startsWith('I noticed')?REPORTED_BY_OPTIONS[0]:undefined;c.description='';if(c.kind==='compliment')c.sentiment='positive';}
+if(raw.startsWith('A member told me')||raw.startsWith('I noticed something')||raw.startsWith('I want to log feedback')||raw.startsWith('I want to log a compliment')){c.kind=raw.includes('compliment')?'compliment':raw.includes('feedback')?'feedback':'issue';c.reportedBy=raw.startsWith('A member told me')?REPORTED_BY_OPTIONS[1]:raw.startsWith('I noticed')?REPORTED_BY_OPTIONS[0]:REPORTED_BY_OPTIONS[2];c.description='';c._welcomeProcessed=true;if(c.kind==='compliment')c.sentiment='positive';}
 else if(raw==='__accept_category__'){c._categoryConfirmed=true;}else if(raw==='__reject_category__'){delete c.category;delete c.subcategory;c._categoryInferred=false;c._categoryConfirmed=true;}else if(raw==='__manual_member__'){c.memberLookupDone=true;c.manualMember=true;}else if(raw==='__studio_report__'){c.memberLookupDone=true;c.memberName=c.reportedBy===REPORTED_BY_OPTIONS[1]?'Member (not named)':'Studio team observation';c.memberEmail='';c.studioReport=true;}else if(raw==='__manual_session__'){c.sessionLookupDone=true;c.manualSession=true;}else if(raw==='__hosted_class__'){c.hostedClass=true;c.classFormat=c.classFormat||'Studio Hosted Class';}else if(raw==='__manual_studio_time__'){
   // User chose to enter studio/time manually — fall through to normal processing
 }
@@ -187,8 +190,15 @@ const isStudioReport=c.reportedBy===REPORTED_BY_OPTIONS[0];
 const isMemberReport=c.reportedBy===REPORTED_BY_OPTIONS[1];
 
 // CONTEXT-AWARE FLOW: Skip redundant questions based on what we already know
-if(!c.description||String(c.description).length<12)choose('description',c.reportedBy===REPORTED_BY_OPTIONS[1]?'What did the member tell you?':c.reportedBy===REPORTED_BY_OPTIONS[0]?'What did you see?':'Go ahead — describe what happened, in as much detail as you have.');
-else if(!c.reportedBy)choose('reportedBy','Quick context: how did this come to you?',[...REPORTED_BY_OPTIONS]);
+if(!c.description||String(c.description).length<12){
+  // Only ask description if welcome was processed (meaning reportedBy is set)
+  const descPrompt=c.reportedBy===REPORTED_BY_OPTIONS[1]?'What did the member tell you?':c.reportedBy===REPORTED_BY_OPTIONS[0]?'What did you see?':'Go ahead — describe what happened, in as much detail as you have.';
+  choose('description',descPrompt);
+}
+else if(!c.reportedBy){
+  // Should not happen if welcome was processed, but safety fallback
+  choose('reportedBy','Quick context: how did this come to you?',[...REPORTED_BY_OPTIONS]);
+}
 else if(c.category&&c.subcategory&&c._categoryInferred&&!c._categoryConfirmed){fieldKey='confirmCategory';question=`I've read this as ${String(c.subcategory).toLowerCase()} (${c.category}). File it there?`;opts=[{label:`Yes — ${c.subcategory}`,value:'__accept_category__'},{label:'No, let me pick the category',value:'__reject_category__'}];}
 else if(!c.category){
   if(c._guess&&typeof c._guess==='object'&&'score'in c._guess&&(c._guess as unknown as {score:number}).score>3){
@@ -273,34 +283,67 @@ if(fieldKey&&(asked[fieldKey]||0)>=ASK_LIMIT){
 }
 if(fieldKey)asked[fieldKey]=(asked[fieldKey]||0)+1;
 c._asked=asked;
-const required=['description','reportedBy','category','subcategory','memberLookupDone','studio','incidentAt',...(classRelated?['sessionLookupDone']:[]),...(praise?[]:['impact','requestedResolution','preferredContact'])];const done=required.filter(k=>Boolean(c[k])).length;
+const required=['description','reportedBy','category','subcategory','memberLookupDone','studio','incidentAt',...(classRelated?['sessionLookupDone']:[]),...(praise?[]:['impact','requestedResolution','preferredContact'])];
+// URGENCY OVERRIDE: If blocking right now or immediate danger, skip to draft early
+const isBlockingNow=c.isClassImpacted==='Yes, blocking now'||c.isImmediateDanger==='Yes — happening now';
+const urgentRequired=isBlockingNow?required.filter(k=>!['alreadyReported','preferredContact','impact','requestedResolution','trainer','classFormat'].includes(k)):required;
 let draft:AdvancedDraft|undefined;if(!fieldKey){const cf=obj(c.customFields);draft=await makeDraft({...c,description:c.description,memberName:c.memberName||'Studio team observation',memberEmail:c.memberEmail||'',kind:c.kind,source:'iris',sentiment:praise?'positive':c.sentiment||inferSentiment(String(c.description)),customFields:{...cf,...intakeAnswers(c)},preferredContact:c.preferredContact||'Internal log only',momenceContext:c.momenceContext});// The recap is the deliverable: the reporter needs to see the routing, priority and SLA the
 // ticket will carry before approving it, not just be told that a ticket exists.
 const recap=['• '+draft.title,`• ${draft.category} → ${draft.subcategory}`,`• ${draft.departmentName}${draft.assignedStaffName?` · ${draft.assignedStaffName}`:''}`,`• ${draft.priority} priority${draft.resolutionRequired&&draft.slaLabel?` · ${draft.slaLabel}`:''}`,`• ${draft.studio}${draft.incidentAt?` · ${draft.incidentAt}`:''}`].join('\n');
 question=(praise?'This is ready to log — no SLA or resolution is needed for a compliment.':'Here\u2019s the ticket, ready to file.')+'\n\n'+recap+'\n\nReview it, then approve when it\u2019s accurate.';}
-// The model writes the acknowledgement; the question itself is always the guided wording.
-// Letting it write the question drifted the meaning — asked to rephrase "how much is this
-// affecting the floor right now?" it produced "how long has the mic been an issue?", and the
-// answer was then stored as the impact. Earlier it asked about class impact while filing the
-// reply under "how did this come to you", then asked the same thing again next turn.
+// The acknowledgement is written once, by the model, inside the block above. A second canned
+// one prefixed here is what produced "Understood. Understood, you spotted the mic issue...".
+
 if(ai&&engine==='openai'&&fieldKey&&!fieldKey.includes('Lookup')){
   const guided=question;
   try{
     const history=cfg.historyRetrieval&&c.category&&c.subcategory?await historicalExamples(String(c.category),String(c.subcategory)):[];
     const known=JSON.stringify({kind:c.kind,category:c.category,subcategory:c.subcategory,studio:c.studio,area:c.area,when:c.incidentAt,reportedBy:c.reportedBy,classImpact:c.isClassImpacted,urgency:detectUrgency(c)?'flagged':'normal'});
-    const result=await ai.chat.completions.create({model:cfg.aiModel,messages:[{role:'system',content:`You are Iris, the internal logging assistant for Physique 57 India studio staff (never members). ${cfg.aiVoice}
+    
+    // Determine if we should write a smart question or just an ack
+    const askCount=(asked[fieldKey]||0);
+    const recentFields=Object.keys(asked).slice(-2); // Last 2 fields asked
+    const shouldWriteQuestion=askCount===1&&fieldKey!==priorField; // First time asking this field, AND it's different from prior
+    
+    const systemPrompt=shouldWriteQuestion?
+      `You are Iris, the internal logging assistant for Physique 57 India studio staff (never members). ${cfg.aiVoice}
+You are collecting facts so this report becomes a ticket. You are not a chat companion and you never close the conversation.
+Facts already collected — never ask for these again: ${known}
+What they reported: ${String(c.description||'').slice(0,300)}
+${history.length?`Similar past tickets, for context: ${JSON.stringify(history)}`:''}
+
+Your task: Write a QUESTION that asks for: "${String(fieldKey)}"
+Guidelines:
+- Make it SPECIFIC and CONTEXT-AWARE: reference what they just said or something specific about their issue
+- Keep it conversational and brief (one sentence, max 20 words)
+- Never ask yes/no questions if they already said yes/no
+- Show you understand their situation, not just ask rote questions
+- Do NOT repeat questions from this conversation: ${JSON.stringify(recentFields)}
+- Output ONLY the question. No preamble, no options, no follow-up.`
+    :`You are Iris, the internal logging assistant for Physique 57 India studio staff (never members). ${cfg.aiVoice}
 You are collecting facts so this report becomes a ticket. You are not a chat companion and you never close the conversation.
 Facts already collected — never ask for these again and do not read them back: ${known}
 What they reported: ${String(c.description||'').slice(0,300)}
 ${history.length?`Similar past tickets, for tone only: ${JSON.stringify(history)}`:''}
 
-Write ONE acknowledgement of their last message: at most 12 words, plain text, no markdown, contractions welcome. Do not ask a question. Do not greet. Do not say "Thanks for that", "I've noted", "anything else", "feel free" or "let me know". Output the sentence only.`},...input.history.slice(-8),...(raw?[{role:'user' as const,content:raw}]:[])],max_completion_tokens:60});
-    const ack=(result.choices[0]?.message.content||'').trim().replace(/^["']|["']$/g,'');
-    // An ack that drifted into small talk, asked its own question or ran long is dropped: the
-    // guided question stands on its own, and a wrong ack is worse than none.
-    const chatter=/(anything else|feel free|reach out|happy to help|let me know|no worries|keep an eye|thank|i'?ll |i will |i have (noted|logged))/i;
-    const echo=/^(yes|no|okay|ok|sure|right|correct)\b[.!]?$/i.test(ack);
-    if(ack&&!echo&&!ack.includes('?')&&ack.split(/\s+/).length<=16&&!chatter.test(ack))question=ack.replace(/\s+$/,'')+' '+guided;
+Write ONE acknowledgement of their last message: at most 12 words, plain text, no markdown, contractions welcome. Do not ask a question. Do not greet. Do not say "Thanks for that", "I've noted", "anything else", "feel free" or "let me know". Output the sentence only.`;
+
+    const result=await ai.chat.completions.create({model:cfg.aiModel,messages:[{role:'system',content:systemPrompt},...input.history.slice(-8),...(raw?[{role:'user' as const,content:raw}]:[])],max_completion_tokens:60});
+    const response=(result.choices[0]?.message.content||'').trim().replace(/^["']|["']$/g,'');
+    
+    if(shouldWriteQuestion){
+      // Use the AI-generated question if it looks good (has question mark, doesn't look like small talk)
+      const isGoodQuestion=/[?!]$/.test(response)&&response.split(/\s+/).length<=20&&!/(anything else|feel free|happy to help|let me know|thanks)/i.test(response);
+      if(isGoodQuestion){
+        question=response;
+      }
+    } else {
+      // Write an acknowledgement before the guided question
+      const ack=response;
+      const chatter=/(anything else|feel free|reach out|happy to help|let me know|no worries|keep an eye|thank|i'?ll |i will |i have (noted|logged))/i;
+      const echo=/^(yes|no|okay|ok|sure|right|correct)\b[.!]?$/i.test(ack);
+      if(ack&&!echo&&!ack.includes('?')&&ack.split(/\s+/).length<=16&&!chatter.test(ack))question=ack.replace(/\s+$/,'')+' '+guided;
+    }
   }catch{engine='guided';}
 }
 if(c.category==='Safety and Security'&&!c._safetyShown){question='If anyone is in immediate danger, alert studio management or call 112 now. '+question;c._safetyShown=true;}
@@ -310,4 +353,5 @@ if(c.category==='Safety and Security'&&!c._safetyShown){question='If anyone is i
 
 c._fieldKey=fieldKey||'';
 c._options=(opts||[]).map(o=>o.value);
-return{sessionId:input.sessionId,message:question,phase:draft?'draft':'collect',fieldKey,lookup,lookupFilters,options:opts,collected:c,draft,progress:{done,total:required.length},engine,notice};}
+const done=urgentRequired.filter(k=>Boolean(c[k])).length;
+return{sessionId:input.sessionId,message:question,phase:draft?'draft':'collect',fieldKey,lookup,lookupFilters,options:opts,collected:c,draft,progress:{done,total:urgentRequired.length},engine,notice};}
