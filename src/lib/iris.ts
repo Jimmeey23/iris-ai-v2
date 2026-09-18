@@ -28,6 +28,21 @@ const ASK_LIMIT=3;
 const HARD_CAP=18;
 
 const TIME_SYNONYMS:Record<string,string>={'right now':'Just now','just now':'Just now','moment ago':'Just now','this morning':'Earlier today','this afternoon':'Earlier today','this evening':'Earlier today','earlier today':'Earlier today','today':'Earlier today','yesterday':'Yesterday','this week':'Earlier this week','few days':'Earlier this week','last week':'Last week','keeps happening':'Ongoing / recurring','every day':'Ongoing / recurring','recurring':'Ongoing / recurring','ongoing':'Ongoing / recurring'};
+const FIELD_DESCRIPTIONS: Record<string, string> = {
+  studioAndTime: "which studio location center (e.g. Kwality House Kemps Corner, Supreme HQ Bandra, Fort, Kenkere House) this occurred in, and when it happened",
+  studio: "which studio location center (e.g. Kwality House Kemps Corner, Supreme HQ Bandra, Fort, Kenkere House)",
+  incidentAt: "when this issue occurred or was noticed (e.g. Earlier today, Yesterday, Ongoing)",
+  area: "which specific room or area inside the studio (e.g. Studio 2, Strength Studio, Changing room, Lounge)",
+  isClassImpacted: "whether a live class or upcoming session is affected right now",
+  alreadyReported: "whether this has already been reported to a manager or security",
+  requestedResolution: "what requested resolution or repair action is needed",
+  impact: "how severely this is affecting floor operations or class flow",
+  preferredContact: "whether the member needs a callback or if this is an internal-only log",
+  systemName: "which system or equipment is acting up (e.g. mic, lights, sound system)",
+  category: "what main operational area this issue falls under",
+  subcategory: "what specific subcategory best matches this issue",
+  memberName: "the name of the member involved",
+};
 
 /**
  * Pull facts from every substantive message before treating it as the answer to the
@@ -39,14 +54,20 @@ const TIME_SYNONYMS:Record<string,string>={'right now':'Just now','just now':'Ju
 function applyMessageFacts(c:Record<string,unknown>,raw:string){
   if(!raw)return;
   const source=raw.toLowerCase();
-  if(/\b(colleague|coworker|co-worker|team(?:mate| member)?|associate)\b.*\b(flagged|told|reported|mentioned|raised)\b|\b(flagged|told|reported|mentioned|raised)\b.*\bby (?:a |my )?(colleague|coworker|associate)\b/i.test(raw))c.reportedBy=REPORTED_BY_OPTIONS[2];
+  if(/\b(colleague|coworker|co-worker|team(?:mate| member)?|associate|staff)\b.*\b(flagged|told|reported|mentioned|raised|said)\b|\b(flagged|told|reported|mentioned|raised|said)\b.*\bby (?:a |my )?(colleague|coworker|associate|staff)\b/i.test(raw)){
+    c.reportedBy=REPORTED_BY_OPTIONS[2];
+    c.memberLookupDone=true;
+    c.memberName='Studio team observation';
+    c.memberEmail='';
+    c.studioReport=true;
+  }
   else if(/\b(member|client|community member|guest)\b.*\b(told|said|reported|mentioned|shared|asked|complained)\b/i.test(raw))c.reportedBy=REPORTED_BY_OPTIONS[1];
   else if(/\b(i |we )(noticed|saw|found|spotted|observed)\b/i.test(raw))c.reportedBy=REPORTED_BY_OPTIONS[0];
 
   const studio=matchStudio(raw);if(studio)c.studio=studio;
   const when=normalizeAnswer('incidentAt',raw,OCCURRED_OPTIONS);if(when)c.incidentAt=when;
   const context=extractContext(raw);
-  for(const key of ['area','classFormat','trainer'] as const)if(context[key]&&!c[key])c[key]=context[key];
+  for(const key of ['area','classFormat','trainer','isClassImpacted'] as const)if(context[key]&&!c[key])c[key]=context[key];
   const entities=extractEntities(raw);
   for(const key of ['area','systemName'] as const)if(entities[key]&&!c[key])c[key]=entities[key];
 
@@ -57,7 +78,7 @@ function applyMessageFacts(c:Record<string,unknown>,raw:string){
   if(top&&top.score>=12){c.category=top.category;c.subcategory=top.subcategory;c._categoryInferred=true;c._categoryConfirmed=true;}
   else if(top&&!c.category){c.category=top.category;c.subcategory=top.subcategory;c._categoryInferred=true;}
   if(top&&top.score>=12&&!c.reportedBy){c.reportedBy=REPORTED_BY_OPTIONS[0];c._reportedByAssumed=true;}
-  if(/\b(not member-specific|not a member issue|general (?:studio )?observation|no member involved)\b/i.test(source)){
+  if(/\b(not member-specific|not a member issue|general (?:studio )?observation|no member involved|colleague|internal)\b/i.test(source)){
     c.memberLookupDone=true;c.studioReport=true;c.memberName='Studio team observation';c.memberEmail='';
   }
 }
@@ -65,9 +86,20 @@ function applyMessageFacts(c:Record<string,unknown>,raw:string){
 function defaultOperationalFields(c:Record<string,unknown>){
   const maintenance=['Repair and Maintenance','Studio Amenities and Facilities','Tech Issues','Operating Systems','Safety and Security'].includes(String(c.category));
   if(!maintenance)return;
-  if(!c.impact||c._operationalImpactDefault){c.impact=c.isClassImpacted==='Yes, blocking now'?'Could not proceed as normal':c.isClassImpacted==='Not yet, but it will be'?'Likely to affect an upcoming session':'Operational issue reported';c._operationalImpactDefault=true;}
-  if(!c.requestedResolution){c.requestedResolution=`Inspect and resolve the reported ${String(c.subcategory||'issue').toLowerCase()}.`;c._operationalResolutionDefault=true;}
-  if(!c.preferredContact)c.preferredContact='Internal log only';
+  if(!c.impact||c._operationalImpactDefault){
+    c.impact=c.isClassImpacted==='Yes, blocking now'?'Could not proceed as normal':c.isClassImpacted==='Not yet, but it will be'?'Likely to affect an upcoming session':`Operational issue reported${c.area?` in ${c.area}`:''}`;
+    c._operationalImpactDefault=true;
+  }
+  if(!c.requestedResolution||c._operationalResolutionDefault){
+    c.requestedResolution=`Inspect and resolve ${String(c.subcategory||'issue').toLowerCase()}${c.area?` in ${c.area}`:''}.`;
+    c._operationalResolutionDefault=true;
+  }
+  if(!c.preferredContact||c._operationalContactDefault){
+    if(c.reportedBy!==REPORTED_BY_OPTIONS[1]){
+      c.preferredContact='Internal log only';
+      c._operationalContactDefault=true;
+    }
+  }
 }
 
 /** Maps a typed answer onto one of the values that were offered. Staff type "this morning",
@@ -240,6 +272,7 @@ let fieldKey:string|undefined,lookup:'members'|'sessions'|undefined,question='',
 const choose=(key:string,prompt:string,values:string[]=[])=>{fieldKey=key;question=prompt;opts=options(values);};
 const classRelated=['Class Experience','Trainer Feedback','Scheduling'].includes(String(c.category));const praise=c.kind==='compliment'||c.kind==='feedback'&&c.sentiment==='positive';
 const isStudioReport=c.reportedBy===REPORTED_BY_OPTIONS[0];
+const isColleagueReport=c.reportedBy===REPORTED_BY_OPTIONS[2];
 const isMemberReport=c.reportedBy===REPORTED_BY_OPTIONS[1];
 
 // CONTEXT-AWARE FLOW: Skip redundant questions based on what we already know
@@ -265,16 +298,20 @@ else if(!c.subcategory){
   question=praise?'What stood out most?':'Which of these best matches it?';
   opts=options(cfg.taxonomy[String(c.category)]);
 }
-// SMART MEMBER LOOKUP: If staff observed it themselves (not member-reported), skip member lookup entirely
-else if(!c.memberLookupDone&&isStudioReport&&!c.memberName){c.memberLookupDone=true;c.memberName='Studio team observation';c.memberEmail='';c.studioReport=true;return runIris({...input,message:undefined,collected:c,patch:undefined});}
-// Only ask member lookup if the report came from a member
+// SMART MEMBER LOOKUP: If staff observed it themselves or colleague reported it, skip member lookup entirely
+else if(!c.memberLookupDone&&(isStudioReport||isColleagueReport||c.studioReport)){
+  c.memberLookupDone=true;c.memberName=c.memberName||'Studio team observation';c.memberEmail='';c.studioReport=true;
+  return runIris({...input,message:undefined,collected:c,patch:undefined});
+}
+// Only ask member lookup if the report explicitly came from a member
 else if(!c.memberLookupDone){
-  const involvesMember=String(c.reportedBy)===REPORTED_BY_OPTIONS[1];
+  if(!isMemberReport){
+    c.memberLookupDone=true;c.memberName=c.memberName||'Studio team observation';c.memberEmail='';c.studioReport=true;
+    return runIris({...input,message:undefined,collected:c,patch:undefined});
+  }
   fieldKey='memberLookup';
   lookup='members';
-  const q1=`Who is this member? Search Momence, or skip if you'd rather not name them yet.`;
-  const q2='Is this about a specific member, or a general studio observation?';
-  question=involvesMember?q1:q2;
+  question=`Who is this member? Search Momence, or skip if you'd rather not name them yet.`;
   opts=[{label:'Not member-specific',value:'__studio_report__'},{label:'Enter member details manually',value:'__manual_member__'}];
 }
 else if(classRelated&&!c.sessionLookupDone){fieldKey='sessionLookup';lookup='sessions';question=`Which class was this? Pick the session and I'll pull in the trainer, studio and time.`;
@@ -285,7 +322,7 @@ else if((!c.studio||c.studio==='—')&&!c.incidentAt&&!c._bundleTried){
   // BUNDLED QUESTION: ask studio + time together. Asked once — if the answer resolves
   // neither, the two fields are asked separately, with chips.
   fieldKey='studioAndTime';
-  question=`Which studio was this in, and when'd you notice it?`;
+  question=`Which studio is this for, and when'd you notice it?`;
   opts=undefined; // Let AI enhance this conversationally, not structured options
 }
 else if(!c.studio||c.studio==='—'){
@@ -356,29 +393,29 @@ if(ai&&engine==='openai'&&fieldKey&&!fieldKey.includes('Lookup')){
     const askCount=(asked[fieldKey]||0);
     const recentFields=Object.keys(asked).slice(-2); // Last 2 fields asked
     const shouldWriteQuestion=askCount===1&&fieldKey!==priorField; // First time asking this field, AND it's different from prior
+    const targetDesc=FIELD_DESCRIPTIONS[fieldKey]||String(fieldKey);
     
     const systemPrompt=shouldWriteQuestion?
       `You are Iris, the internal logging assistant for Physique 57 India studio staff (never members). ${cfg.aiVoice}
-You are collecting facts so this report becomes a ticket. You are not a chat companion and you never close the conversation.
-Facts already collected — never ask for these again: ${known}
+You are collecting facts so this report becomes an actionable ticket. You are concise, context-aware, warm, professional, and smart.
+Facts already collected (NEVER ask for any of these again): ${known}
 What they reported: ${String(c.description||'').slice(0,300)}
-${history.length?`Similar past tickets, for context: ${JSON.stringify(history)}`:''}
+${history.length?`Similar past tickets for reference: ${JSON.stringify(history)}`:''}
 
-Your task: Write a QUESTION that asks for: "${String(fieldKey)}"
-Guidelines:
-- Make it SPECIFIC and CONTEXT-AWARE: reference what they just said or something specific about their issue
-- Keep it conversational and brief (one sentence, max 20 words)
-- Never ask yes/no questions if they already said yes/no
-- Show you understand their situation, not just ask rote questions
+Your task: Write a single smart, context-aware question asking for: ${targetDesc}.
+CRITICAL GUIDELINES:
+- If the user already mentioned a room (e.g. "Studio 2", "Strength Studio"), acknowledge that room, and ask ONLY for the missing facility studio location center (e.g. Kwality House Kemps Corner, Supreme HQ Bandra, Fort, Kenkere House).
+- Do NOT ask who reported the issue if context shows it's a staff or colleague report.
+- Do NOT ask for facts already in context.
+- Keep it brief, conversational, and direct (one sentence, max 20 words).
 - Do NOT repeat questions from this conversation: ${JSON.stringify(recentFields)}
 - Output ONLY the question. No preamble, no options, no follow-up.`
-    :`You are Iris, the internal logging assistant for Physique 57 India studio staff (never members). ${cfg.aiVoice}
-You are collecting facts so this report becomes a ticket. You are not a chat companion and you never close the conversation.
-Facts already collected — never ask for these again and do not read them back: ${known}
+    :`You are Iris, the internal logging assistant for Physique 57 India studio staff. ${cfg.aiVoice}
+Facts already collected: ${known}
 What they reported: ${String(c.description||'').slice(0,300)}
 ${history.length?`Similar past tickets, for tone only: ${JSON.stringify(history)}`:''}
 
-Write ONE acknowledgement of their last message: at most 12 words, plain text, no markdown, contractions welcome. Do not ask a question. Do not greet. Do not say "Thanks for that", "I've noted", "anything else", "feel free" or "let me know". Output the sentence only.`;
+Write ONE brief context-aware acknowledgement of their last answer: at most 12 words, plain text, no markdown. Do not ask a question. Do not greet or chatter. Output the sentence only.`;
 
     const result=await ai.chat.completions.create({model:cfg.aiModel,messages:[{role:'system',content:systemPrompt},...input.history.slice(-8),...(raw?[{role:'user' as const,content:raw}]:[])],max_completion_tokens:60});
     const response=(result.choices[0]?.message.content||'').trim().replace(/^["']|["']$/g,'');

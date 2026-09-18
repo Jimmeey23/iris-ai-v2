@@ -261,9 +261,8 @@ export function IrisChat({presetCategory,presetSubcategory}:{presetCategory?:str
           {turn?.phase!=='complete'&&(
             <form className="chat-compose" onSubmit={e=>{e.preventDefault();if(text.trim())void send(text.trim());}}>
               <IrisContextBar turn={turn} onContextChange={(updates)=>{}} />
-              <FileUpload onFilesSelected={handleFilesSelected} />
-              {attachments.length>0&&<div className="text-xs text-stone-600 px-4 py-2">📎 {attachments.length} file(s) attached</div>}
               <div className="compose-box">
+                <FileUpload onFilesSelected={handleFilesSelected} />
                 <textarea rows={2} aria-label="Message Iris" value={text} onChange={e=>setText(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();if(text.trim()&&!busy)void send(text.trim());}}} placeholder={turn?.lookup?'Search above, or add more detail…':turn?.phase==='draft'?'Tell Iris what to change…':'Log what you saw or what a member told you…'}/>
                 <VoiceInput disabled={busy} onVoiceUsed={()=>{if(!voiceMode){setVoiceMode(true);localStorage.setItem('iris-voice-replies','1');}}} onText={v=>setText(t=>t?t+' '+v:v)}/>
                 <button type="submit" className="icon-btn send" disabled={busy||!text.trim()} aria-label="Send message"><ArrowUp size={17}/></button>
