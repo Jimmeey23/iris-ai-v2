@@ -5,6 +5,8 @@ import {Shell} from '@/components/shell';
 import {api,SearchField,Badge,Loading,Empty,Modal,Avatar,useApp} from '@/components/ui';
 import {TrainerReport,type Trainer} from '@/components/trainer-report';
 import {relativeTime} from '@/lib/utils';
+import {getTrainerImage} from '@/lib/constants';
+
 
 /** How often the tab asks the server to pull the form and the two Zite apps again. */
 const POLL_MS=20000;
@@ -108,23 +110,32 @@ export default function TrainersPage(){
       {error&&<div className="error-box">{error}</div>}
       {busy?<Loading/>:!filtered.length?<Empty art="people" title="No trainers found"/>:(
         <div className="entity-grid rise-stagger">
-          {filtered.map(t=>(
-            <button key={t.name} className="card entity-card" onClick={()=>setActiveName(t.name)}>
-              <div className="between">
-                <Avatar name={t.name} large tone={t.bandTone==='green'?'green':t.bandTone==='amber'?'amber':''}/>
-                {t.avgScore!==null?<Badge tone={t.bandTone}>{t.avgScore}%</Badge>:<Badge>No assessments</Badge>}
+          {filtered.map(t=>{
+            const img=getTrainerImage(t.name);
+            return (
+            <button key={t.name} className="card entity-card" onClick={()=>setActiveName(t.name)} style={{padding:0,overflow:'hidden'}}>
+              {img?<img src={img} alt={t.name} className="trainer-photo-card"/>:(
+                <div style={{width:'100%',aspectRatio:'1/1',display:'grid',placeItems:'center',background:'linear-gradient(135deg,var(--surface-2),var(--accent-soft))'}}>
+                  <Avatar name={t.name} large tone={t.bandTone==='green'?'green':t.bandTone==='amber'?'amber':''}/>
+                </div>
+              )}
+              <div style={{padding:'14px 16px'}}>
+                <div className="between">
+                  <h3>{t.name}</h3>
+                  {t.avgScore!==null?<Badge tone={t.bandTone}>{t.avgScore}%</Badge>:<Badge>No assessments</Badge>}
+                </div>
+                <p>{t.band||'Awaiting a formal assessment'}</p>
+                <div className="flex-row wrap" style={{marginTop:12,gap:6}}>
+                  <span className="tag"><Star size={10}/>{t.assessmentCount} assessments</span>
+                  <span className="tag"><Heart size={10}/>{t.complimentCount} compliments</span>
+                  <span className="tag"><TriangleAlert size={10}/>{t.issueCount} flagged</span>
+                </div>
+                <div className="entity-foot"><span>{t.totalTickets} linked tickets</span><ChevronRight size={14}/></div>
               </div>
-              <h3>{t.name}</h3>
-              <p>{t.band||'Awaiting a formal assessment'}</p>
-              <div className="flex-row wrap" style={{marginTop:12,gap:6}}>
-                <span className="tag"><Star size={10}/>{t.assessmentCount} assessments</span>
-                <span className="tag"><Heart size={10}/>{t.complimentCount} compliments</span>
-                <span className="tag"><TriangleAlert size={10}/>{t.issueCount} flagged</span>
-              </div>
-              <div className="entity-foot"><span>{t.totalTickets} linked tickets</span><ChevronRight size={14}/></div>
             </button>
-          ))}
+          );})}
         </div>
+
       )}
       {active&&(
         <Modal open onClose={()=>setActiveName(undefined)} title={active.name} description="Consolidated trainer performance report" size="wide" resetKey={active.name}>

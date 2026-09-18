@@ -2,6 +2,7 @@
 import {useEffect,useMemo,useState} from 'react';
 import {Badge,Empty} from './ui';
 import {indiaDate} from '@/lib/display';
+import {getTrainerImage} from '@/lib/constants';
 
 /* ------------------------------------------------------------------ */
 /* Types                                                               */
@@ -220,6 +221,7 @@ export function TrainerReport({trainer}:{trainer:Trainer}){
     <div className="tr-report">
       {/* 01 — masthead */}
       <section className="tr-masthead">
+        {(() => { const img = getTrainerImage(trainer.name); return img ? <img src={img} alt={trainer.name} className="trainer-photo-lg" /> : null; })()}
         <ScoreDial value={avg}/>
         <div style={{minWidth:0,flex:1}}>
           <span className="eyebrow">TRAINER PERFORMANCE REPORT</span>

@@ -1131,3 +1131,101 @@ export const CATEGORY_ICONS: Record<string, string> = {
   "Theft and Lost Items": "PackageSearch",
   Miscellaneous: "Layers",
 };
+
+/* ------------------------------------------------------------------ */
+/* Stages SC3 / PowerCycle Bike Knowledge Base                         */
+/* ------------------------------------------------------------------ */
+
+export type CyclePart = {
+  id: string;
+  name: string;
+  aliases: string[];
+  tools: string;
+  torque?: string;
+  description: string;
+};
+
+export const STAGES_SC3_PARTS: CyclePart[] = [
+  { id: "sic2-console", name: "SIC2 Console", aliases: ["console","screen","display","monitor"], tools: "3mm hex wrench", description: "Top-mounted console with ANT+ power display. Secured by 3mm hex screws via the power wire channel." },
+  { id: "spm2-power-meter", name: "SPM2 Power Meter", aliases: ["power meter","watt meter","spm2","power sensor"], tools: "8mm hex wrench", torque: "52–57 N·m", description: "Crank-arm power meter. ANT+ 5-digit ID. Battery spacer or taped AA batteries. Zero reset ADC must read 790–990." },
+  { id: "fitloc-lever", name: "FitLoc Lever & Handlebar Stem", aliases: ["fitloc","handlebar lever","handlebar clamp","stem lever","handlebar"], tools: "Hand-tightened", description: "Quick-release lever for handlebar height adjustment. Insert handlebar post, push lever down to lock." },
+  { id: "fore-aft-knob", name: "Fore/Aft Slide Knob", aliases: ["fore aft","slider","seat slider","saddle slider"], tools: "Hand-tightened", description: "Adjusts horizontal saddle position along the rail." },
+  { id: "resistance-knob", name: "Resistance / Brake Knob", aliases: ["resistance","brake knob","resistance dial","brake"], tools: "N/A", description: "Controls magnetic eddy-current braking force. Press down for emergency stop." },
+  { id: "sprintshift-lever", name: "SprintShift Lever", aliases: ["sprint shift","shift lever","quick shift","sprint"], tools: "N/A", description: "Multi-stage quick shift for instant resistance jumps during sprints." },
+  { id: "flywheel", name: "Flywheel", aliases: ["flywheel","fly wheel","wheel"], tools: "N/A", description: "Perimeter-weighted aluminum flywheel with magnetic eddy-current brake." },
+  { id: "pedal-left", name: "Pedal CR-L (Left)", aliases: ["left pedal","cr-l","pedal left"], tools: "15mm pedal wrench", torque: "42 N·m", description: "Left pedal — REVERSE THREADED. Turn CLOCKWISE to remove, counterclockwise to install." },
+  { id: "pedal-right", name: "Pedal CR-R (Right)", aliases: ["right pedal","cr-r","pedal right"], tools: "15mm pedal wrench", torque: "42 N·m", description: "Right pedal — standard thread. Turn counterclockwise to remove, clockwise to install." },
+  { id: "saddle-clamp", name: "Saddle Height Clamp", aliases: ["seat clamp","saddle clamp","seat height","saddle height"], tools: "13mm wrench", description: "Clamp securing the seatpost at the desired height." },
+  { id: "stabilizers", name: "Stabilizers (Front/Rear)", aliases: ["stabilizer","stabiliser","feet","leveling feet","base"], tools: "6mm hex + 17mm wrench", description: "Front: wheels facing forward. Rear: step plates with sloped edge pointing away. M10 bolts. 4 leveling feet with 14mm nut." },
+  { id: "belt-drive", name: "Belt Drive", aliases: ["belt","drive belt","belt tension"], tools: "Technician service", description: "Poly-V belt connecting pedal crank to flywheel. Vibration or slipping requires technician service." },
+  { id: "crank-arm", name: "Crank Arm", aliases: ["crank","crank arm"], tools: "8mm hex wrench", torque: "52–57 N·m", description: "Connects pedals to the flywheel via the bottom bracket. SPM2 power meter is integrated here." },
+];
+
+export type CycleTroubleshoot = {
+  symptom: string;
+  keywords: string[];
+  diagnosis: string;
+  action: string;
+  severity: 'critical' | 'high' | 'medium' | 'low';
+  partId: string;
+};
+
+export const STAGES_SC3_TROUBLESHOOTING: CycleTroubleshoot[] = [
+  { symptom: "Flywheel scraping / grinding noise", keywords: ["scraping","grinding","noise","flywheel noise","rubbing"], diagnosis: "Brake pad or flywheel housing misalignment. Possible loose flywheel bolt.", action: "Immediately take bike out of rotation. Do NOT ride. Schedule technician inspection.", severity: "critical", partId: "flywheel" },
+  { symptom: "FitLoc lever slipping / handlebar dropping", keywords: ["fitloc","handlebar dropping","handlebar slipping","handlebar loose","lever loose","handlebar won't hold"], diagnosis: "FitLoc cam mechanism worn or post not inserted deep enough.", action: "Check post insertion depth (min line visible). If still slipping, tag bike for FitLoc replacement.", severity: "high", partId: "fitloc-lever" },
+  { symptom: "Power meter not pairing / no watts displayed", keywords: ["no power","watts not showing","power meter","not pairing","ant+","no reading","console blank power"], diagnosis: "ANT+ pairing failure or dead batteries in SPM2.", action: "1. Check/replace AA batteries (use spacer or tape). 2. Re-pair using 5-digit ANT+ ID on console. 3. If still dead, check power wire channel connection.", severity: "medium", partId: "spm2-power-meter" },
+  { symptom: "Zero reset failing (ADC outside 790–990)", keywords: ["zero reset","adc","calibration","power calibration","zero offset"], diagnosis: "SPM2 zero offset out of range. May indicate mechanical stress on crank arm.", action: "Re-attempt zero reset with NO weight on pedals. If ADC reads outside 790–990 after 3 attempts, remove and reseat crank arm at 52–57 N·m. Escalate to Stages support if persistent.", severity: "medium", partId: "spm2-power-meter" },
+  { symptom: "Pedal cross-threaded / won't tighten", keywords: ["pedal cross","stripped","pedal stuck","pedal loose","pedal thread","cross thread"], diagnosis: "Pedal threads stripped or cross-threaded. Remember: left pedal is REVERSE threaded.", action: "Do NOT force. Remove pedal, inspect threads. If crank arm threads are stripped, replace crank arm (8mm hex, 52–57 N·m). Apply grease to threads before reinstall.", severity: "high", partId: "pedal-left" },
+  { symptom: "Console dead / no display", keywords: ["console dead","no display","screen blank","console not working","monitor dead"], diagnosis: "Power wire disconnected or console battery dead.", action: "1. Check power wire in channel under handlebar. 2. Replace console batteries. 3. Reseat 3mm hex screws. If still dead, replace SIC2 console unit.", severity: "medium", partId: "sic2-console" },
+  { symptom: "Belt vibration or slipping", keywords: ["belt vibration","belt slip","belt noise","vibrating","belt squeal"], diagnosis: "Belt tension loss or misalignment. Normal wear after heavy usage.", action: "Take bike out of rotation. Belt tensioning requires trained technician. Do not attempt field adjustment.", severity: "high", partId: "belt-drive" },
+  { symptom: "Resistance knob not engaging / no resistance change", keywords: ["no resistance","resistance stuck","brake not working","resistance knob","can't feel resistance"], diagnosis: "Magnetic brake pad gap too wide or brake knob cable disconnected.", action: "Check brake knob cable routing under shroud. If cable intact, brake pad gap needs technician adjustment.", severity: "high", partId: "resistance-knob" },
+  { symptom: "Bike wobbling / unstable", keywords: ["wobble","wobbling","unstable","rocking","bike moves","not stable"], diagnosis: "Stabilizer feet not leveled or stabilizer bolts loose.", action: "Adjust 4 leveling feet (14mm nut) until all contact the floor evenly. Tighten M10 stabilizer bolts (6mm hex + 17mm wrench).", severity: "medium", partId: "stabilizers" },
+  { symptom: "Seat won't stay at height", keywords: ["seat drops","seat slips","saddle drops","seat won't hold","seat height"], diagnosis: "Saddle clamp not tightened or clamp mechanism worn.", action: "Tighten saddle clamp with 13mm wrench. If clamp is worn/stripped, replace the clamp assembly.", severity: "medium", partId: "saddle-clamp" },
+  { symptom: "SprintShift lever stuck or unresponsive", keywords: ["sprint shift stuck","shift not working","sprint lever","quick shift"], diagnosis: "SprintShift cable binding or lever mechanism jammed.", action: "Check cable routing. If lever mechanism is jammed, take bike out of rotation for technician service.", severity: "medium", partId: "sprintshift-lever" },
+];
+
+/** IRIS prompts for cycle-related tickets: the questions to ask in sequence */
+export const CYCLE_INTAKE_QUESTIONS = [
+  { key: "bikeNumber", prompt: "Which bike number is this about? (e.g. Bike #3, Bike 7)", type: "text" },
+  { key: "cycleIssueType", prompt: "What exactly is wrong?", type: "select", values: STAGES_SC3_TROUBLESHOOTING.map(t => t.symptom) },
+  { key: "cyclePart", prompt: "Which part of the bike is affected?", type: "select", values: STAGES_SC3_PARTS.map(p => p.name) },
+  { key: "cycleFirstOrRecurring", prompt: "Is this the first time this has happened on this bike, or has it happened before?", type: "select", values: ["First time", "Recurring — happened before", "Not sure"] },
+  { key: "cycleReporterAction", prompt: "What did you do when you noticed it?", type: "select", values: ["Took bike out of rotation", "Flagged it but class continued", "Member reported mid-class", "Noticed during setup/walkthrough"] },
+] as const;
+
+/* ------------------------------------------------------------------ */
+/* Trainer Image Mapping                                               */
+/* ------------------------------------------------------------------ */
+
+/** Maps trainer names to their image file paths in /public/Trainer Images/ */
+export const TRAINER_IMAGES: Record<string, string> = {
+  "Anisha Shah": "/Trainer Images/001-1_Anisha-1-e1590837044475.jpg",
+  "Anmol Sharma": "/Trainer Images/Anmol.jpeg",
+  "Atulan Purohit": "/Trainer Images/002-Atulan-Image-1.jpg",
+  "Bret Saldanha": "/Trainer Images/Bret.jpeg",
+  "Mrigakshi Jaiswal": "/Trainer Images/007-Mrigakshi-Image-2.jpg",
+  "Pranjali Jain": "/Trainer Images/008-Pranjali-Image-1.jpg",
+  "Pushyank Nahar": "/Trainer Images/009-Pushyank-Nahar-1.jpeg",
+  "Raunak Khemuka": "/Trainer Images/Raunak.jpeg",
+  "Reshma Sharma": "/Trainer Images/010-Reshma-Image-3.jpg",
+  "Richard D'Costa": "/Trainer Images/011-Richard-Image-3.jpg",
+  "Rohan Dahima": "/Trainer Images/012-Rohan-Image-3.jpg",
+  "Shruti Kulkarni": "/Trainer Images/Shruti-Kulkarni.jpeg",
+  "Simonelle De Vitre": "/Trainer Images/Simonelle.jpeg",
+  "Vivaran Dhasmana": "/Trainer Images/015-Vivaran-Image-4.jpg",
+};
+
+/** Get trainer image URL by name (case-insensitive partial match) */
+export function getTrainerImage(name: string): string | null {
+  if (!name) return null;
+  // Exact match
+  if (TRAINER_IMAGES[name]) return TRAINER_IMAGES[name];
+  // Case-insensitive match
+  const lower = name.toLowerCase();
+  for (const [key, url] of Object.entries(TRAINER_IMAGES)) {
+    if (key.toLowerCase() === lower) return url;
+    // Partial match (first name)
+    if (lower.includes(key.split(' ')[0].toLowerCase()) || key.split(' ')[0].toLowerCase().includes(lower.split(' ')[0])) return url;
+  }
+  return null;
+}
