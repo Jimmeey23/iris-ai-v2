@@ -16,6 +16,22 @@ import {
   Tag,
   Clock3,
   X,
+  FileText,
+  MapPin,
+  Mail,
+  Phone,
+  Briefcase,
+  Crown,
+  Dumbbell,
+  AlertCircle,
+  Repeat,
+  Layers,
+  MessageSquare,
+  Sparkles,
+  Zap,
+  Hash,
+  ArrowRight,
+  type LucideIcon,
 } from "lucide-react";
 import {
   Modal,
@@ -74,6 +90,42 @@ type Bundle = {
   followUps: import("./resolution-panel").FollowUp[];
   contacts: import("./resolution-panel").ContactEntry[];
 };
+
+const FACT_ICONS: Record<string, LucideIcon> = {
+  "Reported by": UserRound,
+  Email: Mail,
+  Phone: Phone,
+  "Preferred contact": MessageSquare,
+  Studio: MapPin,
+  "When it happened": CalendarDays,
+  "Class or session": Dumbbell,
+  Trainer: UserRound,
+  Membership: Crown,
+  "Asked for": Sparkles,
+  Impact: AlertCircle,
+};
+
+function FactTile({
+  label,
+  value,
+}: {
+  label: string;
+  value: string | null | undefined;
+}) {
+  const Icon = FACT_ICONS[label] || Briefcase;
+  return (
+    <div className="td-fact-tile">
+      <div className="td-fact-icon">
+        <Icon size={16} />
+      </div>
+      <div className="td-fact-body">
+        <dt>{label}</dt>
+        <dd>{display(value ?? "")}</dd>
+      </div>
+    </div>
+  );
+}
+
 export function TicketDialog({
   id,
   open,
@@ -362,14 +414,56 @@ export function TicketDialog({
                     <div className="td-overview">
                       <div className="td-column">
                         {t.description.trim() !== t.summary.trim() && (
-                          <section className="td-block">
-                            <h3>What happened</h3>
+                          <section className="td-block td-block-raised">
+                            <div className="td-section-head">
+                              <div className="td-section-icon">
+                                <FileText size={18} />
+                              </div>
+                              <h3>What happened</h3>
+                            </div>
                             <p className="td-narrative">{t.description}</p>
+                            <div className="td-narrative-tags">
+                              <span className="td-tag">{t.category}</span>
+                              <span className="td-tag td-tag-sub">
+                                {t.subcategory}
+                              </span>
+                              {t.impact && (
+                                <span className="td-tag td-tag-impact">
+                                  <Zap size={11} />
+                                  {t.impact}
+                                </span>
+                              )}
+                            </div>
                           </section>
                         )}
+
+                        {(t.requestedResolution || t.impact) && (
+                          <section className="td-block td-block-highlight">
+                            <div className="td-highlight-inner">
+                              <div className="td-highlight-orb">
+                                <Sparkles size={20} />
+                              </div>
+                              <div>
+                                <h4>Member request</h4>
+                                {t.requestedResolution && (
+                                  <p>{t.requestedResolution}</p>
+                                )}
+                                {t.impact && !t.requestedResolution && (
+                                  <p>Impact: {t.impact}</p>
+                                )}
+                              </div>
+                            </div>
+                          </section>
+                        )}
+
                         <section className="td-block">
-                          <h3>Context</h3>
-                          <dl className="td-facts">
+                          <div className="td-section-head">
+                            <div className="td-section-icon td-section-icon-alt">
+                              <Layers size={18} />
+                            </div>
+                            <h3>Context</h3>
+                          </div>
+                          <dl className="td-facts td-facts-grid">
                             {[
                               { k: "Reported by", v: t.memberName },
                               { k: "Email", v: t.memberEmail },
@@ -388,41 +482,65 @@ export function TicketDialog({
                               { k: "Asked for", v: t.requestedResolution },
                               { k: "Impact", v: t.impact },
                             ]
-                              .filter((f) => f.v)
+                              .filter((f) => f.v && f.k !== "Asked for")
                               .map((f) => (
-                                <div key={f.k}>
-                                  <dt>{f.k}</dt>
-                                  <dd>{display(f.v)}</dd>
-                                </div>
+                                <FactTile
+                                  key={f.k}
+                                  label={f.k}
+                                  value={f.v}
+                                />
                               ))}
                           </dl>
                         </section>
+
                         <section className="td-block">
-                          <div className="between">
-                            <h3>Similar tickets</h3>
+                          <div className="between td-section-head">
+                            <div className="td-section-head">
+                              <div className="td-section-icon td-section-icon-purple">
+                                <Repeat size={18} />
+                              </div>
+                              <h3>Similar tickets</h3>
+                            </div>
                             <Badge>{bundle.similar.length}</Badge>
                           </div>
                           <p className="td-block-note">
                             Same category and subcategory.
                           </p>
-                          {bundle.similar.map((s) => (
-                            <button
-                              className="related-ticket"
-                              key={s.id}
-                              onClick={() => setChildId(s.id)}
-                            >
-                              <div>
-                                <small>{s.ticketNumber}</small>
+                          <div className="td-similar-list">
+                            {bundle.similar.map((s) => (
+                              <button
+                                className="td-similar-card"
+                                key={s.id}
+                                onClick={() => setChildId(s.id)}
+                              >
+                                <div className="td-similar-meta">
+                                  <Hash size={11} />
+                                  <span>{s.ticketNumber}</span>
+                                </div>
                                 <p>{s.title}</p>
-                              </div>
-                              <ChevronRight size={13} />
-                            </button>
-                          ))}
-                          {!bundle.similar.length && (
-                            <p className="td-empty-line">
-                              This is the first ticket of its kind.
-                            </p>
-                          )}
+                                <div className="between">
+                                  <span
+                                    className={
+                                      "td-similar-status " +
+                                      (s.status === "open"
+                                        ? "open"
+                                        : s.status === "resolved"
+                                          ? "resolved"
+                                          : "closed")
+                                    }
+                                  >
+                                    {s.status}
+                                  </span>
+                                  <ChevronRight size={14} />
+                                </div>
+                              </button>
+                            ))}
+                            {!bundle.similar.length && (
+                              <p className="td-empty-line">
+                                This is the first ticket of its kind.
+                              </p>
+                            )}
+                          </div>
                         </section>
                       </div>
                       <aside className="td-aside">
