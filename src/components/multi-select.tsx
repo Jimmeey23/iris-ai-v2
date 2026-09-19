@@ -38,6 +38,7 @@ export function MultiSelect({
   source,
   studio,
   sessionTypes,
+  upcoming,
 }: {
   module: PickerModule;
   value: PickerOption[];
@@ -50,6 +51,8 @@ export function MultiSelect({
   studio?: string;
   /** Narrows a session lookup to given Momence session types, e.g. `['private']` for hosted classes. */
   sessionTypes?: string[];
+  /** Searches the upcoming schedule instead of the recent one, for a class that has not started. */
+  upcoming?: boolean;
 }) {
   const [q, setQ] = useState('');
   const [live, setLive] = useState<PickerOption[]>([]);
@@ -66,6 +69,7 @@ export function MultiSelect({
       const params = new URLSearchParams({ module, q, page: '0' });
       if (module === 'sessions' && studio) params.set('studio', studio);
       if (module === 'sessions') for (const t of sessionTypes || []) params.append('type', t);
+      if (module === 'sessions' && upcoming) params.set('upcoming', 'true');
       api<{ items: MomenceRecord[]; source: string }>(
         `/api/momence?${params}`,
         { signal: controller.signal },
@@ -78,7 +82,7 @@ export function MultiSelect({
         .finally(() => setBusy(false));
     }, 220);
     return () => { clearTimeout(t); controller.abort(); };
-  }, [module, q, open, studio, sessionTypes?.join(',')]);
+  }, [module, q, open, studio, sessionTypes?.join(','), upcoming]);
 
   useEffect(() => {
     function onDocClick(e: MouseEvent) {

@@ -78,6 +78,10 @@ export function inferPriority(input: {
   isImmediateDanger?: string;
   isClassImpacted?: string;
   impact?: string;
+  /** Whether a member's session or experience was affected — "Yes — members were affected". */
+  memberImpact?: string;
+  /** Severity of a PowerCycle bike fault: critical where a rider could be hurt. */
+  cycleSeverity?: string;
 }): TicketPriority {
   // Baseline from the taxonomy alone, most severe rule last.
   let priority: TicketPriority = "medium";
@@ -97,6 +101,12 @@ export function inferPriority(input: {
   if (saysYes(input.isClassImpacted)) priority = atLeast(priority, "high");
   if (willBlockSoon(input.isClassImpacted)) priority = atLeast(priority, "high");
   if (input.impact === "Could not proceed as normal") priority = atLeast(priority, "high");
+  // A member who paid for a session they could not finish is owed a response within the
+  // day, whatever the taxonomy alone would have said about a broken bike or a hot studio.
+  if (saysYes(input.memberImpact)) priority = atLeast(priority, "high");
+  // A bike fault that can hurt a rider — a pedal that can detach, a scraping flywheel —
+  // is a safety fault, and the playbook severity is the only place that is recorded.
+  if (input.cycleSeverity === "critical") priority = atLeast(priority, "critical");
   return priority;
 }
 
