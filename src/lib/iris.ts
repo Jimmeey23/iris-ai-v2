@@ -62,6 +62,40 @@ function usableQuestion(q:string):boolean{
 }
 
 /**
+ * Reads one string value out of JSON that is still arriving.
+ *
+ * The acknowledgement is the first thing the model writes, so it can be shown while the rest
+ * of the turn is still being generated — that is the whole point of streaming here. Returns
+ * the characters decoded so far and whether the value has closed.
+ */
+export function scanStreamedString(buffer:string,key:string):{value:string;closed:boolean}{
+  const at=buffer.indexOf(`"${key}"`);
+  if(at<0)return{value:'',closed:false};
+  let i=buffer.indexOf(':',at+key.length+2);
+  if(i<0)return{value:'',closed:false};
+  i++;
+  while(i<buffer.length&&/\s/.test(buffer[i]))i++;
+  if(i>=buffer.length)return{value:'',closed:false};
+  if(buffer[i]!=='"')return{value:'',closed:true};   // null, or some other type: nothing to show
+  i++;
+  let out='';
+  while(i<buffer.length){
+    const ch=buffer[i];
+    if(ch==='\\'){
+      const next=buffer[i+1];
+      if(next===undefined)return{value:out,closed:false};   // escape split across chunks
+      out+=({n:'\n',t:'\t',r:'\r',b:'\b',f:'\f','"':'"','\\':'\\','/':'/'} as Record<string,string>)[next]??next;
+      i+=2;
+      continue;
+    }
+    if(ch==='"')return{value:out,closed:true};
+    out+=ch;
+    i++;
+  }
+  return{value:out,closed:false};
+}
+
+/**
  * Combine the scripted turn with the model's proposal.
  *
  * The flow owns which field is next and which answers are valid; the model owns the words.
@@ -377,7 +411,7 @@ export async function irisWelcome(
   };
 }
 
-export async function runIris(input:{sessionId:string;collected:Record<string,unknown>;message?:string;fieldKey?:string;history:IrisMessage[];selectionApplied?:boolean;patch?:Record<string,unknown>;proposedTurn?:ProposedTurn}):Promise<IrisTurn>{const cfg=await getConfig();const c={...input.collected,...input.patch};const raw=(input.message||'').trim();const priorField=input.fieldKey;
+export async function runIris(input:{sessionId:string;collected:Record<string,unknown>;message?:string;fieldKey?:string;history:IrisMessage[];selectionApplied?:boolean;patch?:Record<string,unknown>;proposedTurn?:ProposedTurn;onAckDelta?:(text:string)=>void}):Promise<IrisTurn>{const cfg=await getConfig();const c={...input.collected,...input.patch};const raw=(input.message||'').trim();const priorField=input.fieldKey;
 // A turn that skips a field re-enters this function with no message, so the model is not
 // called again. Its proposal rides along instead of being thrown away mid-turn.
 let proposed:ProposedTurn=input.proposedTurn||{};const connection=await credentials('chatgpt');const key=connection._enabled==='false'?undefined:connection.api_key;let engine:'openai'|'guided'=cfg.aiEnabled&&key?'openai':'guided';let notice:string|undefined;let ai:OpenAI|undefined;
@@ -467,7 +501,8 @@ Do not guess a member, class, date, studio or contact detail — a room referenc
 
 SECOND JOB — write the next exchange. Staff should feel talked to, not interrogated, so the
 same call that reads the facts also proposes the reply. Return:
-{"fields":{...},"turn":{"ack":"...","nextField":"...","question":"...","options":[{"label":"...","value":"..."}]}}
+{"turn":{"ack":"...","nextField":"...","question":"...","options":[{"label":"...","value":"..."}]},"fields":{...}}
+Emit the keys in exactly that order, with turn.ack first — it is shown to the reporter while the rest of your answer is still being written, so anything before it is dead air.
 - ack: at most 14 words reacting to what they just said, in ${cfg.aiVoice?'the studio voice':'a warm, professional voice'}. No question, no sign-off, no thanks. Omit when there is nothing new to react to.
 - nextField: the single most useful field still missing. These are the fields and what each one means: ${JSON.stringify(FIELD_DESCRIPTIONS)}. Never name a field already present in Current facts.
 - question: one sentence, at most 22 words, asking only for nextField.
@@ -479,9 +514,42 @@ TURN STATE (this part changes every turn; everything above it does not, so it is
 ${examples.length?`- How tickets like this one have read before, for tone and for what usually matters — do not copy them: ${JSON.stringify(examples)}`:''}
 ${urgent?'- This report carries urgency signals: keep the reply short, lead with the operational next step, and do not ask for optional detail.':''}`},...input.history.slice(-12),{role:'user',content:raw}];
 
-let result=await ai.chat.completions.create({model:cfg.aiModel,messages,tools:toolDefs,response_format:{type:'json_object'},max_completion_tokens:1200});
-const calls=result.choices[0]?.message.tool_calls;if(calls?.length){messages.push(result.choices[0].message);for(const call of calls){if(call.type!=='function')continue;let output:unknown;try{const args=obj(JSON.parse(call.function.arguments));if(!['members','sessions'].includes(String(args.module)))throw new Error('Invalid module');const found=await listMomence(args.module as 'members'|'sessions',{query:String(args.query||''),pageSize:5});output={source:found.source,suggestions:found.items.map(i=>({id:i.id,name:i.name}))};}catch{output={error:'Lookup unavailable. Ask the user to search and select manually.'};}messages.push({role:'tool',tool_call_id:call.id,content:JSON.stringify(output)});}result=await ai.chat.completions.create({model:cfg.aiModel,messages,response_format:{type:'json_object'},max_completion_tokens:1200});}
-const parsed=obj(JSON.parse(result.choices[0]?.message.content||'{}'));
+// One pass of the model, streamed when the caller wants the acknowledgement live.
+// The ack is the first key the model writes, so it reaches the reporter while the rest of the
+// turn — the field decision, the question, the options — is still being generated.
+type Pass={content:string;toolCalls:OpenAI.Chat.Completions.ChatCompletionMessageToolCall[]};
+const runPass=async(withTools:boolean):Promise<Pass>=>{
+  const body={model:cfg.aiModel,messages,...(withTools?{tools:toolDefs}:{}),response_format:{type:'json_object' as const},max_completion_tokens:1200};
+  if(!input.onAckDelta){
+    const r=await ai!.chat.completions.create(body);
+    const m=r.choices[0]?.message;
+    return{content:m?.content||'',toolCalls:(m?.tool_calls||[]) as OpenAI.Chat.Completions.ChatCompletionMessageToolCall[]};
+  }
+  const stream=await ai!.chat.completions.create({...body,stream:true});
+  let content='',sent=0;
+  // Tool-call deltas arrive in fragments keyed by position, so they are reassembled here.
+  const slots=new Map<number,{id:string;name:string;args:string}>();
+  for await(const chunk of stream){
+    const d=chunk.choices[0]?.delta;
+    if(d?.content){
+      content+=d.content;
+      const {value}=scanStreamedString(content,'ack');
+      if(value.length>sent){input.onAckDelta(value.slice(sent));sent=value.length;}
+    }
+    for(const tc of d?.tool_calls||[]){
+      const slot=slots.get(tc.index)||{id:'',name:'',args:''};
+      if(tc.id)slot.id=tc.id;
+      if(tc.function?.name)slot.name+=tc.function.name;
+      if(tc.function?.arguments)slot.args+=tc.function.arguments;
+      slots.set(tc.index,slot);
+    }
+  }
+  const toolCalls=[...slots.entries()].sort((a,b)=>a[0]-b[0]).map(([,v])=>({id:v.id,type:'function' as const,function:{name:v.name,arguments:v.args}}));
+  return{content,toolCalls};
+};
+let pass=await runPass(true);
+const calls=pass.toolCalls;if(calls.length){messages.push({role:'assistant',content:pass.content||null,tool_calls:calls});for(const call of calls){if(call.type!=='function')continue;let output:unknown;try{const args=obj(JSON.parse(call.function.arguments));if(!['members','sessions'].includes(String(args.module)))throw new Error('Invalid module');const found=await listMomence(args.module as 'members'|'sessions',{query:String(args.query||''),pageSize:5});output={source:found.source,suggestions:found.items.map(i=>({id:i.id,name:i.name}))};}catch{output={error:'Lookup unavailable. Ask the user to search and select manually.'};}messages.push({role:'tool',tool_call_id:call.id,content:JSON.stringify(output)});}pass=await runPass(false);}
+const parsed=obj(JSON.parse(pass.content||'{}'));
 const rawTurn=obj(parsed.turn);
 proposed={
   ack:typeof rawTurn.ack==='string'?rawTurn.ack:undefined,

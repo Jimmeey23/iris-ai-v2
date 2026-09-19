@@ -1079,3 +1079,9 @@ pre{font:12px/1.7 var(--font-mono);white-space:pre-wrap;overflow-wrap:anywhere;c
   border-radius:9px;background:var(--amber-bg);color:var(--amber);font-size:10.5px;line-height:1.6}
 .mac-disconnected svg{margin-top:2px}
 .wa-btn-send.is-disabled{opacity:.5;cursor:not-allowed;pointer-events:none}
+
+/* Iris — the reply as it is being written */
+.streaming-text{display:inline}
+.stream-caret{display:inline-block;width:2px;height:1em;margin-left:3px;vertical-align:-.15em;background:var(--accent);animation:stream-blink 1s steps(1) infinite}
+@keyframes stream-blink{0%,49%{opacity:1}50%,100%{opacity:0}}
+@media(prefers-reduced-motion:reduce){.stream-caret{animation:none}}
