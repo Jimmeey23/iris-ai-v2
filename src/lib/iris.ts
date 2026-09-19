@@ -4,6 +4,8 @@ import {extractEntities,inferSentiment,classifyIssue,matchStudio} from './classi
 import {makeDraft,historicalExamples} from './tickets';
 import {listMomence,obj} from './momence';
 import {extractContext,determineSkippableFields} from './context-extractor';
+import {parseAssetReference,resolveAsset,assetBrief} from './assets';
+import {findDuplicate} from './duplicates';
 import {STUDIO_AREAS,SYSTEMS,OCCURRED_OPTIONS,REPORTED_BY_OPTIONS,STAGES_SC3_PARTS,STAGES_SC3_TROUBLESHOOTING,CYCLE_INTAKE_QUESTIONS,studioAreasFor,AREA_ALIASES} from './constants';
 import {momenceConfigured} from './momence';
 import type {IrisTurn,IrisMessage} from './iris-contract';
@@ -31,6 +33,9 @@ const CLARIFY_FIELD='clarify';
 /** A contradiction is worth interrupting for, once. A reporter who repeats the newer
  *  answer is not confused — they are correcting themselves, so the next one stands. */
 const CLARIFY_LIMIT=2;
+/** Pseudo-field for the one question asked before a second ticket about the same fault
+ *  can be created. */
+const DUPLICATE_FIELD='duplicateCheck';
 /** Whether a member's session was affected. Distinct from who reported the issue: a bike
  *  failing mid-class is logged by staff but affects the riders, and maintenance tickets
  *  used to be forced into "no member involved" before anyone could be asked. */
@@ -591,6 +596,29 @@ function saysYes(value:string):boolean{
  *  actually stores, whose two answers really differ, and that the reporter has not already
  *  settled. `now` falls back to what the flow just bound, so a conflict that names the
  *  field without repeating the answer still works. */
+/** One line on what the equipment register already knows, shown while the fault is being
+ *  reported — the moment it can still change what the reporter decides to do. */
+export function buildAssetNote(c:Record<string,unknown>):string|undefined{
+  const name=typeof c.assetName==='string'?c.assetName:'';
+  if(!name)return undefined;
+  const status=String(c.assetStatus||'in-service');
+  const faults=Number(c.assetFaults||0);
+  const faults30=Number(c.assetFaults30||0);
+  const open=Number(c.assetOpenFaults||0);
+  const when=String(c.assetLastFaultAt||'');
+  const whenLabel=when?new Date(when).toLocaleDateString('en-IN',{timeZone:'Asia/Kolkata',day:'numeric',month:'short'}):'';
+  const parts:string[]=[];
+  if(status!=='in-service')parts.push(`${name} is ${status.replace(/-/g,' ')}`);
+  if(faults>0){
+    parts.push(faults===1
+      ? `1 fault on record${whenLabel?` (${whenLabel})`:''}`
+      : `${faults} faults on record${faults30>1?`, ${faults30} in the last 30 days`:''}${whenLabel?`, last ${whenLabel}`:''}`);
+  }
+  if(open>0)parts.push(`${open} still open${c.assetLastTicket?` (${c.assetLastTicket})`:''}`);
+  if(!parts.length)parts.push(`${name} — no faults on record`);
+  return parts.join(' · ');
+}
+
 export function firstConflict(proposed:ProposedTurn,c:Record<string,unknown>):{field:string;earlier:string;now:string}|undefined{
   const settled=obj(c._clarified);
   for(const entry of proposed.conflicts||[]){
@@ -609,7 +637,7 @@ export function firstConflict(proposed:ProposedTurn,c:Record<string,unknown>):{f
 /** The intake answers that belong on the ticket. Undefined keys are dropped so the
  *  stored JSON stays readable. */
 function intakeAnswers(c:Record<string,unknown>){
-  const out:Record<string,unknown>={reportedBy:c.reportedBy,sessionContext:c.sessionContext,area:c.area,systemName:c.systemName,isClassImpacted:c.isClassImpacted,isImmediateDanger:c.isImmediateDanger,alreadyReported:c.alreadyReported,itemDescription:c.itemDescription,lastSeen:c.lastSeen,channelOfIssue:c.channelOfIssue,occurredAt:occurredAtIso(c.incidentAt),bikeNumber:c.bikeNumber,cycleIssueType:c.cycleIssueType,cyclePart:c.cyclePart,cycleSeverity:c.cycleSeverity,cycleFirstOrRecurring:c.cycleFirstOrRecurring,cycleReporterAction:c.cycleReporterAction,memberImpact:c.memberImpact,impactedMembers:c.impactedMembers};
+  const out:Record<string,unknown>={reportedBy:c.reportedBy,sessionContext:c.sessionContext,area:c.area,systemName:c.systemName,isClassImpacted:c.isClassImpacted,isImmediateDanger:c.isImmediateDanger,alreadyReported:c.alreadyReported,itemDescription:c.itemDescription,lastSeen:c.lastSeen,channelOfIssue:c.channelOfIssue,occurredAt:occurredAtIso(c.incidentAt),bikeNumber:c.bikeNumber,cycleIssueType:c.cycleIssueType,cyclePart:c.cyclePart,cycleSeverity:c.cycleSeverity,cycleFirstOrRecurring:c.cycleFirstOrRecurring,cycleReporterAction:c.cycleReporterAction,memberImpact:c.memberImpact,impactedMembers:c.impactedMembers,assetId:c.assetId,assetName:c.assetName,assetStatus:c.assetStatus};
   for(const k of Object.keys(out))if(out[k]===undefined||out[k]==='')delete out[k];
   return out;
 }
@@ -698,6 +726,17 @@ if(engine==='openai')ai=new OpenAI({apiKey:key,timeout:20000,maxRetries:1});
 if(raw.startsWith('A member told me')||raw.startsWith('I noticed something')||raw.startsWith('I want to log feedback')||raw.startsWith('I want to log a compliment')){c.kind=raw.includes('compliment')?'compliment':raw.includes('feedback')?'feedback':'issue';c.reportedBy=raw.startsWith('A member told me')?REPORTED_BY_OPTIONS[1]:raw.startsWith('I noticed')?REPORTED_BY_OPTIONS[0]:REPORTED_BY_OPTIONS[2];c.description='';c._welcomeProcessed=true;if(c.kind==='compliment')c.sentiment='positive';}
 else if(raw==='__accept_category__'){c._categoryConfirmed=true;}else if(raw==='__reject_category__'){delete c.category;delete c.subcategory;delete c._guess;c._categoryRejected=true;c._categoryInferred=false;c._categoryConfirmed=true;}else if(raw==='__manual_member__'){c.memberLookupDone=true;c.manualMember=true;}else if(raw==='__studio_report__'){c.memberLookupDone=true;c.memberName=c.reportedBy===REPORTED_BY_OPTIONS[1]?'Member (not named)':'Studio team observation';c.memberEmail='';c.studioReport=true;}else if(raw==='__manual_session__'){c.sessionLookupDone=true;c.manualSession=true;}else if(raw==='__hosted_class__'){c.hostedClass=true;c.classFormat=c.classFormat||'Studio Hosted Class';}else if(raw==='__manual_studio_time__'){
   // User chose to enter studio/time manually — fall through to normal processing
+}
+else if(raw.startsWith('__link__:')){
+  // "Yes, that's the same one" — the report is folded into the ticket that is already open
+  // instead of becoming a second ticket about the same fault.
+  const id=Number(raw.slice('__link__:'.length));
+  if(Number.isFinite(id)&&id>0){c._linkTo=id;c._dupChecked=true;}
+}
+else if(raw.startsWith('__new__:')){
+  // "Log it separately" — still recorded as related, so the two can be read together.
+  const id=Number(raw.slice('__new__:'.length));
+  if(Number.isFinite(id)&&id>0){c._relatedTicketId=id;c._dupChecked=true;}
 }
 else if(raw===OTHER_VALUE&&priorField){
   // None of the answers on screen was theirs. The next message is the answer, taken
@@ -980,6 +1019,27 @@ const isMemberReport=c.reportedBy===REPORTED_BY_OPTIONS[1];
 // CONTEXT-AWARE FLOW: Skip redundant questions based on what we already know
 const isFacilityCat = ['Repair and Maintenance','Studio Amenities and Facilities','Tech Issues','Operating Systems'].includes(String(c.category));
 
+// Which piece of equipment this is about, and what the register already knows about it.
+// "bike 6" was a string typed fresh onto every ticket, so nothing could tell a first fault
+// from a fifth: resolving it to an asset is what turns "this keeps happening" into a count.
+if(isFacilityCat&&!c.assetId&&c.bikeNumber&&typeof c.studio==='string'&&c.studio!=='—'){
+  const ref=parseAssetReference(`bike ${c.bikeNumber}`);
+  if(ref){
+    const asset=await resolveAsset({studio:String(c.studio),type:ref.type,label:ref.label,area:typeof c.area==='string'?c.area:null});
+    if(asset){
+      c.assetId=asset.id;c.assetName=asset.name;
+      // Read the history once and carry it: the note below is built from these on every
+      // later turn, without another round of queries.
+      const brief=await assetBrief(asset.id);
+      if(brief){
+        c.assetStatus=brief.asset.status;c.assetFaults=brief.faults;c.assetFaults30=brief.faultsLast30;
+        c.assetOpenFaults=brief.openFaults;c.assetLastFaultAt=brief.lastFaultAt;
+        c.assetLastTicket=brief.lastTicketNumber;
+      }
+    }
+  }
+}
+
 if(!c.description||String(c.description).length<12){
   // Only ask description if welcome was processed (meaning reportedBy is set)
   const descPrompt=c.reportedBy===REPORTED_BY_OPTIONS[1]?'What did the member tell you?':c.reportedBy===REPORTED_BY_OPTIONS[0]?'What did you see?':'Go ahead — describe what happened, in as much detail as you have.';
@@ -1101,6 +1161,9 @@ if(fieldKey&&(asked[fieldKey]||0)>=ASK_LIMIT){
   if(fieldKey==='confirmCategory'){c._categoryConfirmed=true;return runIris({...input,message:undefined,collected:c,patch:undefined,proposedTurn:proposed});}
   if(fieldKey==='memberLookup'){c.memberLookupDone=true;c.studioReport=true;c.memberName=c.memberName||'Studio team observation';return runIris({...input,message:undefined,collected:c,patch:undefined,proposedTurn:proposed});}
   if(fieldKey==='sessionLookup'){c.sessionLookupDone=true;c.manualSession=true;return runIris({...input,message:undefined,collected:c,patch:undefined,proposedTurn:proposed});}
+  // Asking three times whether it is the same fault is worse than filing it — take the
+  // hint, note the possible duplicate on the ticket and let a human decide.
+  if(fieldKey===DUPLICATE_FIELD){c._dupChecked=true;const d=obj(c._duplicate);if(Number(d.id)>0)c._relatedTicketId=Number(d.id);return runIris({...input,message:undefined,collected:c,patch:undefined,proposedTurn:proposed});}
 }
 if(fieldKey)asked[fieldKey]=(asked[fieldKey]||0)+1;
 c._asked=asked;
@@ -1111,9 +1174,32 @@ const required=['description','category','subcategory','studio','incidentAt',...
 // URGENCY OVERRIDE: If blocking right now or needs urgent attention, skip to draft early
 const isBlockingNow=c.isClassImpacted==='Yes, blocking now'||c.isImmediateDanger==='Yes — happening now'||c.isImmediateDanger==='No, but it needs urgent attention';
 const urgentRequired=isBlockingNow?required.filter(k=>!['alreadyReported','preferredContact','impact','requestedResolution','trainer','classFormat'].includes(k)):required;
+// A fault already logged at this site is worth one question before a second ticket exists.
+// Asked at the very end, when the asset, the room and the category are all known — earlier
+// and every AC fault at the studio looks like the same AC fault.
+if(!fieldKey&&!c._dupChecked){
+  const duplicate=await findDuplicate(c);
+  if(duplicate){
+    c._duplicate={id:duplicate.id,ticketNumber:duplicate.ticketNumber,title:duplicate.title,recurrence:duplicate.recurrence,ageLabel:duplicate.ageLabel,reasons:duplicate.reasons,status:duplicate.status,assignedStaffName:duplicate.assignedStaffName};
+    fieldKey=DUPLICATE_FIELD;
+    question=`This may already be logged — ${duplicate.ticketNumber} "${duplicate.title}" was opened ${duplicate.ageLabel} (${duplicate.reasons.join(', ')}). Is that the same one?`;
+    opts=[
+      {label:`Yes — add it to ${duplicate.ticketNumber}`,value:`__link__:${duplicate.id}`},
+      {label:'No — log this separately',value:`__new__:${duplicate.id}`},
+    ];
+  }else c._dupChecked=true;
+}
+// They said it is the same fault. Nothing is written here — the route folds the report into
+// the open ticket, which is where this session's writes already live.
+if(!fieldKey&&Number(c._linkTo||0)>0){
+  const chosen=obj(c._duplicate);
+  return{sessionId:input.sessionId,message:`Adding this to ${String(chosen.ticketNumber||'the open ticket')} as report #${Number(chosen.recurrence||2)} — no second ticket will be created.`,phase:'collect',fieldKey:undefined,options:[],collected:c,assetNote:buildAssetNote(c),linkedTicket:{id:Number(c._linkTo),ticketNumber:String(chosen.ticketNumber||''),recurrence:Number(chosen.recurrence||2)},progress:{done:urgentRequired.length,total:urgentRequired.length},engine,notice};
+}
 let draft:AdvancedDraft|undefined;if(!fieldKey){const cf=obj(c.customFields);draft=await makeDraft({...c,description:c.description,memberName:c.memberName||'Studio team observation',memberEmail:c.memberEmail||'',kind:c.kind,source:'iris',sentiment:praise?'positive':c.sentiment||inferSentiment(String(c.description)),customFields:{...cf,...intakeAnswers(c)},preferredContact:c.preferredContact||'Internal log only',momenceContext:c.momenceContext});// The recap is the deliverable: the reporter needs to see the routing, priority and SLA the
 // ticket will carry before approving it, not just be told that a ticket exists.
-const recap=['• '+draft.title,`• ${draft.category} → ${draft.subcategory}`,`• ${draft.departmentName}${draft.assignedStaffName?` · ${draft.assignedStaffName}`:''}`,`• ${draft.priority} priority${draft.resolutionRequired&&draft.slaLabel?` · ${draft.slaLabel}`:''}`,`• ${draft.studio}${draft.incidentAt?` · ${draft.incidentAt}`:''}`].join('\n');
+const assetLine=buildAssetNote(c);
+const related=obj(c._duplicate);
+const recap=['• '+draft.title,`• ${draft.category} → ${draft.subcategory}`,...(assetLine?['• '+assetLine]:[]),...(Number(c._relatedTicketId)>0?[`• Logged separately from ${String(related.ticketNumber||'an open ticket at this studio')} — the two are linked`]:[]),`• ${draft.departmentName}${draft.assignedStaffName?` · ${draft.assignedStaffName}`:''}`,`• ${draft.priority} priority${draft.resolutionRequired&&draft.slaLabel?` · ${draft.slaLabel}`:''}`,`• ${draft.studio}${draft.incidentAt?` · ${draft.incidentAt}`:''}`].join('\n');
 question=(praise?'This is ready to log — no SLA or resolution is needed for a compliment.':'Here\u2019s the ticket, ready to file.')+'\n\n'+recap+'\n\nReview it, then approve when it\u2019s accurate.';}
 // The acknowledgement is written once, by the model, inside the block above. A second canned
 // one prefixed here is what produced "Understood. Understood, you spotted the mic issue...".
@@ -1153,4 +1239,4 @@ if(c.category==='Safety and Security'&&!c._safetyShown){question='If anyone is i
 c._fieldKey=fieldKey||'';
 c._options=(opts||[]).map(o=>o.value);
 const done=urgentRequired.filter(k=>Boolean(c[k])).length;
-return{sessionId:input.sessionId,message:question,phase:draft?'draft':'collect',fieldKey,lookup,lookupFilters,options:opts,collected:c,draft,progress:{done,total:urgentRequired.length},engine,notice};}
+return{sessionId:input.sessionId,message:question,phase:draft?'draft':'collect',fieldKey,lookup,lookupFilters,options:opts,collected:c,draft,assetNote:buildAssetNote(c),progress:{done,total:urgentRequired.length},engine,notice};}

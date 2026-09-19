@@ -13,6 +13,7 @@ import {
 import { DEPARTMENT_RECORDS, STAFF } from "./constants";
 import { assignTicket, inferPriority, inferSeverity, slaHoursFor } from "./routing";
 import { hoursFromNow, ticketNumberFor } from "./utils";
+import { seedAssets } from "./assets";
 
 type SeedTicket = {
   title: string;
@@ -252,6 +253,10 @@ export async function ensureSeeded() {
   if (seeded) return;
   if (!seedPromise) seedPromise = db.transaction(async tx => {
     await tx.execute(sql`select pg_advisory_xact_lock(578157)`);
+    // The equipment register is topped up from each studio's planned bike count, and it has
+    // to happen before the workspace marker short-circuits the rest: an existing workspace
+    // has to gain the register too, otherwise its bikes only exist once they have broken.
+    await seedAssets();
     const [marker] = await tx.select().from(appSettings).where(eq(appSettings.key,"workspace-initialized"));
     if (marker) return;
   const existing = await tx.select({ id: departments.id }).from(departments).limit(1);

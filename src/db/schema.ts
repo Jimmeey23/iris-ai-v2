@@ -8,8 +8,8 @@ export const staff = pgTable("staff", {
 });
 export const tickets = pgTable("tickets", {
   id: serial("id").primaryKey(), ticketNumber: text("ticket_number").notNull().unique(), title: text("title").notNull(), summary: text("summary").notNull(), description: text("description").notNull(), category: text("category").notNull(), subcategory: text("subcategory").notNull(), status: text("status").notNull().default("new"), priority: text("priority").notNull(), severity: text("severity").notNull(), sentiment: text("sentiment"), studio: text("studio"), classFormat: text("class_format"), trainer: text("trainer"), membership: text("membership"), incidentAt: text("incident_at"), memberName: text("member_name").notNull(), memberEmail: text("member_email"), memberPhone: text("member_phone"), momenceMemberId: text("momence_member_id"), preferredContact: text("preferred_contact"), requestedResolution: text("requested_resolution"), assignedStaffId: integer("assigned_staff_id"), assignedStaffName: text("assigned_staff_name"), assignedStaffEmail: text("assigned_staff_email"), departmentId: text("department_id"), departmentName: text("department_name"), slaHours: integer("sla_hours").notNull().default(24), slaDueAt: timestamp("sla_due_at", { withTimezone: true }), source: text("source").notNull().default("iris"), channel: text("channel").notNull().default("chat"), tags: jsonb("tags").$type<string[]>().notNull(), customFields: jsonb("custom_fields").$type<Record<string, unknown>>().notNull(), momenceContext: jsonb("momence_context").$type<Record<string, unknown>>(), templateId: text("template_id"), isEscalated: boolean("is_escalated").notNull().default(false), resolvedAt: timestamp("resolved_at", { withTimezone: true }), closedAt: timestamp("closed_at", { withTimezone: true }), createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(), updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
-  kind: text("kind").notNull().default("issue"), resolutionRequired: boolean("resolution_required").notNull().default(true), momenceSessionId: text("momence_session_id"), sourceRef: text("source_ref"), submissionKey: text("submission_key"), impact: text("impact"), version: integer("version").notNull().default(1),
-}, (t) => [uniqueIndex("tickets_source_ref_idx").on(t.sourceRef), uniqueIndex("tickets_submission_key_idx").on(t.submissionKey), index("tickets_category_idx").on(t.category,t.subcategory), index("tickets_status_sla_idx").on(t.status,t.slaDueAt), index("tickets_owner_idx").on(t.assignedStaffId), index("tickets_created_idx").on(t.createdAt)]);
+  kind: text("kind").notNull().default("issue"), resolutionRequired: boolean("resolution_required").notNull().default(true), momenceSessionId: text("momence_session_id"), sourceRef: text("source_ref"), submissionKey: text("submission_key"), impact: text("impact"), assetId: integer("asset_id"), version: integer("version").notNull().default(1),
+}, (t) => [uniqueIndex("tickets_source_ref_idx").on(t.sourceRef), uniqueIndex("tickets_submission_key_idx").on(t.submissionKey), index("tickets_category_idx").on(t.category,t.subcategory), index("tickets_status_sla_idx").on(t.status,t.slaDueAt), index("tickets_owner_idx").on(t.assignedStaffId), index("tickets_created_idx").on(t.createdAt), index("tickets_asset_idx").on(t.assetId)]);
 export const ticketComments = pgTable("ticket_comments", {
   id: serial("id").primaryKey(), ticketId: integer("ticket_id").notNull().references(() => tickets.id, { onDelete: "cascade" }), authorName: text("author_name").notNull(), authorRole: text("author_role").notNull(), body: text("body").notNull(), isInternal: boolean("is_internal").notNull().default(true), createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
@@ -41,6 +41,32 @@ export const ticketResolutions = pgTable("ticket_resolutions", {
 export const ticketLinks = pgTable("ticket_links", {
   ticketId: integer("ticket_id").notNull().references(()=>tickets.id,{onDelete:"cascade"}), relatedId: integer("related_id").notNull().references(()=>tickets.id,{onDelete:"cascade"}), relation: text("relation").notNull().default("related"), createdAt: timestamp("created_at",{withTimezone:true}).defaultNow().notNull(),
 },(t)=>[primaryKey({columns:[t.ticketId,t.relatedId]})]);
+export const assets = pgTable("assets", {
+  id: serial("id").primaryKey(),
+  /** The site that owns it, using the studio names the rest of the app routes on. */
+  studio: text("studio").notNull(),
+  /** The room it lives in — "PowerCycle Studio", "Studio 1". */
+  area: text("area"),
+  /** What it is: "PowerCycle bike" today, extensible to mics, consoles, AC units. */
+  type: text("type").notNull(),
+  /** How the floor refers to it, normalised — "6" for bike 6. */
+  label: text("label").notNull(),
+  /** How it is shown: "Bike #6". */
+  name: text("name").notNull(),
+  serial: text("serial"),
+  /** in-service | out-of-rotation | in-repair | retired */
+  status: text("status").notNull().default("in-service"),
+  statusNote: text("status_note"),
+  statusChangedAt: timestamp("status_changed_at",{withTimezone:true}),
+  /** Denormalised fault counters: the fleet view reads these for every asset at once,
+   *  so they are maintained on write rather than counted per request. */
+  faultCount: integer("fault_count").notNull().default(0),
+  lastFaultAt: timestamp("last_fault_at",{withTimezone:true}),
+  acquiredAt: timestamp("acquired_at",{withTimezone:true}),
+  createdAt: timestamp("created_at",{withTimezone:true}).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at",{withTimezone:true}).defaultNow().notNull(),
+},(t)=>[uniqueIndex("assets_studio_type_label_idx").on(t.studio,t.type,t.label),index("assets_studio_status_idx").on(t.studio,t.status)]);
+
 export const integrations = pgTable("integrations", {
   id: text("id").primaryKey(), enabled: boolean("enabled").notNull().default(false), config: jsonb("config").$type<Record<string,string>>().notNull().default({}), encryptedSecrets: text("encrypted_secrets"), status: text("status").notNull().default("not_configured"), lastCheckedAt: timestamp("last_checked_at",{withTimezone:true}), updatedAt: timestamp("updated_at",{withTimezone:true}).defaultNow().notNull(),
 });
