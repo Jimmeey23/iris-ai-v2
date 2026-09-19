@@ -50,6 +50,7 @@ export function Shell({
           <div className="grow"><strong style={{ fontWeight: 500 }}>IRIS workspace</strong><div className="muted" style={{ fontSize: 9 }}>{workspaceName}</div></div>
           <ChevronDown size={13} />
         </Link>
+        <div className="sidebar-scrollable">
         <div className="nav-heading">WORKSPACE</div>
         {nav.map(n => {
           const Icon = n.icon;
@@ -61,6 +62,7 @@ export function Shell({
           const Icon = n.icon;
           return <Link key={n.href} href={n.href} className={'nav-link' + (path.startsWith(n.href) ? ' active' : '')} onClick={() => setMobile(false)}><Icon size={16} />{n.label}</Link>;
         })}
+        </div>
         <div className="sidebar-bottom">
           <div className="help-card">
             <div className="flex-row"><Sparkles size={14} className="accent" /><strong style={{ fontSize: 11, fontWeight: 500 }}>Log it with Iris</strong></div>

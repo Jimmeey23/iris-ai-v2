@@ -38,6 +38,19 @@ export const appSettings = pgTable("app_settings", {
 export const ticketResolutions = pgTable("ticket_resolutions", {
   ticketId: integer("ticket_id").primaryKey().references(()=>tickets.id,{onDelete:"cascade"}), authorUserId: integer("author_user_id").notNull().references(()=>appUsers.id), rootCause: text("root_cause").notNull().default(""), actionTaken: text("action_taken").notNull().default(""), preventiveAction: text("preventive_action").notNull().default(""), memberOutcome: text("member_outcome").notNull().default(""), followUpAt: text("follow_up_at"), updatedAt: timestamp("updated_at",{withTimezone:true}).defaultNow().notNull(),
 });
+/** Resolution work log: each step the owner took, kept in order. Richer than the
+ *  single free-text actionTaken field, and it survives as an audit trail. */
+export const ticketResolutionSteps = pgTable("ticket_resolution_steps", {
+  id: serial("id").primaryKey(), ticketId: integer("ticket_id").notNull().references(()=>tickets.id,{onDelete:"cascade"}), authorUserId: integer("author_user_id").notNull().references(()=>appUsers.id), authorName: text("author_name").notNull(), body: text("body").notNull(), createdAt: timestamp("created_at",{withTimezone:true}).defaultNow().notNull(),
+},(t)=>[index("ticket_resolution_steps_ticket_idx").on(t.ticketId,t.createdAt)]);
+/** A ticket can need several follow-ups, each with its own owner and due date. */
+export const ticketFollowUps = pgTable("ticket_follow_ups", {
+  id: serial("id").primaryKey(), ticketId: integer("ticket_id").notNull().references(()=>tickets.id,{onDelete:"cascade"}), note: text("note").notNull(), dueAt: timestamp("due_at",{withTimezone:true}).notNull(), ownerStaffId: integer("owner_staff_id").references(()=>staff.id), ownerName: text("owner_name").notNull().default(""), done: boolean("done").notNull().default(false), completedAt: timestamp("completed_at",{withTimezone:true}), createdByUserId: integer("created_by_user_id").notNull().references(()=>appUsers.id), createdByName: text("created_by_name").notNull(), createdAt: timestamp("created_at",{withTimezone:true}).defaultNow().notNull(),
+},(t)=>[index("ticket_follow_ups_ticket_idx").on(t.ticketId,t.dueAt)]);
+/** Every outreach attempt to the member, whether or not it connected. */
+export const ticketContactLog = pgTable("ticket_contact_log", {
+  id: serial("id").primaryKey(), ticketId: integer("ticket_id").notNull().references(()=>tickets.id,{onDelete:"cascade"}), channel: text("channel").notNull(), outcome: text("outcome").notNull(), note: text("note").notNull().default(""), contactedAt: timestamp("contacted_at",{withTimezone:true}).defaultNow().notNull(), authorUserId: integer("author_user_id").notNull().references(()=>appUsers.id), authorName: text("author_name").notNull(),
+},(t)=>[index("ticket_contact_log_ticket_idx").on(t.ticketId,t.contactedAt)]);
 export const ticketLinks = pgTable("ticket_links", {
   ticketId: integer("ticket_id").notNull().references(()=>tickets.id,{onDelete:"cascade"}), relatedId: integer("related_id").notNull().references(()=>tickets.id,{onDelete:"cascade"}), relation: text("relation").notNull().default("related"), createdAt: timestamp("created_at",{withTimezone:true}).defaultNow().notNull(),
 },(t)=>[primaryKey({columns:[t.ticketId,t.relatedId]})]);

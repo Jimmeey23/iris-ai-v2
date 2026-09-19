@@ -1,5 +1,5 @@
 import {syncTrainerReviews,reviewSources} from '@/lib/trainer-reviews';
-import {errorResponse,requireAgent,requireWorkspace,sameOrigin} from '@/lib/auth';
+import {errorResponse,intakeActor,requireWorkspace,sameOrigin} from '@/lib/auth';
 export const dynamic='force-dynamic';
 export const maxDuration=300;
 
@@ -12,6 +12,6 @@ export async function GET(){try{
 /** Pulls every source immediately, ignoring the throttle. */
 export async function POST(req:Request){try{
   sameOrigin(req);
-  await requireAgent();
+  await intakeActor();
   return Response.json(await syncTrainerReviews());
 }catch(e){return errorResponse(e);}}

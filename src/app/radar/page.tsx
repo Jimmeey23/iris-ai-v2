@@ -14,7 +14,6 @@ export default async function RadarPage({
     <Shell
       title="Live Studio Ops Heatmap & SLA Countdown Radar"
       eyebrow="EXECUTIVE COMMAND CENTER"
-      fullHeight
       banner={<IrisMarquee />}
     >
       <StudioOpsRadar initialStudio={p.studio || 'kwality'} />

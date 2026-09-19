@@ -12,7 +12,17 @@ const digest=(s:string)=>createHash('sha256').update(s).digest('hex');
 export async function currentUser():Promise<Identity|null>{const jar=await cookies();const token=jar.get('iris_session')?.value;if(!token)return null;const [row]=await db.select({id:appUsers.id,name:appUsers.name,email:appUsers.email,role:appUsers.role,staffId:appUsers.staffId}).from(authSessions).innerJoin(appUsers,eq(authSessions.userId,appUsers.id)).where(and(eq(authSessions.tokenHash,digest(token)),gt(authSessions.expiresAt,new Date()),eq(appUsers.active,true)));return row??null;}
 export async function configuredUsers(){return (await db.select({id:appUsers.id}).from(appUsers).limit(1)).length>0;}
 export async function requireAdmin(){const user=await currentUser();if(!user||user.role!=='admin')throw new ApiError('Administrator sign-in is required.',403);return user;}
-export async function requireAgent(){const user=await currentUser();if(user&&['admin','agent'].includes(user.role))return user;return{id:0,name:'Studio Staff',email:'',role:'agent',staffId:null};}
+/** Anonymous stand-in for intake surfaces only. It is deliberately NOT an
+ *  authorisation result: never use it to gate a write against existing data. */
+const ANONYMOUS_INTAKE:Identity={id:0,name:'Studio Staff',email:'',role:'agent',staffId:null};
+/** Gate for writes against records that already exist. Throws when the caller is
+ *  not a signed-in agent or admin. This previously returned ANONYMOUS_INTAKE on
+ *  failure, which left every "agent-protected" ticket write open to any
+ *  same-origin caller. */
+export async function requireAgent():Promise<Identity>{const user=await currentUser();if(user&&['admin','agent'].includes(user.role))return user;throw new ApiError('Sign in to your workspace account to make this change.',401);}
+/** Intake surfaces — logging a new ticket or review — stay open to unauthenticated
+ *  studio staff by design. They create records; they never mutate existing ones. */
+export async function intakeActor():Promise<Identity>{const user=await currentUser();if(user&&['admin','agent'].includes(user.role))return user;return ANONYMOUS_INTAKE;}
 export async function requireWorkspace(){return currentUser();}
 export async function requireIntegrationAccess(write=false){const user=await currentUser();if(write&&(!user||user.role!=='admin'))throw new ApiError('An administrator must approve live external changes.',403);return user||{id:0,name:'Studio Staff',email:'',role:'agent',staffId:null};}
 export async function newSession(userId:number){const token=randomBytes(32).toString('hex');await db.insert(authSessions).values({tokenHash:digest(token),userId,expiresAt:new Date(Date.now()+7*86400000)});(await cookies()).set('iris_session',token,{httpOnly:true,secure:process.env.NODE_ENV==='production',sameSite:'lax',path:'/',maxAge:7*86400});}
