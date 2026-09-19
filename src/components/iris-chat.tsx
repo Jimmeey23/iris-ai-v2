@@ -279,6 +279,11 @@ export function IrisChat({ presetCategory, presetSubcategory }: { presetCategory
     const attachmentNote = attachments.length > 0 ? ` [Attached: ${attachments.map((a) => a.fileName).join(', ')}]` : '';
     const shown = (label || message || (attachments.length ? `Sent ${attachments.length} attachment(s)` : undefined)) + (message ? attachmentNote : '');
     if (shown) setMessages((m) => [...m, { role: 'user', content: shown }]);
+    // Clear the composer the moment the message joins the transcript. Clearing only after
+    // the reply came back left the text sitting in the box for the whole round-trip —
+    // long enough to look like the send had failed, and to invite a double send.
+    const sentText = text;
+    setText('');
 
     try {
       const d = await api<IrisTurn>('/api/iris/chat', {
@@ -292,13 +297,14 @@ export function IrisChat({ presetCategory, presetSubcategory }: { presetCategory
         }),
       });
       apply(d);
-      setText('');
       setAttachments([]);
       setPendingContext({});
       if (fromVoice || voiceMode) void speak(d.message);
     } catch (e) {
       setError((e as Error).message);
       if (shown) setMessages((m) => m.slice(0, -1));
+      // The send failed, so give them their words back rather than making them retype.
+      if (sentText) setText((t) => t || sentText);
     } finally {
       setBusy(false);
       lock.current = false;
@@ -984,9 +990,10 @@ export function IrisChat({ presetCategory, presetSubcategory }: { presetCategory
               </div>
               <div className="builder-body-action-center">
                 <MomenceActionCenter
-                  memberId={String(collected.momenceMemberId || pendingContext.momenceMemberId || '481102')}
-                  memberName={String(collected.memberName || pendingContext.memberName || 'Priya Mehta')}
+                  memberId={String(collected.momenceMemberId || pendingContext.momenceMemberId || '')}
+                  memberName={String(collected.memberName || pendingContext.memberName || '')}
                   memberEmail={String(collected.memberEmail || '')}
+                  memberPhone={String(collected.memberPhone || '')}
                   studio={String(collected.studio || pendingContext.studio || '')}
                   category={String(collected.category || pendingContext.category || '')}
                   subcategory={String(collected.subcategory || pendingContext.subcategory || '')}

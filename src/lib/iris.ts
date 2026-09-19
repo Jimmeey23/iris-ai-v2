@@ -28,6 +28,84 @@ const ASK_LIMIT=3;
 const HARD_CAP=18;
 
 const TIME_SYNONYMS:Record<string,string>={'right now':'Just now','just now':'Just now','moment ago':'Just now','this morning':'Earlier today','this afternoon':'Earlier today','this evening':'Earlier today','earlier today':'Earlier today','today':'Earlier today','yesterday':'Yesterday','this week':'Earlier this week','few days':'Earlier this week','last week':'Last week','keeps happening':'Ongoing / recurring','every day':'Ongoing / recurring','recurring':'Ongoing / recurring','ongoing':'Ongoing / recurring'};
+/** What the model proposes for the next exchange, alongside the facts it extracted.
+ *  It is a proposal only: the deterministic flow below decides which field is actually
+ *  next, and the merge keeps the wording and the tappable answers from disagreeing. */
+type ProposedTurn={ack?:string;nextField?:string;question?:string;options?:{label:string;value:string}[]};
+
+/** Fields whose answers are free text downstream, so the model may invent tappable
+ *  answers for them. Every other field's answers must come from its canonical list —
+ *  later branches compare those values exactly, and a paraphrase breaks the flow. */
+const MODEL_MAY_PROPOSE_OPTIONS=new Set(['impact','requestedResolution','studioAndTime']);
+
+/** Chatter the acknowledgement must never contain: it is one clause about what they just
+ *  said, not a customer-service sign-off. */
+const ACK_CHATTER=/(anything else|feel free|reach out|happy to help|let me know|no worries|keep an eye|thank|i'?ll |i will |i have (noted|logged))/i;
+
+/** An acknowledgement is usable when it is short, is not itself a question, and is not
+ *  merely echoing the word the reporter just typed. */
+function usableAck(ack:string):boolean{
+  const t=ack.trim();
+  if(!t||t.includes('?'))return false;
+  if(t.split(/\s+/).length>16)return false;
+  if(/^(yes|no|okay|ok|sure|right|correct)\b[.!]?$/i.test(t))return false;
+  return !ACK_CHATTER.test(t);
+}
+
+/** A model-written question stands in for the guided one only when it is a single short
+ *  question and not small talk. */
+function usableQuestion(q:string):boolean{
+  const t=q.trim();
+  if(!/[?]$/.test(t))return false;
+  if(t.split(/\s+/).length>22)return false;
+  return !/(anything else|feel free|happy to help|let me know|thanks)/i.test(t);
+}
+
+/**
+ * Combine the scripted turn with the model's proposal.
+ *
+ * The flow owns which field is next and which answers are valid; the model owns the words.
+ * Keeping that split is what stops the question and the chips below it from describing two
+ * different questions — the failure that showed up as "Which studio location…?" sitting
+ * above "Yes, Late Arrival / No, let me pick the category".
+ */
+export function mergeProposedTurn({fieldKey,question,options,proposed}:{
+  fieldKey:string;
+  question:string;
+  options?:{label:string;value:string}[];
+  proposed:ProposedTurn;
+}):{question:string;options?:{label:string;value:string}[]}{
+  const canonical=options||[];
+  const pickerTurn=fieldKey.includes('Lookup');
+  let text=question;
+  let opts=options;
+
+  // Its question stands in only when it is asking for the field the flow actually chose.
+  if(!pickerTurn&&proposed.nextField===fieldKey&&proposed.question&&usableQuestion(proposed.question)){
+    text=proposed.question.trim();
+  }
+
+  if(pickerTurn){/* the picker supplies its own choices */}
+  else if(canonical.length&&proposed.options?.length){
+    // Relabel the canonical answers, never redefine them: every value the flow offered
+    // survives, so normalizeAnswer still recognises whatever comes back.
+    const byValue=new Map(proposed.options.map(o=>[o.value.trim().toLowerCase(),o.label.trim()]));
+    opts=canonical.map(o=>{const relabel=byValue.get(o.value.trim().toLowerCase());return relabel?{label:relabel,value:o.value}:o;});
+  }else if(!canonical.length&&proposed.options?.length&&MODEL_MAY_PROPOSE_OPTIONS.has(fieldKey)){
+    // Fields with no scripted answers are the ones that read as an interrogation: a bare
+    // "How much is this affecting the floor right now?" over an empty text box. The model
+    // may offer concrete answers here, because these values are stored as free text.
+    const seen=new Set<string>();
+    opts=proposed.options.filter(o=>{const k=o.value.trim().toLowerCase();if(!k||seen.has(k))return false;seen.add(k);return true;});
+  }
+
+  // The acknowledgement leads, the question follows — one sentence of having been heard.
+  if(proposed.ack&&usableAck(proposed.ack)){
+    text=proposed.ack.trim().replace(/[\s.]+$/,'')+'. '+text;
+  }
+  return {question:text,options:opts};
+}
+
 const FIELD_DESCRIPTIONS: Record<string, string> = {
   studioAndTime: "which studio location center (e.g. Kwality House Kemps Corner, Supreme HQ Bandra, Fort, Kenkere House) this occurred in, and when it happened",
   studio: "which studio location center (e.g. Kwality House Kemps Corner, Supreme HQ Bandra, Fort, Kenkere House)",
@@ -299,10 +377,13 @@ export async function irisWelcome(
   };
 }
 
-export async function runIris(input:{sessionId:string;collected:Record<string,unknown>;message?:string;fieldKey?:string;history:IrisMessage[];selectionApplied?:boolean;patch?:Record<string,unknown>}):Promise<IrisTurn>{const cfg=await getConfig();const c={...input.collected,...input.patch};const raw=(input.message||'').trim();const priorField=input.fieldKey;const connection=await credentials('chatgpt');const key=connection._enabled==='false'?undefined:connection.api_key;let engine:'openai'|'guided'=cfg.aiEnabled&&key?'openai':'guided';let notice:string|undefined;let ai:OpenAI|undefined;
+export async function runIris(input:{sessionId:string;collected:Record<string,unknown>;message?:string;fieldKey?:string;history:IrisMessage[];selectionApplied?:boolean;patch?:Record<string,unknown>;proposedTurn?:ProposedTurn}):Promise<IrisTurn>{const cfg=await getConfig();const c={...input.collected,...input.patch};const raw=(input.message||'').trim();const priorField=input.fieldKey;
+// A turn that skips a field re-enters this function with no message, so the model is not
+// called again. Its proposal rides along instead of being thrown away mid-turn.
+let proposed:ProposedTurn=input.proposedTurn||{};const connection=await credentials('chatgpt');const key=connection._enabled==='false'?undefined:connection.api_key;let engine:'openai'|'guided'=cfg.aiEnabled&&key?'openai':'guided';let notice:string|undefined;let ai:OpenAI|undefined;
 if(engine==='openai')ai=new OpenAI({apiKey:key,timeout:20000,maxRetries:1});
 if(raw.startsWith('A member told me')||raw.startsWith('I noticed something')||raw.startsWith('I want to log feedback')||raw.startsWith('I want to log a compliment')){c.kind=raw.includes('compliment')?'compliment':raw.includes('feedback')?'feedback':'issue';c.reportedBy=raw.startsWith('A member told me')?REPORTED_BY_OPTIONS[1]:raw.startsWith('I noticed')?REPORTED_BY_OPTIONS[0]:REPORTED_BY_OPTIONS[2];c.description='';c._welcomeProcessed=true;if(c.kind==='compliment')c.sentiment='positive';}
-else if(raw==='__accept_category__'){c._categoryConfirmed=true;}else if(raw==='__reject_category__'){delete c.category;delete c.subcategory;c._categoryInferred=false;c._categoryConfirmed=true;}else if(raw==='__manual_member__'){c.memberLookupDone=true;c.manualMember=true;}else if(raw==='__studio_report__'){c.memberLookupDone=true;c.memberName=c.reportedBy===REPORTED_BY_OPTIONS[1]?'Member (not named)':'Studio team observation';c.memberEmail='';c.studioReport=true;}else if(raw==='__manual_session__'){c.sessionLookupDone=true;c.manualSession=true;}else if(raw==='__hosted_class__'){c.hostedClass=true;c.classFormat=c.classFormat||'Studio Hosted Class';}else if(raw==='__manual_studio_time__'){
+else if(raw==='__accept_category__'){c._categoryConfirmed=true;}else if(raw==='__reject_category__'){delete c.category;delete c.subcategory;delete c._guess;c._categoryRejected=true;c._categoryInferred=false;c._categoryConfirmed=true;}else if(raw==='__manual_member__'){c.memberLookupDone=true;c.manualMember=true;}else if(raw==='__studio_report__'){c.memberLookupDone=true;c.memberName=c.reportedBy===REPORTED_BY_OPTIONS[1]?'Member (not named)':'Studio team observation';c.memberEmail='';c.studioReport=true;}else if(raw==='__manual_session__'){c.sessionLookupDone=true;c.manualSession=true;}else if(raw==='__hosted_class__'){c.hostedClass=true;c.classFormat=c.classFormat||'Studio Hosted Class';}else if(raw==='__manual_studio_time__'){
   // User chose to enter studio/time manually — fall through to normal processing
 }
 else if(['kwality-earlier','kwality-yesterday','fort-earlier','fort-yesterday'].includes(raw)){
@@ -327,7 +408,7 @@ else if(priorField==='confirmCategory'){
   // field, landed in the description, and the confirmation was asked again on every turn.
   const v=normalizeAnswer('confirmCategory',raw,['yes','no']);
   if(v==='yes')c._categoryConfirmed=true;
-  else if(v==='no'){delete c.category;delete c.subcategory;c._categoryInferred=false;c._categoryConfirmed=true;}
+  else if(v==='no'){delete c.category;delete c.subcategory;delete c._guess;c._categoryRejected=true;c._categoryInferred=false;c._categoryConfirmed=true;}
   else c.description=String(c.description||'')+(c.description?'\n':'')+raw;
 }
 else if(priorField==='memberLookup'){
@@ -341,7 +422,7 @@ else if(priorField&&FIELD_KEYS.includes(priorField)){
   const strict=ENUM_FIELDS.has(priorField)&&offered.length>0;
   const value=strict?normalizeAnswer(priorField,raw,offered):raw;
   if(value!==undefined)c[priorField]=value;
-  if(priorField==='category'&&value!==undefined){delete c.subcategory;c._categoryInferred=false;c._categoryConfirmed=true;}
+  if(priorField==='category'&&value!==undefined){delete c.subcategory;c._categoryInferred=false;c._categoryConfirmed=true;delete c._categoryRejected;}
   if(priorField==='studio'){const m=matchStudio(raw);if(m)c.studio=m;else if(strict&&value===undefined)delete c.studio;}
 }
 else if(!/^(yes|no|ok|okay|nope|yeah|yep|nah|sure|thanks|thank you)\W*$/i.test(raw))c.description=String(c.description||'')+(c.description?'\n':'')+raw;
@@ -349,10 +430,25 @@ else if(!/^(yes|no|ok|okay|nope|yeah|yep|nah|sure|thanks|thank you)\W*$/i.test(r
 // Keep scanning the whole conversation, rather than only the first description. A later
 // answer often supplies the room, location or timing that was missing at the start.
 {const contextExtracted=extractContext(raw);for(const[k,v]of Object.entries(contextExtracted)){if(!c[k])c[k]=v;}}
-const top=classifyIssue(String(c.description||raw));if(top[0])c._guess={category:top[0].category,subcategory:top[0].subcategory,score:top[0].score};if(priorField==='description'||!priorField){
+const top=classifyIssue(String(c.description||raw));if(top[0]&&!c._categoryRejected)c._guess={category:top[0].category,subcategory:top[0].subcategory,score:top[0].score};if(priorField==='description'||!priorField){
 const nameMatch=raw.match(/(?:her name is|his name is|the member is|member's name is)\s+([a-z]+(?:\s+[a-z]+)?)(?=[,.!]|$)/i);if(nameMatch)c.memberName=nameMatch[1];
 if(/\b(loved|love|amazing|compliment|wonderful|excellent|fantastic|appreciation)\b/i.test(raw)&&!/(but |however|unsafe|complaint|not |didn.t)/i.test(raw)){c.kind='compliment';c.sentiment='positive';}else c.kind=c.kind||'issue';
-if(ai){try{const toolDefs:OpenAI.Chat.Completions.ChatCompletionTool[]=[{type:'function',function:{name:'find_momence',description:'Find member or session suggestions from Momence to help identify who or what this is about. Never select a record on the user’s behalf.',parameters:{type:'object',properties:{module:{type:'string',enum:['members','sessions']},query:{type:'string'}},required:['module','query'],additionalProperties:false}}}];
+}
+}
+// The model runs on EVERY turn — the opening description, a typed answer, and a tapped chip
+// alike. Gating it to the first message is what made the rest of the conversation feel like a
+// form: from turn two on, every reply was a scripted string. Its extracted `fields` are only
+// trusted on the description turn; elsewhere the terse answer to "Which studio?" is bound by
+// the deterministic rules above and only the wording it proposes is used.
+const trustModelFields=priorField==='description'||!priorField;
+if(ai){try{
+// Grounding the one call properly is what the second call used to be for: examples of how
+// tickets like this one read, and whether this is an emergency or a note for later.
+const guessCat=String(c.category||obj(c._guess).category||'');
+const guessSub=String(c.subcategory||obj(c._guess).subcategory||'');
+const examples=cfg.historyRetrieval&&guessCat&&guessSub?await historicalExamples(guessCat,guessSub):[];
+const urgent=detectUrgency(c);
+const toolDefs:OpenAI.Chat.Completions.ChatCompletionTool[]=[{type:'function',function:{name:'find_momence',description:'Find member or session suggestions from Momence to help identify who or what this is about. Never select a record on the user’s behalf.',parameters:{type:'object',properties:{module:{type:'string',enum:['members','sessions']},query:{type:'string'}},required:['module','query'],additionalProperties:false}}}];
 const messages:OpenAI.Chat.Completions.ChatCompletionMessageParam[]=[{role:'system',content:`You are Iris, the internal logging assistant for Physique 57 India studio staff. Staff use you to record issues, snags and feedback they noticed or were told about by a member — you do not talk to members directly. Extract only facts explicitly provided. Return JSON {"fields":{...}}. Allowed fields: ${FIELD_KEYS.join(',')}. kind: issue/request/compliment/feedback. Exact taxonomy: ${JSON.stringify(cfg.taxonomy)}. Exact studios: ${JSON.stringify(cfg.studios)}.
 Studio Knowledge & Room Layouts:
 - Kwality House (Kemps Corner): Studio 1 (capacity: 22 pax), Studio 2 (capacity: 13 pax), Strength Studio (capacity: 7 pax), PowerCycle Studio (capacity: 10 pax), His Space (men's washroom), Her Space (women's washroom), GUEST WASHROOM, Brain Cell (office space), Pantry, Lobby / Reception. Note: "His Space", "Her Space", "Guest Washroom", "Brain Cell", and "Pantry" are strictly at Kwality House!
@@ -367,11 +463,33 @@ PowerCycle / Stages SC3 Bike Knowledge (use when issue involves bikes/cycles):
 - CRITICAL: Left pedal (CR-L) is REVERSE THREADED. Flywheel scraping = immediately remove bike from rotation.
 - When a bike issue is reported, extract: bikeNumber (e.g. "Bike #3"), cycleIssueType (symptom match), cyclePart (affected part), cycleFirstOrRecurring (first time / recurring).
 
-Do not guess a member, class, date, studio or contact detail — a room reference such as "Studio 1" or "Studio 2" names a room inside a location and is NOT a studio, so leave studio unset for those unless it's a unique room like His Space, Her Space, or Brain Cell (which automatically implies Kwality House). Do not convert safety reports into compliments. Heuristic classification hint (trust it unless the message clearly contradicts it): ${JSON.stringify(c._guess||null)}. Studio aliases: kemps/kwality→Kwality House, Kemps Corner; shq/supreme/bandra→Supreme HQ, Bandra; kenkere/indiranagar→Kenkere House, Bengaluru; courtside→Courtside, Mumbai; copper/cloves/c&c→the Studio by Copper & Cloves, Bengaluru. Current facts: ${JSON.stringify(c)}. Correct earlier facts when explicitly corrected. Tools provide suggestions, not identity verification.`},...input.history.slice(-12),{role:'user',content:raw}];
+Do not guess a member, class, date, studio or contact detail — a room reference such as "Studio 1" or "Studio 2" names a room inside a location and is NOT a studio, so leave studio unset for those unless it's a unique room like His Space, Her Space, or Brain Cell (which automatically implies Kwality House). Do not convert safety reports into compliments. Studio aliases: kemps/kwality→Kwality House, Kemps Corner; shq/supreme/bandra→Supreme HQ, Bandra; kenkere/indiranagar→Kenkere House, Bengaluru; courtside→Courtside, Mumbai; copper/cloves/c&c→the Studio by Copper & Cloves, Bengaluru. Correct earlier facts when explicitly corrected. Tools provide suggestions, not identity verification.
+
+SECOND JOB — write the next exchange. Staff should feel talked to, not interrogated, so the
+same call that reads the facts also proposes the reply. Return:
+{"fields":{...},"turn":{"ack":"...","nextField":"...","question":"...","options":[{"label":"...","value":"..."}]}}
+- ack: at most 14 words reacting to what they just said, in ${cfg.aiVoice?'the studio voice':'a warm, professional voice'}. No question, no sign-off, no thanks. Omit when there is nothing new to react to.
+- nextField: the single most useful field still missing. These are the fields and what each one means: ${JSON.stringify(FIELD_DESCRIPTIONS)}. Never name a field already present in Current facts.
+- question: one sentence, at most 22 words, asking only for nextField.
+- options: 2-6 short tappable answers for that field. Use the exact allowed values for category (taxonomy keys), subcategory (taxonomy values), studio (exact studios) and when (${JSON.stringify(OCCURRED_OPTIONS)}). For impact or what-should-happen-next, write your own concrete options drawn from what they reported. Omit options when the answer is genuinely open text.
+
+TURN STATE (this part changes every turn; everything above it does not, so it is kept last):
+- Current facts: ${JSON.stringify(c)}
+- Heuristic classification hint (trust it unless the message clearly contradicts it): ${JSON.stringify(c._guess||null)}
+${examples.length?`- How tickets like this one have read before, for tone and for what usually matters — do not copy them: ${JSON.stringify(examples)}`:''}
+${urgent?'- This report carries urgency signals: keep the reply short, lead with the operational next step, and do not ask for optional detail.':''}`},...input.history.slice(-12),{role:'user',content:raw}];
 
 let result=await ai.chat.completions.create({model:cfg.aiModel,messages,tools:toolDefs,response_format:{type:'json_object'},max_completion_tokens:1200});
 const calls=result.choices[0]?.message.tool_calls;if(calls?.length){messages.push(result.choices[0].message);for(const call of calls){if(call.type!=='function')continue;let output:unknown;try{const args=obj(JSON.parse(call.function.arguments));if(!['members','sessions'].includes(String(args.module)))throw new Error('Invalid module');const found=await listMomence(args.module as 'members'|'sessions',{query:String(args.query||''),pageSize:5});output={source:found.source,suggestions:found.items.map(i=>({id:i.id,name:i.name}))};}catch{output={error:'Lookup unavailable. Ask the user to search and select manually.'};}messages.push({role:'tool',tool_call_id:call.id,content:JSON.stringify(output)});}result=await ai.chat.completions.create({model:cfg.aiModel,messages,response_format:{type:'json_object'},max_completion_tokens:1200});}
-const fields=obj(obj(JSON.parse(result.choices[0]?.message.content||'{}')).fields);for(const[k,v]of Object.entries(fields)){if(!FIELD_KEYS.includes(k)||typeof v!=='string'||v.length>=20000)continue;
+const parsed=obj(JSON.parse(result.choices[0]?.message.content||'{}'));
+const rawTurn=obj(parsed.turn);
+proposed={
+  ack:typeof rawTurn.ack==='string'?rawTurn.ack:undefined,
+  nextField:typeof rawTurn.nextField==='string'?rawTurn.nextField:undefined,
+  question:typeof rawTurn.question==='string'?rawTurn.question:undefined,
+  options:Array.isArray(rawTurn.options)?rawTurn.options.map(obj).filter(o=>typeof o.label==='string'&&typeof o.value==='string').map(o=>({label:String(o.label).slice(0,60),value:String(o.value).slice(0,120)})).slice(0,6):undefined,
+};
+const fields=trustModelFields?obj(parsed.fields):{};for(const[k,v]of Object.entries(fields)){if(!FIELD_KEYS.includes(k)||typeof v!=='string'||v.length>=20000)continue;
 // A studio names a site the ticket gets routed to, so the model's answer has to resolve
 // through the same alias table a typed answer does. "Studio 1" is a room, not a site:
 // it resolves to nothing, the field stays empty, and the flow asks which studio it is.
@@ -383,7 +501,7 @@ if(k==='studio')continue;
 if(k==='category'&&!c.category)c._categoryInferred=true;
 c[k]=v;}
 }catch{engine='guided';notice='AI is unavailable right now. Your answers are saved; guided assistance is continuing.';}}
-}}}
+}
 if(c.category&&!cfg.taxonomy[String(c.category)])delete c.category;if(c.category&&c.subcategory&&!cfg.taxonomy[String(c.category)].includes(String(c.subcategory)))delete c.subcategory;
 // Same contract for the two fields that steer routing and reporting: an unrecognised
 // value is dropped rather than written onto the ticket unchallenged.
@@ -414,19 +532,19 @@ if(!c.description||String(c.description).length<12){
 else if(c.category&&c.subcategory&&c._categoryInferred&&!c._categoryConfirmed){
   if(c.area || c.studio || isFacilityCat || (c._guess && typeof c._guess === 'object' && 'score' in c._guess && (c._guess as {score:number}).score >= 5)){
     c._categoryConfirmed = true;
-    return runIris({...input,message:undefined,collected:c,patch:undefined});
+    return runIris({...input,message:undefined,collected:c,patch:undefined,proposedTurn:proposed});
   }
   fieldKey='confirmCategory';
   question=`I've read this as ${String(c.subcategory).toLowerCase()} (${c.category}). File it there?`;
   opts=[{label:`Yes — ${c.subcategory}`,value:'__accept_category__'},{label:'No, let me pick the category',value:'__reject_category__'}];
 }
 else if(!c.category){
-  if(c._guess&&typeof c._guess==='object'&&'score'in c._guess&&(c._guess as unknown as {score:number}).score>3){
+  if(!c._categoryRejected&&c._guess&&typeof c._guess==='object'&&'score'in c._guess&&(c._guess as unknown as {score:number}).score>3){
     c.category=(c._guess as unknown as {category:string}).category;
     c.subcategory=(c._guess as unknown as {subcategory:string}).subcategory;
     c._categoryInferred=true;
     c._categoryConfirmed=true;
-    return runIris({...input,message:undefined,collected:c,patch:undefined});
+    return runIris({...input,message:undefined,collected:c,patch:undefined,proposedTurn:proposed});
   }
   fieldKey='category';
   question=praise?'Who or what deserves the recognition?':'What area does this fall under?';
@@ -440,13 +558,13 @@ else if(!c.subcategory){
 // SMART MEMBER LOOKUP: If staff observed it themselves, colleague reported, facility issue, or non-member issue, skip member lookup entirely
 else if(!c.memberLookupDone&&(isStudioReport||isColleagueReport||c.studioReport||isFacilityCat||!isMemberReport)){
   c.memberLookupDone=true;c.memberName=c.memberName||'Studio team observation';c.memberEmail='';c.studioReport=true;
-  return runIris({...input,message:undefined,collected:c,patch:undefined});
+  return runIris({...input,message:undefined,collected:c,patch:undefined,proposedTurn:proposed});
 }
 // Only ask member lookup if the report explicitly came from a member
 else if(!c.memberLookupDone){
   if(!isMemberReport){
     c.memberLookupDone=true;c.memberName=c.memberName||'Studio team observation';c.memberEmail='';c.studioReport=true;
-    return runIris({...input,message:undefined,collected:c,patch:undefined});
+    return runIris({...input,message:undefined,collected:c,patch:undefined,proposedTurn:proposed});
   }
   fieldKey='memberLookup';
   lookup='members';
@@ -469,7 +587,7 @@ else if(!c.studio||c.studio==='—'){
 else if(!c.incidentAt){
   if(isFacilityCat){
     c.incidentAt = 'Earlier today';
-    return runIris({...input,message:undefined,collected:c,patch:undefined});
+    return runIris({...input,message:undefined,collected:c,patch:undefined,proposedTurn:proposed});
   }
   choose('incidentAt','When did this happen?',[...OCCURRED_OPTIONS]);
 }
@@ -479,7 +597,7 @@ else if(classRelated&&c.manualSession&&!c.classFormat)choose('classFormat','Whic
 else if(classRelated&&c.manualSession&&!c.trainer)choose('trainer','Who was teaching?', [...cfg.trainers,'Not sure']);
 else{const extra=!praise?extraSlot(String(c.category),c):null;if(extra){choose(extra.key,extra.prompt,extra.values);}
 else if(!praise&&!c.impact){
-  if(c.isClassImpacted==='Yes, blocking now'){c.impact='Could not proceed as normal';return runIris({...input,message:undefined,collected:c,patch:undefined});}
+  if(c.isClassImpacted==='Yes, blocking now'){c.impact='Could not proceed as normal';return runIris({...input,message:undefined,collected:c,patch:undefined,proposedTurn:proposed});}
   fieldKey='impact';
   question=`How much is this affecting the floor right now?`;
   opts=undefined;
@@ -490,7 +608,7 @@ else if(!praise&&!c.requestedResolution){
   opts=undefined;
 }
 else if(!praise&&!c.preferredContact){
-  if(!isMemberReport){c.preferredContact='Internal log only';return runIris({...input,message:undefined,collected:c,patch:undefined});}
+  if(!isMemberReport){c.preferredContact='Internal log only';return runIris({...input,message:undefined,collected:c,patch:undefined,proposedTurn:proposed});}
   fieldKey='preferredContact';
   question=`Does the member need a callback, or is this internal-only?`;
   opts=undefined;
@@ -501,11 +619,11 @@ else if(['Member expects a callback'].includes(String(c.preferredContact))&&!c.m
   opts=undefined;
 }}
 if(fieldKey&&(asked[fieldKey]||0)>=ASK_LIMIT){
-  if(fieldKey==='studioAndTime'){c._bundleTried=true;return runIris({...input,message:undefined,collected:c,patch:undefined});}
-  if(SKIPPABLE.has(fieldKey)){c[fieldKey]=SKIP_VALUE[fieldKey]||SKIPPED;return runIris({...input,message:undefined,collected:c,patch:undefined});}
-  if(fieldKey==='confirmCategory'){c._categoryConfirmed=true;return runIris({...input,message:undefined,collected:c,patch:undefined});}
-  if(fieldKey==='memberLookup'){c.memberLookupDone=true;c.studioReport=true;c.memberName=c.memberName||'Studio team observation';return runIris({...input,message:undefined,collected:c,patch:undefined});}
-  if(fieldKey==='sessionLookup'){c.sessionLookupDone=true;c.manualSession=true;return runIris({...input,message:undefined,collected:c,patch:undefined});}
+  if(fieldKey==='studioAndTime'){c._bundleTried=true;return runIris({...input,message:undefined,collected:c,patch:undefined,proposedTurn:proposed});}
+  if(SKIPPABLE.has(fieldKey)){c[fieldKey]=SKIP_VALUE[fieldKey]||SKIPPED;return runIris({...input,message:undefined,collected:c,patch:undefined,proposedTurn:proposed});}
+  if(fieldKey==='confirmCategory'){c._categoryConfirmed=true;return runIris({...input,message:undefined,collected:c,patch:undefined,proposedTurn:proposed});}
+  if(fieldKey==='memberLookup'){c.memberLookupDone=true;c.studioReport=true;c.memberName=c.memberName||'Studio team observation';return runIris({...input,message:undefined,collected:c,patch:undefined,proposedTurn:proposed});}
+  if(fieldKey==='sessionLookup'){c.sessionLookupDone=true;c.manualSession=true;return runIris({...input,message:undefined,collected:c,patch:undefined,proposedTurn:proposed});}
 }
 if(fieldKey)asked[fieldKey]=(asked[fieldKey]||0)+1;
 c._asked=asked;
@@ -523,59 +641,14 @@ question=(praise?'This is ready to log — no SLA or resolution is needed for a 
 // The acknowledgement is written once, by the model, inside the block above. A second canned
 // one prefixed here is what produced "Understood. Understood, you spotted the mic issue...".
 
-if(ai&&engine==='openai'&&fieldKey&&!fieldKey.includes('Lookup')){
-  const guided=question;
-  try{
-    const history=cfg.historyRetrieval&&c.category&&c.subcategory?await historicalExamples(String(c.category),String(c.subcategory)):[];
-    const known=JSON.stringify({kind:c.kind,category:c.category,subcategory:c.subcategory,studio:c.studio,area:c.area,when:c.incidentAt,reportedBy:c.reportedBy,classImpact:c.isClassImpacted,urgency:detectUrgency(c)?'flagged':'normal'});
-    
-    // Determine if we should write a smart question or just an ack
-    const askCount=(asked[fieldKey]||0);
-    const recentFields=Object.keys(asked).slice(-2); // Last 2 fields asked
-    const shouldWriteQuestion=askCount===1&&fieldKey!==priorField; // First time asking this field, AND it's different from prior
-    const targetDesc=FIELD_DESCRIPTIONS[fieldKey]||String(fieldKey);
-    
-    const systemPrompt=shouldWriteQuestion?
-      `You are Iris, the internal logging assistant for Physique 57 India studio staff (never members). ${cfg.aiVoice}
-You are collecting facts so this report becomes an actionable ticket. You are concise, context-aware, warm, professional, and smart.
-Facts already collected (NEVER ask for any of these again): ${known}
-What they reported: ${String(c.description||'').slice(0,300)}
-${history.length?`Similar past tickets for reference: ${JSON.stringify(history)}`:''}
-
-Your task: Write a single smart, context-aware question asking for: ${targetDesc}.
-CRITICAL GUIDELINES:
-- Studio knowledge: Kwality House (Kemps Corner) has Studio 1 (22 pax), Studio 2 (13 pax), Strength Studio (7 pax), PowerCycle Studio (10 pax), His Space, Her Space, Guest Washroom, Brain Cell, Pantry. Supreme HQ (Bandra) has 3 studios (2 regular of 13 pax, 1 PowerCycle of 13 pax), Lockers. Kenkere House has 2 studios (13 pax each).
-- If the user already mentioned a room (e.g. "Studio 2", "Strength Studio"), acknowledge that room, and ask ONLY for the missing facility studio location center (e.g. Kwality House Kemps Corner, Supreme HQ Bandra, Kenkere House).
-- If "His Space", "Her Space", "Guest Washroom", "Brain Cell", or "Pantry" is mentioned, that is already Kwality House Kemps Corner, so NEVER ask for studio!
-- Do NOT ask who reported the issue if context shows it's a staff or colleague report.
-- Do NOT ask for facts already in context.
-- Keep it brief, conversational, and direct (one sentence, max 20 words).
-- Do NOT repeat questions from this conversation: ${JSON.stringify(recentFields)}
-- Output ONLY the question. No preamble, no options, no follow-up.`
-    :`You are Iris, the internal logging assistant for Physique 57 India studio staff. ${cfg.aiVoice}
-Facts already collected: ${known}
-What they reported: ${String(c.description||'').slice(0,300)}
-${history.length?`Similar past tickets, for tone only: ${JSON.stringify(history)}`:''}
-
-Write ONE brief context-aware acknowledgement of their last answer: at most 12 words, plain text, no markdown. Do not ask a question. Do not greet or chatter. Output the sentence only.`;
-
-    const result=await ai.chat.completions.create({model:cfg.aiModel,messages:[{role:'system',content:systemPrompt},...input.history.slice(-8),...(raw?[{role:'user' as const,content:raw}]:[])],max_completion_tokens:60});
-    const response=(result.choices[0]?.message.content||'').trim().replace(/^["']|["']$/g,'');
-    
-    if(shouldWriteQuestion){
-      // Use the AI-generated question if it looks good (has question mark, doesn't look like small talk)
-      const isGoodQuestion=/[?!]$/.test(response)&&response.split(/\s+/).length<=20&&!/(anything else|feel free|happy to help|let me know|thanks)/i.test(response);
-      if(isGoodQuestion){
-        question=response;
-      }
-    } else {
-      // Write an acknowledgement before the guided question
-      const ack=response;
-      const chatter=/(anything else|feel free|reach out|happy to help|let me know|no worries|keep an eye|thank|i'?ll |i will |i have (noted|logged))/i;
-      const echo=/^(yes|no|okay|ok|sure|right|correct)\b[.!]?$/i.test(ack);
-      if(ack&&!echo&&!ack.includes('?')&&ack.split(/\s+/).length<=16&&!chatter.test(ack))question=ack.replace(/\s+$/,'')+' '+guided;
-    }
-  }catch{engine='guided';}
+// The model already wrote this turn in the same call that read the facts, so there is no
+// second round-trip here. What remains is a merge: the flow above owns WHICH field is next
+// and which answers are valid, the model owns the words. Wording and chips can no longer
+// drift apart, because the chips are only ever relabelled — never redefined.
+if(engine==='openai'&&fieldKey){
+  const merged=mergeProposedTurn({fieldKey,question,options:opts,proposed});
+  question=merged.question;
+  opts=merged.options;
 }
 if(c.category==='Safety and Security'&&!c._safetyShown){question='If anyone is in immediate danger, alert studio management or call 112 now. '+question;c._safetyShown=true;}
 

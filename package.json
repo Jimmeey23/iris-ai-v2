@@ -8,7 +8,8 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "db:push": "drizzle-kit push",
-    "db:seed": "npx tsx -r dotenv/config src/lib/seed.ts"
+    "db:seed": "npx tsx -r dotenv/config src/lib/seed.ts",
+    "check:iris": "npx tsx --tsconfig tsconfig.json -r dotenv/config scripts/iris-turn-check.ts"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.23",
