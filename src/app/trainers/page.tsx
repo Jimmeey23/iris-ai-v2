@@ -113,13 +113,13 @@ export default function TrainersPage(){
           {filtered.map(t=>{
             const img=getTrainerImage(t.name);
             return (
-            <button key={t.name} className="card entity-card" onClick={()=>setActiveName(t.name)} style={{padding:0,overflow:'hidden'}}>
-              {img?<img src={img} alt={t.name} className="trainer-photo-card"/>:(
+            <button key={t.name} className="trainer-profile-card" onClick={()=>setActiveName(t.name)}>
+              {img?<img src={img} alt={t.name} className="trainer-photo-card" loading="lazy" decoding="async" fetchPriority="low"/>:(
                 <div style={{width:'100%',aspectRatio:'1/1',display:'grid',placeItems:'center',background:'linear-gradient(135deg,var(--surface-2),var(--accent-soft))'}}>
                   <Avatar name={t.name} large tone={t.bandTone==='green'?'green':t.bandTone==='amber'?'amber':''}/>
                 </div>
               )}
-              <div style={{padding:'14px 16px'}}>
+              <div className="trainer-profile-meta">
                 <div className="between">
                   <h3>{t.name}</h3>
                   {t.avgScore!==null?<Badge tone={t.bandTone}>{t.avgScore}%</Badge>:<Badge>No assessments</Badge>}

@@ -24,6 +24,7 @@ import {csvDownload, indiaDate} from '@/lib/display';
 import {applyFilters, isClosed} from '@/lib/ticket-filtering';
 import {COLUMN_META, EMPTY_FILTERS, type FilterState, type GroupBy, type TicketColumn} from '@/lib/dashboard-contract';
 import {groupNamesFor, groupValue, sortTickets} from '@/lib/ticket-grouping';
+import type {KanbanField, KanbanGroupBy} from './tickets-board';
 
 const QUICK_TEMPLATES = ['membership-freeze', 'member-class-experience', 'member-compliment']
   .map((id) => SPECIAL_TEMPLATES.find((t) => t.id === id))
@@ -36,6 +37,27 @@ const TABS = [
   {id: 'mine', name: 'Assigned to me'},
   {id: 'feedback', name: 'Feedback'},
   {id: 'sla', name: 'SLA at risk'},
+];
+
+const KANBAN_GROUPS: Array<{id: KanbanGroupBy; label: string}> = [
+  {id: 'status', label: 'Status lanes'},
+  {id: 'priority', label: 'Priority'},
+  {id: 'category', label: 'Category'},
+  {id: 'owner', label: 'Owner'},
+  {id: 'studio', label: 'Studio'},
+  {id: 'department', label: 'Department'},
+];
+const KANBAN_FIELDS: Array<{id: KanbanField; label: string}> = [
+  {id: 'member', label: 'Member'},
+  {id: 'studio', label: 'Studio'},
+  {id: 'department', label: 'Department'},
+  {id: 'owner', label: 'Owner'},
+  {id: 'status', label: 'Status'},
+  {id: 'priority', label: 'Priority'},
+  {id: 'category', label: 'Category'},
+  {id: 'source', label: 'Source'},
+  {id: 'age', label: 'Age'},
+  {id: 'sla', label: 'SLA timer'},
 ];
 
 export function CommandCenter({directory = false}: {directory?: boolean}) {
@@ -89,6 +111,7 @@ export function CommandCenter({directory = false}: {directory?: boolean}) {
   // Grouped views paginate by group, not by row: splitting a group across two pages would
   // show a header with a third of its rows under it.
   const grouped = prefs.groupBy !== 'none';
+  const kanbanFields = prefs.kanbanFields;
   const pageSize = prefs.pageSize;
   const pageCount = Math.max(1, Math.ceil(tabbed.length / pageSize));
   const currentPage = Math.min(page, pageCount - 1);
@@ -248,6 +271,35 @@ export function CommandCenter({directory = false}: {directory?: boolean}) {
         studios={STUDIOS.map((s) => s.name)}
       />
 
+      {view === 'board' && (
+        <div className="ticket-toolbar" style={{borderBottom: '1px solid var(--border)'}}>
+          <Field label="Kanban grouping">
+            <select value={prefs.kanbanGroupBy} onChange={(e) => update({kanbanGroupBy: e.target.value as KanbanGroupBy})}>
+              {KANBAN_GROUPS.map((g) => <option key={g.id} value={g.id}>{g.label}</option>)}
+            </select>
+          </Field>
+          <div className="tf-chipset grow" style={{minWidth: 260}}>
+            <span className="tf-chipset-label">Card fields</span>
+            <div className="tf-chips">
+              {KANBAN_FIELDS.map((f) => (
+                <button
+                  key={f.id}
+                  className={'tf-chip' + (kanbanFields.includes(f.id) ? ' tf-chip-on' : '')}
+                  onClick={() => {
+                    const next = kanbanFields.includes(f.id)
+                      ? kanbanFields.filter((x) => x !== f.id)
+                      : [...kanbanFields, f.id];
+                    if (next.length) update({kanbanFields: next});
+                  }}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {selected.length > 0 && (
         <div className="ticket-toolbar" style={{background: 'var(--accent-soft)'}}>
           <Badge tone="blue">{selected.length} selected</Badge>
@@ -266,7 +318,7 @@ export function CommandCenter({directory = false}: {directory?: boolean}) {
             action={<button className="btn" onClick={resetFilters}>Clear filters</button>}
           />
         )
-        : view === 'board' ? <Kanban tickets={tabbed} onSelect={setDetail}/>
+        : view === 'board' ? <Kanban tickets={tabbed} onSelect={setDetail} groupBy={prefs.kanbanGroupBy} fields={prefs.kanbanFields}/>
         : view === 'matrix' ? <MatrixView tickets={tabbed} onCell={(category, states) => { setFilters({category, statuses: states, tab: 'all'}); setView('list'); }}/>
         : view === 'feed' ? <FeedView tickets={tabbed} onSelect={setDetail}/>
         : view === 'cards' ? <div className="ticket-cards-grid rise-stagger">{rows.map((t) => <TicketCard key={t.id} ticket={t} onSelect={setDetail}/>)}</div>

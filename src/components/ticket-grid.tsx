@@ -75,7 +75,7 @@ function Cell({column, ticket, staleDays, nowMs}: {column: TicketColumn; ticket:
       return (
         <td>
           <div className={'mini-owner' + (unassigned ? ' mini-owner-empty' : '')} title={t.assignedStaffName || 'Not yet assigned'}>
-            <Avatar name={unassigned ? '?' : t.assignedStaffName} tone="purple"/>
+            <Avatar name={unassigned ? 'Unassigned owner' : t.assignedStaffName} tone="purple" emptyDark/>
             <span>
               <strong>{unassigned ? 'Unassigned' : t.assignedStaffName.split(' ')[0]}</strong>
               <small>{t.departmentName || 'No desk'}</small>

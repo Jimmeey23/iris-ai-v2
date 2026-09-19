@@ -1,7 +1,7 @@
 "use client";
 import * as Dialog from '@radix-ui/react-dialog';
 import {useEffect,useLayoutEffect,useState,useRef,createContext,useContext,useCallback,type ReactNode} from 'react';
-import {X,CheckCircle2,AlertCircle,Loader2,Search,Sun,Moon} from 'lucide-react';
+import {X,CheckCircle2,AlertCircle,Loader2,Search,Sun,Moon,UserRound} from 'lucide-react';
 import {EmptyArt,type ArtVariant} from './graphics';
 import {cn,initials} from '@/lib/utils';
 import type {Identity} from '@/lib/auth';
@@ -14,6 +14,48 @@ const res=await fetch(url,{...init,headers:{...(isForm?{}:{'Content-Type':'appli
 type AppContextType={theme:'light'|'dark';toggleTheme:()=>void;notify:(text:string,type?:'success'|'error')=>void;user:Identity|null;setupRequired:boolean;refreshUser:()=>Promise<void>;pollSeconds:number;staleTicketDays:number;workspaceName:string;themePlaceholder?:string;view:string;setView:(view:string)=>void;openAuth:()=>void};
 const AppContext=createContext<AppContextType|null>(null);
 export function useApp(){const c=useContext(AppContext);if(!c)throw new Error('App provider missing');return c;}
+
+const ACCENT_PRESETS={
+  dark:{
+    gold:{accent:'#f4bb3d',deep:'#c9902a',bright:'#ffd166'},
+    blue:{accent:'#5fb3ff',deep:'#2e8ad8',bright:'#88c8ff'},
+    violet:{accent:'#b39dff',deep:'#7f6be0',bright:'#c8b7ff'},
+    mint:{accent:'#57d6a8',deep:'#22a779',bright:'#82e7c2'},
+    rose:{accent:'#ff7a9d',deep:'#d55178',bright:'#ff9cb7'},
+  },
+  light:{
+    gold:{accent:'#1554d6',deep:'#0c3aa0',bright:'#2e6bf0'},
+    blue:{accent:'#0f69ff',deep:'#0b4bb3',bright:'#3f84ff'},
+    violet:{accent:'#6d4fd1',deep:'#4f34ab',bright:'#8f73ea'},
+    mint:{accent:'#0f8a5f',deep:'#0a6344',bright:'#24a875'},
+    rose:{accent:'#d8394a',deep:'#aa2232',bright:'#e85a69'},
+  },
+} as const;
+
+function applyAppearance(cfg:{
+  appearancePreset:'gold'|'blue'|'violet'|'mint'|'rose';
+  appearanceScale:number;
+  appearanceSpacing:number;
+  appearanceRadius:number;
+  appearanceShadow:number;
+  appearanceDensity:'compact'|'cozy'|'airy';
+  appearanceCardStyle:'elevated'|'flat'|'glass';
+}){
+  const root=document.documentElement;
+  const activeTheme=root.dataset.theme==='light'?'light':'dark';
+  const palette=ACCENT_PRESETS[activeTheme][cfg.appearancePreset];
+  root.style.setProperty('--accent',palette.accent);
+  root.style.setProperty('--accent-deep',palette.deep);
+  root.style.setProperty('--accent-bright',palette.bright);
+  root.style.setProperty('--accent-soft',`color-mix(in srgb, ${palette.accent} 14%, transparent)`);
+  root.style.setProperty('--ui-scale',String(cfg.appearanceScale/100));
+  root.style.setProperty('--ui-spacing',String(cfg.appearanceSpacing/100));
+  root.style.setProperty('--ui-radius',String(cfg.appearanceRadius/100));
+  root.style.setProperty('--ui-shadow',String(cfg.appearanceShadow/100));
+  root.dataset.density=cfg.appearanceDensity;
+  root.dataset.cardStyle=cfg.appearanceCardStyle;
+}
+
 export function AppProvider({children}:{children:ReactNode}){const[pollSeconds,setPollSeconds]=useState(15);const[staleTicketDays,setStaleTicketDays]=useState(3);const[workspaceName,setWorkspaceName]=useState('Physique 57 India');const[theme,setTheme]=useState<'light'|'dark'>('dark');
   // Sync the saved theme before first paint so light users never see a dark flash,
   // while the server markup always renders dark → no hydration mismatch.
@@ -38,13 +80,13 @@ useEffect(()=>{
     void api<{view?:string}>('/api/preferences').then(p=>{if(p.view)setViewState(p.view);}).catch(()=>{});
   }
 },[refreshUser]);
-const toggleTheme=()=>{const next=theme==='light'?'dark':'light';setTheme(next);document.documentElement.dataset.theme=next;localStorage.setItem('iris-theme',next);void api('/api/preferences',{method:'PATCH',body:JSON.stringify({theme:next})}).catch(()=>notify('Theme saved on this device; server preferences are temporarily unavailable.','error'));};
-useEffect(()=>{const load=()=>{void api<{pollSeconds:number;workspaceName:string;timezone:string;staleTicketDays?:number}>('/api/settings?scope=public').then(c=>{setPollSeconds(c.pollSeconds);setWorkspaceName(c.workspaceName);setDisplayTimezone(c.timezone);if(c.staleTicketDays)setStaleTicketDays(c.staleTicketDays);}).catch(()=>{});};load();window.addEventListener('iris:settings-updated',load);return()=>window.removeEventListener('iris:settings-updated',load);},[]);
+const toggleTheme=()=>{const next=theme==='light'?'dark':'light';setTheme(next);document.documentElement.dataset.theme=next;localStorage.setItem('iris-theme',next);window.dispatchEvent(new Event('iris:settings-updated'));void api('/api/preferences',{method:'PATCH',body:JSON.stringify({theme:next})}).catch(()=>notify('Theme saved on this device; server preferences are temporarily unavailable.','error'));};
+useEffect(()=>{const load=()=>{void api<{pollSeconds:number;workspaceName:string;timezone:string;staleTicketDays?:number;defaultTheme:'light'|'dark';appearancePreset:'gold'|'blue'|'violet'|'mint'|'rose';appearanceScale:number;appearanceSpacing:number;appearanceRadius:number;appearanceShadow:number;appearanceDensity:'compact'|'cozy'|'airy';appearanceCardStyle:'elevated'|'flat'|'glass'}>('/api/settings?scope=public').then(c=>{setPollSeconds(c.pollSeconds);setWorkspaceName(c.workspaceName);setDisplayTimezone(c.timezone);if(c.staleTicketDays)setStaleTicketDays(c.staleTicketDays);applyAppearance(c);}).catch(()=>{});};load();window.addEventListener('iris:settings-updated',load);return()=>window.removeEventListener('iris:settings-updated',load);},[]);
 const setView=(v:string)=>{setViewState(v);void api('/api/preferences',{method:'PATCH',body:JSON.stringify({view:v})}).catch(()=>{});};
 return <AppContext.Provider value={{theme,toggleTheme,notify,user,setupRequired,refreshUser,pollSeconds,staleTicketDays,workspaceName,view,setView,openAuth:()=>setAuthOpen(true)}}>{children}<AuthDialog open={authOpen} onClose={()=>setAuthOpen(false)}/><div className="toasts" aria-live="polite">{toasts.map(t=><div className={cn('toast',t.type)} key={t.id}>{t.type==='success'?<CheckCircle2 size={17}/>:<AlertCircle size={17}/>}<span className="grow">{t.text}</span><button className="text-btn muted" aria-label="Dismiss notification" onClick={()=>setToasts(s=>s.filter(x=>x.id!==t.id))}><X size={14}/></button></div>)}</div></AppContext.Provider>;}
 export function Modal({open,onClose,title,description,children,footer,size='normal',resetKey}:{open:boolean;onClose:()=>void;title:string;description?:string;children:ReactNode;footer?:ReactNode;size?:'normal'|'narrow'|'wide';resetKey?:string}){const scroll=useRef<HTMLDivElement>(null);useEffect(()=>{scroll.current?.scrollTo({top:0});},[open,resetKey]);useEffect(()=>{if(!open)return;const close=()=>onClose();window.addEventListener('iris:close-modals',close);return()=>window.removeEventListener('iris:close-modals',close);},[open,onClose]);return <Dialog.Root open={open} onOpenChange={v=>{if(!v)onClose();}}><Dialog.Portal><Dialog.Overlay className="dialog-overlay"/><Dialog.Content className={cn('dialog-content',size)} onEscapeKeyDown={()=>window.dispatchEvent(new Event('iris:close-modals'))}><div className="dialog-head"><div><Dialog.Title className="dialog-title">{title}</Dialog.Title><Dialog.Description className="dialog-description">{description||'IRIS workspace'}</Dialog.Description></div><Dialog.Close asChild><button className="icon-btn" aria-label="Close dialog"><X size={18}/></button></Dialog.Close></div><div className="dialog-scroll" ref={scroll}>{children}</div>{footer&&<div className="dialog-footer">{footer}</div>}</Dialog.Content></Dialog.Portal></Dialog.Root>;}
 export function ThemeToggle(){const{theme,toggleTheme}=useApp();return <button className="icon-btn" title={theme==='light'?'Switch to matte black & gold':'Switch to light mode'} aria-label="Toggle light and dark theme" onClick={toggleTheme}>{theme==='light'?<Moon size={17}/>:<Sun size={17}/>}</button>;}
-export function Avatar({name,tone='',large=false}:{name:string;tone?:string;large?:boolean}){return <span className={cn('avatar',tone,large&&'lg')}>{initials(name||'IRIS')}</span>;}
+export function Avatar({name,tone='',large=false,emptyDark=false}:{name:string;tone?:string;large?:boolean;emptyDark?:boolean}){if(emptyDark)return <span className={cn('avatar','avatar-empty-dark',large&&'lg')} aria-label={name||'Unassigned owner'}><UserRound size={large?17:13}/></span>;return <span className={cn('avatar',tone,large&&'lg')}>{initials(name||'IRIS')}</span>;}
 export function Badge({children,tone='',className}:{children:ReactNode;tone?:string;className?:string}){return <span className={cn('badge',tone,className)}>{children}</span>;}
 export function Status({status}:{status:string}){return <span className={cn('badge','status-'+status)}><i className="status-dot"/>{({in_progress:'In progress',waiting_on_member:'Awaiting member',waiting_on_vendor:'Awaiting vendor'} as Record<string,string>)[status]||status.replaceAll('_',' ').replace(/^./,c=>c.toUpperCase())}</span>;}
 export function Priority({priority}:{priority:string}){return <span className={cn('badge','priority-'+priority)}><span style={{fontSize:11}}>≋</span>{priority.replace(/^./,c=>c.toUpperCase())}</span>;}

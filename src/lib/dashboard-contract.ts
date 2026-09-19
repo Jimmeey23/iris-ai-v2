@@ -63,6 +63,11 @@ export const GROUP_LABELS: Record<GroupBy, string> = {
 };
 
 export const SORT_DIRECTIONS = ['asc', 'desc'] as const;
+export const KANBAN_GROUP_BY = ['status', 'priority', 'category', 'owner', 'studio', 'department'] as const;
+export type KanbanGroupBy = (typeof KANBAN_GROUP_BY)[number];
+export const KANBAN_FIELDS = ['member', 'studio', 'department', 'owner', 'status', 'priority', 'category', 'source', 'age', 'sla'] as const;
+export type KanbanField = (typeof KANBAN_FIELDS)[number];
+export const DEFAULT_KANBAN_FIELDS: KanbanField[] = ['member', 'status', 'priority', 'category', 'owner', 'sla'];
 
 /** The saved filter state. Every field is optional so an older saved view still loads. */
 export const filterStateSchema = z.object({
@@ -92,6 +97,8 @@ export const EMPTY_FILTERS: FilterState = filterStateSchema.parse({});
 export const dashboardPrefsSchema = z.object({
   columns: z.array(z.enum(TICKET_COLUMNS)).max(TICKET_COLUMNS.length).default(DEFAULT_COLUMNS),
   groupBy: z.enum(GROUP_BY).default('none'),
+  kanbanGroupBy: z.enum(KANBAN_GROUP_BY).default('status'),
+  kanbanFields: z.array(z.enum(KANBAN_FIELDS)).min(1).max(KANBAN_FIELDS.length).default(DEFAULT_KANBAN_FIELDS),
   sortKey: z.enum(TICKET_COLUMNS).default('created'),
   sortDir: z.enum(SORT_DIRECTIONS).default('desc'),
   density: z.enum(['comfortable', 'compact']).default('comfortable'),
@@ -147,6 +154,8 @@ export const filterPatchSchema = z.object({
 export const dashboardPatchSchema = z.object({
   columns: z.array(z.enum(TICKET_COLUMNS)).max(TICKET_COLUMNS.length).optional(),
   groupBy: z.enum(GROUP_BY).optional(),
+  kanbanGroupBy: z.enum(KANBAN_GROUP_BY).optional(),
+  kanbanFields: z.array(z.enum(KANBAN_FIELDS)).min(1).max(KANBAN_FIELDS.length).optional(),
   sortKey: z.enum(TICKET_COLUMNS).optional(),
   sortDir: z.enum(SORT_DIRECTIONS).optional(),
   density: z.enum(['comfortable', 'compact']).optional(),
