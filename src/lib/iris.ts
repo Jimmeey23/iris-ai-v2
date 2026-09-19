@@ -31,7 +31,13 @@ const TIME_SYNONYMS:Record<string,string>={'right now':'Just now','just now':'Ju
 /** What the model proposes for the next exchange, alongside the facts it extracted.
  *  It is a proposal only: the deterministic flow below decides which field is actually
  *  next, and the merge keeps the wording and the tappable answers from disagreeing. */
-type ProposedTurn={ack?:string;nextField?:string;question?:string;options?:{label:string;value:string}[]};
+type ProposedTurn={
+  ack?:string;nextField?:string;question?:string;options?:{label:string;value:string}[];
+  /** The acknowledgement that was actually streamed to the reporter, if any. */
+  shownAck?:string;
+  /** Whether the question was streamed as it was written. */
+  shownQuestion?:boolean;
+};
 
 /** Fields whose answers are free text downstream, so the model may invent tappable
  *  answers for them. Every other field's answers must come from its canonical list —
@@ -43,19 +49,37 @@ const MODEL_MAY_PROPOSE_OPTIONS=new Set(['impact','requestedResolution','studioA
 const ACK_CHATTER=/(anything else|feel free|reach out|happy to help|let me know|no worries|keep an eye|thank|i'?ll |i will |i have (noted|logged))/i;
 
 /** An acknowledgement is usable when it is short, is not itself a question, and is not
- *  merely echoing the word the reporter just typed. */
+ *  merely echoing the word the reporter just typed.
+ *
+ *  `alreadyShown` drops the no-question-mark rule for the same reason the question has one:
+ *  a streamed ack is already on the reporter's screen, and a rhetorical "Bike #3 has a
+ *  scraping flywheel?" is not worth making the sentence rewrite itself. */
 function usableAck(ack:string):boolean{
   const t=ack.trim();
-  if(!t||t.includes('?'))return false;
+  if(!t)return false;
+  if(t.includes('?'))return false;
   if(t.split(/\s+/).length>16)return false;
   if(/^(yes|no|okay|ok|sure|right|correct)\b[.!]?$/i.test(t))return false;
   return !ACK_CHATTER.test(t);
 }
 
+/** The separator between the acknowledgement and the question. The model punctuates its own
+ *  sentence about half the time, so this adds a full stop only when one is missing — and the
+ *  streamer uses the same rule, so what is typed out matches the stored message exactly. */
+export function ackSeparator(ack:string):string{
+  return /[.!?…]$/.test(ack.trim())?' ':'. ';
+}
+
 /** A model-written question stands in for the guided one only when it is a single short
- *  question and not small talk. */
+ *  question and not small talk.
+ *
+ *  `alreadyShown` relaxes the one cosmetic rule — the closing question mark. When the field
+ *  was decided before the call, the question streams to the reporter as it is written, so it
+ *  is already on their screen: swapping it for the scripted one at the last moment is a
+ *  visible rewrite, and a prompt that ends in a full stop is not worth one. */
 function usableQuestion(q:string):boolean{
   const t=q.trim();
+  if(!t)return false;
   if(!/[?]$/.test(t))return false;
   if(t.split(/\s+/).length>22)return false;
   return !/(anything else|feel free|happy to help|let me know|thanks)/i.test(t);
@@ -115,7 +139,12 @@ export function mergeProposedTurn({fieldKey,question,options,proposed}:{
   let opts=options;
 
   // Its question stands in only when it is asking for the field the flow actually chose.
-  if(!pickerTurn&&proposed.nextField===fieldKey&&proposed.question&&usableQuestion(proposed.question)){
+  // Text the reporter has already watched being typed is kept as-is. Nothing is streamed
+  // that has not passed its check first, so honouring it here cannot smuggle anything in —
+  // and it is the only way the bubble never rewrites itself.
+  if(proposed.shownQuestion&&!pickerTurn&&proposed.question?.trim()){
+    text=proposed.question.trim();
+  }else if(!pickerTurn&&proposed.nextField===fieldKey&&proposed.question&&usableQuestion(proposed.question)){
     text=proposed.question.trim();
   }
 
@@ -134,9 +163,8 @@ export function mergeProposedTurn({fieldKey,question,options,proposed}:{
   }
 
   // The acknowledgement leads, the question follows — one sentence of having been heard.
-  if(proposed.ack&&usableAck(proposed.ack)){
-    text=proposed.ack.trim().replace(/[\s.]+$/,'')+'. '+text;
-  }
+  const ack=proposed.shownAck?.trim()||(proposed.ack&&usableAck(proposed.ack)?proposed.ack.trim():'');
+  if(ack)text=ack+ackSeparator(ack)+text;
   return {question:text,options:opts};
 }
 
@@ -414,7 +442,11 @@ export async function irisWelcome(
 export async function runIris(input:{sessionId:string;collected:Record<string,unknown>;message?:string;fieldKey?:string;history:IrisMessage[];selectionApplied?:boolean;patch?:Record<string,unknown>;proposedTurn?:ProposedTurn;onAckDelta?:(text:string)=>void}):Promise<IrisTurn>{const cfg=await getConfig();const c={...input.collected,...input.patch};const raw=(input.message||'').trim();const priorField=input.fieldKey;
 // A turn that skips a field re-enters this function with no message, so the model is not
 // called again. Its proposal rides along instead of being thrown away mid-turn.
-let proposed:ProposedTurn=input.proposedTurn||{};const connection=await credentials('chatgpt');const key=connection._enabled==='false'?undefined:connection.api_key;let engine:'openai'|'guided'=cfg.aiEnabled&&key?'openai':'guided';let notice:string|undefined;let ai:OpenAI|undefined;
+let proposed:ProposedTurn=input.proposedTurn||{};
+// Declared out here because the model is asked from two places: before the flow on the
+// opening description, and after it on every later turn.
+const trustModelFields=priorField==='description'||!priorField;
+let askModel:(plannedField?:string)=>Promise<void>=async()=>{};const connection=await credentials('chatgpt');const key=connection._enabled==='false'?undefined:connection.api_key;let engine:'openai'|'guided'=cfg.aiEnabled&&key?'openai':'guided';let notice:string|undefined;let ai:OpenAI|undefined;
 if(engine==='openai')ai=new OpenAI({apiKey:key,timeout:20000,maxRetries:1});
 if(raw.startsWith('A member told me')||raw.startsWith('I noticed something')||raw.startsWith('I want to log feedback')||raw.startsWith('I want to log a compliment')){c.kind=raw.includes('compliment')?'compliment':raw.includes('feedback')?'feedback':'issue';c.reportedBy=raw.startsWith('A member told me')?REPORTED_BY_OPTIONS[1]:raw.startsWith('I noticed')?REPORTED_BY_OPTIONS[0]:REPORTED_BY_OPTIONS[2];c.description='';c._welcomeProcessed=true;if(c.kind==='compliment')c.sentiment='positive';}
 else if(raw==='__accept_category__'){c._categoryConfirmed=true;}else if(raw==='__reject_category__'){delete c.category;delete c.subcategory;delete c._guess;c._categoryRejected=true;c._categoryInferred=false;c._categoryConfirmed=true;}else if(raw==='__manual_member__'){c.memberLookupDone=true;c.manualMember=true;}else if(raw==='__studio_report__'){c.memberLookupDone=true;c.memberName=c.reportedBy===REPORTED_BY_OPTIONS[1]?'Member (not named)':'Studio team observation';c.memberEmail='';c.studioReport=true;}else if(raw==='__manual_session__'){c.sessionLookupDone=true;c.manualSession=true;}else if(raw==='__hosted_class__'){c.hostedClass=true;c.classFormat=c.classFormat||'Studio Hosted Class';}else if(raw==='__manual_studio_time__'){
@@ -474,8 +506,14 @@ if(/\b(loved|love|amazing|compliment|wonderful|excellent|fantastic|appreciation)
 // form: from turn two on, every reply was a scripted string. Its extracted `fields` are only
 // trusted on the description turn; elsewhere the terse answer to "Which studio?" is bound by
 // the deterministic rules above and only the wording it proposes is used.
-const trustModelFields=priorField==='description'||!priorField;
-if(ai){try{
+// Asking the model is a closure so it can run at either of two moments. On the opening
+// description the facts it extracts decide which field comes next, so it must run first. On
+// every later turn the next field is already settled without it — and knowing the field up
+// front is what lets the whole sentence, question included, be streamed as it is written.
+askModel=async(plannedField?:string)=>{ if(!ai)return; try{
+  // Shared by both passes: a tool call means the model runs twice, and whatever the first
+  // pass streamed is already on screen, so it must not be re-streamed or forgotten.
+  let ackReleased=false,acceptedAck='',acceptedQuestion='',questionDone=false;
 // Grounding the one call properly is what the second call used to be for: examples of how
 // tickets like this one read, and whether this is an emergency or a note for later.
 const guessCat=String(c.category||obj(c._guess).category||'');
@@ -502,10 +540,11 @@ Do not guess a member, class, date, studio or contact detail — a room referenc
 SECOND JOB — write the next exchange. Staff should feel talked to, not interrogated, so the
 same call that reads the facts also proposes the reply. Return:
 {"turn":{"ack":"...","nextField":"...","question":"...","options":[{"label":"...","value":"..."}]},"fields":{...}}
+${plannedField?`The next field is already decided: "${plannedField}" — ${FIELD_DESCRIPTIONS[plannedField]||plannedField}. Set turn.nextField to exactly that and ask for exactly that; your question is shown to the reporter as you write it, so do not change course mid-sentence.`:''}
 Emit the keys in exactly that order, with turn.ack first — it is shown to the reporter while the rest of your answer is still being written, so anything before it is dead air.
-- ack: at most 14 words reacting to what they just said, in ${cfg.aiVoice?'the studio voice':'a warm, professional voice'}. No question, no sign-off, no thanks. Omit when there is nothing new to react to.
+- ack: at most 14 words reacting to what they just said, and never one you have already used earlier in this conversation, in ${cfg.aiVoice?'the studio voice':'a warm, professional voice'}. No question, no sign-off, no thanks. Omit when there is nothing new to react to.
 - nextField: the single most useful field still missing. These are the fields and what each one means: ${JSON.stringify(FIELD_DESCRIPTIONS)}. Never name a field already present in Current facts.
-- question: one sentence, at most 22 words, asking only for nextField.
+- question: one sentence, at most 22 words, asking only for nextField, ending in a question mark.
 - options: 2-6 short tappable answers for that field. Use the exact allowed values for category (taxonomy keys), subcategory (taxonomy values), studio (exact studios) and when (${JSON.stringify(OCCURRED_OPTIONS)}). For impact or what-should-happen-next, write your own concrete options drawn from what they reported. Omit options when the answer is genuinely open text.
 
 TURN STATE (this part changes every turn; everything above it does not, so it is kept last):
@@ -526,15 +565,34 @@ const runPass=async(withTools:boolean):Promise<Pass>=>{
     return{content:m?.content||'',toolCalls:(m?.tool_calls||[]) as OpenAI.Chat.Completions.ChatCompletionMessageToolCall[]};
   }
   const stream=await ai!.chat.completions.create({...body,stream:true});
-  let content='',sent=0;
+  let content='';
   // Tool-call deltas arrive in fragments keyed by position, so they are reassembled here.
   const slots=new Map<number,{id:string;name:string;args:string}>();
   for await(const chunk of stream){
     const d=chunk.choices[0]?.delta;
     if(d?.content){
       content+=d.content;
-      const {value}=scanStreamedString(content,'ack');
-      if(value.length>sent){input.onAckDelta(value.slice(sent));sent=value.length;}
+      // Nothing is emitted that the finished message will not contain. The acknowledgement is
+      // therefore held until its closing quote, checked, and then released in one piece —
+      // it is the first thing the model writes, so this still beats the rest of the turn by
+      // seconds, and the client types it out. Releasing it character by character meant a
+      // rejected ack had already been read, and the bubble rewrote itself.
+      const ack=scanStreamedString(content,'ack');
+      if(ack.closed&&!ackReleased){
+        ackReleased=true;
+        if(usableAck(ack.value)){acceptedAck=ack.value.trim();input.onAckDelta(acceptedAck);}
+      }
+      // The question streams for real, but only when the field was settled before the call:
+      // otherwise the model may be answering a different question than the one shown.
+      if(plannedField&&ackReleased&&!questionDone){
+        const q=scanStreamedString(content,'question');
+        if(q.value.length>acceptedQuestion.length){
+          if(!acceptedQuestion&&acceptedAck)input.onAckDelta(ackSeparator(acceptedAck));
+          input.onAckDelta(q.value.slice(acceptedQuestion.length));
+          acceptedQuestion=q.value;
+        }
+        if(q.closed)questionDone=true;
+      }
     }
     for(const tc of d?.tool_calls||[]){
       const slot=slots.get(tc.index)||{id:'',name:'',args:''};
@@ -554,7 +612,9 @@ const rawTurn=obj(parsed.turn);
 proposed={
   ack:typeof rawTurn.ack==='string'?rawTurn.ack:undefined,
   nextField:typeof rawTurn.nextField==='string'?rawTurn.nextField:undefined,
-  question:typeof rawTurn.question==='string'?rawTurn.question:undefined,
+  question:acceptedQuestion||(typeof rawTurn.question==='string'?rawTurn.question:undefined),
+  shownAck:acceptedAck||undefined,
+  shownQuestion:Boolean(acceptedQuestion),
   options:Array.isArray(rawTurn.options)?rawTurn.options.map(obj).filter(o=>typeof o.label==='string'&&typeof o.value==='string').map(o=>({label:String(o.label).slice(0,60),value:String(o.value).slice(0,120)})).slice(0,6):undefined,
 };
 const fields=trustModelFields?obj(parsed.fields):{};for(const[k,v]of Object.entries(fields)){if(!FIELD_KEYS.includes(k)||typeof v!=='string'||v.length>=20000)continue;
@@ -568,7 +628,8 @@ const fields=trustModelFields?obj(parsed.fields):{};for(const[k,v]of Object.entr
 if(k==='studio')continue;
 if(k==='category'&&!c.category)c._categoryInferred=true;
 c[k]=v;}
-}catch{engine='guided';notice='AI is unavailable right now. Your answers are saved; guided assistance is continuing.';}}
+}catch{engine='guided';notice='AI is unavailable right now. Your answers are saved; guided assistance is continuing.';} };
+if(raw&&trustModelFields)await askModel();
 }
 if(c.category&&!cfg.taxonomy[String(c.category)])delete c.category;if(c.category&&c.subcategory&&!cfg.taxonomy[String(c.category)].includes(String(c.subcategory)))delete c.subcategory;
 // Same contract for the two fields that steer routing and reporting: an unrecognised
@@ -713,8 +774,14 @@ question=(praise?'This is ready to log — no SLA or resolution is needed for a 
 // second round-trip here. What remains is a merge: the flow above owns WHICH field is next
 // and which answers are valid, the model owns the words. Wording and chips can no longer
 // drift apart, because the chips are only ever relabelled — never redefined.
-if(engine==='openai'&&fieldKey){
-  const merged=mergeProposedTurn({fieldKey,question,options:opts,proposed});
+// Later turns ask the model here instead, with the chosen field handed to it. By this point
+// the question it writes is the question that will be shown, so it can be streamed verbatim.
+// The question is only handed over when the flow's own wording is not carrying instructions.
+// A picker turn's line explains what the picker does ("Pick the session and I'll pull in the
+// trainer, studio and time"), so it keeps its words and takes only the acknowledgement.
+if(raw&&!trustModelFields&&fieldKey)await askModel(fieldKey.includes('Lookup')?undefined:fieldKey);
+if(engine==='openai'){
+  const merged=mergeProposedTurn({fieldKey:fieldKey||'',question,options:opts,proposed});
   question=merged.question;
   opts=merged.options;
 }
