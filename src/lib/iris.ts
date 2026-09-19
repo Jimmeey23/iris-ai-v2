@@ -127,11 +127,12 @@ export function scanStreamedString(buffer:string,key:string):{value:string;close
  * different questions — the failure that showed up as "Which studio location…?" sitting
  * above "Yes, Late Arrival / No, let me pick the category".
  */
-export function mergeProposedTurn({fieldKey,question,options,proposed}:{
+export function mergeProposedTurn({fieldKey,question,options,proposed,lastAssistantMessage}:{
   fieldKey:string;
   question:string;
   options?:{label:string;value:string}[];
   proposed:ProposedTurn;
+  lastAssistantMessage?:string;
 }):{question:string;options?:{label:string;value:string}[]}{
   const canonical=options||[];
   const pickerTurn=fieldKey.includes('Lookup');
@@ -163,7 +164,14 @@ export function mergeProposedTurn({fieldKey,question,options,proposed}:{
   }
 
   // The acknowledgement leads, the question follows — one sentence of having been heard.
-  const ack=proposed.shownAck?.trim()||(proposed.ack&&usableAck(proposed.ack)?proposed.ack.trim():'');
+  // Skip the ack if it duplicates the previous assistant message — that is what produces
+  // the robotic "Noted, bed bugs were found on the studio floor" echo on consecutive turns.
+  let ack=proposed.shownAck?.trim()||(proposed.ack&&usableAck(proposed.ack)?proposed.ack.trim():'');
+  if(ack&&lastAssistantMessage){
+    const ackNorm=ack.toLowerCase().replace(/[^a-z0-9]/g,'');
+    const lastNorm=lastAssistantMessage.toLowerCase().replace(/[^a-z0-9]/g,'');
+    if(ackNorm===lastNorm||lastNorm.includes(ackNorm))ack='';
+  }
   if(ack)text=ack+ackSeparator(ack)+text;
   return {question:text,options:opts};
 }
@@ -409,17 +417,41 @@ function getIstTimeGreeting(): string {
   }
 }
 
+function getIstFormattedTime(): { greeting: string; timeLabel: string; shiftNote: string } {
+  try {
+    const formatter = new Intl.DateTimeFormat('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      hour: 'numeric',
+      hour12: true,
+      weekday: 'long',
+    });
+    const parts = formatter.formatToParts(new Date());
+    const hour = parseInt(parts.find((p) => p.type === 'hour')?.value || '0', 10);
+    const dayPart = parts.find((p) => p.type === 'dayPeriod')?.value || '';
+    const weekday = parts.find((p) => p.type === 'weekday')?.value || '';
+    const timeLabel = `${hour}${dayPart ? ` ${dayPart}` : ''}`;
+
+    if (hour >= 5 && hour < 12) return { greeting: 'Good morning', timeLabel: `${weekday} morning`, shiftNote: 'the morning shift is underway' };
+    if (hour >= 12 && hour < 17) return { greeting: 'Good afternoon', timeLabel: `${weekday} afternoon`, shiftNote: 'the afternoon floor is active' };
+    if (hour >= 17 && hour < 22) return { greeting: 'Good evening', timeLabel: `${weekday} evening`, shiftNote: 'the evening sessions are running' };
+    return { greeting: 'Hello', timeLabel: `${weekday} late night`, shiftNote: 'the studio is winding down' };
+  } catch {
+    return { greeting: 'Hello', timeLabel: 'today', shiftNote: 'the floor is live' };
+  }
+}
+
 export async function irisWelcome(
   sessionId: string,
   preset?: { category?: string; subcategory?: string }
 ): Promise<IrisTurn> {
   const c = preset?.category ? { category: preset.category, subcategory: preset.subcategory } : {};
-  const greeting = getIstTimeGreeting();
+  const { greeting, timeLabel, shiftNote } = getIstFormattedTime();
 
-  let message = `${greeting}! I'm Iris, your studio operations co-pilot across Kwality House, Supreme HQ Bandra, Kenkere House & Courtside.\n\nTell me what you noticed on the floor, in any studio room, or what a member flagged. You can speak with voice or type naturally — I'll capture all details, room capacities, and route it to the right department.`;
-
+  let message: string;
   if (preset?.category) {
-    message = `${greeting}! Let's log this ${preset.category}${preset.subcategory ? ` · ${preset.subcategory}` : ''} ticket.\n\nGo ahead and describe what happened on the floor, or who flagged it — I'll compile the ticket details directly.`;
+    message = `${greeting}. Let's get this ${preset.category.toLowerCase()} ticket logged ${preset.subcategory ? `under ${preset.subcategory.toLowerCase()}` : ''}.\n\nTell me what happened on the floor — I'll capture the studio, area, trainer, and everything else needed to route it to the right team.`;
+  } else {
+    message = `${greeting} — it's ${timeLabel} and ${shiftNote}.\n\nI'm Iris. Tell me what a member flagged or what you spotted on the floor, and I'll build the ticket as we go: studio, room, trainer, category, and the right assignee. Speak naturally or type — whichever is faster.`;
   }
 
   return {
@@ -652,6 +684,7 @@ const isMemberReport=c.reportedBy===REPORTED_BY_OPTIONS[1];
 
 // CONTEXT-AWARE FLOW: Skip redundant questions based on what we already know
 const isFacilityCat = ['Repair and Maintenance','Studio Amenities and Facilities','Tech Issues','Operating Systems'].includes(String(c.category));
+const hasMemberName = c.memberName && String(c.memberName).trim() && String(c.memberName) !== 'Studio team observation';
 
 if(!c.description||String(c.description).length<12){
   // Only ask description if welcome was processed (meaning reportedBy is set)
@@ -685,14 +718,19 @@ else if(!c.subcategory){
   opts=options(cfg.taxonomy[String(c.category)]);
 }
 // SMART MEMBER LOOKUP: If staff observed it themselves, colleague reported, facility issue, or non-member issue, skip member lookup entirely
-else if(!c.memberLookupDone&&(isStudioReport||isColleagueReport||c.studioReport||isFacilityCat||!isMemberReport)){
+else if(!c.memberLookupDone&&(isStudioReport||isColleagueReport||c.studioReport||(!isMemberReport&&!c.memberName))){
   c.memberLookupDone=true;c.memberName=c.memberName||'Studio team observation';c.memberEmail='';c.studioReport=true;
   return runIris({...input,message:undefined,collected:c,patch:undefined,proposedTurn:proposed});
 }
-// Only ask member lookup if the report explicitly came from a member
+// Only ask member lookup if the report explicitly came from a member and we don't already have a name
 else if(!c.memberLookupDone){
   if(!isMemberReport){
     c.memberLookupDone=true;c.memberName=c.memberName||'Studio team observation';c.memberEmail='';c.studioReport=true;
+    return runIris({...input,message:undefined,collected:c,patch:undefined,proposedTurn:proposed});
+  }
+  // If a member name was already extracted (even for facility issues), keep it instead of forcing lookup
+  if(c.memberName&&String(c.memberName).trim()&&String(c.memberName)!=='Studio team observation'){
+    c.memberLookupDone=true;c.memberEmail='';c.studioReport=false;
     return runIris({...input,message:undefined,collected:c,patch:undefined,proposedTurn:proposed});
   }
   fieldKey='memberLookup';
@@ -706,12 +744,15 @@ lookupFilters={studio:typeof c.studio==='string'&&c.studio!=='—'?c.studio:unde
 opts=[{label:'Session not listed / enter manually',value:'__manual_session__'},...(hosted?[]:[{label:'It was a hosted / private class',value:'__hosted_class__'}])];}
 else if((!c.studio||c.studio==='—')&&!c.incidentAt&&!c._bundleTried){
   fieldKey='studioAndTime';
-  question=`Which studio is this for, and when'd you notice it?`;
+  question=`Which studio location was this at, and when did you notice it?`;
   opts=undefined;
 }
 else if(!c.studio||c.studio==='—'){
   const contextNote = c.area ? `Noted for ${c.area}${c.trainer ? ` (${c.trainer}'s session)` : ''}. ` : '';
   choose('studio',contextNote+((asked.studio||0)>=2?'I can\u2019t file this without the location \u2014 which studio was it? Pick one below.':'Which studio location center was this at?'),cfg.studios);
+}
+else if(!c.incidentAt && c._bundleTried){
+  choose('incidentAt','When did this happen?',[...OCCURRED_OPTIONS]);
 }
 else if(!c.incidentAt){
   if(isFacilityCat){
@@ -765,7 +806,9 @@ const isBlockingNow=c.isClassImpacted==='Yes, blocking now'||c.isImmediateDanger
 const urgentRequired=isBlockingNow?required.filter(k=>!['alreadyReported','preferredContact','impact','requestedResolution','trainer','classFormat'].includes(k)):required;
 let draft:AdvancedDraft|undefined;if(!fieldKey){const cf=obj(c.customFields);draft=await makeDraft({...c,description:c.description,memberName:c.memberName||'Studio team observation',memberEmail:c.memberEmail||'',kind:c.kind,source:'iris',sentiment:praise?'positive':c.sentiment||inferSentiment(String(c.description)),customFields:{...cf,...intakeAnswers(c)},preferredContact:c.preferredContact||'Internal log only',momenceContext:c.momenceContext});// The recap is the deliverable: the reporter needs to see the routing, priority and SLA the
 // ticket will carry before approving it, not just be told that a ticket exists.
-const recap=['• '+draft.title,`• ${draft.category} → ${draft.subcategory}`,`• ${draft.departmentName}${draft.assignedStaffName?` · ${draft.assignedStaffName}`:''}`,`• ${draft.priority} priority${draft.resolutionRequired&&draft.slaLabel?` · ${draft.slaLabel}`:''}`,`• ${draft.studio}${draft.incidentAt?` · ${draft.incidentAt}`:''}`].join('\n');
+// Include area for facility/maintenance tickets so the exact room is visible at a glance.
+const locationTail = [draft.studio, (isFacilityCat && c.area) ? String(c.area) : '', draft.incidentAt].filter(Boolean).join(' · ');
+const recap=['• '+draft.title,`• ${draft.category} → ${draft.subcategory}`,`• ${draft.departmentName}${draft.assignedStaffName?` · ${draft.assignedStaffName}`:''}`,`• ${draft.priority} priority${draft.resolutionRequired&&draft.slaLabel?` · ${draft.slaLabel}`:''}`,`• ${locationTail}`].join('\n');
 question=(praise?'This is ready to log — no SLA or resolution is needed for a compliment.':'Here\u2019s the ticket, ready to file.')+'\n\n'+recap+'\n\nReview it, then approve when it\u2019s accurate.';}
 // The acknowledgement is written once, by the model, inside the block above. A second canned
 // one prefixed here is what produced "Understood. Understood, you spotted the mic issue...".
@@ -781,7 +824,8 @@ question=(praise?'This is ready to log — no SLA or resolution is needed for a 
 // trainer, studio and time"), so it keeps its words and takes only the acknowledgement.
 if(raw&&!trustModelFields&&fieldKey)await askModel(fieldKey.includes('Lookup')?undefined:fieldKey);
 if(engine==='openai'){
-  const merged=mergeProposedTurn({fieldKey:fieldKey||'',question,options:opts,proposed});
+  const lastAssistantMessage=input.history.filter(m=>m.role==='assistant').pop()?.content;
+  const merged=mergeProposedTurn({fieldKey:fieldKey||'',question,options:opts,proposed,lastAssistantMessage});
   question=merged.question;
   opts=merged.options;
 }
