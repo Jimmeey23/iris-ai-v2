@@ -1,9 +1,9 @@
 "use client";
 import Link from 'next/link';import {usePathname,useRouter} from 'next/navigation';import {useEffect,useState,type ReactNode} from 'react';
-import {LayoutDashboard,Sparkles,Ticket,Layers,ChartNoAxesCombined,Users,Blocks,Settings,ChevronDown,ChevronRight,Search,Bell,Menu,PanelLeft,Building2,ArrowUpRight,Command,LifeBuoy,FileBarChart2,GraduationCap,ClipboardList,Radio} from 'lucide-react';
+import {LayoutDashboard,Sparkles,Ticket,Layers,ChartNoAxesCombined,Users,Blocks,Settings,ChevronDown,ChevronRight,Search,Bell,Menu,PanelLeft,Building2,ArrowUpRight,Command,LifeBuoy,FileBarChart2,GraduationCap,ClipboardList,Radio,Wrench} from 'lucide-react';
 import {useApp,ThemeToggle,Avatar,Modal,api,SearchField,Badge} from './ui';
 import {IrisLockup} from './iris-mark';
-const nav=[{href:'/dashboard',label:'Overview',icon:LayoutDashboard},{href:'/iris',label:'Iris assistant',icon:Sparkles,ai:true},{href:'/radar',label:'Ops Radar & Heatmap',icon:Radio,live:true},{href:'/tickets',label:'All tickets',icon:Ticket},{href:'/templates',label:'Template library',icon:Layers},{href:'/reports',label:'Reports library',icon:FileBarChart2},{href:'/analytics',label:'Trend dashboard',icon:ChartNoAxesCombined},{href:'/trainers',label:'Trainer reviews',icon:GraduationCap},{href:'/forms',label:'Evaluation forms',icon:ClipboardList}];
+const nav=[{href:'/dashboard',label:'Overview',icon:LayoutDashboard},{href:'/iris',label:'Iris assistant',icon:Sparkles,ai:true},{href:'/radar',label:'Ops Radar & Heatmap',icon:Radio,live:true},{href:'/tickets',label:'All tickets',icon:Ticket},{href:'/equipment',label:'Equipment',icon:Wrench},{href:'/templates',label:'Template library',icon:Layers},{href:'/reports',label:'Reports library',icon:FileBarChart2},{href:'/analytics',label:'Trend dashboard',icon:ChartNoAxesCombined},{href:'/trainers',label:'Trainer reviews',icon:GraduationCap},{href:'/forms',label:'Evaluation forms',icon:ClipboardList}];
 const org=[{href:'/momence',label:'Momence',icon:Building2},{href:'/staff',label:'People & teams',icon:Users},{href:'/integrations',label:'Integrations',icon:Blocks},{href:'/settings',label:'Settings',icon:Settings}];
 export {Badge};
 export function Shell({

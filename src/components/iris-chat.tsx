@@ -29,6 +29,7 @@ import {
   Gift,
   MessageSquare,
   Radio,
+  Wrench,
 } from 'lucide-react';
 import { api, useApp, Modal, Field, Badge, Loading } from './ui';
 import { MultiSelect } from './multi-select';
@@ -383,6 +384,9 @@ export function IrisChat({ presetCategory, presetSubcategory }: { presetCategory
       setAttachments([]);
       setPendingContext({});
       if (fromVoice || voiceMode) void speak(d.message);
+      // "Yes, that's the same one" — append this report to the ticket already open rather
+      // than filing a second ticket about the same fault.
+      if (d.linkedTicket) await linkToExisting();
     } catch (e) {
       setError((e as Error).message);
       if (shown) setMessages((m) => m.slice(0, -1));
@@ -419,6 +423,40 @@ export function IrisChat({ presetCategory, presetSubcategory }: { presetCategory
       setResetOpen(true);
     } else if (cmd === 'send') {
       if (text.trim()) void send(text.trim(), undefined, undefined, undefined, true);
+    }
+  }
+
+  /**
+   * Appends this conversation's report to a ticket that is already open.
+   *
+   * Nothing new is created: the report lands on the existing ticket with a date, the repeat
+   * count goes up, and a fault reported three times escalates by itself.
+   */
+  async function linkToExisting() {
+    setBusy(true);
+    setError('');
+    try {
+      const d = await api<{ ticket: { id: number; ticketNumber: string }; recurrence: number; escalated: boolean }>(
+        '/api/iris/link',
+        { method: 'POST', body: JSON.stringify({ sessionId: turnRef.current?.sessionId }) },
+      );
+      const done = {
+        ...turnRef.current!,
+        phase: 'complete' as const,
+        message: `Added to ${d.ticket.ticketNumber} as report #${d.recurrence}${d.escalated ? ' — flagged as a repeat fault for manager review' : ''}.`,
+        ticket: d.ticket,
+        options: [],
+        assetNote: undefined,
+      };
+      apply(done);
+      setTicketId(d.ticket.id);
+      notify(`Added to ${d.ticket.ticketNumber}.`);
+      if (voiceMode) void speak(`This report was added to ticket ${d.ticket.ticketNumber}.`);
+      window.dispatchEvent(new Event('iris:tickets-updated'));
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -827,6 +865,7 @@ export function IrisChat({ presetCategory, presetSubcategory }: { presetCategory
                   value={[]}
                   studio={turn.lookupFilters?.studio}
                   sessionTypes={turn.lookupFilters?.sessionTypes}
+                  upcoming={turn.lookupFilters?.upcoming}
                   onChange={(opts: PickerOption[]) => {
                     const o = opts[0];
                     if (o) void send(undefined, o.label, { module: turn.lookup!, id: String(o.id) });
@@ -842,6 +881,14 @@ export function IrisChat({ presetCategory, presetSubcategory }: { presetCategory
                     {o.label}
                   </button>
                 ))}
+              </div>
+            ) : null}
+            {/* What the equipment register already knows about this bike. Shown while the
+                fault is being reported, which is the only moment it can change a decision. */}
+            {!busy && turn?.assetNote && turn.phase !== 'complete' ? (
+              <div className="info-box" style={{ margin: '0 0 20px 36px', alignItems: 'center' }}>
+                <Wrench size={16} />
+                <span>{turn.assetNote}</span>
               </div>
             ) : null}
             {turn?.phase === 'draft' && (

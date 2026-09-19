@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "paths": {
+      "@/db": ["./scripts/iris-replay-support/stub-db.ts"],
+      "@/lib/config": ["./scripts/iris-replay-support/stub-config.ts"],
+      "@/*": ["./src/*"]
+    }
+  }
+}

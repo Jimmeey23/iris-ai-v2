@@ -4,11 +4,14 @@ import {extractEntities,inferSentiment,classifyIssue,matchStudio} from './classi
 import {makeDraft,historicalExamples} from './tickets';
 import {listMomence,obj} from './momence';
 import {extractContext,determineSkippableFields} from './context-extractor';
-import {STUDIO_AREAS,SYSTEMS,OCCURRED_OPTIONS,REPORTED_BY_OPTIONS,STAGES_SC3_PARTS,STAGES_SC3_TROUBLESHOOTING,CYCLE_INTAKE_QUESTIONS} from './constants';
+import {parseAssetReference,resolveAsset,assetBrief} from './assets';
+import {findDuplicate} from './duplicates';
+import {STUDIO_AREAS,SYSTEMS,OCCURRED_OPTIONS,REPORTED_BY_OPTIONS,STAGES_SC3_PARTS,STAGES_SC3_TROUBLESHOOTING,CYCLE_INTAKE_QUESTIONS,studioAreasFor,AREA_ALIASES} from './constants';
+import {momenceConfigured} from './momence';
 import type {IrisTurn,IrisMessage} from './iris-contract';
 import type {AdvancedDraft} from './ticket-contract';
 
-const FIELD_KEYS=['category','subcategory','kind','description','studio','classFormat','trainer','membership','memberName','memberEmail','memberPhone','incidentAt','preferredContact','requestedResolution','impact','sentiment','area','systemName','itemDescription','lastSeen','isClassImpacted','isImmediateDanger','alreadyReported','channelOfIssue','reportedBy','bikeNumber','cycleIssueType','cyclePart','cycleFirstOrRecurring','cycleReporterAction'];
+const FIELD_KEYS=['category','subcategory','kind','description','studio','classFormat','trainer','membership','memberName','memberEmail','memberPhone','incidentAt','preferredContact','requestedResolution','impact','sentiment','area','systemName','itemDescription','lastSeen','isClassImpacted','isImmediateDanger','alreadyReported','channelOfIssue','reportedBy','bikeNumber','cycleIssueType','cyclePart','cycleFirstOrRecurring','cycleReporterAction','cycleSeverity','memberImpact','impactedMembers'];
 const options=(values:string[])=>values.map(value=>({label:value,value}));
 
 /** Fields whose offered chips are the whole answer space: a value that is not one of them is
@@ -17,9 +20,26 @@ const options=(values:string[])=>values.map(value=>({label:value,value}));
  *  asked again rather than written onto the ticket as prose. */
 const ENUM_FIELDS=new Set(['category','subcategory','studio','reportedBy','incidentAt','area','systemName','isClassImpacted','isImmediateDanger','alreadyReported','lastSeen','channelOfIssue','classFormat']);
 /** Fields the flow can file without, once asking has clearly stopped working. */
-const SKIPPABLE=new Set(['impact','requestedResolution','preferredContact','area','alreadyReported','isClassImpacted','systemName','itemDescription','lastSeen','channelOfIssue','trainer','classFormat','incidentAt','cycleIssueType','cyclePart','cycleFirstOrRecurring','cycleReporterAction']);
-const SKIP_VALUE:Record<string,string>={trainer:'Not sure',incidentAt:'Ongoing / recurring',cycleFirstOrRecurring:'Not sure',cycleReporterAction:'Not specified'};
+const SKIPPABLE=new Set(['impact','requestedResolution','preferredContact','area','alreadyReported','isClassImpacted','systemName','itemDescription','lastSeen','channelOfIssue','trainer','classFormat','incidentAt','cycleIssueType','cyclePart','cycleFirstOrRecurring','cycleReporterAction','memberImpact','impactedMembers']);
+const SKIP_VALUE:Record<string,string>={trainer:'Not sure',incidentAt:'Ongoing / recurring',cycleFirstOrRecurring:'Not sure',cycleReporterAction:'Not specified',memberImpact:'Not sure',impactedMembers:''};
 const SKIPPED='Not specified';
+/** Chip the reporter taps when none of the answers on screen is their answer. Every closed
+ *  list carries it: without an escape hatch the only way to answer freely is to type, and a
+ *  typed answer that matches no listed value is dropped without a word. */
+const OTHER_VALUE='__other__';
+/** Pseudo-field for a turn that stops to resolve a contradiction rather than moving the
+ *  intake forward. */
+const CLARIFY_FIELD='clarify';
+/** A contradiction is worth interrupting for, once. A reporter who repeats the newer
+ *  answer is not confused — they are correcting themselves, so the next one stands. */
+const CLARIFY_LIMIT=2;
+/** Pseudo-field for the one question asked before a second ticket about the same fault
+ *  can be created. */
+const DUPLICATE_FIELD='duplicateCheck';
+/** Whether a member's session was affected. Distinct from who reported the issue: a bike
+ *  failing mid-class is logged by staff but affects the riders, and maintenance tickets
+ *  used to be forced into "no member involved" before anyone could be asked. */
+const MEMBER_IMPACT_OPTIONS=['Yes — members were affected','No, no member impact','Not sure'] as const;
 /** How many times one field may be asked before the flow stops waiting on it. Without this a
  *  question whose answer never lands is asked forever — the conversation reads as a loop and
  *  no ticket is ever produced. */
@@ -37,6 +57,10 @@ type ProposedTurn={
   shownAck?:string;
   /** Whether the question was streamed as it was written. */
   shownQuestion?:boolean;
+  /** Contradictions between the latest answer and something already recorded, in the
+   *  order the model noticed them. Written first in the JSON so a question is not typed
+   *  out on screen and then withdrawn to ask about the contradiction. */
+  conflicts?:{field?:string;earlier?:string;now?:string}[];
 };
 
 /** Fields whose answers are free text downstream, so the model may invent tappable
@@ -127,6 +151,61 @@ export function scanStreamedString(buffer:string,key:string):{value:string;close
  * different questions — the failure that showed up as "Which studio location…?" sitting
  * above "Yes, Late Arrival / No, let me pick the category".
  */
+/**
+ * Reads a JSON array of objects out of JSON that is still arriving.
+ *
+ * `conflicts` is emitted before anything the reporter reads, so the flow knows a
+ * contradiction is coming before it has typed a question out — see `scanStreamedString`
+ * for why the same care applies here. Returns the raw element fragments decoded so far
+ * and whether the array has closed.
+ */
+export function scanStreamedArray(buffer:string,key:string):{items:string[];closed:boolean}{
+  const at=buffer.indexOf(`"${key}"`);
+  if(at<0)return{items:[],closed:false};
+  let i=buffer.indexOf(':',at+key.length+2);
+  if(i<0)return{items:[],closed:false};
+  i++;
+  while(i<buffer.length&&/\s/.test(buffer[i]))i++;
+  if(i>=buffer.length)return{items:[],closed:false};
+  if(buffer[i]!=='[')return{items:[],closed:true};   // null, or some other type
+  i++;
+  let depth=1,start=i,inString=false,escaped=false;
+  const items:string[]=[];
+  while(i<buffer.length){
+    const ch=buffer[i];
+    if(inString){
+      if(escaped)escaped=false;
+      else if(ch==='\\')escaped=true;
+      else if(ch==='"')inString=false;
+      i++;continue;
+    }
+    if(ch==='"'){inString=true;i++;continue;}
+    if(ch==='['||ch==='{'){depth++;i++;continue;}
+    if(ch===']'||ch==='}'){depth--;if(depth===0){items.push(buffer.slice(start,i));return{items,closed:true};}i++;continue;}
+    if(ch===','&&depth===1){items.push(buffer.slice(start,i));start=i+1;i++;continue;}
+    i++;
+  }
+  return{items:[...items,buffer.slice(start)],closed:false};
+}
+
+/** Parses one streamed `conflicts` fragment. A half-written element is dropped rather
+ *  than shown: a partial contradiction is worse than no contradiction. */
+function parseConflictFragments(fragments:string[]):{field:string;earlier:string;now:string}[]{
+  const out:{field:string;earlier:string;now:string}[]=[];
+  for(const fragment of fragments){
+    const trimmed=fragment.trim();
+    if(!trimmed.startsWith('{')||!trimmed.endsWith('}'))continue;
+    try{
+      const o=obj(JSON.parse(trimmed));
+      const field=typeof o.field==='string'?o.field:'';
+      const earlier=typeof o.earlier==='string'?o.earlier:'';
+      const now=typeof o.now==='string'?o.now:'';
+      if(field&&earlier)out.push({field,earlier,now});
+    }catch{/* a fragment that is not whole JSON yet */}
+  }
+  return out;
+}
+
 export function mergeProposedTurn({fieldKey,question,options,proposed,lastAssistantMessage}:{
   fieldKey:string;
   question:string;
@@ -191,6 +270,21 @@ const FIELD_DESCRIPTIONS: Record<string, string> = {
   subcategory: "what specific subcategory best matches this issue",
   confirmCategory: "whether the inferred ticket category matches what occurred",
   memberName: "the name of the member involved",
+  classFormat: "the class format or session type involved — only when a real class was affected, never for a maintenance fault",
+  trainer: "the trainer who was teaching",
+  isImmediateDanger: "whether anyone is in immediate danger right now",
+  reportedBy: "who reported this: staff noticed it, a member told them, a colleague flagged it, or a walkthrough raised it",
+  itemDescription: "what item is missing, for a lost property report",
+  lastSeen: "where the missing item was last seen",
+  channelOfIssue: "where a member interaction happened (front desk, phone, WhatsApp, email, social media)",
+  bikeNumber: "the number of the PowerCycle / Stages bike, when the report names one (\"cycle no 6\", \"bike 12\") — store just the number",
+  cycleIssueType: "what is actually wrong with the bike, in the reporter's own words or as a known Stages SC3 symptom",
+  cyclePart: "which part of the bike is affected",
+  cycleFirstOrRecurring: "whether this is the first time it has happened on this bike",
+  cycleReporterAction: "what the reporter did when they noticed it (took the bike out of rotation, flagged it, and so on)",
+  cycleSeverity: "how severe the bike fault is: critical if a rider could be hurt (a pedal that can detach, a scraping flywheel), high if the bike cannot be ridden safely, medium if it degrades the session",
+  memberImpact: "whether any member's session or experience was affected by this",
+  impactedMembers: "which members were affected, if the reporter names them",
 };
 
 /**
@@ -200,7 +294,7 @@ const FIELD_DESCRIPTIONS: Record<string, string> = {
  * old order turned that into, for example, a member name and then asked the same
  * location question again.
  */
-function applyMessageFacts(c:Record<string,unknown>,raw:string){
+function applyMessageFacts(c:Record<string,unknown>,raw:string,priorField?:string){
   if(!raw)return;
   const source=raw.toLowerCase();
 
@@ -218,8 +312,14 @@ function applyMessageFacts(c:Record<string,unknown>,raw:string){
     const studio=matchStudio(raw);if(studio)c.studio=studio;
   }
 
+  // Read the bike number off the message, not off a question asked later.
+  if(!c.bikeNumber){const bike=extractBikeNumber(raw);if(bike)c.bikeNumber=bike;}
+
+  // When it happened is captured once. It used to be re-derived from every message, so an
+  // answer to an unrelated question could move the date — and because "Yesterday" begins
+  // with the letters y-e-s, any reply that opened with "Yes" moved it to yesterday.
   if(context.incidentAt&&!c.incidentAt)c.incidentAt=context.incidentAt;
-  else{
+  else if(!c.incidentAt||priorField==='incidentAt'){
     const when=normalizeAnswer('incidentAt',raw,OCCURRED_OPTIONS);
     if(when)c.incidentAt=when;
   }
@@ -267,6 +367,11 @@ function applyMessageFacts(c:Record<string,unknown>,raw:string){
     c.memberEmail='';
     c.studioReport=true;
   }
+  // A maintenance fault is not a class, even when the word for the room reads like one:
+  // "cycle" in a broken-bike report was matched to the "Studio PowerCycle" class format,
+  // which put a class on the ticket, renamed it, and logged the fault as having happened
+  // during that class. A class stays only when a real session has been linked to it.
+  if(isFacilityCat&&!c.momenceSessionId&&c.classFormat)delete c.classFormat;
   if(/\b(not member-specific|not a member issue|general (?:studio )?observation|no member involved|colleague|internal)\b/i.test(source)){
     c.memberLookupDone=true;c.studioReport=true;c.memberName='Studio team observation';c.memberEmail='';
   }
@@ -301,7 +406,13 @@ function defaultOperationalFields(c:Record<string,unknown>){
 function normalizeAnswer(key:string,raw:string,values:readonly string[]):string|undefined{
   const t=raw.trim().toLowerCase();if(!t)return undefined;if(!values.length)return raw.trim();
   const exact=values.find(v=>v.toLowerCase()===t);if(exact)return exact;
-  if(/^(yes|yeah|yep|yup|y|correct|true)\b/.test(t)){const hit=values.find(v=>/^yes/i.test(v));if(hit)return hit;}
+  // "Cycle studio" and "PowerCycle Studio" are one room. Resolving the alias here keeps a
+  // single spelling on the ticket no matter which one was offered, tapped or typed.
+  if(key==='area'){const alias=AREA_ALIASES[t];if(alias&&values.includes(alias))return alias;}
+  // The affirmation must be the whole word. Matching a bare /^yes/ also matched
+  // "Yesterday", which turned every "Yes" into a date: answering "Yes, blocking now"
+  // rewrote when-it-happened and the ticket was filed as yesterday's.
+  if(/^(yes|yeah|yep|yup|y|correct|true)\b/.test(t)){const hit=values.find(v=>/^yes\b/i.test(v));if(hit)return hit;}
   // "No" means the negative option, not merely the first option that begins with the letters
   // n-o: "Not yet, but it will be" is a yes with a delay and must never absorb a plain "no".
   if(/^(no|nope|nah|n|none|false)\b/.test(t)){const hit=values.find(v=>/^no\b/i.test(v))||values.find(v=>/^(not|no)\b/i.test(v));if(hit)return hit;}
@@ -311,6 +422,63 @@ function normalizeAnswer(key:string,raw:string,values:readonly string[]):string|
   let best:{value:string;score:number}|undefined;
   for(const v of values){const score=v.toLowerCase().split(/[^a-z0-9]+/).filter(w=>w.length>3&&words.has(w)).length;if(score&&(!best||score>best.score))best={value:v,score};}
   return best?.value;
+}
+
+/** The closed value list for a field, when the field has one; undefined for free text.
+ *
+ *  This is what lets the model fill slots on every turn instead of only the first: it may
+ *  propose a value, but only one the rest of the system can read back. Routing, SLA rules,
+ *  dedup and every report compare these by exact value, so an unmatched suggestion is
+ *  dropped rather than written onto the ticket as prose. A field with no list keeps the
+ *  reporter's own words. */
+function canonicalValues(key:string,c:Record<string,unknown>,cfg:{taxonomy:Record<string,string[]>;studios:string[];formats:string[];trainers:string[]}):readonly string[]|undefined{
+  switch(key){
+    case 'category': return Object.keys(cfg.taxonomy);
+    case 'subcategory': return cfg.taxonomy[String(c.category)]||[];
+    case 'studio': return cfg.studios;              // never written from the model; listed for completeness
+    case 'incidentAt': return OCCURRED_OPTIONS;
+    case 'area': return studioAreasFor(typeof c.studio==='string'?c.studio:undefined);
+    case 'systemName': return SYSTEMS;
+    case 'classFormat': return cfg.formats;
+    case 'trainer': return cfg.trainers;
+    case 'reportedBy': return REPORTED_BY_OPTIONS;
+    case 'isClassImpacted': return ['Yes, blocking now','Not yet, but it will be','No, comfort / back-office only'];
+    case 'isImmediateDanger': return ['Yes — happening now','No, but it needs urgent attention'];
+    case 'alreadyReported': return ['Yes','Not yet'];
+    case 'lastSeen': return ['Locker','Studio floor','Lounge','Valet','Boutique','Changing room'];
+    case 'channelOfIssue': return ['Front desk','Phone','WhatsApp','Email','Social media'];
+    case 'cycleFirstOrRecurring': return ['First time','Recurring — happened before','Not sure'];
+    case 'memberImpact': return MEMBER_IMPACT_OPTIONS;
+    default: return undefined;                       // bikeNumber, cycleIssueType, cyclePart, impact…
+  }
+}
+
+/** The listed values closest to an answer that matched none of them.
+ *
+ *  An answer that lands on nothing used to be discarded in silence and the same question
+ *  came back, so the reporter typed it again. Offering the near misses turns that into a
+ *  correction: one tap, and the field is right. */
+function nearestValues(raw:string,values:readonly string[],limit=4):string[]{
+  const t=raw.trim().toLowerCase();if(!t||!values.length)return [];
+  const words=new Set(t.split(/[^a-z0-9]+/).filter(w=>w.length>2));
+  const scored=values.map(v=>{
+    const lower=v.toLowerCase();
+    let score=lower.split(/[^a-z0-9]+/).filter(w=>w.length>2&&words.has(w)).length;
+    if(lower.includes(t)||t.includes(lower))score+=2;
+    return {value:v,score};
+  }).filter(s=>s.score>0).sort((a,b)=>b.score-a.score);
+  const picked=scored.length?scored.map(s=>s.value):values.slice(0,limit);
+  return picked.slice(0,limit);
+}
+
+/** The bike number is in the opening sentence more often than not ("cycle no 6 broke"), so
+ *  read it instead of asking for it again. The trailing guard stops a class duration
+ *  ("cycle 45 min") from being filed as bike #45. */
+function extractBikeNumber(text:string):string|undefined{
+  const m=text.toLowerCase().match(/\b(?:bike|cycle|powercycle)\b(?:\s*(?:no\.?|number|num|#))?\s*(\d{1,2})\b(?!\s*(?:min|mins|minute|minutes|pax|people|members|riders))/);
+  if(m)return m[1];
+  const hash=text.match(/#\s*(\d{1,2})\b/);
+  return hash?hash[1]:undefined;
 }
 
 /** Per-field ask counts, read back off the session so they survive between requests. */
@@ -333,6 +501,9 @@ function detectUrgency(c:Record<string,unknown>):boolean{
 function extraSlot(category:string,c:Record<string,unknown>):{key:string;prompt:string;values:string[]}|null{
   const isMaintenance=category==='Repair and Maintenance'||category==='Studio Amenities and Facilities';
   const isTech=category==='Operating Systems'||category==='Tech Issues';
+  /** Anything on the floor that can disrupt a class, not only the two maintenance
+   *  categories: a dead mic costs a class its session exactly as a broken bike does. */
+  const isFault=isMaintenance||isTech;
   
   // Skip "already reported?" if they explicitly said they just noticed it — clearly not already logged
   const isStudioReport=c.reportedBy===REPORTED_BY_OPTIONS[0];
@@ -342,7 +513,10 @@ function extraSlot(category:string,c:Record<string,unknown>):{key:string;prompt:
   const isUrgent=c.isClassImpacted==='Yes, blocking now'||c.isImmediateDanger==='Yes — happening now'||c.isImmediateDanger==='No, but it needs urgent attention';
   
   // For maintenance/facilities: ask location, then impact, skip dedup if urgent
-  if(isMaintenance&&!c.area)return{key:'area',prompt:'Where in the studio is this?',values:[...STUDIO_AREAS]};
+  // Only the rooms this studio actually has. The full list put Kwality-only rooms
+  // ("Brain Cell", "His Space") on offer at every site, so a Bandra ticket could be filed
+  // against a room that does not exist there.
+  if(isMaintenance&&!c.area)return{key:'area',prompt:'Where in the studio is this?',values:studioAreasFor(typeof c.studio==='string'?c.studio:undefined)};
   if(isMaintenance&&!c.isClassImpacted)return{key:'isClassImpacted',prompt:'Is it affecting a live class right now?',values:['Yes, blocking now','Not yet, but it will be','No, comfort / back-office only']};
   
   // For tech issues: ask system, then impact, skip dedup if urgent
@@ -358,33 +532,120 @@ function extraSlot(category:string,c:Record<string,unknown>):{key:string;prompt:
   if(category==='Customer Service and Communication'&&!c.channelOfIssue)return{key:'channelOfIssue',prompt:'Where did this interaction happen?',values:['Front desk','Phone','WhatsApp','Email','Social media']};
 
   // PowerCycle / Stages SC3 bike-specific intake questions
-  const isCycleRelated=isMaintenance&&(/\b(bike|cycle|powercycle|power cycle|spin|pedal|flywheel|resistance|crank|handlebar|fitloc|console|saddle|belt|sprint\s?shift)\b/i.test(String(c.description||''))||/powercycle/i.test(String(c.area||''))||/powercycle/i.test(String(c.classFormat||'')));
+  const areaText=String(c.area||'');
+  const areaCanon=AREA_ALIASES[areaText.trim().toLowerCase()]||areaText;
+  const isCycleRelated=isMaintenance&&(/\b(bike|cycle|powercycle|power cycle|spin|pedal|flywheel|resistance|crank|handlebar|fitloc|console|saddle|belt|sprint\s?shift)\b/i.test(String(c.description||''))||/powercycle|cycle studio/i.test(areaCanon)||/powercycle/i.test(String(c.classFormat||'')));
   if(isCycleRelated){
     if(!c.bikeNumber)return{key:'bikeNumber',prompt:'Which bike number is this about? (e.g. Bike #3, Bike 7)',values:[]};
     if(!c.cycleIssueType){
-      // Auto-match from description if possible
+      // Auto-match from description if possible. The list is not the vocabulary — a symptom
+      // in the reporter's own words is kept as they wrote it, and only the parts the
+      // playbook can name are filled in from it.
       const desc=String(c.description||'').toLowerCase();
       const autoMatch=STAGES_SC3_TROUBLESHOOTING.find(t=>t.keywords.some(kw=>desc.includes(kw)));
-      if(autoMatch){c.cycleIssueType=autoMatch.symptom;c.cyclePart=STAGES_SC3_PARTS.find(p=>p.id===autoMatch.partId)?.name;return null;}
-      return{key:'cycleIssueType',prompt:'What exactly is the issue with this bike?',values:STAGES_SC3_TROUBLESHOOTING.map(t=>t.symptom)};
+      // Recognising the fault only settles that one question. It used to end the whole bike
+      // intake, so a fault named up front was filed without ever asking whether it had
+      // happened before or whether the bike had been taken out of rotation.
+      if(autoMatch){c.cycleIssueType=autoMatch.symptom;applyCycleSeverity(c);}
+      else return{key:'cycleIssueType',prompt:'What exactly is the issue with this bike?',values:STAGES_SC3_TROUBLESHOOTING.map(t=>t.symptom)};
     }
-    if(!c.cyclePart){
-      // Auto-fill from matched troubleshooting entry
-      const matched=STAGES_SC3_TROUBLESHOOTING.find(t=>t.symptom===c.cycleIssueType);
-      if(matched){c.cyclePart=STAGES_SC3_PARTS.find(p=>p.id===matched.partId)?.name;}
-      else return{key:'cyclePart',prompt:'Which part of the bike is affected?',values:STAGES_SC3_PARTS.map(p=>p.name)};
-    }
+    applyCycleSeverity(c);
+    if(!c.cyclePart)return{key:'cyclePart',prompt:'Which part of the bike is affected?',values:STAGES_SC3_PARTS.map(p=>p.name)};
     if(!c.cycleFirstOrRecurring)return{key:'cycleFirstOrRecurring',prompt:'Is this the first time this has happened on this bike, or has it happened before?',values:['First time','Recurring \u2014 happened before','Not sure']};
     if(!c.cycleReporterAction)return{key:'cycleReporterAction',prompt:'What did you do when you noticed it?',values:['Took bike out of rotation','Flagged it but class continued','Member reported mid-class','Noticed during setup/walkthrough']};
+  }
+
+  // Who it affected, as distinct from who reported it. Maintenance tickets were forced to
+  // "no member involved" before anyone could be asked, so a fault that cost a full class
+  // their session was filed with nobody on it.
+  if(isFault&&saysYes(String(c.isClassImpacted))&&!c.memberImpact)
+    return{key:'memberImpact',prompt:'Did any member lose part of their session because of this?',values:[...MEMBER_IMPACT_OPTIONS]};
+  if(isFault&&String(c.memberImpact).startsWith('Yes')&&!c.impactedMembers){
+    const roster=sessionRoster(c);
+    return{key:'impactedMembers',prompt:roster.length?'Who was affected? Tap a name, or type them all.':'Who was affected? Names if you have them.',values:roster};
   }
 
   return null;
 }
 
+/** Records the playbook severity and the affected part for whatever the symptom now is.
+ *  A symptom the playbook does not list keeps the reporter's wording and is left unscored:
+ *  inventing a part from free text is how a technician is sent out with the wrong tool. */
+function applyCycleSeverity(c:Record<string,unknown>){
+  const symptom=String(c.cycleIssueType||'').trim().toLowerCase();
+  if(!symptom)return;
+  const match=STAGES_SC3_TROUBLESHOOTING.find(t=>t.symptom.toLowerCase()===symptom);
+  if(!match){if(!c.cycleSeverity)c.cycleSeverity='unscored';return;}
+  c.cycleSeverity=match.severity;
+  if(!c.cyclePart)c.cyclePart=STAGES_SC3_PARTS.find(p=>p.id===match.partId)?.name;
+}
+
+/** The members booked into the linked Momence class, most recently checked-in first.
+ *  `/sessions/{id}/bookings` is already fetched when a session is picked and stored on the
+ *  session context — it was simply never read, so the people affected by a mid-class fault
+ *  were known to the system and unused. */
+function sessionRoster(c:Record<string,unknown>):string[]{
+  const ctx=obj(c.sessionContext);
+  const bookings=Array.isArray(ctx.bookings)?ctx.bookings as unknown[]:[];
+  const names=bookings
+    .filter(b=>!obj(b).cancelledAt)
+    .map(b=>String(obj(obj(b).member).name||'').trim())
+    .filter(n=>n.length>1);
+  return [...new Set(names)].slice(0,6);
+}
+
+/** "Yes, blocking now", "Yes — happening now", "Yes — members were affected": every
+ *  affirmation in the intake is a full sentence, so matching on equality misses them. */
+function saysYes(value:string):boolean{
+  return /^\s*yes\b/i.test(value||'');
+}
+
+/** The first contradiction worth stopping the intake for: one on a field the ticket
+ *  actually stores, whose two answers really differ, and that the reporter has not already
+ *  settled. `now` falls back to what the flow just bound, so a conflict that names the
+ *  field without repeating the answer still works. */
+/** One line on what the equipment register already knows, shown while the fault is being
+ *  reported — the moment it can still change what the reporter decides to do. */
+export function buildAssetNote(c:Record<string,unknown>):string|undefined{
+  const name=typeof c.assetName==='string'?c.assetName:'';
+  if(!name)return undefined;
+  const status=String(c.assetStatus||'in-service');
+  const faults=Number(c.assetFaults||0);
+  const faults30=Number(c.assetFaults30||0);
+  const open=Number(c.assetOpenFaults||0);
+  const when=String(c.assetLastFaultAt||'');
+  const whenLabel=when?new Date(when).toLocaleDateString('en-IN',{timeZone:'Asia/Kolkata',day:'numeric',month:'short'}):'';
+  const parts:string[]=[];
+  if(status!=='in-service')parts.push(`${name} is ${status.replace(/-/g,' ')}`);
+  if(faults>0){
+    parts.push(faults===1
+      ? `1 fault on record${whenLabel?` (${whenLabel})`:''}`
+      : `${faults} faults on record${faults30>1?`, ${faults30} in the last 30 days`:''}${whenLabel?`, last ${whenLabel}`:''}`);
+  }
+  if(open>0)parts.push(`${open} still open${c.assetLastTicket?` (${c.assetLastTicket})`:''}`);
+  if(!parts.length)parts.push(`${name} — no faults on record`);
+  return parts.join(' · ');
+}
+
+export function firstConflict(proposed:ProposedTurn,c:Record<string,unknown>):{field:string;earlier:string;now:string}|undefined{
+  const settled=obj(c._clarified);
+  for(const entry of proposed.conflicts||[]){
+    const field=String(entry?.field||'');
+    const earlier=String(entry?.earlier||'').trim();
+    const now=(String(entry?.now||'').trim())||String(c[field]||'').trim();
+    if(!field||!earlier||!now)continue;
+    if(!FIELD_KEYS.includes(field))continue;
+    if(earlier.toLowerCase()===now.toLowerCase())continue;
+    if(settled[field])continue;
+    return {field,earlier,now};
+  }
+  return undefined;
+}
+
 /** The intake answers that belong on the ticket. Undefined keys are dropped so the
  *  stored JSON stays readable. */
 function intakeAnswers(c:Record<string,unknown>){
-  const out:Record<string,unknown>={reportedBy:c.reportedBy,sessionContext:c.sessionContext,area:c.area,systemName:c.systemName,isClassImpacted:c.isClassImpacted,isImmediateDanger:c.isImmediateDanger,alreadyReported:c.alreadyReported,itemDescription:c.itemDescription,lastSeen:c.lastSeen,channelOfIssue:c.channelOfIssue,occurredAt:occurredAtIso(c.incidentAt),bikeNumber:c.bikeNumber,cycleIssueType:c.cycleIssueType,cyclePart:c.cyclePart,cycleFirstOrRecurring:c.cycleFirstOrRecurring,cycleReporterAction:c.cycleReporterAction};
+  const out:Record<string,unknown>={reportedBy:c.reportedBy,sessionContext:c.sessionContext,area:c.area,systemName:c.systemName,isClassImpacted:c.isClassImpacted,isImmediateDanger:c.isImmediateDanger,alreadyReported:c.alreadyReported,itemDescription:c.itemDescription,lastSeen:c.lastSeen,channelOfIssue:c.channelOfIssue,occurredAt:occurredAtIso(c.incidentAt),bikeNumber:c.bikeNumber,cycleIssueType:c.cycleIssueType,cyclePart:c.cyclePart,cycleSeverity:c.cycleSeverity,cycleFirstOrRecurring:c.cycleFirstOrRecurring,cycleReporterAction:c.cycleReporterAction,memberImpact:c.memberImpact,impactedMembers:c.impactedMembers,assetId:c.assetId,assetName:c.assetName,assetStatus:c.assetStatus};
   for(const k of Object.keys(out))if(out[k]===undefined||out[k]==='')delete out[k];
   return out;
 }
@@ -398,6 +659,20 @@ function occurredAtIso(value:unknown):string|undefined{
   const offsets:Record<string,number>={'Just now':0,'Earlier today':4*3600000,'Yesterday':day,'Earlier this week':3*day,'Last week':7*day,'Ongoing / recurring':0};
   const offset=offsets[label];
   return offset===undefined?undefined:new Date(now-offset).toISOString();
+}
+
+/** Momence returns a full timestamp for a class that was picked out of the schedule. The
+ *  intake records a phrase — "Just now", "Earlier today" — and every list, digest and
+ *  recap shows that phrase, so translate rather than storing an unreadable stamp. */
+function incidentAtLabelFromIso(value:string):string|undefined{
+  const parsed=Date.parse(value);
+  if(!Number.isFinite(parsed))return undefined;
+  const hours=(Date.now()-parsed)/3600000;
+  if(hours<2)return 'Just now';
+  if(hours<14)return 'Earlier today';
+  if(hours<36)return 'Yesterday';
+  if(hours<24*5)return 'Earlier this week';
+  return 'Last week';
 }
 
 function getIstTimeGreeting(): string {
@@ -484,6 +759,22 @@ if(raw.startsWith('A member told me')||raw.startsWith('I noticed something')||ra
 else if(raw==='__accept_category__'){c._categoryConfirmed=true;}else if(raw==='__reject_category__'){delete c.category;delete c.subcategory;delete c._guess;c._categoryRejected=true;c._categoryInferred=false;c._categoryConfirmed=true;}else if(raw==='__manual_member__'){c.memberLookupDone=true;c.manualMember=true;}else if(raw==='__studio_report__'){c.memberLookupDone=true;c.memberName=c.reportedBy===REPORTED_BY_OPTIONS[1]?'Member (not named)':'Studio team observation';c.memberEmail='';c.studioReport=true;}else if(raw==='__manual_session__'){c.sessionLookupDone=true;c.manualSession=true;}else if(raw==='__hosted_class__'){c.hostedClass=true;c.classFormat=c.classFormat||'Studio Hosted Class';}else if(raw==='__manual_studio_time__'){
   // User chose to enter studio/time manually — fall through to normal processing
 }
+else if(raw.startsWith('__link__:')){
+  // "Yes, that's the same one" — the report is folded into the ticket that is already open
+  // instead of becoming a second ticket about the same fault.
+  const id=Number(raw.slice('__link__:'.length));
+  if(Number.isFinite(id)&&id>0){c._linkTo=id;c._dupChecked=true;}
+}
+else if(raw.startsWith('__new__:')){
+  // "Log it separately" — still recorded as related, so the two can be read together.
+  const id=Number(raw.slice('__new__:'.length));
+  if(Number.isFinite(id)&&id>0){c._relatedTicketId=id;c._dupChecked=true;}
+}
+else if(raw===OTHER_VALUE&&priorField){
+  // None of the answers on screen was theirs. The next message is the answer, taken
+  // exactly as typed instead of being matched against a list it does not appear in.
+  c._freeTextFor=priorField;delete c[priorField];delete c._unmatchedFor;delete c._unmatchedRaw;
+}
 else if(['kwality-earlier','kwality-yesterday','fort-earlier','fort-yesterday'].includes(raw)){
   // BUNDLED RESPONSE: Parse studio + incidentAt shortcut
   const parts=raw.split('-');c.studio=parts[0]==='kwality'?'Kwality House, Kemps Corner':'Fort';c.incidentAt=parts[1]==='earlier'?'Earlier today':'Yesterday';
@@ -492,8 +783,34 @@ else if(raw&&!raw.startsWith('__')){
 // Extract cross-cutting facts first. This is deliberately before pending-field binding:
 // a location/time update must not become a member name merely because Iris happened to
 // be showing the member picker in the previous turn.
-applyMessageFacts(c,raw);
-if(priorField==='studioAndTime'){
+applyMessageFacts(c,raw,priorField);
+if(typeof c._freeTextFor==='string'&&c._freeTextFor){
+  // An answer given in their own words, after "Something else" — or after an answer that
+  // matched nothing on the list. It is stored as typed; asking again would only lose it.
+  if(FIELD_KEYS.includes(c._freeTextFor)){
+    c[c._freeTextFor]=raw.slice(0,500);
+    // Remember that this one was answered in their own words. The canonical checks further
+    // down exist to keep an off-list value out of a field that routing reads by exact
+    // match — applied to an answer the reporter was invited to type, they deleted it.
+    c._freeTextFields=[...new Set([...(Array.isArray(c._freeTextFields)?c._freeTextFields.map(String):[]),c._freeTextFor])];
+  }
+  delete c._freeTextFor;delete c._unmatchedFor;delete c._unmatchedRaw;
+}
+else if(priorField===CLARIFY_FIELD){
+  // Resolving a contradiction. Whichever of the two they pick, or whatever they type
+  // instead, becomes the value — and that field is never contradicted a second time.
+  const pending=obj(c._clarify);
+  const field=typeof pending.field==='string'?pending.field:'';
+  const offered=Array.isArray(pending.options)?(pending.options as unknown[]).filter((v):v is string=>typeof v==='string'&&!v.startsWith('__')):[];
+  if(raw===OTHER_VALUE&&field){c._freeTextFor=field;delete c[field];}
+  else if(field){
+    const matched=offered.length?normalizeAnswer(field,raw,offered):undefined;
+    c[field]=matched||raw.slice(0,500);
+    c._clarified={...obj(c._clarified),[field]:true};
+  }
+  delete c._clarify;delete c._unmatchedFor;delete c._unmatchedRaw;
+}
+else if(priorField==='studioAndTime'){
   // The bundled question has no field of its own: its answer carries two. Before this split
   // existed the answer matched no known field and was appended to the description, leaving
   // studio and time empty — so the same question came back every turn, forever.
@@ -522,6 +839,12 @@ else if(priorField&&FIELD_KEYS.includes(priorField)){
   if(value!==undefined)c[priorField]=value;
   if(priorField==='category'&&value!==undefined){delete c.subcategory;c._categoryInferred=false;c._categoryConfirmed=true;delete c._categoryRejected;}
   if(priorField==='studio'){const m=matchStudio(raw);if(m)c.studio=m;else if(strict&&value===undefined)delete c.studio;}
+  // An answer that matched nothing on a closed list used to vanish: the field stayed empty
+  // and the identical question came back, so the reporter typed the same words again and
+  // the field was eventually filed as "Not specified". Remember it instead, and offer the
+  // near misses next turn so one tap puts it right.
+  if(strict&&value===undefined&&(c[priorField]===undefined||c[priorField]===''||c[priorField]==='—')){c._unmatchedFor=priorField;c._unmatchedRaw=raw.slice(0,200);}
+  else{delete c._unmatchedFor;delete c._unmatchedRaw;}
 }
 else if(!/^(yes|no|ok|okay|nope|yeah|yep|nah|sure|thanks|thank you)\W*$/i.test(raw))c.description=String(c.description||'')+(c.description?'\n':'')+raw;
 {const heuristic=extractEntities(raw);for(const[k,v]of Object.entries(heuristic)){if(!FIELD_KEYS.includes(k)||v===undefined||c[k])continue;if(k==='studio'){const m=matchStudio(String(v));if(m)c.studio=m;continue;}if(k==='category')c._categoryInferred=true;c[k]=v;}
@@ -545,7 +868,7 @@ if(/\b(loved|love|amazing|compliment|wonderful|excellent|fantastic|appreciation)
 askModel=async(plannedField?:string)=>{ if(!ai)return; try{
   // Shared by both passes: a tool call means the model runs twice, and whatever the first
   // pass streamed is already on screen, so it must not be re-streamed or forgotten.
-  let ackReleased=false,acceptedAck='',acceptedQuestion='',questionDone=false;
+  let ackReleased=false,acceptedAck='',acceptedQuestion='',questionDone=false,conflictSeen=false;
 // Grounding the one call properly is what the second call used to be for: examples of how
 // tickets like this one read, and whether this is an emergency or a note for later.
 const guessCat=String(c.category||obj(c._guess).category||'');
@@ -571,9 +894,10 @@ Do not guess a member, class, date, studio or contact detail — a room referenc
 
 SECOND JOB — write the next exchange. Staff should feel talked to, not interrogated, so the
 same call that reads the facts also proposes the reply. Return:
-{"turn":{"ack":"...","nextField":"...","question":"...","options":[{"label":"...","value":"..."}]},"fields":{...}}
+{"conflicts":[{"field":"...","earlier":"...","now":"..."}],"turn":{"ack":"...","nextField":"...","question":"...","options":[{"label":"...","value":"..."}]},"fields":{...}}
 ${plannedField?`The next field is already decided: "${plannedField}" — ${FIELD_DESCRIPTIONS[plannedField]||plannedField}. Set turn.nextField to exactly that and ask for exactly that; your question is shown to the reporter as you write it, so do not change course mid-sentence.`:''}
-Emit the keys in exactly that order, with turn.ack first — it is shown to the reporter while the rest of your answer is still being written, so anything before it is dead air.
+Emit "conflicts" first, then "turn", then "fields". Conflicts come first because they are read before anything is shown to the reporter, so a question is never typed out and then withdrawn.
+- conflicts: MANDATORY whenever their latest answer contradicts something already recorded — this overrides "do not change course". Compare what they just said against the description and against Current facts. Example: the opening line said "pedal came off" and they then chose "Resistance knob not engaging"; that is a conflict on cycleIssueType with earlier "pedal came off" and now "Resistance knob not engaging". Example: they said Studio 2 and now say Studio 1. Each entry is {"field":<a field name>,"earlier":<what was recorded first>,"now":<what they say now>}. A refinement, a spelling difference or extra detail is NOT a conflict. Omit the key, or return [], when nothing contradicts.
 - ack: at most 14 words reacting to what they just said, and never one you have already used earlier in this conversation, in ${cfg.aiVoice?'the studio voice':'a warm, professional voice'}. No question, no sign-off, no thanks. Omit when there is nothing new to react to.
 - nextField: the single most useful field still missing. These are the fields and what each one means: ${JSON.stringify(FIELD_DESCRIPTIONS)}. Never name a field already present in Current facts.
 - question: one sentence, at most 22 words, asking only for nextField, ending in a question mark.
@@ -614,9 +938,14 @@ const runPass=async(withTools:boolean):Promise<Pass>=>{
         ackReleased=true;
         if(usableAck(ack.value)){acceptedAck=ack.value.trim();input.onAckDelta(acceptedAck);}
       }
+      // A contradiction is written before the question, so it is known while the question is
+      // still being generated. Once one is seen the question is held back: the turn the
+      // reporter gets asks about the contradiction instead, and nothing is typed out and
+      // then withdrawn.
+      if(!conflictSeen){const seen=scanStreamedArray(content,'conflicts');if(parseConflictFragments(seen.items).length)conflictSeen=true;}
       // The question streams for real, but only when the field was settled before the call:
       // otherwise the model may be answering a different question than the one shown.
-      if(plannedField&&ackReleased&&!questionDone){
+      if(plannedField&&ackReleased&&!questionDone&&!conflictSeen){
         const q=scanStreamedString(content,'question');
         if(q.value.length>acceptedQuestion.length){
           if(!acceptedQuestion&&acceptedAck)input.onAckDelta(ackSeparator(acceptedAck));
@@ -641,7 +970,9 @@ let pass=await runPass(true);
 const calls=pass.toolCalls;if(calls.length){messages.push({role:'assistant',content:pass.content||null,tool_calls:calls});for(const call of calls){if(call.type!=='function')continue;let output:unknown;try{const args=obj(JSON.parse(call.function.arguments));if(!['members','sessions'].includes(String(args.module)))throw new Error('Invalid module');const found=await listMomence(args.module as 'members'|'sessions',{query:String(args.query||''),pageSize:5});output={source:found.source,suggestions:found.items.map(i=>({id:i.id,name:i.name}))};}catch{output={error:'Lookup unavailable. Ask the user to search and select manually.'};}messages.push({role:'tool',tool_call_id:call.id,content:JSON.stringify(output)});}pass=await runPass(false);}
 const parsed=obj(JSON.parse(pass.content||'{}'));
 const rawTurn=obj(parsed.turn);
+const parsedConflicts=Array.isArray(parsed.conflicts)?parsed.conflicts.map(obj):[];
 proposed={
+  conflicts:parsedConflicts.map(o=>({field:typeof o.field==='string'?o.field:'',earlier:typeof o.earlier==='string'?o.earlier:'',now:typeof o.now==='string'?o.now:''})),
   ack:typeof rawTurn.ack==='string'?rawTurn.ack:undefined,
   nextField:typeof rawTurn.nextField==='string'?rawTurn.nextField:undefined,
   question:acceptedQuestion||(typeof rawTurn.question==='string'?rawTurn.question:undefined),
@@ -649,7 +980,18 @@ proposed={
   shownQuestion:Boolean(acceptedQuestion),
   options:Array.isArray(rawTurn.options)?rawTurn.options.map(obj).filter(o=>typeof o.label==='string'&&typeof o.value==='string').map(o=>({label:String(o.label).slice(0,60),value:String(o.value).slice(0,120)})).slice(0,6):undefined,
 };
-const fields=trustModelFields?obj(parsed.fields):{};for(const[k,v]of Object.entries(fields)){if(!FIELD_KEYS.includes(k)||typeof v!=='string'||v.length>=20000)continue;
+// The model extracts on every turn, not only on the opening description. Discarding its
+// facts from turn two onwards left the regex heuristics as the only extractor, which is why
+// a bike number or a symptom stated up front still had to be asked for again — and why
+// every new phrasing needed a new keyword before it could be recognised at all.
+// Who decides has not changed: a value it proposes still has to be one the rest of the
+// system can read back, and it only ever fills a slot nobody has filled yet, so it can
+// never overwrite an answer the reporter actually gave.
+const fields=obj(parsed.fields);for(const[k,v]of Object.entries(fields)){if(!FIELD_KEYS.includes(k)||typeof v!=='string'||v.length>=20000)continue;
+if(k==='subcategory'&&!c.category)continue;                  // a subcategory with no category cannot be validated
+if(k==='description')continue;                               // the narrative is the reporter's; the model never rewrites it
+if(k==='bikeNumber'&&!/^\d{1,3}$/.test(v.trim()))continue;   // a bike number is a number
+if(c[k]!==undefined&&c[k]!==''&&c[k]!=='—')continue;
 // A studio names a site the ticket gets routed to, so the model's answer has to resolve
 // through the same alias table a typed answer does. "Studio 1" is a room, not a site:
 // it resolves to nothing, the field stays empty, and the flow asks which studio it is.
@@ -658,8 +1000,11 @@ const fields=trustModelFields?obj(parsed.fields):{};for(const[k,v]of Object.entr
 // files the ticket against the wrong location. The alias match on the reporter's own
 // words is the only trusted source; when that finds nothing, the flow asks.
 if(k==='studio')continue;
+const allowed=canonicalValues(k,c,cfg);
+if(allowed&&allowed.length){const matched=normalizeAnswer(k,v,allowed);if(!matched)continue;c[k]=matched;}
+else c[k]=v.slice(0,500);
 if(k==='category'&&!c.category)c._categoryInferred=true;
-c[k]=v;}
+}
 }catch{engine='guided';notice='AI is unavailable right now. Your answers are saved; guided assistance is continuing.';} };
 if(raw&&trustModelFields)await askModel();
 }
@@ -667,7 +1012,20 @@ if(c.category&&!cfg.taxonomy[String(c.category)])delete c.category;if(c.category
 // Same contract for the two fields that steer routing and reporting: an unrecognised
 // value is dropped rather than written onto the ticket unchallenged.
 if(c.studio&&!cfg.studios.includes(String(c.studio))){const m=matchStudio(String(c.studio));if(m)c.studio=m;else delete c.studio;}
-if(c.area&&!STUDIO_AREAS.includes(String(c.area) as typeof STUDIO_AREAS[number]))delete c.area;
+// A room the reporter typed because the list did not have it is kept; every other area has
+// to be one the studio actually has.
+const freeTextFields=new Set(Array.isArray(c._freeTextFields)?c._freeTextFields.map(String):[]);
+if(c.area&&!freeTextFields.has('area')&&!STUDIO_AREAS.includes(String(c.area) as typeof STUDIO_AREAS[number]))delete c.area;
+// A class format belongs on a ticket about a class. On a maintenance ticket it arrived by
+// matching the word for the room — "cycle" was read as the "Studio PowerCycle" class
+// format — which renamed the ticket and logged the fault as having happened during that
+// class. It survives only once a Momence session has actually been linked to it.
+if(['Repair and Maintenance','Studio Amenities and Facilities','Tech Issues','Operating Systems'].includes(String(c.category))&&!c.momenceSessionId&&c.classFormat)delete c.classFormat;
+// Momence answers with a timestamp; the intake records a phrase.
+if(typeof c.incidentAt==='string'&&c.incidentAt&&!OCCURRED_OPTIONS.includes(c.incidentAt as typeof OCCURRED_OPTIONS[number])){
+  const label=incidentAtLabelFromIso(c.incidentAt);
+  if(label)c.incidentAt=label;
+}
 if(!['issue','request','compliment','feedback','assessment'].includes(String(c.kind)))c.kind='issue';
 if(c.memberEmail&&typeof c.memberEmail==='string'&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c.memberEmail))delete c.memberEmail;
 defaultOperationalFields(c);
@@ -675,9 +1033,17 @@ const asked=askCounts(c);
 // A long conversation that still has open optional fields is a conversation that is not
 // converging. Fill them in so the draft — the point of the whole exchange — is reachable.
 if(input.history.filter(m=>m.role==='assistant').length>=HARD_CAP)for(const k of SKIPPABLE)if(!c[k])c[k]=SKIP_VALUE[k]||SKIPPED;
-let fieldKey:string|undefined,lookup:'members'|'sessions'|undefined,question='',opts:{label:string;value:string}[]|undefined=[];let lookupFilters:{studio?:string;sessionTypes?:string[]}|undefined;
+let fieldKey:string|undefined,lookup:'members'|'sessions'|undefined,question='',opts:{label:string;value:string}[]|undefined=[];let lookupFilters:{studio?:string;sessionTypes?:string[];upcoming?:boolean}|undefined;
 const choose=(key:string,prompt:string,values:string[]=[])=>{fieldKey=key;question=prompt;opts=options(values);};
 const classRelated=['Class Experience','Trainer Feedback','Scheduling'].includes(String(c.category));const praise=c.kind==='compliment'||c.kind==='feedback'&&c.sentiment==='positive';
+// A fault that is disrupting a class has a class attached to it, even when the ticket is a
+// maintenance one. The session lookup used to be gated on the category alone, so the only
+// tickets that ever resolved a class were the ones already about classes — a bike failing
+// mid-session was never connected to the session it broke.
+if(c._momenceReady===undefined)c._momenceReady=await momenceConfigured();
+const momenceReady=c._momenceReady===true;
+const classDisrupted=c.isClassImpacted==='Yes, blocking now'||c.isClassImpacted==='Not yet, but it will be';
+const wantsSession=Boolean(momenceReady&&classDisrupted&&!c.sessionLookupDone&&typeof c.studio==='string'&&c.studio!=='—');
 const isStudioReport=c.reportedBy===REPORTED_BY_OPTIONS[0];
 const isColleagueReport=c.reportedBy===REPORTED_BY_OPTIONS[2];
 const isMemberReport=c.reportedBy===REPORTED_BY_OPTIONS[1];
@@ -685,6 +1051,27 @@ const isMemberReport=c.reportedBy===REPORTED_BY_OPTIONS[1];
 // CONTEXT-AWARE FLOW: Skip redundant questions based on what we already know
 const isFacilityCat = ['Repair and Maintenance','Studio Amenities and Facilities','Tech Issues','Operating Systems'].includes(String(c.category));
 const hasMemberName = c.memberName && String(c.memberName).trim() && String(c.memberName) !== 'Studio team observation';
+
+// Which piece of equipment this is about, and what the register already knows about it.
+// "bike 6" was a string typed fresh onto every ticket, so nothing could tell a first fault
+// from a fifth: resolving it to an asset is what turns "this keeps happening" into a count.
+if(isFacilityCat&&!c.assetId&&c.bikeNumber&&typeof c.studio==='string'&&c.studio!=='—'){
+  const ref=parseAssetReference(`bike ${c.bikeNumber}`);
+  if(ref){
+    const asset=await resolveAsset({studio:String(c.studio),type:ref.type,label:ref.label,area:typeof c.area==='string'?c.area:null});
+    if(asset){
+      c.assetId=asset.id;c.assetName=asset.name;
+      // Read the history once and carry it: the note below is built from these on every
+      // later turn, without another round of queries.
+      const brief=await assetBrief(asset.id);
+      if(brief){
+        c.assetStatus=brief.asset.status;c.assetFaults=brief.faults;c.assetFaults30=brief.faultsLast30;
+        c.assetOpenFaults=brief.openFaults;c.assetLastFaultAt=brief.lastFaultAt;
+        c.assetLastTicket=brief.lastTicketNumber;
+      }
+    }
+  }
+}
 
 if(!c.description||String(c.description).length<12){
   // Only ask description if welcome was processed (meaning reportedBy is set)
@@ -738,9 +1125,12 @@ else if(!c.memberLookupDone){
   question=`Who is this member? Search Momence, or skip if you'd rather not name them yet.`;
   opts=[{label:'Not member-specific',value:'__studio_report__'},{label:'Enter member details manually',value:'__manual_member__'}];
 }
-else if(classRelated&&!c.sessionLookupDone){fieldKey='sessionLookup';lookup='sessions';question=`Which class was this? Pick the session and I'll pull in the trainer, studio and time.`;
+else if((classRelated||wantsSession)&&!c.sessionLookupDone){fieldKey='sessionLookup';lookup='sessions';
+question=classRelated?`Which class was this? Pick the session and I'll pull in the trainer, studio and time.`:`Which class was affected? Pick it and I'll pull in the trainer and time — and who was booked in.`;
 const hosted=c.hostedClass===true||c.classFormat==='Studio Hosted Class';
-lookupFilters={studio:typeof c.studio==='string'&&c.studio!=='—'?c.studio:undefined,sessionTypes:hosted?['private']:undefined};
+// The schedule defaults to classes that have already run, which is right for a class that
+// is underway now and wrong for one that has not started — that one is still upcoming.
+lookupFilters={studio:typeof c.studio==='string'&&c.studio!=='—'?c.studio:undefined,sessionTypes:hosted?['private']:undefined,upcoming:c.isClassImpacted==='Not yet, but it will be'};
 opts=[{label:'Session not listed / enter manually',value:'__manual_session__'},...(hosted?[]:[{label:'It was a hosted / private class',value:'__hosted_class__'}])];}
 else if((!c.studio||c.studio==='—')&&!c.incidentAt&&!c._bundleTried){
   fieldKey='studioAndTime';
@@ -788,12 +1178,33 @@ else if(['Member expects a callback'].includes(String(c.preferredContact))&&!c.m
   question=`What's the best number to reach them?`;
   opts=undefined;
 }}
+// Every closed list carries an escape hatch. Without one the only way to answer freely is
+// to type, and a typed answer that matches nothing on the list is dropped without a word.
+if(fieldKey&&opts&&opts.length&&!fieldKey.includes('Lookup')&&!opts.every(o=>o.value.startsWith('__')))opts=[...opts,{label:'Something else',value:OTHER_VALUE}];
+// They asked to answer in their own words: no chips, or the same list they just rejected.
+if(fieldKey&&typeof c._freeTextFor==='string'&&c._freeTextFor===fieldKey){
+  opts=undefined;
+  question=`Go ahead — what is it, in your own words?`;
+}
+// They did answer, and it matched nothing. Say so, and offer the near misses instead of
+// asking the identical question again until the field is filed as "Not specified".
+if(fieldKey&&typeof c._unmatchedFor==='string'&&c._unmatchedFor===fieldKey){
+  const listed=(opts||[]).map(o=>o.value).filter(v=>!v.startsWith('__'));
+  const near=nearestValues(String(c._unmatchedRaw||''),listed);
+  if(near.length){
+    question=`I didn't catch "${String(c._unmatchedRaw||'').slice(0,60)}" — did you mean one of these?`;
+    opts=[...near.map(v=>({label:v,value:v})),{label:'Something else',value:OTHER_VALUE}];
+  }
+}
 if(fieldKey&&(asked[fieldKey]||0)>=ASK_LIMIT){
   if(fieldKey==='studioAndTime'){c._bundleTried=true;return runIris({...input,message:undefined,collected:c,patch:undefined,proposedTurn:proposed});}
   if(SKIPPABLE.has(fieldKey)){c[fieldKey]=SKIP_VALUE[fieldKey]||SKIPPED;return runIris({...input,message:undefined,collected:c,patch:undefined,proposedTurn:proposed});}
   if(fieldKey==='confirmCategory'){c._categoryConfirmed=true;return runIris({...input,message:undefined,collected:c,patch:undefined,proposedTurn:proposed});}
   if(fieldKey==='memberLookup'){c.memberLookupDone=true;c.studioReport=true;c.memberName=c.memberName||'Studio team observation';return runIris({...input,message:undefined,collected:c,patch:undefined,proposedTurn:proposed});}
   if(fieldKey==='sessionLookup'){c.sessionLookupDone=true;c.manualSession=true;return runIris({...input,message:undefined,collected:c,patch:undefined,proposedTurn:proposed});}
+  // Asking three times whether it is the same fault is worse than filing it — take the
+  // hint, note the possible duplicate on the ticket and let a human decide.
+  if(fieldKey===DUPLICATE_FIELD){c._dupChecked=true;const d=obj(c._duplicate);if(Number(d.id)>0)c._relatedTicketId=Number(d.id);return runIris({...input,message:undefined,collected:c,patch:undefined,proposedTurn:proposed});}
 }
 if(fieldKey)asked[fieldKey]=(asked[fieldKey]||0)+1;
 c._asked=asked;
@@ -804,11 +1215,34 @@ const required=['description','category','subcategory','studio','incidentAt',...
 // URGENCY OVERRIDE: If blocking right now or needs urgent attention, skip to draft early
 const isBlockingNow=c.isClassImpacted==='Yes, blocking now'||c.isImmediateDanger==='Yes — happening now'||c.isImmediateDanger==='No, but it needs urgent attention';
 const urgentRequired=isBlockingNow?required.filter(k=>!['alreadyReported','preferredContact','impact','requestedResolution','trainer','classFormat'].includes(k)):required;
+// A fault already logged at this site is worth one question before a second ticket exists.
+// Asked at the very end, when the asset, the room and the category are all known — earlier
+// and every AC fault at the studio looks like the same AC fault.
+if(!fieldKey&&!c._dupChecked){
+  const duplicate=await findDuplicate(c);
+  if(duplicate){
+    c._duplicate={id:duplicate.id,ticketNumber:duplicate.ticketNumber,title:duplicate.title,recurrence:duplicate.recurrence,ageLabel:duplicate.ageLabel,reasons:duplicate.reasons,status:duplicate.status,assignedStaffName:duplicate.assignedStaffName};
+    fieldKey=DUPLICATE_FIELD;
+    question=`This may already be logged — ${duplicate.ticketNumber} "${duplicate.title}" was opened ${duplicate.ageLabel} (${duplicate.reasons.join(', ')}). Is that the same one?`;
+    opts=[
+      {label:`Yes — add it to ${duplicate.ticketNumber}`,value:`__link__:${duplicate.id}`},
+      {label:'No — log this separately',value:`__new__:${duplicate.id}`},
+    ];
+  }else c._dupChecked=true;
+}
+// They said it is the same fault. Nothing is written here — the route folds the report into
+// the open ticket, which is where this session's writes already live.
+if(!fieldKey&&Number(c._linkTo||0)>0){
+  const chosen=obj(c._duplicate);
+  return{sessionId:input.sessionId,message:`Adding this to ${String(chosen.ticketNumber||'the open ticket')} as report #${Number(chosen.recurrence||2)} — no second ticket will be created.`,phase:'collect',fieldKey:undefined,options:[],collected:c,assetNote:buildAssetNote(c),linkedTicket:{id:Number(c._linkTo),ticketNumber:String(chosen.ticketNumber||''),recurrence:Number(chosen.recurrence||2)},progress:{done:urgentRequired.length,total:urgentRequired.length},engine,notice};
+}
 let draft:AdvancedDraft|undefined;if(!fieldKey){const cf=obj(c.customFields);draft=await makeDraft({...c,description:c.description,memberName:c.memberName||'Studio team observation',memberEmail:c.memberEmail||'',kind:c.kind,source:'iris',sentiment:praise?'positive':c.sentiment||inferSentiment(String(c.description)),customFields:{...cf,...intakeAnswers(c)},preferredContact:c.preferredContact||'Internal log only',momenceContext:c.momenceContext});// The recap is the deliverable: the reporter needs to see the routing, priority and SLA the
 // ticket will carry before approving it, not just be told that a ticket exists.
 // Include area for facility/maintenance tickets so the exact room is visible at a glance.
 const locationTail = [draft.studio, (isFacilityCat && c.area) ? String(c.area) : '', draft.incidentAt].filter(Boolean).join(' · ');
-const recap=['• '+draft.title,`• ${draft.category} → ${draft.subcategory}`,`• ${draft.departmentName}${draft.assignedStaffName?` · ${draft.assignedStaffName}`:''}`,`• ${draft.priority} priority${draft.resolutionRequired&&draft.slaLabel?` · ${draft.slaLabel}`:''}`,`• ${locationTail}`].join('\n');
+const assetLine=buildAssetNote(c);
+const related=obj(c._duplicate);
+const recap=['• '+draft.title,`• ${draft.category} → ${draft.subcategory}`,...(assetLine?['• '+assetLine]:[]),...(Number(c._relatedTicketId)>0?[`• Logged separately from ${String(related.ticketNumber||'an open ticket at this studio')} — the two are linked`]:[]),`• ${draft.departmentName}${draft.assignedStaffName?` · ${draft.assignedStaffName}`:''}`,`• ${draft.priority} priority${draft.resolutionRequired&&draft.slaLabel?` · ${draft.slaLabel}`:''}`,`• ${locationTail}`].join('\n');
 question=(praise?'This is ready to log — no SLA or resolution is needed for a compliment.':'Here\u2019s the ticket, ready to file.')+'\n\n'+recap+'\n\nReview it, then approve when it\u2019s accurate.';}
 // The acknowledgement is written once, by the model, inside the block above. A second canned
 // one prefixed here is what produced "Understood. Understood, you spotted the mic issue...".
@@ -823,6 +1257,18 @@ question=(praise?'This is ready to log — no SLA or resolution is needed for a 
 // A picker turn's line explains what the picker does ("Pick the session and I'll pull in the
 // trainer, studio and time"), so it keeps its words and takes only the acknowledgement.
 if(raw&&!trustModelFields&&fieldKey)await askModel(fieldKey.includes('Lookup')?undefined:fieldKey);
+// A contradiction outranks the next question. The model writes conflicts before anything
+// the reporter reads, so this arrives instead of the question it was about to ask: a
+// ticket filed quickly is worth nothing if it is filed wrong. Raised once per field — a
+// reporter who repeats the newer answer is correcting themselves, not confused.
+const conflict=firstConflict(proposed,c);
+if(conflict&&fieldKey&&fieldKey!==CLARIFY_FIELD&&Number(c._clarifyCount||0)<CLARIFY_LIMIT){
+  c._clarify={field:conflict.field,options:[conflict.earlier,conflict.now]};
+  c._clarifyCount=Number(c._clarifyCount||0)+1;
+  fieldKey=CLARIFY_FIELD;lookup=undefined;lookupFilters=undefined;
+  question=`You said "${conflict.earlier}" earlier, and "${conflict.now}" just now — which one should go on the ticket?`;
+  opts=[{label:conflict.now,value:conflict.now},{label:conflict.earlier,value:conflict.earlier},{label:'Neither — let me type it',value:OTHER_VALUE}];
+}
 if(engine==='openai'){
   const lastAssistantMessage=input.history.filter(m=>m.role==='assistant').pop()?.content;
   const merged=mergeProposedTurn({fieldKey:fieldKey||'',question,options:opts,proposed,lastAssistantMessage});
@@ -837,4 +1283,4 @@ if(c.category==='Safety and Security'&&!c._safetyShown){question='If anyone is i
 c._fieldKey=fieldKey||'';
 c._options=(opts||[]).map(o=>o.value);
 const done=urgentRequired.filter(k=>Boolean(c[k])).length;
-return{sessionId:input.sessionId,message:question,phase:draft?'draft':'collect',fieldKey,lookup,lookupFilters,options:opts,collected:c,draft,progress:{done,total:urgentRequired.length},engine,notice};}
+return{sessionId:input.sessionId,message:question,phase:draft?'draft':'collect',fieldKey,lookup,lookupFilters,options:opts,collected:c,draft,assetNote:buildAssetNote(c),progress:{done,total:urgentRequired.length},engine,notice};}

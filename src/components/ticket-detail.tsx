@@ -16,6 +16,7 @@ import {
   Tag,
   Clock3,
   X,
+  Wrench,
   FileText,
   MapPin,
   Mail,
@@ -678,6 +679,34 @@ export function TicketDialog({
                               <ArrowUpRight size={13} />
                             </button>
                           )}
+                          {/* Which piece of equipment, and what state it is in. The register
+                              holds every fault ever logged against it. */}
+                          {t.assetId ? (
+                            <a
+                              className="related-ticket"
+                              href={
+                                "/equipment?studio=" + encodeURIComponent(t.studio || "")
+                              }
+                            >
+                              <div className="flex-row">
+                                <Wrench size={15} />
+                                <div>
+                                  <p>
+                                    {String(
+                                      object(t.customFields).assetName || "Equipment",
+                                    )}
+                                  </p>
+                                  <small>
+                                    {String(
+                                      object(t.customFields).assetStatus ||
+                                        "in-service",
+                                    ).replace(/-/g, " ")}
+                                  </small>
+                                </div>
+                              </div>
+                              <ArrowUpRight size={13} />
+                            </a>
+                          ) : null}
                         </div>
                         <div className="td-panel td-panel-sentiment">
                           <h3>How they felt</h3>
