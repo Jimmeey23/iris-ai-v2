@@ -1276,3 +1276,81 @@ export function getTrainerImage(name: string): string | null {
   }
   return null;
 }
+
+/* ------------------------------------------------------------------------ *
+ * Equipment catalogue
+ *
+ * The register began as bikes only, because a bike is the thing the floor names out loud
+ * when it breaks. Everything else in a studio breaks too — the biometric machine that
+ * stops logging attendance, the microwave in the pantry, the 5 kg weights that walk between
+ * rooms — and until each one is a row, "how often does this fail" has no answer.
+ *
+ * `countable` marks the things a studio owns in identical multiples, where one row standing
+ * for twelve bands is more honest than twelve rows nobody will keep up to date.
+ * ------------------------------------------------------------------------ */
+
+export type EquipmentCategory =
+  | 'Cardio'
+  | 'Strength & studio'
+  | 'IT & systems'
+  | 'Audio & visual'
+  | 'Climate & facilities'
+  | 'Pantry';
+
+export interface EquipmentTypeDef {
+  /** Canonical name. Stored on the asset row, so renaming one is a data migration. */
+  type: string;
+  category: EquipmentCategory;
+  /** Usually held in multiples and tracked by count rather than by individual item. */
+  countable?: boolean;
+  /** Other ways the floor says it, used when reading equipment out of a ticket. */
+  aliases?: string[];
+}
+
+export const EQUIPMENT_CATALOGUE: EquipmentTypeDef[] = [
+  {type: 'PowerCycle bike', category: 'Cardio', aliases: ['bike', 'cycle', 'powercycle', 'spin bike']},
+
+  {type: 'Barre', category: 'Strength & studio', aliases: ['barre', 'ballet barre']},
+  {type: 'Resistance band', category: 'Strength & studio', countable: true, aliases: ['band', 'bands', 'resistance band']},
+  {type: 'Exercise ball', category: 'Strength & studio', countable: true, aliases: ['ball', 'balls', 'pilates ball', 'swiss ball']},
+  {type: 'Weight 1 kg', category: 'Strength & studio', countable: true, aliases: ['1kg', '1 kg weight', '1kg weight']},
+  {type: 'Weight 2 kg', category: 'Strength & studio', countable: true, aliases: ['2kg', '2 kg weight', '2kg weight']},
+  {type: 'Weight 3 kg', category: 'Strength & studio', countable: true, aliases: ['3kg', '3 kg weight', '3kg weight']},
+  {type: 'Weight 4 kg', category: 'Strength & studio', countable: true, aliases: ['4kg', '4 kg weight', '4kg weight']},
+  {type: 'Weight 5 kg', category: 'Strength & studio', countable: true, aliases: ['5kg', '5 kg weight', '5kg weight']},
+  {type: 'Weight 7 kg', category: 'Strength & studio', countable: true, aliases: ['7kg', '7 kg weight', '7kg weight']},
+  {type: 'Weight 10 kg', category: 'Strength & studio', countable: true, aliases: ['10kg', '10 kg weight', '10kg weight']},
+
+  {type: 'Laptop', category: 'IT & systems', aliases: ['laptop', 'notebook', 'macbook']},
+  {type: 'Printer', category: 'IT & systems', aliases: ['printer', 'scanner']},
+  {type: 'Biometric machine', category: 'IT & systems', aliases: ['biometric', 'biometric machine', 'attendance machine', 'fingerprint scanner']},
+  {type: 'TFA system', category: 'IT & systems', aliases: ['tfa', 'tfa system', 'two factor', 'access control']},
+  {type: 'Landline', category: 'IT & systems', aliases: ['landline', 'landline phone']},
+  {type: 'Studio phone', category: 'IT & systems', aliases: ['studio phone', 'front desk phone', 'reception phone']},
+
+  {type: 'Microphone', category: 'Audio & visual', aliases: ['mic', 'microphone', 'headset mic']},
+  {type: 'Portable microphone', category: 'Audio & visual', aliases: ['portable mic', 'handheld mic', 'roving mic']},
+  {type: 'Music system', category: 'Audio & visual', aliases: ['music system', 'sound system', 'console', 'mixer', 'amp']},
+  {type: 'Speaker', category: 'Audio & visual', aliases: ['speaker', 'speakers', 'monitor speaker']},
+  {type: 'Studio lighting rig', category: 'Audio & visual', aliases: ['lighting rig', 'studio lights', 'light rig']},
+  {type: 'Ambient light', category: 'Audio & visual', aliases: ['ambient light', 'mood light']},
+  {type: 'Spotlight', category: 'Audio & visual', aliases: ['spotlight', 'spot light']},
+  {type: 'Strip light', category: 'Audio & visual', aliases: ['strip light', 'led strip']},
+  {type: 'Emergency light', category: 'Audio & visual', aliases: ['emergency light', 'exit light']},
+  {type: 'Neon signage', category: 'Audio & visual', aliases: ['neon', 'neon sign', 'signage']},
+
+  {type: 'Air conditioning system', category: 'Climate & facilities', aliases: ['ac', 'a/c', 'air conditioning', 'aircon', 'air conditioner']},
+  {type: 'Portable cooler', category: 'Climate & facilities', aliases: ['cooler', 'portable cooler', 'air cooler']},
+  {type: 'Washing machine', category: 'Climate & facilities', aliases: ['washing machine', 'washer', 'laundry machine']},
+  {type: 'Shoe disinfectant', category: 'Climate & facilities', aliases: ['shoe disinfectant', 'shoe sanitiser', 'shoe sanitizer', 'sanitising mat']},
+
+  {type: 'Coffee maker', category: 'Pantry', aliases: ['coffee maker', 'coffee machine', 'espresso machine']},
+  {type: 'Microwave', category: 'Pantry', aliases: ['microwave', 'microwave oven']},
+];
+
+export const EQUIPMENT_TYPES = EQUIPMENT_CATALOGUE.map((e) => e.type);
+export const EQUIPMENT_CATEGORIES = [...new Set(EQUIPMENT_CATALOGUE.map((e) => e.category))];
+export const EQUIPMENT_BY_TYPE = new Map(EQUIPMENT_CATALOGUE.map((e) => [e.type, e]));
+
+/** What state a piece of equipment is in, beyond whether it is usable. */
+export const EQUIPMENT_CONDITIONS = ['new', 'good', 'fair', 'worn', 'needs replacement'] as const;

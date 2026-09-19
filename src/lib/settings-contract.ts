@@ -1,4 +1,5 @@
 import {z} from "zod";
+import {DEFAULT_COLUMNS, GROUP_BY, TICKET_COLUMNS} from "./dashboard-contract";
 import { CATEGORY_DEPARTMENT, CATEGORY_MAP, CLASS_FORMATS, MEMBERSHIPS, STUDIOS, TRAINERS } from "./constants";
 export const configSchema = z.object({
   workspaceName: z.string().min(2).max(80).default("Physique 57 India"), timezone: z.string().refine(v=>{try{new Intl.DateTimeFormat("en",{timeZone:v});return true;}catch{return false;}},"Choose a valid IANA timezone").default("Asia/Kolkata"),
@@ -10,6 +11,46 @@ export const configSchema = z.object({
   categoryDepartments: z.record(z.string(),z.string()).default(CATEGORY_DEPARTMENT), routingOwners: z.record(z.string(),z.number().int().positive()).default({}),
   taxonomy: z.record(z.string(),z.array(z.string().min(1))).default(CATEGORY_MAP), studios:z.array(z.string()).default(STUDIOS.map(s=>s.name)), trainers:z.array(z.string()).default([...TRAINERS]), formats:z.array(z.string()).default([...CLASS_FORMATS]), memberships:z.array(z.string()).default([...MEMBERSHIPS]),
   webhookOnCreate:z.boolean().default(false), assignmentEmail:z.boolean().default(false),
+
+  /* ---------------------------------------------------------------- *
+   * Workspace defaults for the ticket board.
+   * These are the starting point for someone who has not set their own; a personal
+   * preference always wins, and is stored per identity in `preferences:<key>`.
+   * ---------------------------------------------------------------- */
+  defaultGroupBy: z.enum(GROUP_BY).default("none"),
+  defaultDensity: z.enum(["comfortable","compact"]).default("comfortable"),
+  defaultPageSize: z.number().int().min(5).max(200).default(25),
+  defaultColumns: z.array(z.enum(TICKET_COLUMNS)).max(TICKET_COLUMNS.length).default(DEFAULT_COLUMNS),
+
+  /* ---------------------------------------------------------------- *
+   * Ticket labels — see lib/ticket-label.ts.
+   * ---------------------------------------------------------------- */
+  /** `descriptive` writes what happened; `classification` keeps the old taxonomy titles. */
+  labelStyle: z.enum(["descriptive","classification"]).default("descriptive"),
+  labelMaxLength: z.number().int().min(40).max(140).default(76),
+
+  /* ---------------------------------------------------------------- *
+   * Working rhythm. These shape what the board calls urgent, stale or overdue.
+   * ---------------------------------------------------------------- */
+  /** A ticket older than this, still open, is flagged as ageing. */
+  staleTicketDays: z.number().int().min(1).max(90).default(3),
+  /** How long before the follow-up target a ticket starts reading as "due soon". */
+  slaWarningPercent: z.number().int().min(5).max(90).default(20),
+  /** Escalate to critical this many hours after a missed follow-up target. 0 disables it. */
+  escalateAfterBreachHours: z.number().int().min(0).max(336).default(0),
+  /** Resolving a ticket requires the resolution workspace to be filled in first. */
+  requireResolutionNotes: z.boolean().default(false),
+  /** Reopening a resolved ticket is allowed. */
+  allowReopen: z.boolean().default(true),
+
+  /* ---------------------------------------------------------------- *
+   * Presentation.
+   * ---------------------------------------------------------------- */
+  weekStartsOn: z.enum(["sunday","monday"]).default("monday"),
+  dateFormat: z.enum(["dd-mmm-yyyy","yyyy-mm-dd","dd/mm/yyyy"]).default("dd-mmm-yyyy"),
+  currency: z.string().min(1).max(8).default("INR"),
+  /** Members' email and phone are masked in lists for anyone below admin. */
+  maskMemberContact: z.boolean().default(false),
 });
 export type WorkspaceConfig=z.infer<typeof configSchema>;
 export const DEFAULT_CONFIG=configSchema.parse({});

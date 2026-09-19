@@ -14,7 +14,7 @@ export type TicketRecord=AdvancedDraft&{id:number;ticketNumber:string;status:str
 /** Columns the board, dashboard and link picker actually render. The full row carries
  *  `customFields` and the long-form text, which together are ~85% of the table's bytes
  *  and are never read by a list view — `listTickets` selects only these. */
-export type TicketListRecord=Pick<TicketRecord,'id'|'ticketNumber'|'title'|'status'|'priority'|'category'|'subcategory'|'studio'|'memberName'|'assignedStaffId'|'assignedStaffName'|'departmentName'|'kind'|'source'|'resolutionRequired'|'slaDueAt'|'resolvedAt'|'createdAt'|'version'>;
+export type TicketListRecord=Pick<TicketRecord,'id'|'ticketNumber'|'title'|'status'|'priority'|'category'|'subcategory'|'studio'|'memberName'|'assignedStaffId'|'assignedStaffName'|'departmentName'|'kind'|'source'|'resolutionRequired'|'slaDueAt'|'resolvedAt'|'createdAt'|'updatedAt'|'version'>;
 export type PickerModule='members'|'sessions'|'trainers'|'studios'|'formats'|'memberships';
 export type StructuredField={id:string;label:string;type:'text'|'textarea'|'number'|'datetime-local'|'select'|'rating'|'multiselect';required?:boolean;options?:string[];section?:string;weight?:number;dependsOn?:string;dependsOnValue?:string;module?:PickerModule;multi?:boolean;helper?:string};
 export type GuidedTemplate={id:string;title:string;description:string;category:string;subcategory:string;kind:TicketInput['kind'];featured?:boolean;icon:string;fields:StructuredField[];provenance?:string;classContext?:boolean;};

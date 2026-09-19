@@ -81,7 +81,13 @@ async function main() {
   check('members losing their session is asked about', bandra.asked.includes('memberImpact'), bandra.asked);
   check('who was affected is captured', String(c.impactedMembers) === 'Riya and Anmol', c.impactedMembers);
   check('a rider-safety fault is filed critical', bandra.turn.draft?.priority === 'critical', bandra.turn.draft?.priority);
-  check('the title names the studio, not a class', bandra.turn.draft?.title === 'Broken Equipment Not Repaired \u00b7 Supreme HQ', bandra.turn.draft?.title);
+  // Titles are descriptive now rather than the taxonomy joined with middots — see
+  // lib/ticket-label.ts. The point this assertion always made still holds: the label
+  // describes the fault, and does not invent a class format that was never mentioned.
+  const bandraTitle = String(bandra.turn.draft?.title || '');
+  check('the title describes the fault', /pedal|bike|cycle/i.test(bandraTitle), bandraTitle);
+  check('the title is not the old taxonomy format', !bandraTitle.includes(' \u00b7 '), bandraTitle);
+  check('the title does not name a class format', !/barre|powercycle studio|mat 57|strength lab/i.test(bandraTitle), bandraTitle);
   check('the ticket reaches a draft', bandra.turn.phase === 'draft', bandra.turn.phase);
 
   // The messages exactly as they were typed that afternoon, answers and all. The flow no
@@ -234,7 +240,14 @@ async function main() {
   check('"bike #12" names one bike', parseAssetReference('bike #12')?.label === '12', parseAssetReference('bike #12'));
   check('"bike 06" is the same bike as "bike 6"', parseAssetReference('bike 06')?.label === parseAssetReference('bike 6')?.label, [parseAssetReference('bike 06'), parseAssetReference('bike 6')]);
   check('a class duration is not a bike', !parseAssetReference('cycle 45 min'), parseAssetReference('cycle 45 min'));
-  check('the aircon is not a bike', !parseAssetReference('the AC in studio 1 is not cooling'), parseAssetReference('the AC in studio 1 is not cooling'));
+  // The AC used to resolve to nothing, because bikes were the only type in the register.
+  // It is equipment now, so the assertion is the one that always mattered: it is not a bike.
+  check('the aircon is not a bike', parseAssetReference('the AC in studio 1 is not cooling')?.type !== 'PowerCycle bike', parseAssetReference('the AC in studio 1 is not cooling'));
+  check('the aircon is the air conditioning system', parseAssetReference('the AC in studio 1 is not cooling')?.type === 'Air conditioning system', parseAssetReference('the AC in studio 1 is not cooling'));
+  check('a class duration is still not equipment', !parseAssetReference('45 minute class ran over'), parseAssetReference('45 minute class ran over'));
+  check('the microwave is not a microphone', parseAssetReference('the microwave in the pantry is dead')?.type === 'Microwave', parseAssetReference('the microwave in the pantry is dead'));
+  check('a 5 kg weight is its own type', parseAssetReference('one of the 5kg weights is cracked')?.type === 'Weight 5 kg', parseAssetReference('one of the 5kg weights is cracked'));
+  check('the biometric machine is named', parseAssetReference('biometric machine not reading fingerprints')?.type === 'Biometric machine', parseAssetReference('biometric machine not reading fingerprints'));
   check('the name reads the way the floor says it', assetName('PowerCycle bike', '6') === 'Bike #6', assetName('PowerCycle bike', '6'));
   check('the register is planned from the studio layouts', plannedAssetCounts().length > 0 && plannedAssetCounts().every(p => p.count > 0), plannedAssetCounts());
 

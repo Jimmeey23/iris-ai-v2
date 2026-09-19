@@ -1,7 +1,7 @@
 import {z} from 'zod';import {and,eq} from 'drizzle-orm';import {db} from '@/db';import {chatSessions,chatMessages} from '@/db/schema';
-import {browserKey,requireWorkspace,errorResponse,ApiError,sameOrigin} from '@/lib/auth';
+import {browserKey,intakeActor,errorResponse,ApiError,sameOrigin} from '@/lib/auth';
 export const dynamic='force-dynamic';
-export async function POST(req:Request){try{sameOrigin(req);await requireWorkspace();const owner=await browserKey();const {sessionId}=z.object({sessionId:z.string()}).parse(await req.json());
+export async function POST(req:Request){try{sameOrigin(req);await intakeActor();const owner=await browserKey();const {sessionId}=z.object({sessionId:z.string()}).parse(await req.json());
 const[s]=await db.select().from(chatSessions).where(and(eq(chatSessions.id,sessionId),eq(chatSessions.ownerKey,owner)));
 if(!s)return Response.json({discarded:false});
 if(s.ticketId)throw new ApiError('This conversation already created a ticket, so its draft cannot be discarded.',409);
