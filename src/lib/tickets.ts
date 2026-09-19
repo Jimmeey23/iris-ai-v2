@@ -19,7 +19,7 @@ const praise=input.kind==='compliment'||input.kind==='feedback'&&input.sentiment
 // The intake answers ride in customFields — they are not columns on the schema — so
 // they have to be read back out here or the reporter's own urgency signal never
 // reaches the priority rules.
-const priority=noSla?'low':input.category==='Safety and Security'?'critical':input.priority||inferPriority({category:input.category,subcategory:input.subcategory,isClassImpacted:String(input.customFields.isClassImpacted||''),isImmediateDanger:String(input.customFields.isImmediateDanger||''),impact:input.impact});
+const priority=noSla?'low':input.category==='Safety and Security'?'critical':input.priority||inferPriority({category:input.category,subcategory:input.subcategory,isClassImpacted:String(input.customFields.isClassImpacted||''),isImmediateDanger:String(input.customFields.isImmediateDanger||''),impact:input.impact,memberImpact:String(input.customFields.memberImpact||''),cycleSeverity:String(input.customFields.cycleSeverity||'')});
 const departmentId=cfg.categoryDepartments[input.category]||'operations';const[dept]=await db.select().from(departments).where(eq(departments.id,departmentId));if(!dept?.active)throw new ApiError('The routing department is inactive. Ask an administrator to update the routing rule.');
 const people=await db.select().from(staff).where(and(eq(staff.isActive,true),eq(staff.department,dept.name)));
 const ids=studioIdsFor(input.studio);const override=cfg.routingOwners[input.category+'::'+input.studio]||cfg.routingOwners[input.category];
@@ -34,14 +34,14 @@ const summary=input.summary?.trim()||[`${input.kind==='issue'?'Reported':'Logged
 const slaHours=noSla?0:cfg.responseHours[priority];const base=buildTemplate(input.category,input.subcategory);
 const opsChecklist=noSla
   ?['Record the feedback accurately, in the reporter\u2019s own words','Share the recognition with the named team member and their manager','File under the studio\u2019s monthly highlights']
-  :[`Acknowledge ${input.memberName} on ${input.preferredContact.toLowerCase()} within ${Math.max(1,Math.round(cfg.responseHours[priority]/4))}h`,...base.opsChecklist,...(input.category==='Safety and Security'?['Escalate to the studio manager on duty immediately','Record the incident in the safety register']:[]),...(input.momenceMemberId?['Check the member\u2019s Momence booking and billing history for related issues']:[]),'Confirm the outcome with the member before closing'];
+  :[`Acknowledge ${input.memberName} on ${input.preferredContact.toLowerCase()} within ${Math.max(1,Math.round(cfg.responseHours[priority]/4))}h`,...base.opsChecklist,...(input.category==='Safety and Security'?['Escalate to the studio manager on duty immediately','Record the incident in the safety register']:[]),...(input.momenceMemberId?['Check the member\u2019s Momence booking and billing history for related issues']:[]),...(String(input.customFields.memberImpact||'').toLowerCase().startsWith('yes')?[`Contact the members whose session was affected${input.customFields.impactedMembers?` (${String(input.customFields.impactedMembers).slice(0,120)})`:''} and agree the credit or makeup owed`,'Note the affected members against their Momence bookings so the front desk can see it']:[]),'Confirm the outcome with the member before closing'];
 const tags=cfg.autoTag?[...new Set([slugify(input.category),slugify(input.subcategory),slugify(studioShort),input.kind,noSla?'no-sla':priority,'sentiment-'+input.sentiment,'via-'+input.source,...(input.impact?['impact-'+slugify(input.impact)]:[]),...(input.classFormat?['format-'+slugify(input.classFormat.split('+')[0])]:[]),...(input.trainer?['trainer-'+slugify(input.trainer.split(',')[0])]:[]),...(input.membership?['membership-'+slugify(input.membership)]:[]),...(input.momenceMemberId?['momence-linked']:[]),...(input.kind==='assessment'?['trainer-evaluation']:[])].filter(Boolean))]:[];
 const memberFacingUpdate=praise?`Thank you${input.memberName?' , '+input.memberName.split(' ')[0]:''} for sharing this. Your feedback will be recorded for our ${dept.name} team.`:`Hi ${input.memberName.split(' ')[0]}, thank you for sharing your experience. ${owner.name} from ${dept.name} will review your request. The internal follow-up target is ${slaHours} hours; a resolution time has not yet been confirmed.`;
-return{...input,title,summary,priority,severity:inferSeverity(priority),assignedStaffId:owner.id,assignedStaffName:owner.name,assignedStaffEmail:owner.email,assignedStaffRole:owner.role,departmentId,departmentName:dept.name,slaHours,slaLabel:noSla?'No SLA required':slaHours+' hours',resolutionRequired:!noSla,tags,opsChecklist,memberFacingUpdate,internalBrief:input.description,routingReason:!cfg.autoAssign?'Automatic assignment disabled · parked in the department queue':override?`Administrator-defined routing rule for ${input.category}${cfg.routingOwners[input.category+'::'+input.studio]?' at '+studioShort:''} → ${owner.name}`:`${input.category} routes to ${dept.name}. ${owner.name} picked up as the active ${owner.role||'specialist'}${ids.length?` covering ${studioShort}`:''}, with a ${noSla?'record-only':slaHours+'h'} follow-up target at ${priority} priority.`};}
+return{...input,title,summary,priority,severity:inferSeverity(priority),assignedStaffId:owner.id,assignedStaffName:owner.name,assignedStaffEmail:owner.email,assignedStaffRole:owner.role,departmentId,departmentName:dept.name,slaHours,slaLabel:noSla?'No SLA required':slaHours===1?'1 hour':slaHours+' hours',resolutionRequired:!noSla,tags,opsChecklist,memberFacingUpdate,internalBrief:input.description,routingReason:!cfg.autoAssign?'Automatic assignment disabled · parked in the department queue':override?`Administrator-defined routing rule for ${input.category}${cfg.routingOwners[input.category+'::'+input.studio]?' at '+studioShort:''} → ${owner.name}`:`${input.category} routes to ${dept.name}. ${owner.name} picked up as the active ${owner.role||'specialist'}${ids.length?` covering ${studioShort}`:''}, with a ${noSla?'record-only':slaHours+'h'} follow-up target at ${priority} priority.`};}
 
-export async function createTicketFromDraft(draft:AdvancedDraft,source=draft.source,channel='workspace',external?:{sourceRef?:string;createdAt?:Date;status?:string}){const cfg=await getConfig();const submissionKey=draft.submissionKey||randomUUID();return db.transaction(async tx=>{await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${submissionKey}))`);const[existing]=await tx.select().from(tickets).where(external?.sourceRef?or(eq(tickets.submissionKey,submissionKey),eq(tickets.sourceRef,external.sourceRef)):eq(tickets.submissionKey,submissionKey));if(existing)return existing;
-const now=external?.createdAt||new Date();const status=external?.status||(draft.resolutionRequired?'assigned':'recorded');
-const[row]=await tx.insert(tickets).values({ticketNumber:'P57-'+randomUUID(),title:draft.title,summary:draft.summary,description:draft.description,category:draft.category,subcategory:draft.subcategory,status,priority:draft.priority,severity:draft.severity,sentiment:draft.sentiment,kind:draft.kind,resolutionRequired:draft.resolutionRequired,impact:draft.impact,studio:draft.studio,classFormat:draft.classFormat,trainer:draft.trainer,membership:draft.membership,incidentAt:draft.incidentAt,memberName:draft.memberName,memberEmail:draft.memberEmail,memberPhone:draft.memberPhone,momenceMemberId:draft.momenceMemberId,momenceSessionId:draft.momenceSessionId,preferredContact:draft.preferredContact,requestedResolution:draft.requestedResolution,assignedStaffId:draft.assignedStaffId,assignedStaffName:draft.assignedStaffName,assignedStaffEmail:draft.assignedStaffEmail,departmentId:draft.departmentId,departmentName:draft.departmentName,slaHours:draft.slaHours,slaDueAt:draft.slaHours?new Date(now.getTime()+draft.slaHours*3600000):null,source,channel,tags:draft.tags,templateId:draft.templateId,customFields:{...draft.customFields,_brief:{opsChecklist:draft.opsChecklist,memberFacingUpdate:draft.memberFacingUpdate,routingReason:draft.routingReason}},momenceContext:draft.momenceContext||null,submissionKey,sourceRef:external?.sourceRef,createdAt:now,updatedAt:now,...(['resolved','closed'].includes(status)?{resolvedAt:now}:{})}).returning();const number=ticketNumberFor(row.id);await tx.update(tickets).set({ticketNumber:number}).where(eq(tickets.id,row.id));await tx.insert(ticketActivities).values({ticketId:row.id,actorName:source==='history'?'History import':'IRIS',action:'created',detail:`${draft.assignedStaffName} · ${draft.departmentName} · ${draft.slaLabel}`,createdAt:now});
+export async function createTicketFromDraft(draft:AdvancedDraft,source=draft.source,channel='workspace',external?:{sourceRef?:string;createdAt?:Date;status?:string;resolvedAt?:Date;/** A backfilled record was never worked in this system, so it carries no SLA clock. */noSla?:boolean}){const cfg=await getConfig();const submissionKey=draft.submissionKey||randomUUID();return db.transaction(async tx=>{await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${submissionKey}))`);const[existing]=await tx.select().from(tickets).where(external?.sourceRef?or(eq(tickets.submissionKey,submissionKey),eq(tickets.sourceRef,external.sourceRef)):eq(tickets.submissionKey,submissionKey));if(existing)return existing;
+const now=external?.createdAt||new Date();const status=external?.status||(draft.resolutionRequired?'assigned':'recorded');const closed=['resolved','closed'].includes(status);const backfill=Boolean(external?.noSla);
+const[row]=await tx.insert(tickets).values({ticketNumber:'P57-'+randomUUID(),title:draft.title,summary:draft.summary,description:draft.description,category:draft.category,subcategory:draft.subcategory,status,priority:draft.priority,severity:draft.severity,sentiment:draft.sentiment,kind:draft.kind,resolutionRequired:backfill?false:draft.resolutionRequired,impact:draft.impact,studio:draft.studio,classFormat:draft.classFormat,trainer:draft.trainer,membership:draft.membership,incidentAt:draft.incidentAt,memberName:draft.memberName,memberEmail:draft.memberEmail,memberPhone:draft.memberPhone,momenceMemberId:draft.momenceMemberId,momenceSessionId:draft.momenceSessionId,preferredContact:draft.preferredContact,requestedResolution:draft.requestedResolution,assignedStaffId:draft.assignedStaffId,assignedStaffName:draft.assignedStaffName,assignedStaffEmail:draft.assignedStaffEmail,departmentId:draft.departmentId,departmentName:draft.departmentName,slaHours:backfill?0:draft.slaHours,slaDueAt:backfill||!draft.slaHours?null:new Date(now.getTime()+draft.slaHours*3600000),source,channel,tags:draft.tags,templateId:draft.templateId,customFields:{...draft.customFields,_brief:{opsChecklist:draft.opsChecklist,memberFacingUpdate:draft.memberFacingUpdate,routingReason:draft.routingReason}},momenceContext:draft.momenceContext||null,assetId:typeof draft.customFields?.assetId==='number'?draft.customFields.assetId:null,submissionKey,sourceRef:external?.sourceRef,createdAt:now,updatedAt:now,...(closed?{resolvedAt:external?.resolvedAt||now}:{})}).returning();const number=ticketNumberFor(row.id);await tx.update(tickets).set({ticketNumber:number}).where(eq(tickets.id,row.id));await tx.insert(ticketActivities).values({ticketId:row.id,actorName:source==='history'?'History import':'IRIS',action:'created',detail:`${draft.assignedStaffName} · ${draft.departmentName} · ${backfill?'No SLA · closed historical record':draft.slaLabel}`,createdAt:now});
 if(source!=='history'&&cfg.webhookOnCreate)await tx.insert(deliveryLogs).values({integrationId:'n8n',action:'webhook',payload:{event:'ticket.created',ticket:{id:row.id,ticketNumber:number,title:draft.title,priority:draft.priority,department:draft.departmentName,assignedTo:draft.assignedStaffName}}});
 if(source!=='history'&&cfg.assignmentEmail&&draft.assignedStaffEmail)await tx.insert(deliveryLogs).values({integrationId:'mailtrap',action:'send',payload:{to:[{email:draft.assignedStaffEmail}],subject:`Assigned: ${number}`,text:`${draft.title}\n\nA ticket has been assigned to you in IRIS. Please sign in to review it.`}});
 return{...row,ticketNumber:number};});}
@@ -103,4 +103,115 @@ export async function maybeCreateBikeFollowUp(resolved:{id:number;ticketNumber:s
   return child;
 }
 
-export async function historicalExamples(category:string,subcategory:string){const rows=await db.select({title:tickets.title,description:tickets.description,category:tickets.category,subcategory:tickets.subcategory,memberName:tickets.memberName}).from(tickets).where(and(eq(tickets.source,'history'),eq(tickets.category,category),eq(tickets.subcategory,subcategory))).limit(3);return rows.map(r=>({category:r.category,subcategory:r.subcategory,summary:r.description.replaceAll(r.memberName,'[member]').replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi,'[email]').replace(/\+?\d[\d\s-]{8,}\d/g,'[phone]').slice(0,700)}));}
+const EXAMPLE_COLUMNS={title:tickets.title,description:tickets.description,category:tickets.category,subcategory:tickets.subcategory,memberName:tickets.memberName};
+/** Most imported history is a subject line and a thread count. Without ordering, the
+ *  model is shown whichever three rows were written first — usually the emptiest. */
+const RICHEST_FIRST=desc(sql`length(coalesce(${tickets.description},''))`);
+const redact=(r:{description:string;memberName:string})=>r.description.replaceAll(r.memberName,'[member]').replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi,'[email]').replace(/\+?\d[\d\s-]{8,}\d/g,'[phone]').slice(0,700);
+/** Past tickets the model can read while drafting a new one. Closed history counts — it is
+ *  the only source of "what this looked like last time" there is. */
+export async function historicalExamples(category:string,subcategory:string){
+const exact=await db.select(EXAMPLE_COLUMNS).from(tickets).where(and(eq(tickets.source,'history'),eq(tickets.category,category),eq(tickets.subcategory,subcategory))).orderBy(RICHEST_FIRST).limit(3);
+// Only a fraction of the taxonomy has any history behind it, so an exact subcategory match
+// usually returns nothing. Fall back to the category before concluding there is no precedent.
+const rows=exact.length?exact:await db.select(EXAMPLE_COLUMNS).from(tickets).where(and(eq(tickets.source,'history'),eq(tickets.category,category))).orderBy(RICHEST_FIRST).limit(3);
+return rows.map(r=>({category:r.category,subcategory:r.subcategory,summary:redact(r)}));}
+
+/* ------------------------------------------------------------------ */
+/* Repeats: adding a report to a ticket that is already open           */
+/* ------------------------------------------------------------------ */
+
+const PRIORITY_FLOOR: Record<string, number> = {low: 0, medium: 1, high: 2, critical: 3};
+
+/** Records a second (or fifth) report of the same fault on the ticket that is already open.
+ *
+ *  The alternative — a fresh ticket each time — is what made recurrence invisible: four
+ *  tickets about one broken aircon look like four problems, and nothing ever escalates
+ *  because nothing can count. Here the repeat lands as a dated note, the count goes up, and
+ *  a fault reported three times stops being routine.
+ */
+export async function appendRepeatReport(input: {
+  ticketId: number;
+  description: string;
+  reporterName: string;
+  collected: Record<string, unknown>;
+  recurrence: number;
+}): Promise<{id: number; ticketNumber: string; priority: string; recurrence: number; escalated: boolean}> {
+  const [ticket] = await db.select().from(tickets).where(eq(tickets.id, input.ticketId));
+  if (!ticket) throw new ApiError('That ticket no longer exists.', 404);
+  const cf = (ticket.customFields || {}) as Record<string, unknown>;
+  const recurrence = Math.max(input.recurrence, (Number(cf.recurrenceCount) || 1) + 1);
+  const collected = input.collected || {};
+
+  const lines: string[] = [`Reported again by ${input.reporterName} (${recurrence === 2 ? 'second' : recurrence === 3 ? 'third' : `${recurrence}th`} report).`];
+  const detail: string[] = [];
+  const when = String(collected.incidentAt || '').trim();
+  if (when) detail.push(`noticed ${when.toLowerCase()}`);
+  const area = String(collected.area || '').trim();
+  if (area) detail.push(area);
+  const bike = String(collected.bikeNumber || '').trim();
+  if (bike) detail.push(`bike #${bike}`);
+  const symptom = String(collected.cycleIssueType || '').trim();
+  if (symptom) detail.push(symptom);
+  const blocking = String(collected.isClassImpacted || '').trim();
+  if (blocking) detail.push(blocking.toLowerCase());
+  const action = String(collected.cycleReporterAction || '').trim();
+  if (action) detail.push(action.toLowerCase());
+  if (detail.length) lines.push(detail.join(' · ') + '.');
+  const narrative = String(collected.description || input.description || '').replace(/\s+/g, ' ').trim();
+  if (narrative) lines.push('"' + narrative.slice(0, 600) + '"');
+
+  // A repeat that is disrupting a class outranks whatever the first report alone warranted.
+  const floor = String(collected.isClassImpacted || '').startsWith('Yes') ? 'high' : undefined;
+  const raised = floor && PRIORITY_FLOOR[floor] > (PRIORITY_FLOOR[ticket.priority] ?? 1) ? floor : ticket.priority;
+  // Three reports of the same thing is a chronic fault, not a snag: it needs a manager's
+  // attention and a vendor, not another four-hour follow-up.
+  const escalate = recurrence >= 3 && !ticket.isEscalated;
+  const nextPriority = escalate && PRIORITY_FLOOR['high'] > (PRIORITY_FLOOR[raised] ?? 1) ? 'high' : raised;
+
+  await db.insert(ticketComments).values({
+    ticketId: ticket.id,
+    authorName: input.reporterName,
+    authorRole: 'Studio team',
+    body: lines.join('\n'),
+    isInternal: true,
+  });
+  await db.insert(ticketActivities).values({
+    ticketId: ticket.id,
+    actorName: input.reporterName,
+    action: 'reported_again',
+    detail: `Report #${recurrence}${nextPriority !== ticket.priority ? ` · priority raised to ${nextPriority}` : ''}${escalate ? ' · escalated for repeat fault' : ''}`,
+  });
+
+  const [updated] = await db
+    .update(tickets)
+    .set({
+      customFields: {...cf, recurrenceCount: recurrence, lastRepeatAt: new Date().toISOString()},
+      priority: nextPriority,
+      severity: inferSeverity(nextPriority as 'low' | 'medium' | 'high' | 'critical'),
+      isEscalated: ticket.isEscalated || escalate,
+      updatedAt: new Date(),
+    })
+    .where(eq(tickets.id, ticket.id))
+    .returning({id: tickets.id, ticketNumber: tickets.ticketNumber, priority: tickets.priority});
+
+  return {
+    id: updated.id,
+    ticketNumber: updated.ticketNumber,
+    priority: updated.priority,
+    recurrence,
+    escalated: escalate,
+  };
+}
+
+/** Notes that two tickets are about the same thing, without merging them. */
+export async function linkTickets(ticketId: number, relatedId: number): Promise<void> {
+  if (ticketId === relatedId) return;
+  await db
+    .insert(ticketLinks)
+    .values([
+      {ticketId, relatedId, relation: 'duplicate'},
+      {ticketId: relatedId, relatedId: ticketId, relation: 'duplicate'},
+    ])
+    .onConflictDoNothing();
+}

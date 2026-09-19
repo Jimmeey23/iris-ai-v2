@@ -177,3 +177,46 @@ The conversation now **feels intelligent** because IRIS:
 - ✅ Asks strategic questions, not a checklist
 - ✅ References prior context naturally
 - ✅ Understands workflow implications
+
+---
+
+## 7. The model reads the conversation, not just the first line (19 Sept)
+
+Six defects, all with the same root cause: the model's extraction was discarded after the
+opening description, so from turn two onwards the only extractors running were the regex
+heuristics — and the model was never allowed to say "that contradicts what you said a
+minute ago."
+
+| # | Was | Now |
+|---|---|---|
+| 1 | `fields` parsed only when `priorField === 'description'` (`iris.ts:620`) | Parsed every turn; written to empty slots only, validated against that field's canonical list |
+| 2 | No contradiction check anywhere; a conflicting question was rejected by `mergeProposedTurn` | `conflicts` is the first key in the model's JSON; a `clarify` turn outranks the next question |
+| 3 | Closed lists had no escape hatch; an unmatched typed answer was dropped silently | `Something else` on every closed list; a free answer is kept, and an unmatched one is met with the near misses |
+| 4 | Session lookup gated on `classRelated` (class categories only) | Also fires whenever a class is disrupted, narrowed by studio and by past/upcoming |
+| 5 | Facility categories force-set `memberLookupDone` — nobody could be asked who was affected | `memberImpact` / `impactedMembers`, with the Momence roster as chips |
+| 6 | No tests for the flow itself | `npm run check:iris:flow` — 51 assertions replaying the transcripts that went wrong |
+
+### Data bugs fixed along the way
+
+- **"Yes" no longer means "Yesterday."** `normalizeAnswer` matched a bare `/^yes/i`, and
+  `OCCURRED_OPTIONS` contains "Yesterday" — so any reply opening with "Yes" rewrote the
+  date. Anchored to `/^yes\b/`, and `incidentAt` is no longer re-derived from every message.
+- **A maintenance ticket no longer gains a class.** `extractClassContext` read "cycle" in
+  *cycle studio* as the *Studio PowerCycle* class format. A class format now survives on a
+  facility ticket only when a Momence session is actually linked.
+- **One room, one spelling.** "Cycle studio" and "PowerCycle Studio" were both in
+  `STUDIO_AREAS`; the alias is resolved and the area list is now per-studio, so a Bandra
+  ticket can no longer be filed against "Brain Cell".
+- **`Pedal detached / came off`** added to the SC3 playbook as `critical` (was: no keyword
+  matched, so Iris asked again and the reporter picked a symptom off the list). Severity now
+  reaches `inferPriority`, so a rider-safety fault is filed critical.
+- **The bike number is read off the opening line** rather than asked for again.
+- **Recognising a fault no longer ends the bike intake** — first-or-recurring, the action
+  taken and member impact were being skipped whenever the symptom auto-matched.
+
+### Run it
+
+```bash
+npm run check:iris:flow   # replays the transcripts, 51 assertions
+npm run check:iris        # the wording/chip contract between the flow and the model
+```
