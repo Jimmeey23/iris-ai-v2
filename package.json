@@ -11,7 +11,14 @@
     "db:seed": "npx tsx -r dotenv/config src/lib/seed.ts",
     "check:iris": "npx tsx --tsconfig tsconfig.checks.json scripts/iris-turn-check.ts",
     "check:iris:flow": "npx tsx --tsconfig tsconfig.checks.json scripts/iris-replay.ts",
-    "check:history:import": "npx tsx --tsconfig tsconfig.checks.json scripts/history-import-check.ts"
+    "check:history:import": "npx tsx --tsconfig tsconfig.checks.json scripts/history-import-check.ts",
+    "db:migrate": "node scripts/migrate-equipment.mjs",
+    "check:equipment": "npx tsx --tsconfig tsconfig.checks.json scripts/equipment-check.mjs",
+    "check:ops": "npx tsx --tsconfig tsconfig.checks.json scripts/ops-check.mjs",
+    "check:labels": "npx tsx --tsconfig tsconfig.checks.json scripts/label-check.ts",
+    "tickets:relabel": "npx tsx scripts/relabel-tickets.mjs",
+    "check:dashboard": "npx tsx --tsconfig tsconfig.checks.json scripts/dashboard-check.ts",
+    "check:dashboard:api": "npx tsx --tsconfig tsconfig.checks.json scripts/dashboard-api-check.mjs"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.23",

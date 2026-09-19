@@ -2,7 +2,7 @@ import {after} from 'next/server';
 import {deliverPending} from '@/lib/integrations';
 import {z} from 'zod';import {and,eq} from 'drizzle-orm';import {db} from '@/db';import {chatSessions} from '@/db/schema';
 import {makeDraft,createTicketFromDraft,linkTickets} from '@/lib/tickets';
-import {registerAssetFault} from '@/lib/assets';import {browserKey,requireWorkspace,intakeActor,errorResponse,ApiError,sameOrigin} from '@/lib/auth';
+import {registerAssetFault} from '@/lib/assets';import {browserKey,intakeActor,errorResponse,ApiError,sameOrigin} from '@/lib/auth';
 export const dynamic='force-dynamic';
 export async function POST(req:Request){try{sameOrigin(req);await intakeActor();const owner=await browserKey();const {sessionId}=z.object({sessionId:z.string()}).parse(await req.json());const[s]=await db.select().from(chatSessions).where(and(eq(chatSessions.id,sessionId),eq(chatSessions.ownerKey,owner)));if(!s)throw new ApiError('Conversation not found',404);if(s.ticketId)return Response.json({ticket:{id:s.ticketId,ticketNumber:s.ticketNumber}});if(!s.draft||s.phase!=='draft')throw new ApiError('Complete and review the draft first.');const draft=await makeDraft({...s.draft,submissionKey:'iris:'+sessionId});const ticket=await createTicketFromDraft(draft,'iris','chat');
 // The fault now belongs on the asset's history, and the bike is off the floor if the

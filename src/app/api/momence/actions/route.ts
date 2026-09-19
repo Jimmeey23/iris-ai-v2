@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
+import { randomUUID } from 'crypto';
+import { and, desc, eq, sql } from 'drizzle-orm';
+import { db } from '@/db';
+import { momenceActionReceipts } from '@/db/schema';
 import { momenceConfigured, momenceRequest } from '@/lib/momence';
-import { requireWorkspace, sameOrigin } from '@/lib/auth';
+import { errorResponse, requireAgent, requireWorkspace, sameOrigin } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,10 +26,71 @@ interface ActionReceipt {
   momenceRef: string;
 }
 
-const performedActions: ActionReceipt[] = [];
-const grantedCredits: Record<string, number> = {};
-const membershipExtensions: Record<string, number> = {};
-const trainerSubstitutions: Record<string, string> = {};
+/**
+ * Receipts live in the database.
+ *
+ * They were four module-scope collections: an array of receipts and three running totals.
+ * That meant a receipt written by one user was visible to every other user sharing the
+ * process, the totals were wrong the moment a second instance served a request, and the
+ * whole lot vanished on restart — taking with it the only evidence staff had that a
+ * member's credit was actually applied.
+ *
+ * The running totals are no longer stored at all. They are derived from the receipts, which
+ * is where the information already was; keeping a second copy is how the two disagree.
+ */
+async function recentReceipts(filter: {memberId?: string; sessionId?: string}) {
+  const where = filter.memberId
+    ? and(eq(momenceActionReceipts.targetType, 'member'), eq(momenceActionReceipts.targetId, filter.memberId))
+    : filter.sessionId
+      ? and(eq(momenceActionReceipts.targetType, 'session'), eq(momenceActionReceipts.targetId, filter.sessionId))
+      : undefined;
+  const rows = await db
+    .select()
+    .from(momenceActionReceipts)
+    .where(where)
+    .orderBy(desc(momenceActionReceipts.performedAt))
+    .limit(20);
+  return rows.map((r): ActionReceipt => ({
+    id: r.id,
+    action: r.action as ActionReceipt['action'],
+    targetType: r.targetType as ActionReceipt['targetType'],
+    targetId: r.targetId,
+    targetName: r.targetName,
+    summary: r.summary,
+    details: r.details,
+    performedAt: r.performedAt.toISOString(),
+    performedBy: r.performedBy,
+    status: r.status as ActionReceipt['status'],
+    momenceRef: r.momenceRef,
+  }));
+}
+
+/** Totals added up from the receipts themselves, so they cannot drift from the evidence. */
+async function memberTotals(memberId: string) {
+  const [row] = await db
+    .select({
+      credits: sql<number>`coalesce(sum((${momenceActionReceipts.details}->>'credits')::int) filter (where ${momenceActionReceipts.action} = 'grant_credit'), 0)::int`,
+      days: sql<number>`coalesce(sum((${momenceActionReceipts.details}->>'extensionDays')::int) filter (where ${momenceActionReceipts.action} = 'extend_membership'), 0)::int`,
+    })
+    .from(momenceActionReceipts)
+    .where(and(eq(momenceActionReceipts.targetType, 'member'), eq(momenceActionReceipts.targetId, memberId)));
+  return {credits: Number(row?.credits) || 0, days: Number(row?.days) || 0};
+}
+
+async function currentSubstitute(sessionId: string) {
+  const [row] = await db
+    .select({details: momenceActionReceipts.details})
+    .from(momenceActionReceipts)
+    .where(and(
+      eq(momenceActionReceipts.targetType, 'session'),
+      eq(momenceActionReceipts.targetId, sessionId),
+      eq(momenceActionReceipts.action, 'substitute_trainer'),
+    ))
+    .orderBy(desc(momenceActionReceipts.performedAt))
+    .limit(1);
+  const name = row?.details?.substituteTrainer;
+  return typeof name === 'string' ? name : undefined;
+}
 
 /** Momence's own id for the change, so the receipt points at something real. */
 function refOf(res: unknown): string {
@@ -54,36 +119,37 @@ export async function GET(req: NextRequest) {
     await requireWorkspace();
     const live = await momenceConfigured();
     const sp = req.nextUrl.searchParams;
-    const memberId = sp.get('memberId');
-    const sessionId = sp.get('sessionId');
+    const memberId = sp.get('memberId') || undefined;
+    const sessionId = sp.get('sessionId') || undefined;
 
-    let history = [...performedActions];
-    if (memberId) {
-      history = history.filter((a) => a.targetId === memberId || a.targetName.toLowerCase().includes(memberId.toLowerCase()));
-    } else if (sessionId) {
-      history = history.filter((a) => a.targetId === sessionId);
+    if (!live) {
+      return NextResponse.json({live, history: [], bonusCredits: 0, extensionDays: 0, substitutedTrainer: undefined});
     }
 
-    const currentBonusCredits = memberId ? grantedCredits[memberId] || 0 : 0;
-    const currentExtensionDays = memberId ? membershipExtensions[memberId] || 0 : 0;
-    const currentSubstitutedTrainer = sessionId ? trainerSubstitutions[sessionId] : undefined;
+    const [history, totals, substitutedTrainer] = await Promise.all([
+      recentReceipts({memberId, sessionId}),
+      memberId ? memberTotals(memberId) : Promise.resolve({credits: 0, days: 0}),
+      sessionId ? currentSubstitute(sessionId) : Promise.resolve(undefined),
+    ]);
 
     return NextResponse.json({
       live,
-      history: live ? history.slice(0, 20) : [],
-      bonusCredits: live ? currentBonusCredits : 0,
-      extensionDays: live ? currentExtensionDays : 0,
-      substitutedTrainer: live ? currentSubstitutedTrainer : undefined,
+      history,
+      bonusCredits: totals.credits,
+      extensionDays: totals.days,
+      substitutedTrainer,
     });
   } catch (err) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 400 });
+    return errorResponse(err);
   }
 }
 
 export async function POST(req: NextRequest) {
   try {
     sameOrigin(req);
-    const user = await requireWorkspace();
+    // This grants credits and extends memberships in the live Momence account. Reading the
+    // receipts is a workspace matter; writing to a member's billing is not.
+    const user = await requireAgent();
     const body = ActionSchema.parse(await req.json());
     const isLive = await momenceConfigured();
     // Without a live connection there is no member to credit and no session to change.
@@ -113,7 +179,6 @@ export async function POST(req: NextRequest) {
           reason: body.reason,
         });
         momenceRef = refOf(res);
-        grantedCredits[body.memberId] = (grantedCredits[body.memberId] || 0) + body.credits;
         summary = `Granted +${body.credits} complimentary class credit(s) to ${targetName} (${body.reason})`;
         break;
       }
@@ -126,7 +191,6 @@ export async function POST(req: NextRequest) {
           reason: body.reason,
         });
         momenceRef = refOf(res);
-        membershipExtensions[body.memberId] = (membershipExtensions[body.memberId] || 0) + body.extensionDays;
         summary = `Extended membership validity by +${body.extensionDays} days for ${targetName} (${body.reason})`;
         break;
       }
@@ -139,7 +203,6 @@ export async function POST(req: NextRequest) {
           teacherName: body.substituteTrainer,
         });
         momenceRef = refOf(res);
-        trainerSubstitutions[body.sessionId] = body.substituteTrainer;
         summary = `Substituted ${body.originalTrainer || 'the scheduled trainer'} with ${body.substituteTrainer} for ${targetName}`;
         break;
       }
@@ -154,11 +217,13 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    const targetType: ActionReceipt['targetType'] = body.action === 'substitute_trainer' ? 'session' : 'member';
+    const targetId = (body.action === 'substitute_trainer' ? body.sessionId : body.memberId) || '';
     const receipt: ActionReceipt = {
-      id: `rcpt-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      id: `rcpt-${randomUUID()}`,
       action: body.action,
-      targetType: body.action === 'substitute_trainer' ? 'session' : 'member',
-      targetId: (body.action === 'substitute_trainer' ? body.sessionId : body.memberId) || '',
+      targetType,
+      targetId,
       targetName: (body.action === 'substitute_trainer' ? body.sessionName : body.memberName) || '',
       summary,
       details,
@@ -168,15 +233,32 @@ export async function POST(req: NextRequest) {
       momenceRef,
     };
 
-    performedActions.unshift(receipt);
+    // Written only after the live call returned, so a receipt always stands for a change
+    // Momence actually accepted.
+    await db.insert(momenceActionReceipts).values({
+      id: receipt.id,
+      action: receipt.action,
+      targetType: receipt.targetType,
+      targetId: receipt.targetId,
+      targetName: receipt.targetName,
+      summary: receipt.summary,
+      details,
+      studio: body.studio ?? null,
+      performedBy: receipt.performedBy,
+      performedByUserId: user?.id ?? null,
+      status: receipt.status,
+      momenceRef,
+    });
+
+    const totals = body.memberId ? await memberTotals(body.memberId) : {credits: 0, days: 0};
 
     return NextResponse.json({
       success: true,
       receipt,
-      bonusCredits: body.memberId ? grantedCredits[body.memberId] || 0 : 0,
-      extensionDays: body.memberId ? membershipExtensions[body.memberId] || 0 : 0,
+      bonusCredits: totals.credits,
+      extensionDays: totals.days,
     });
   } catch (err) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 400 });
+    return errorResponse(err);
   }
 }

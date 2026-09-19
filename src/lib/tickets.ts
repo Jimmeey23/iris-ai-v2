@@ -1,9 +1,10 @@
 import {and,desc,eq,or,sql,ne,inArray} from 'drizzle-orm';
+import {describeTicket} from './ticket-label';
 import {randomUUID} from 'crypto';
 import {db} from '@/db';
 import {tickets,staff,departments,ticketActivities,ticketComments,ticketLinks,ticketResolutions,ticketResolutionSteps,ticketFollowUps,ticketContactLog,deliveryLogs} from '@/db/schema';
 import {ticketInputSchema,type TicketInput,type AdvancedDraft} from './ticket-contract';
-import {getConfig} from './config';
+import {getConfig,getSetting,setSetting} from './config';
 import {ApiError,currentUser,type Identity} from './auth';
 import {inferPriority,inferSeverity,studioIdsFor} from './routing';
 import {buildTemplate} from './templates';
@@ -25,8 +26,13 @@ const people=await db.select().from(staff).where(and(eq(staff.isActive,true),eq(
 const ids=studioIdsFor(input.studio);const override=cfg.routingOwners[input.category+'::'+input.studio]||cfg.routingOwners[input.category];
 const owner=cfg.autoAssign?(people.find(p=>p.id===override)||people.sort((a,b)=>{const score=(p:typeof a)=>(p.categories.includes(input.category)?10:0)+(p.studioId&&ids.includes(p.studioId)?8:0)+(/Head|Coordinator|Ops Manager|Chief/.test(p.role)?3:0);return score(b)-score(a);})[0]):{id:null,name:'Unassigned',email:'',role:'Department queue'};if(!owner)throw new ApiError('No active owner is available in the routing department.');
 const studioShort=input.studio.split(',')[0].trim();
-// A title that reads on its own in a list: what kind of entry, what it is about, and where.
-const title=input.title?.trim()||[praise?'Member appreciation':input.subcategory,input.classFormat?.split('+')[0].trim(),studioShort].filter(Boolean).join(' · ');
+// A title that reads on its own in a list. It used to be the taxonomy joined with middots,
+// which told a reader which drawer the ticket was in rather than what had happened; see
+// ticket-label.ts. Classification is still shown, as chips beside the label.
+const title=input.title?.trim()||(cfg.labelStyle==='classification'
+  // The older taxonomy title, kept for workspaces that prefer their rows filed by drawer.
+  ? [praise?'Member appreciation':input.subcategory,input.classFormat?.split('+')[0].trim(),studioShort].filter(Boolean).join(' · ')
+  : describeTicket({description:input.description,subcategory:input.subcategory,category:input.category,kind:input.kind,studio:input.studio,classFormat:input.classFormat,trainer:input.trainer,sentiment:input.sentiment,memberName:input.memberName},cfg.labelMaxLength));
 // The summary is what every list, card and digest shows instead of the full description, so
 // it carries the who/where/when the description usually assumes.
 const narrative=input.description.replace(/\s+/g,' ').trim();
@@ -47,8 +53,40 @@ if(source!=='history'&&cfg.assignmentEmail&&draft.assignedStaffEmail)await tx.in
 return{...row,ticketNumber:number};});}
 /** List views never read `customFields` or the long-form text, which are ~85% of the
  *  table's bytes. Selecting only the rendered columns keeps this response small. */
-const LIST_COLUMNS={id:tickets.id,ticketNumber:tickets.ticketNumber,title:tickets.title,status:tickets.status,priority:tickets.priority,category:tickets.category,subcategory:tickets.subcategory,studio:tickets.studio,memberName:tickets.memberName,assignedStaffId:tickets.assignedStaffId,assignedStaffName:tickets.assignedStaffName,departmentName:tickets.departmentName,kind:tickets.kind,source:tickets.source,resolutionRequired:tickets.resolutionRequired,slaDueAt:tickets.slaDueAt,resolvedAt:tickets.resolvedAt,createdAt:tickets.createdAt,version:tickets.version};
+const LIST_COLUMNS={id:tickets.id,ticketNumber:tickets.ticketNumber,title:tickets.title,status:tickets.status,priority:tickets.priority,category:tickets.category,subcategory:tickets.subcategory,studio:tickets.studio,memberName:tickets.memberName,assignedStaffId:tickets.assignedStaffId,assignedStaffName:tickets.assignedStaffName,departmentName:tickets.departmentName,kind:tickets.kind,source:tickets.source,resolutionRequired:tickets.resolutionRequired,slaDueAt:tickets.slaDueAt,resolvedAt:tickets.resolvedAt,createdAt:tickets.createdAt,updatedAt:tickets.updatedAt,version:tickets.version};
 export async function listTickets(){return db.select(LIST_COLUMNS).from(tickets).orderBy(desc(tickets.createdAt)).limit(2000);}
+
+/** Masks a member's name in list payloads when the workspace asks for it. The full record
+ *  is still available on the ticket itself, to whoever is allowed to open it. */
+export function maskMemberName(name:string){const parts=(name||'').trim().split(/\s+/).filter(Boolean);if(!parts.length)return 'Member';return parts[0]+(parts.length>1?' '+parts[parts.length-1][0].toUpperCase()+'.':'');}
+
+/**
+ * Raises the priority of tickets that are far enough past their follow-up target, when the
+ * workspace has asked for that.
+ *
+ * There is no scheduler in this deployment, so the sweep runs off the ticket list — but at
+ * most once every few minutes, recorded in app_settings, so a busy board does not run it on
+ * every request. Nothing is changed for a workspace that leaves escalation switched off.
+ */
+export async function applyEscalations(){
+  const cfg=await getConfig();
+  const hours=cfg.escalateAfterBreachHours;
+  if(!hours)return 0;
+  const last=await getSetting('escalation:lastRun');
+  const lastRun=typeof last?.value?.at==='string'?new Date(last.value.at as string).getTime():0;
+  if(Date.now()-lastRun<300000)return 0;
+  await setSetting('escalation:lastRun',{at:new Date().toISOString()});
+  const cutoff=new Date(Date.now()-hours*3600000);
+  const rows=await db.update(tickets).set({priority:'critical',severity:inferSeverity('critical'),isEscalated:true,updatedAt:new Date()})
+    .where(and(
+      eq(tickets.resolutionRequired,true),
+      ne(tickets.priority,'critical'),
+      sql`${tickets.status} not in ('resolved','closed','recorded')`,
+      sql`${tickets.slaDueAt} is not null and ${tickets.slaDueAt} < ${cutoff}`,
+    )).returning({id:tickets.id});
+  for(const r of rows)await db.insert(ticketActivities).values({ticketId:r.id,actorName:'IRIS',action:'escalated',detail:`Raised to critical — more than ${hours}h past the follow-up target.`});
+  return rows.length;
+}
 /** Resolution is private to the assigned owner, that owner's direct reporting
  *  manager, or an administrator. Admins are granted unconditionally: they are
  *  frequently not linked to a staff profile at all, which previously locked the

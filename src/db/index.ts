@@ -12,8 +12,11 @@ const globalForDb = globalThis as typeof globalThis & {
   __arenaNextJsPostgresqlPool?: Pool;
 };
 
+// Reuse the pool across module evaluations in dev so we don't leak connection
+// pools or keep re-registering error listeners on every Fast Refresh.
+const existingPool = globalForDb.__arenaNextJsPostgresqlPool;
 export const pool =
-  globalForDb.__arenaNextJsPostgresqlPool ??
+  existingPool ??
   new Pool({
     connectionString: databaseUrl,
     keepAlive: true,
@@ -30,14 +33,17 @@ export const pool =
       : undefined,
   });
 
-// An idle client dropped by the pooler emits `error` on the pool; without a listener
-// Node treats it as unhandled and tears down the process.
-pool.on("error", (err) => {
-  console.error("[db] idle client error:", err.message);
-});
+if (!existingPool) {
+  // An idle client dropped by the pooler emits `error` on the pool; without a
+  // listener Node treats it as unhandled and tears down the process. Attach it
+  // only once, when the pool is first created.
+  pool.on("error", (err) => {
+    console.error("[db] idle client error:", err.message);
+  });
 
-if (process.env.NODE_ENV !== "production") {
-  globalForDb.__arenaNextJsPostgresqlPool = pool;
+  if (process.env.NODE_ENV !== "production") {
+    globalForDb.__arenaNextJsPostgresqlPool = pool;
+  }
 }
 
 export const db = drizzle(pool, { schema });

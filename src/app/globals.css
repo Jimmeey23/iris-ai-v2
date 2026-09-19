@@ -1620,3 +1620,118 @@ pre{font:12px/1.7 var(--font-mono);white-space:pre-wrap;overflow-wrap:anywhere;c
   .ticket-detail-shell .workspace-tabs button{font-size:10.5px;padding:8px 10px}
   .resolution-v2 .rw-tabs button{font-size:9.5px;padding:8px 4px}
 }
+
+/* ============================================================
+   Filters & grouping panel
+   Collapsed by default. The header keeps the active-filter summary visible so a
+   filtered board never reads as an empty one.
+   ============================================================ */
+.ticket-filters{border-bottom:1px solid var(--border);background:var(--surface)}
+.tf-head{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:11px 20px;flex-wrap:wrap}
+.tf-toggle{display:inline-flex;align-items:center;gap:8px;background:none;border:0;padding:0;color:var(--text);font-size:12px;font-weight:600}
+.tf-toggle:hover{color:var(--accent)}
+.tf-toggle>svg:first-child{transition:transform .18s cubic-bezier(.16,1,.3,1)}
+.tf-head-right{display:flex;align-items:center;gap:12px;min-width:0;flex-wrap:wrap}
+.tf-summary{font-size:10.5px;color:var(--secondary);max-width:46ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:3px 9px;border-radius:99px;background:var(--accent-soft);border:1px solid color-mix(in srgb,var(--accent) 22%,transparent)}
+.tf-matched{font-family:var(--font-mono);font-size:10px;color:var(--muted);white-space:nowrap}
+.tf-body{padding:4px 20px 18px;display:flex;flex-direction:column;gap:14px;border-top:1px solid var(--border);background:var(--surface-2);animation:tf-reveal .2s cubic-bezier(.16,1,.3,1)}
+@keyframes tf-reveal{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+.tf-row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+.tf-row-primary{padding-top:14px}
+.tf-row .field{min-width:150px}
+.tf-row-layout{padding-top:12px;border-top:1px dashed var(--border);align-items:flex-end}
+.tf-layout-buttons{display:flex;gap:7px;flex-wrap:wrap;margin-left:auto}
+.tf-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(255px,1fr));gap:12px 20px}
+.tf-chipset{min-width:0}
+.tf-chipset-label{display:block;font-family:var(--font-mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:7px}
+.tf-chips{display:flex;gap:5px;flex-wrap:wrap}
+.tf-chip{border:1px solid var(--border);background:var(--surface);color:var(--secondary);border-radius:99px;padding:4px 10px;font-size:10.5px;font-weight:500;line-height:1.5;text-transform:capitalize;transition:background .14s,border-color .14s,color .14s}
+.tf-chip:hover{border-color:var(--border-strong);color:var(--text)}
+.tf-chip-on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);font-weight:600}
+.tf-chip-clear{color:var(--muted);padding:4px 7px}
+.tf-chip-clear:hover{color:var(--red);border-color:var(--red)}
+.tf-columns{display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:6px;padding:13px;border:1px dashed var(--border);border-radius:10px;background:var(--surface)}
+.tf-column{display:flex;align-items:center;gap:7px;font-size:11px;color:var(--secondary);padding:5px 8px;border-radius:7px;cursor:pointer;transition:background .14s}
+.tf-column:hover{background:var(--surface-2)}
+.tf-column-on{color:var(--text);font-weight:500}
+.tf-column-locked{opacity:.55;cursor:not-allowed}
+.tf-views{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-top:12px;border-top:1px dashed var(--border)}
+.tf-view{display:inline-flex;align-items:center;gap:2px}
+.tf-view-x{border:0;background:none;color:var(--muted);padding:4px;line-height:0;border-radius:5px}
+.tf-view-x:hover{color:var(--red);background:var(--red-bg)}
+
+/* ============================================================
+   Ticket grid — sortable headers, grouped rows
+   ============================================================ */
+.ticket-grid{table-layout:auto}
+.ticket-grid th{position:sticky;top:0;z-index:2;background:var(--surface);backdrop-filter:blur(6px)}
+.tg-sortable{cursor:pointer;user-select:none;transition:color .14s,background .14s}
+.tg-sortable:hover{color:var(--accent);background:var(--surface-2)}
+.tg-th{display:inline-flex;align-items:center;gap:5px}
+.tg-sort-idle{opacity:0;transition:opacity .14s}
+.tg-sortable:hover .tg-sort-idle{opacity:.5}
+.tg-sorted{color:var(--accent)}
+.tg-right,.ticket-grid td.tg-right{text-align:right}
+.tg-check{width:30px}
+.tg-label-cell{min-width:230px}
+.tg-compact td{padding:8px 13px}
+.tg-compact .ticket-meta{margin-top:2px}
+.tg-compact .ticket-name{font-size:11px}
+
+.tg-group-bar{display:flex;align-items:center;gap:12px;padding:9px 20px;border-bottom:1px solid var(--border);background:var(--surface-2);font-size:10.5px}
+.tg-group-bar .muted{margin-right:auto}
+
+.tg-group{border-bottom:1px solid var(--border)}
+.tg-group:last-child{border-bottom:0}
+.tg-group-row{cursor:pointer;background:var(--surface-2);transition:background .14s}
+.tg-group-row:hover{background:var(--surface-3)}
+.tg-group-row td{padding:0!important;border-bottom:1px solid var(--border)}
+.tg-group-head{display:flex;align-items:center;gap:10px;padding:10px 20px;flex-wrap:wrap}
+.tg-group-chevron{display:grid;place-items:center;color:var(--accent);height:20px;width:20px;border-radius:6px;background:var(--accent-soft);transition:transform .18s cubic-bezier(.16,1,.3,1)}
+.tg-group-open .tg-group-chevron{transform:rotate(0)}
+.tg-group-name{font-size:12px;font-weight:600;color:var(--text);text-transform:capitalize}
+.tg-group-count{font-family:var(--font-mono);font-size:10px;color:var(--accent);background:var(--accent-soft);border-radius:99px;padding:2px 8px}
+.tg-group-spacer{flex:1;min-width:10px}
+.tg-group-bar-track{width:88px;height:5px;border-radius:99px;background:var(--surface-4);overflow:hidden;flex-shrink:0}
+.tg-group-bar-fill{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--accent-deep),var(--accent-bright));transition:width .5s cubic-bezier(.16,1,.3,1)}
+
+/* Nested rows read as children of their group header, not as a flat list. */
+.tg-child>td:first-child{position:relative}
+.tg-child>td:first-child:before{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;background:color-mix(in srgb,var(--accent) 28%,transparent)}
+.tg-group-open .tg-child{animation:tg-child-in .18s cubic-bezier(.16,1,.3,1) both}
+@keyframes tg-child-in{from{opacity:0;transform:translateY(-3px)}to{opacity:1;transform:none}}
+.tg-child td:first-child{padding-left:38px}
+.tg-child.tg-check+td{padding-left:20px}
+
+/* ============================================================
+   Metric cards — animated, and openable onto the rows behind them
+   ============================================================ */
+.metric-clickable{position:relative;overflow:hidden;text-align:left;width:100%;border:1px solid var(--border);cursor:pointer;transition:transform .18s cubic-bezier(.16,1,.3,1),border-color .18s,box-shadow .18s}
+.metric-clickable:hover{transform:translateY(-3px);border-color:color-mix(in srgb,var(--accent) 45%,transparent);box-shadow:var(--shadow-lg)}
+.metric-clickable:active{transform:translateY(-1px)}
+.metric-sheen{position:absolute;inset:0;pointer-events:none;background:linear-gradient(115deg,transparent 30%,color-mix(in srgb,var(--accent) 12%,transparent) 50%,transparent 70%);transform:translateX(-120%);transition:transform .7s cubic-bezier(.16,1,.3,1)}
+.metric-clickable:hover .metric-sheen{transform:translateX(120%)}
+.metric-drill{float:right;display:inline-flex;align-items:center;gap:3px;color:var(--accent);font-weight:600;opacity:0;transform:translateX(-4px);transition:opacity .18s,transform .18s}
+.metric-clickable:hover .metric-drill{opacity:1;transform:none}
+.metric-clickable .metric-spark polygon{transition:opacity .25s}
+.metric-clickable:hover .metric-spark polygon{opacity:.24!important}
+
+.mc-breakdowns{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:18px}
+.mc-breakdown{display:flex;flex-direction:column;gap:7px;min-width:0}
+.mc-breakdown-row{display:grid;grid-template-columns:1fr 54px 26px;align-items:center;gap:8px;font-size:11px;color:var(--secondary)}
+.mc-breakdown-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mc-breakdown-row strong{text-align:right;font-family:var(--font-mono);font-size:10.5px;color:var(--text)}
+.mc-breakdown-track{height:5px;border-radius:99px;background:var(--surface-3);overflow:hidden}
+.mc-breakdown-fill{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--accent-deep),var(--accent-bright));animation:mc-grow .55s cubic-bezier(.16,1,.3,1) both}
+@keyframes mc-grow{from{width:0!important}}
+.mc-row-clickable{cursor:pointer}
+
+@media(max-width:900px){
+  .tf-summary{max-width:100%}
+  .tf-layout-buttons{margin-left:0}
+  .tg-group-bar-track{display:none}
+}
+@media(prefers-reduced-motion:reduce){
+  .metric-sheen,.tg-child,.mc-breakdown-fill,.tf-body{animation:none!important;transition:none!important}
+  .metric-clickable:hover{transform:none}
+}

@@ -1,4 +1,9 @@
-import { boolean, integer, jsonb, pgTable, serial, text, timestamp, index, uniqueIndex, primaryKey } from "drizzle-orm/pg-core";
+import { boolean, customType, integer, jsonb, numeric, pgTable, serial, text, timestamp, index, uniqueIndex, primaryKey } from "drizzle-orm/pg-core";
+
+/** Postgres `bytea`. Attachments are held in the database because this deployment has no
+ *  object store configured; the upload route previously wrote a placeholder URL and dropped
+ *  the bytes on the floor. */
+const bytea = customType<{ data: Buffer; driverData: Buffer }>({ dataType: () => "bytea" });
 
 export const departments = pgTable("departments", {
   id: text("id").primaryKey(), name: text("name").notNull(), description: text("description").notNull(), active: boolean("active").notNull().default(true),
@@ -24,7 +29,7 @@ export const chatMessages = pgTable("chat_messages", {
 },(t)=>[index("chat_message_session_idx").on(t.sessionId)]);
 
 export const chatAttachments = pgTable("chat_attachments", {
-  id: text("id").primaryKey(), sessionId: text("session_id").notNull(), fileName: text("file_name").notNull(), fileType: text("file_type").notNull(), fileSize: integer("file_size").notNull(), storageUrl: text("storage_url").notNull(), uploadedBy: text("uploaded_by"), createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  id: text("id").primaryKey(), sessionId: text("session_id").notNull(), fileName: text("file_name").notNull(), fileType: text("file_type").notNull(), fileSize: integer("file_size").notNull(), storageUrl: text("storage_url").notNull(), data: bytea("data"), checksum: text("checksum"), uploadedBy: text("uploaded_by"), createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 }, (t) => [index("chat_attachments_session_idx").on(t.sessionId)]);
 export const appUsers = pgTable("app_users", {
   id: serial("id").primaryKey(), email: text("email").notNull().unique(), name: text("name").notNull(), passwordHash: text("password_hash").notNull(), role: text("role").notNull().default("agent"), staffId: integer("staff_id").references(() => staff.id), active: boolean("active").notNull().default(true), createdAt: timestamp("created_at",{withTimezone:true}).defaultNow().notNull(),
@@ -75,10 +80,68 @@ export const assets = pgTable("assets", {
    *  so they are maintained on write rather than counted per request. */
   faultCount: integer("fault_count").notNull().default(0),
   lastFaultAt: timestamp("last_fault_at",{withTimezone:true}),
+  /** Which grouping in the equipment catalogue this type belongs to — "Cardio",
+   *  "IT & systems", "Weights". Stored rather than derived so a catalogue edit does not
+   *  silently regroup equipment somebody already filed. */
+  category: text("category"),
+  manufacturer: text("manufacturer"),
+  model: text("model"),
+  /** The sticker on the item, if the studio tags its equipment. Distinct from `serial`,
+   *  which is the manufacturer's. */
+  assetTag: text("asset_tag"),
+  vendor: text("vendor"),
+  /** Where it physically lives. Free-text `area` is kept for everything imported before
+   *  locations were defined; `locationId` is the managed version. */
+  locationId: integer("location_id").references(()=>assetLocations.id,{onDelete:"set null"}),
+  /** For consumables counted in bulk — bands, balls, a rack of 2 kg weights. One row can
+   *  legitimately stand for several identical items. */
+  quantity: integer("quantity").notNull().default(1),
+  condition: text("condition"),
+  purchaseCost: numeric("purchase_cost",{precision:12,scale:2}),
+  warrantyUntil: timestamp("warranty_until",{withTimezone:true}),
+  notes: text("notes"),
   acquiredAt: timestamp("acquired_at",{withTimezone:true}),
+  retiredAt: timestamp("retired_at",{withTimezone:true}),
   createdAt: timestamp("created_at",{withTimezone:true}).defaultNow().notNull(),
   updatedAt: timestamp("updated_at",{withTimezone:true}).defaultNow().notNull(),
-},(t)=>[uniqueIndex("assets_studio_type_label_idx").on(t.studio,t.type,t.label),index("assets_studio_status_idx").on(t.studio,t.status)]);
+},(t)=>[uniqueIndex("assets_studio_type_label_idx").on(t.studio,t.type,t.label),index("assets_studio_status_idx").on(t.studio,t.status),index("assets_type_idx").on(t.type),index("assets_location_idx").on(t.locationId)]);
+
+/** Named places inside a site. Seeded from the room plans, then owned by administrators —
+ *  the plan does not know about the pantry shelf the spare mics live on. */
+export const assetLocations = pgTable("asset_locations", {
+  id: serial("id").primaryKey(),
+  studio: text("studio").notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  active: boolean("active").notNull().default(true),
+  createdAt: timestamp("created_at",{withTimezone:true}).defaultNow().notNull(),
+},(t)=>[uniqueIndex("asset_locations_studio_name_idx").on(t.studio,t.name)]);
+
+/** Receipts for Momence member actions. Previously module-scope arrays, which meant every
+ *  receipt was shared between unrelated users in one process and lost on restart. */
+export const momenceActionReceipts = pgTable("momence_action_receipts", {
+  id: text("id").primaryKey(),
+  action: text("action").notNull(),
+  targetType: text("target_type").notNull(),
+  targetId: text("target_id").notNull(),
+  targetName: text("target_name").notNull(),
+  summary: text("summary").notNull(),
+  details: jsonb("details").$type<Record<string,unknown>>().notNull().default({}),
+  studio: text("studio"),
+  performedBy: text("performed_by").notNull(),
+  performedByUserId: integer("performed_by_user_id").references(()=>appUsers.id),
+  status: text("status").notNull().default("synced"),
+  momenceRef: text("momence_ref").notNull().default(""),
+  performedAt: timestamp("performed_at",{withTimezone:true}).defaultNow().notNull(),
+},(t)=>[index("momence_receipts_target_idx").on(t.targetType,t.targetId),index("momence_receipts_at_idx").on(t.performedAt)]);
+
+/** Fixed-window request counters. In the database rather than in memory because the same
+ *  process is not guaranteed to serve the next request. */
+export const rateLimits = pgTable("rate_limits", {
+  key: text("key").primaryKey(),
+  count: integer("count").notNull().default(0),
+  windowStart: timestamp("window_start",{withTimezone:true}).defaultNow().notNull(),
+});
 
 export const integrations = pgTable("integrations", {
   id: text("id").primaryKey(), enabled: boolean("enabled").notNull().default(false), config: jsonb("config").$type<Record<string,string>>().notNull().default({}), encryptedSecrets: text("encrypted_secrets"), status: text("status").notNull().default("not_configured"), lastCheckedAt: timestamp("last_checked_at",{withTimezone:true}), updatedAt: timestamp("updated_at",{withTimezone:true}).defaultNow().notNull(),

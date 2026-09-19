@@ -7,7 +7,7 @@ import { db } from "@/db";
 import { chatSessions, chatMessages } from "@/db/schema";
 import { sql, gt, or, and, eq, desc, isNull } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
-import { browserKey, requireWorkspace, ApiError, errorResponse } from "@/lib/auth";
+import { browserKey, intakeActor, ApiError, errorResponse } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +17,7 @@ export const dynamic = "force-dynamic";
  */
 export async function GET(request: NextRequest) {
   try {
-    await requireWorkspace();
+    await intakeActor();
     const owner = await browserKey();
     const searchParams = request.nextUrl.searchParams;
     const limit = Math.min(parseInt(searchParams.get("limit") || "20"), 50);
