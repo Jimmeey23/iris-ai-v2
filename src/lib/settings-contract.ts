@@ -51,6 +51,17 @@ export const configSchema = z.object({
   currency: z.string().min(1).max(8).default("INR"),
   /** Members' email and phone are masked in lists for anyone below admin. */
   maskMemberContact: z.boolean().default(false),
+
+  /* ---------------------------------------------------------------- *
+   * Extended appearance controls.
+   * ---------------------------------------------------------------- */
+  appearancePreset: z.enum(['gold','blue','violet','mint','rose']).default('gold'),
+  appearanceScale: z.number().int().min(90).max(115).default(100),
+  appearanceSpacing: z.number().int().min(85).max(130).default(100),
+  appearanceRadius: z.number().int().min(80).max(140).default(100),
+  appearanceShadow: z.number().int().min(40).max(140).default(100),
+  appearanceDensity: z.enum(['compact','cozy','airy']).default('cozy'),
+  appearanceCardStyle: z.enum(['elevated','flat','glass']).default('elevated'),
 });
 export type WorkspaceConfig=z.infer<typeof configSchema>;
 export const DEFAULT_CONFIG=configSchema.parse({});

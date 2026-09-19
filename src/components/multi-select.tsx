@@ -33,6 +33,7 @@ export function MultiSelect({
   value,
   onChange,
   multi = false,
+  closeOnSelect = false,
   placeholder,
   emptyHint,
   source,
@@ -44,6 +45,7 @@ export function MultiSelect({
   value: PickerOption[];
   onChange: (next: PickerOption[]) => void;
   multi?: boolean;
+  closeOnSelect?: boolean;
   placeholder?: string;
   emptyHint?: string;
   source?: (opt: PickerOption) => void;
@@ -63,10 +65,11 @@ export function MultiSelect({
 
   useEffect(() => {
     if (!LIVE_MODULES.has(module)) return;
+    if (!open) return;
     const controller = new AbortController();
     const t = setTimeout(() => {
       setBusy(true);
-      const params = new URLSearchParams({ module, q, page: '0' });
+      const params = new URLSearchParams({ module, q, page: '0', pageSize: module === 'sessions' ? '120' : '80' });
       if (module === 'sessions' && studio) params.set('studio', studio);
       if (module === 'sessions') for (const t of sessionTypes || []) params.append('type', t);
       if (module === 'sessions' && upcoming) params.set('upcoming', 'true');
@@ -105,6 +108,10 @@ export function MultiSelect({
     if (!multi) { onChange([opt]); setOpen(false); setQ(''); return; }
     if (isChecked(opt.id)) onChange(value.filter((v) => String(v.id) !== String(opt.id)));
     else onChange([...value, opt]);
+    if (closeOnSelect) {
+      setOpen(false);
+      setQ('');
+    }
   }
   function remove(id: string | number) { onChange(value.filter((v) => String(v.id) !== String(id))); }
 
