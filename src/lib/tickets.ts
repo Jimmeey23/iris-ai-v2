@@ -1,10 +1,10 @@
 import {and,desc,eq,or,sql,ne,inArray} from 'drizzle-orm';
 import {randomUUID} from 'crypto';
 import {db} from '@/db';
-import {tickets,staff,departments,ticketActivities,ticketComments,ticketLinks,ticketResolutions,deliveryLogs} from '@/db/schema';
+import {tickets,staff,departments,ticketActivities,ticketComments,ticketLinks,ticketResolutions,ticketResolutionSteps,ticketFollowUps,ticketContactLog,deliveryLogs} from '@/db/schema';
 import {ticketInputSchema,type TicketInput,type AdvancedDraft} from './ticket-contract';
 import {getConfig} from './config';
-import {ApiError,currentUser} from './auth';
+import {ApiError,currentUser,type Identity} from './auth';
 import {inferPriority,inferSeverity,studioIdsFor} from './routing';
 import {buildTemplate} from './templates';
 import {ticketNumberFor,slugify} from './utils';
@@ -49,8 +49,21 @@ return{...row,ticketNumber:number};});}
  *  table's bytes. Selecting only the rendered columns keeps this response small. */
 const LIST_COLUMNS={id:tickets.id,ticketNumber:tickets.ticketNumber,title:tickets.title,status:tickets.status,priority:tickets.priority,category:tickets.category,subcategory:tickets.subcategory,studio:tickets.studio,memberName:tickets.memberName,assignedStaffId:tickets.assignedStaffId,assignedStaffName:tickets.assignedStaffName,departmentName:tickets.departmentName,kind:tickets.kind,source:tickets.source,resolutionRequired:tickets.resolutionRequired,slaDueAt:tickets.slaDueAt,resolvedAt:tickets.resolvedAt,createdAt:tickets.createdAt,version:tickets.version};
 export async function listTickets(){return db.select(LIST_COLUMNS).from(tickets).orderBy(desc(tickets.createdAt)).limit(2000);}
-/** Resolution is private to the assigned owner or that owner's direct reporting manager. */
-export async function canResolveTicket(user:{staffId:number|null;role:string}|null,assignedStaffId:number|null,resolutionRequired:boolean):Promise<boolean>{if(!user||!resolutionRequired||user.staffId===null||assignedStaffId===null)return false;if(!['admin','agent'].includes(user.role))return false;if(user.staffId===assignedStaffId)return true;const[assignee]=await db.select({manager:staff.manager}).from(staff).where(eq(staff.id,assignedStaffId));if(!assignee?.manager)return false;const[managerRow]=await db.select({id:staff.id}).from(staff).where(eq(staff.name,assignee.manager));return managerRow?.id===user.staffId;}
+/** Resolution is private to the assigned owner, that owner's direct reporting
+ *  manager, or an administrator. Admins are granted unconditionally: they are
+ *  frequently not linked to a staff profile at all, which previously locked the
+ *  people responsible for the workspace out of every resolution in it. */
+export async function canResolveTicket(user:{staffId:number|null;role:string}|null,assignedStaffId:number|null,resolutionRequired:boolean):Promise<boolean>{if(!user||!resolutionRequired)return false;if(user.role==='admin')return true;if(user.role!=='agent'||user.staffId===null||assignedStaffId===null)return false;if(user.staffId===assignedStaffId)return true;const[assignee]=await db.select({manager:staff.manager}).from(staff).where(eq(staff.id,assignedStaffId));if(!assignee?.manager)return false;const[managerRow]=await db.select({id:staff.id}).from(staff).where(eq(staff.name,assignee.manager));return managerRow?.id===user.staffId;}
+/** Single gate for every resolution-workspace write. Returns the actor and the
+ *  ticket so callers do not re-read either. */
+export async function requireResolutionAccess(ticketId:number):Promise<{user:Identity;ticket:typeof tickets.$inferSelect}>{const user=await currentUser();const[ticket]=await db.select().from(tickets).where(eq(tickets.id,ticketId));if(!ticket)throw new ApiError('Ticket not found',404);if(!ticket.resolutionRequired)throw new ApiError('This ticket does not require a resolution.');if(!user)throw new ApiError('Sign in to open the resolution workspace.',401);if(!(await canResolveTicket(user,ticket.assignedStaffId,ticket.resolutionRequired)))throw new ApiError('Only the assigned staff member, their reporting manager and administrators can edit this resolution.',403);return{user,ticket};}
+/** The full private workspace payload. Only ever called once access is proven. */
+export async function getResolutionWorkspace(ticketId:number){const[[resolution],steps,followUps,contacts]=await Promise.all([
+  db.select().from(ticketResolutions).where(eq(ticketResolutions.ticketId,ticketId)),
+  db.select().from(ticketResolutionSteps).where(eq(ticketResolutionSteps.ticketId,ticketId)).orderBy(ticketResolutionSteps.createdAt),
+  db.select().from(ticketFollowUps).where(eq(ticketFollowUps.ticketId,ticketId)).orderBy(ticketFollowUps.dueAt),
+  db.select().from(ticketContactLog).where(eq(ticketContactLog.ticketId,ticketId)).orderBy(desc(ticketContactLog.contactedAt)),
+]);return{resolution:resolution||null,steps,followUps,contacts};}
 export async function getTicketBundle(id:number){const[[ticket],user]=await Promise.all([db.select().from(tickets).where(eq(tickets.id,id)),currentUser()]);if(!ticket)return null;
 // These six reads are independent of each other. Issued sequentially they cost six database
 // round-trips before anything renders; in parallel they cost one.
@@ -62,11 +75,14 @@ const[canResolve,comments,activities,similar,links]=await Promise.all([
   db.select().from(ticketLinks).where(or(eq(ticketLinks.ticketId,id),eq(ticketLinks.relatedId,id))),
 ]);
 const linkedIds=links.map(l=>l.ticketId===id?l.relatedId:l.ticketId);
-const[linked,[resolution]]=await Promise.all([
+// The resolution record is readable by anyone who can open the ticket: hiding
+// the work already done just makes colleagues re-ask. `canResolve` stays the
+// gate on *writing* it.
+const[linked,workspace]=await Promise.all([
   linkedIds.length?db.select({id:tickets.id,ticketNumber:tickets.ticketNumber,title:tickets.title,status:tickets.status}).from(tickets).where(inArray(tickets.id,linkedIds)):Promise.resolve([]),
-  canResolve?db.select().from(ticketResolutions).where(eq(ticketResolutions.ticketId,id)):Promise.resolve([]),
+  getResolutionWorkspace(id),
 ]);
-return{ticket,comments,activities,similar,linked,canResolve,resolution:resolution||null};}
+return{ticket,comments,activities,similar,linked,canResolve,...workspace};}
 const BIKE_PATTERN=/\b(bike|bikes|cycle|cycling|powercycle|power cycle|spin bike|pedal|flywheel|resistance knob)\b/i;
 export function isPowerCycleBikeTicket(t:{title:string;description:string;subcategory:string;classFormat:string|null;category:string}):boolean{const haystack=`${t.title} ${t.description} ${t.subcategory} ${t.classFormat||''}`;if(!BIKE_PATTERN.test(haystack))return false;return['Repair and Maintenance','Tech Issues','Studio Amenities and Facilities'].includes(t.category)||/powercycle/i.test(t.classFormat||'');}
 /** When a PowerCycle bike malfunction ticket is resolved, auto-raise a 1-week (168h) post-service audit follow-up for the same owner. */

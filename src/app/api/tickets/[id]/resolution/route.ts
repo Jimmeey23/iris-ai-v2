@@ -1,7 +1,29 @@
-import {eq} from 'drizzle-orm';
 import {z} from 'zod';
 import {db} from '@/db';
-import {ticketResolutions,tickets,ticketActivities} from '@/db/schema';
-import {ApiError,currentUser,errorResponse,sameOrigin} from '@/lib/auth';
-import {canResolveTicket} from '@/lib/tickets';
-export async function PUT(req:Request,ctx:{params:Promise<{id:string}>}){try{sameOrigin(req);const user=await currentUser();const id=Number((await ctx.params).id);const[ticket]=await db.select().from(tickets).where(eq(tickets.id,id));if(!ticket)throw new ApiError('Not found',404);if(!ticket.resolutionRequired)throw new ApiError('This ticket does not require a resolution.');if(!user||!(await canResolveTicket(user,ticket.assignedStaffId,ticket.resolutionRequired)))throw new ApiError('Resolution is private to the assigned staff member and their reporting manager.',403);const b=z.object({rootCause:z.string().max(5000),actionTaken:z.string().max(5000),preventiveAction:z.string().max(5000),memberOutcome:z.string().max(5000),followUpAt:z.string().max(100).optional()}).parse(await req.json());await db.transaction(async tx=>{await tx.insert(ticketResolutions).values({ticketId:id,authorUserId:user.id,...b}).onConflictDoUpdate({target:ticketResolutions.ticketId,set:{...b,authorUserId:user.id,updatedAt:new Date()}});await tx.insert(ticketActivities).values({ticketId:id,actorName:user.name,action:'resolution.updated',detail:'Private owner-only resolution updated.'});});return Response.json({ok:true});}catch(e){return errorResponse(e);}}
+import {ticketResolutions,ticketActivities} from '@/db/schema';
+import {ApiError,errorResponse,requireWorkspace,sameOrigin} from '@/lib/auth';
+import {requireResolutionAccess,getResolutionWorkspace} from '@/lib/tickets';
+
+export const dynamic='force-dynamic';
+type Ctx={params:Promise<{id:string}>};
+
+/** Readable by anyone signed into the workspace. Writing it is another matter —
+ *  every mutating handler below goes through requireResolutionAccess. */
+export async function GET(_req:Request,ctx:Ctx){try{
+  const id=z.coerce.number().int().positive().parse((await ctx.params).id);
+  const user=await requireWorkspace();
+  if(!user)throw new ApiError('Sign in to view this ticket.',401);
+  return Response.json(await getResolutionWorkspace(id));
+}catch(e){return errorResponse(e);}}
+
+export async function PUT(req:Request,ctx:Ctx){try{
+  sameOrigin(req);
+  const id=z.coerce.number().int().positive().parse((await ctx.params).id);
+  const{user}=await requireResolutionAccess(id);
+  const b=z.object({rootCause:z.string().max(5000),actionTaken:z.string().max(5000),preventiveAction:z.string().max(5000),memberOutcome:z.string().max(5000),followUpAt:z.string().max(100).optional()}).parse(await req.json());
+  await db.transaction(async tx=>{
+    await tx.insert(ticketResolutions).values({ticketId:id,authorUserId:user.id,...b}).onConflictDoUpdate({target:ticketResolutions.ticketId,set:{...b,authorUserId:user.id,updatedAt:new Date()}});
+    await tx.insert(ticketActivities).values({ticketId:id,actorName:user.name,action:'resolution.updated',detail:'Private owner-only resolution updated.'});
+  });
+  return Response.json(await getResolutionWorkspace(id));
+}catch(e){return errorResponse(e);}}

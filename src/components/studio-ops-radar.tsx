@@ -98,6 +98,20 @@ interface RadarApiResponse {
   };
 }
 
+// Humanise an SLA delta given in minutes. Long-overdue tickets are common in
+// seeded data, so anything past a day collapses to whole days — "-1272130m" is
+// not a number anyone can read at a glance.
+function formatSlaDelta(mins: number): string {
+  const abs = Math.abs(mins);
+  const overdue = mins < 0;
+  let body: string;
+  if (abs < 60) body = `${abs}m`;
+  else if (abs < 1440) body = `${Math.floor(abs / 60)}h ${abs % 60}m`;
+  else if (abs < 43200) body = `${Math.floor(abs / 1440)}d ${Math.floor((abs % 1440) / 60)}h`;
+  else body = `${Math.floor(abs / 1440)}d`;
+  return overdue ? `OVERDUE ${body}` : `${body} left`;
+}
+
 export function StudioOpsRadar({ initialStudio = 'kwality' }: { initialStudio?: string }) {
   const { notify } = useApp();
   const [selectedStudioId, setSelectedStudioId] = useState(initialStudio);
@@ -219,7 +233,7 @@ export function StudioOpsRadar({ initialStudio = 'kwality' }: { initialStudio?: 
             <span className="t-label">NETWORK HEALTH</span>
             <div className="t-val-row">
               <span className="t-val accent-text">{globalRadar?.networkHealthScore || 100}%</span>
-              <span className="t-sub">Across 4 Sites</span>
+              <span className="t-sub">Across {globalRadar?.totalStudiosMonitored ?? 0} Sites</span>
             </div>
           </div>
 
@@ -241,11 +255,7 @@ export function StudioOpsRadar({ initialStudio = 'kwality' }: { initialStudio?: 
               {activeStudio?.tightestSlaMinutes !== null && activeStudio?.tightestSlaMinutes !== undefined ? (
                 <div className={`countdown-clock ${activeStudio.tightestSlaMinutes < 0 ? 'breached' : 'active'}`}>
                   <Clock size={14} className="clock-icon" />
-                  <span>
-                    {activeStudio.tightestSlaMinutes < 0
-                      ? `OVERDUE -${Math.abs(activeStudio.tightestSlaMinutes)}m`
-                      : `${activeStudio.tightestSlaMinutes}m left`}
-                  </span>
+                  <span>{formatSlaDelta(activeStudio.tightestSlaMinutes)}</span>
                 </div>
               ) : (
                 <div className="countdown-clock all-clear">
@@ -276,30 +286,38 @@ export function StudioOpsRadar({ initialStudio = 'kwality' }: { initialStudio?: 
           const isCurrent = st.id === selectedStudioId;
           const hasCritical = st.criticalCount > 0;
           const hasWarning = st.warningCount > 0;
+          // Health drives the meter colour independently of incident counts: a
+          // site can be all-clear right now and still be sitting at 60%.
+          const healthTone = st.healthScore >= 90 ? 'good' : st.healthScore >= 60 ? 'mid' : 'bad';
 
           return (
             <button
               type="button"
               key={st.id}
+              aria-pressed={isCurrent}
               className={`studio-tab-card ${isCurrent ? 'active' : ''} ${hasCritical ? 'has-critical' : hasWarning ? 'has-warning' : 'all-optimal'}`}
               onClick={() => {
                 setSelectedStudioId(st.id);
                 setSelectedRoomId(null);
               }}
             >
+              <span className="studio-tab-rail" aria-hidden />
               <div className="studio-tab-top">
-                <Building2 size={13} />
+                <Building2 size={13} className="studio-tab-icon" />
                 <strong>{st.shortName}</strong>
-                <span className="health-tag">{st.healthScore}%</span>
+                <span className={`health-tag ${healthTone}`}>{st.healthScore}%</span>
+              </div>
+              <div className={`studio-health-meter ${healthTone}`} aria-hidden>
+                <i style={{ width: `${Math.max(st.healthScore, 3)}%` }} />
               </div>
               <div className="studio-tab-sub">
-                <span>{st.city}</span>
+                <span className="studio-tab-city">{st.city}</span>
                 {hasCritical ? (
-                  <span className="badge-critical-pill">🚨 {st.criticalCount} Critical</span>
+                  <span className="badge-critical-pill"><Flame size={9} /> {st.criticalCount} Critical</span>
                 ) : hasWarning ? (
-                  <span className="badge-warning-pill">⚠️ {st.warningCount} Snag</span>
+                  <span className="badge-warning-pill"><AlertTriangle size={9} /> {st.warningCount} Snag</span>
                 ) : (
-                  <span className="badge-optimal-pill">✓ All Clear</span>
+                  <span className="badge-optimal-pill"><CheckCircle2 size={9} /> All Clear</span>
                 )}
               </div>
             </button>
