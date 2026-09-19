@@ -76,16 +76,17 @@ export function CommandCenter({directory=false}:{directory?:boolean}){
 
   return (
     <Shell title={directory?'Every ticket, one shared log.':'The team\u2019s ops log.'} eyebrow={directory?'TICKET DIRECTORY':'INTERNAL OPERATIONS'} action={<div className="flex-row"><select className="btn" aria-label="Reporting date range" value={range} onChange={e=>setRange(e.target.value)}><option value="all">All time</option><option value="7">Last 7 days</option><option value="30">Last 30 days</option><option value="90">Last 90 days</option></select><button className="btn btn-primary" onClick={()=>setCreate(true)}><Plus size={14}/>Log a ticket</button></div>}>
-      {!directory&&<>
+      {!directory&&<div className="cc-overview">
         <div className="iris-banner">
+          <span className="iris-banner-shine" aria-hidden="true"/>
           <div className="iris-orb"><Sparkles size={24}/></div>
           <div className="grow"><div className="flex-row"><h2>Saw something? Heard something? Tell Iris.</h2><Badge tone="blue">AI ASSISTANT</Badge></div><p>Log it in your own words — Iris classifies it, links the right member or class, and routes it to the right desk with a follow-up target.</p></div>
           <Link className="btn btn-primary" href="/iris">Log with Iris <ArrowUpRight size={14}/></Link>
         </div>
         <Stats tickets={timeFiltered}/>
         <div style={{marginTop:16}}><PulseStats tickets={timeFiltered}/></div>
-      </>}
-      <div className={!directory&&view==='list'?'overview-grid':''} style={{marginTop:!directory?22:0}}>
+      </div>}
+      <div className={(!directory&&view==='list'?'overview-grid':'')+(!directory?' cc-overview':'')} style={{marginTop:!directory?22:0}}>
         {workspace}
         {!directory&&view==='list'&&<aside className="sidebar-widgets">
           <section className="card insights-widget">
