@@ -41,7 +41,7 @@ return{...input,title,summary,priority,severity:inferSeverity(priority),assigned
 
 export async function createTicketFromDraft(draft:AdvancedDraft,source=draft.source,channel='workspace',external?:{sourceRef?:string;createdAt?:Date;status?:string}){const cfg=await getConfig();const submissionKey=draft.submissionKey||randomUUID();return db.transaction(async tx=>{await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${submissionKey}))`);const[existing]=await tx.select().from(tickets).where(external?.sourceRef?or(eq(tickets.submissionKey,submissionKey),eq(tickets.sourceRef,external.sourceRef)):eq(tickets.submissionKey,submissionKey));if(existing)return existing;
 const now=external?.createdAt||new Date();const status=external?.status||(draft.resolutionRequired?'assigned':'recorded');
-const[row]=await tx.insert(tickets).values({ticketNumber:'P57-'+randomUUID(),title:draft.title,summary:draft.summary,description:draft.description,category:draft.category,subcategory:draft.subcategory,status,priority:draft.priority,severity:draft.severity,sentiment:draft.sentiment,kind:draft.kind,resolutionRequired:draft.resolutionRequired,impact:draft.impact,studio:draft.studio,classFormat:draft.classFormat,trainer:draft.trainer,membership:draft.membership,incidentAt:draft.incidentAt,memberName:draft.memberName,memberEmail:draft.memberEmail,memberPhone:draft.memberPhone,momenceMemberId:draft.momenceMemberId,momenceSessionId:draft.momenceSessionId,preferredContact:draft.preferredContact,requestedResolution:draft.requestedResolution,assignedStaffId:draft.assignedStaffId,assignedStaffName:draft.assignedStaffName,assignedStaffEmail:draft.assignedStaffEmail,departmentId:draft.departmentId,departmentName:draft.departmentName,slaHours:draft.slaHours,slaDueAt:draft.slaHours?new Date(now.getTime()+draft.slaHours*3600000):null,source,channel,tags:draft.tags,templateId:draft.templateId,customFields:{...draft.customFields,_brief:{opsChecklist:draft.opsChecklist,memberFacingUpdate:draft.memberFacingUpdate,routingReason:draft.routingReason}},momenceContext:draft.momenceContext||null,submissionKey,sourceRef:external?.sourceRef,createdAt:now,updatedAt:now,...(['resolved','closed'].includes(status)?{resolvedAt:now}:{})}).returning();const number=ticketNumberFor(row.id);await tx.update(tickets).set({ticketNumber:number}).where(eq(tickets.id,row.id));await tx.insert(ticketActivities).values({ticketId:row.id,actorName:source==='history'?'History import':'IRIS',action:'created',detail:`${draft.assignedStaffName} · ${draft.departmentName} · ${draft.slaLabel}`,createdAt:now});
+const[row]=await tx.insert(tickets).values({ticketNumber:'P57-'+randomUUID(),title:draft.title,summary:draft.summary,description:draft.description,category:draft.category,subcategory:draft.subcategory,status,priority:draft.priority,severity:draft.severity,sentiment:draft.sentiment,kind:draft.kind,resolutionRequired:draft.resolutionRequired,impact:draft.impact,studio:draft.studio,classFormat:draft.classFormat,trainer:draft.trainer,membership:draft.membership,incidentAt:draft.incidentAt,memberName:draft.memberName,memberEmail:draft.memberEmail,memberPhone:draft.memberPhone,momenceMemberId:draft.momenceMemberId,momenceSessionId:draft.momenceSessionId,preferredContact:draft.preferredContact,requestedResolution:draft.requestedResolution,assignedStaffId:draft.assignedStaffId,assignedStaffName:draft.assignedStaffName,assignedStaffEmail:draft.assignedStaffEmail,departmentId:draft.departmentId,departmentName:draft.departmentName,slaHours:draft.slaHours,slaDueAt:draft.slaHours?new Date(now.getTime()+draft.slaHours*3600000):null,source,channel,tags:draft.tags,templateId:draft.templateId,customFields:{...draft.customFields,_brief:{opsChecklist:draft.opsChecklist,memberFacingUpdate:draft.memberFacingUpdate,routingReason:draft.routingReason}},momenceContext:draft.momenceContext||null,assetId:typeof draft.customFields?.assetId==='number'?draft.customFields.assetId:null,submissionKey,sourceRef:external?.sourceRef,createdAt:now,updatedAt:now,...(['resolved','closed'].includes(status)?{resolvedAt:now}:{})}).returning();const number=ticketNumberFor(row.id);await tx.update(tickets).set({ticketNumber:number}).where(eq(tickets.id,row.id));await tx.insert(ticketActivities).values({ticketId:row.id,actorName:source==='history'?'History import':'IRIS',action:'created',detail:`${draft.assignedStaffName} · ${draft.departmentName} · ${draft.slaLabel}`,createdAt:now});
 if(source!=='history'&&cfg.webhookOnCreate)await tx.insert(deliveryLogs).values({integrationId:'n8n',action:'webhook',payload:{event:'ticket.created',ticket:{id:row.id,ticketNumber:number,title:draft.title,priority:draft.priority,department:draft.departmentName,assignedTo:draft.assignedStaffName}}});
 if(source!=='history'&&cfg.assignmentEmail&&draft.assignedStaffEmail)await tx.insert(deliveryLogs).values({integrationId:'mailtrap',action:'send',payload:{to:[{email:draft.assignedStaffEmail}],subject:`Assigned: ${number}`,text:`${draft.title}\n\nA ticket has been assigned to you in IRIS. Please sign in to review it.`}});
 return{...row,ticketNumber:number};});}
@@ -88,3 +88,102 @@ export async function maybeCreateBikeFollowUp(resolved:{id:number;ticketNumber:s
 }
 
 export async function historicalExamples(category:string,subcategory:string){const rows=await db.select({title:tickets.title,description:tickets.description,category:tickets.category,subcategory:tickets.subcategory,memberName:tickets.memberName}).from(tickets).where(and(eq(tickets.source,'history'),eq(tickets.category,category),eq(tickets.subcategory,subcategory))).limit(3);return rows.map(r=>({category:r.category,subcategory:r.subcategory,summary:r.description.replaceAll(r.memberName,'[member]').replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi,'[email]').replace(/\+?\d[\d\s-]{8,}\d/g,'[phone]').slice(0,700)}));}
+
+/* ------------------------------------------------------------------ */
+/* Repeats: adding a report to a ticket that is already open           */
+/* ------------------------------------------------------------------ */
+
+const PRIORITY_FLOOR: Record<string, number> = {low: 0, medium: 1, high: 2, critical: 3};
+
+/** Records a second (or fifth) report of the same fault on the ticket that is already open.
+ *
+ *  The alternative — a fresh ticket each time — is what made recurrence invisible: four
+ *  tickets about one broken aircon look like four problems, and nothing ever escalates
+ *  because nothing can count. Here the repeat lands as a dated note, the count goes up, and
+ *  a fault reported three times stops being routine.
+ */
+export async function appendRepeatReport(input: {
+  ticketId: number;
+  description: string;
+  reporterName: string;
+  collected: Record<string, unknown>;
+  recurrence: number;
+}): Promise<{id: number; ticketNumber: string; priority: string; recurrence: number; escalated: boolean}> {
+  const [ticket] = await db.select().from(tickets).where(eq(tickets.id, input.ticketId));
+  if (!ticket) throw new ApiError('That ticket no longer exists.', 404);
+  const cf = (ticket.customFields || {}) as Record<string, unknown>;
+  const recurrence = Math.max(input.recurrence, (Number(cf.recurrenceCount) || 1) + 1);
+  const collected = input.collected || {};
+
+  const lines: string[] = [`Reported again by ${input.reporterName} (${recurrence === 2 ? 'second' : recurrence === 3 ? 'third' : `${recurrence}th`} report).`];
+  const detail: string[] = [];
+  const when = String(collected.incidentAt || '').trim();
+  if (when) detail.push(`noticed ${when.toLowerCase()}`);
+  const area = String(collected.area || '').trim();
+  if (area) detail.push(area);
+  const bike = String(collected.bikeNumber || '').trim();
+  if (bike) detail.push(`bike #${bike}`);
+  const symptom = String(collected.cycleIssueType || '').trim();
+  if (symptom) detail.push(symptom);
+  const blocking = String(collected.isClassImpacted || '').trim();
+  if (blocking) detail.push(blocking.toLowerCase());
+  const action = String(collected.cycleReporterAction || '').trim();
+  if (action) detail.push(action.toLowerCase());
+  if (detail.length) lines.push(detail.join(' · ') + '.');
+  const narrative = String(collected.description || input.description || '').replace(/\s+/g, ' ').trim();
+  if (narrative) lines.push('"' + narrative.slice(0, 600) + '"');
+
+  // A repeat that is disrupting a class outranks whatever the first report alone warranted.
+  const floor = String(collected.isClassImpacted || '').startsWith('Yes') ? 'high' : undefined;
+  const raised = floor && PRIORITY_FLOOR[floor] > (PRIORITY_FLOOR[ticket.priority] ?? 1) ? floor : ticket.priority;
+  // Three reports of the same thing is a chronic fault, not a snag: it needs a manager's
+  // attention and a vendor, not another four-hour follow-up.
+  const escalate = recurrence >= 3 && !ticket.isEscalated;
+  const nextPriority = escalate && PRIORITY_FLOOR['high'] > (PRIORITY_FLOOR[raised] ?? 1) ? 'high' : raised;
+
+  await db.insert(ticketComments).values({
+    ticketId: ticket.id,
+    authorName: input.reporterName,
+    authorRole: 'Studio team',
+    body: lines.join('\n'),
+    isInternal: true,
+  });
+  await db.insert(ticketActivities).values({
+    ticketId: ticket.id,
+    actorName: input.reporterName,
+    action: 'reported_again',
+    detail: `Report #${recurrence}${nextPriority !== ticket.priority ? ` · priority raised to ${nextPriority}` : ''}${escalate ? ' · escalated for repeat fault' : ''}`,
+  });
+
+  const [updated] = await db
+    .update(tickets)
+    .set({
+      customFields: {...cf, recurrenceCount: recurrence, lastRepeatAt: new Date().toISOString()},
+      priority: nextPriority,
+      severity: inferSeverity(nextPriority as 'low' | 'medium' | 'high' | 'critical'),
+      isEscalated: ticket.isEscalated || escalate,
+      updatedAt: new Date(),
+    })
+    .where(eq(tickets.id, ticket.id))
+    .returning({id: tickets.id, ticketNumber: tickets.ticketNumber, priority: tickets.priority});
+
+  return {
+    id: updated.id,
+    ticketNumber: updated.ticketNumber,
+    priority: updated.priority,
+    recurrence,
+    escalated: escalate,
+  };
+}
+
+/** Notes that two tickets are about the same thing, without merging them. */
+export async function linkTickets(ticketId: number, relatedId: number): Promise<void> {
+  if (ticketId === relatedId) return;
+  await db
+    .insert(ticketLinks)
+    .values([
+      {ticketId, relatedId, relation: 'duplicate'},
+      {ticketId: relatedId, relatedId: ticketId, relation: 'duplicate'},
+    ])
+    .onConflictDoNothing();
+}

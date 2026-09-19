@@ -17,6 +17,7 @@ export default defineConfig({
   tablesFilter: [
     "app_settings",
     "app_users",
+    "assets",
     "audit_logs",
     "auth_sessions",
     "chat_messages",

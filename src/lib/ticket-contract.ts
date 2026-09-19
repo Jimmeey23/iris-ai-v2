@@ -10,7 +10,7 @@ export const ticketInputSchema=z.object({
 });
 export type TicketInput=z.infer<typeof ticketInputSchema>;
 export type AdvancedDraft=TicketInput&{title:string;summary:string;priority:'critical'|'high'|'medium'|'low';severity:string;assignedStaffId:number|null;assignedStaffName:string;assignedStaffEmail:string;assignedStaffRole:string;departmentId:string;departmentName:string;slaHours:number;slaLabel:string;resolutionRequired:boolean;tags:string[];opsChecklist:string[];memberFacingUpdate:string;internalBrief:string;routingReason:string;};
-export type TicketRecord=AdvancedDraft&{id:number;ticketNumber:string;status:string;createdAt:string;updatedAt:string;slaDueAt:string|null;resolvedAt:string|null;version:number;isEscalated:boolean;};
+export type TicketRecord=AdvancedDraft&{id:number;ticketNumber:string;status:string;createdAt:string;updatedAt:string;slaDueAt:string|null;resolvedAt:string|null;version:number;isEscalated:boolean;/** Equipment register row, when the fault was about a specific asset. */assetId:number|null;};
 /** Columns the board, dashboard and link picker actually render. The full row carries
  *  `customFields` and the long-form text, which together are ~85% of the table's bytes
  *  and are never read by a list view — `listTickets` selects only these. */

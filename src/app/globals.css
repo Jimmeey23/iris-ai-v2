@@ -1085,3 +1085,12 @@ pre{font:12px/1.7 var(--font-mono);white-space:pre-wrap;overflow-wrap:anywhere;c
 .stream-caret{display:inline-block;width:2px;height:1em;margin-left:3px;vertical-align:-.15em;background:var(--accent);animation:stream-blink 1s steps(1) infinite}
 @keyframes stream-blink{0%,49%{opacity:1}50%,100%{opacity:0}}
 @media(prefers-reduced-motion:reduce){.stream-caret{animation:none}}
+
+/* Equipment register — one card per asset, the unavailable ones first. */
+.asset-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(184px,1fr));gap:13px}
+.asset-card{display:flex;flex-direction:column;gap:7px;padding:15px;border:1px solid var(--border);border-radius:11px;background:var(--surface-2)}
+.asset-card-down{border-color:color-mix(in srgb,var(--danger, #e5484d) 45%,var(--border));background:color-mix(in srgb,var(--danger, #e5484d) 6%,var(--surface-2))}
+.asset-card small{font-size:10.5px;line-height:1.5}
+.asset-card-stats{display:flex;flex-wrap:wrap;gap:5px 12px;font-size:10.5px;color:var(--muted);font-family:var(--font-mono);padding-top:6px;border-top:1px dashed var(--border)}
+.asset-card-stats strong{color:var(--text);font-size:11.5px}
+@media(max-width:640px){.asset-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}}
