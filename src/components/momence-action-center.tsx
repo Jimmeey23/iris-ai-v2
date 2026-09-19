@@ -29,6 +29,7 @@ interface ActionCenterProps {
   memberId?: string;
   memberName?: string;
   memberEmail?: string;
+  memberPhone?: string;
   studio?: string;
   category?: string;
   subcategory?: string;
@@ -36,6 +37,16 @@ interface ActionCenterProps {
   classFormat?: string;
   trainer?: string;
   issueSummary?: string;
+}
+
+interface MomenceProfile {
+  email: string;
+  phone: string;
+  homeLocation: string;
+  membershipName: string;
+  credits: number | null;
+  totalVisits: number | null;
+  expiresAt: string;
 }
 
 interface ActionReceipt {
@@ -56,6 +67,7 @@ export function MomenceActionCenter({
   memberId,
   memberName,
   memberEmail,
+  memberPhone,
   studio,
   category,
   subcategory,
@@ -70,13 +82,17 @@ export function MomenceActionCenter({
   // Active action accordion (all visible at a glance, click to expand/focus)
   const [expandedAction, setExpandedAction] = useState<'credit' | 'extension' | 'whatsapp' | 'substitute'>('credit');
   
-  const [selectedMemberName, setSelectedMemberName] = useState(memberName || 'Priya Mehta');
-  const [selectedMemberId, setSelectedMemberId] = useState(memberId || '481102');
+  // No invented member: if the ticket carries no Momence member, the panel says so rather
+  // than offering to credit somebody who does not exist.
+  const [selectedMemberName, setSelectedMemberName] = useState(memberName || '');
+  const [selectedMemberId, setSelectedMemberId] = useState(memberId || '');
   const [creditReason, setCreditReason] = useState('AC / Facility Disruption');
   const [creditCount, setCreditCount] = useState(1);
   const [extensionDays, setExtensionDays] = useState(7);
   const [extensionReason, setExtensionReason] = useState('Medical / Injury Freeze Courtesy');
-  const [subTrainer, setSubTrainer] = useState<string>(TRAINERS[1] || 'Tanya Sharma');
+  const [subTrainer, setSubTrainer] = useState<string>(TRAINERS[0] || '');
+  const [live, setLive] = useState<boolean | null>(null);
+  const [profile, setProfile] = useState<MomenceProfile | null>(null);
   const [bonusCredits, setBonusCredits] = useState(0);
   const [bonusDays, setBonusDays] = useState(0);
   const [receipts, setReceipts] = useState<ActionReceipt[]>([]);
@@ -99,17 +115,19 @@ export function MomenceActionCenter({
       try {
         const query = selectedMemberId ? `?memberId=${encodeURIComponent(selectedMemberId)}` : '';
         const res = await api<{
+          live: boolean;
           history: ActionReceipt[];
           bonusCredits: number;
           extensionDays: number;
         }>(`/api/momence/actions${query}`);
         if (!cancelled) {
+          setLive(Boolean(res.live));
           setReceipts(res.history || []);
           setBonusCredits(res.bonusCredits || 0);
           setBonusDays(res.extensionDays || 0);
         }
       } catch {
-        // Handled
+        if (!cancelled) setLive(false);
       }
     }
     void loadData();
@@ -117,6 +135,48 @@ export function MomenceActionCenter({
       cancelled = true;
     };
   }, [selectedMemberId]);
+
+  // The member card shows Momence's own record or nothing at all. It used to show a fixed
+  // "Unlimited 50 Pass · 12 credits · 48 classes", which looked authoritative and was invented.
+  useEffect(() => {
+    let cancelled = false;
+    if (!selectedMemberId) {
+      const clear = setTimeout(() => setProfile(null), 0);
+      return () => clearTimeout(clear);
+    }
+    void (async () => {
+      try {
+        const res = await api<{
+          item: { raw: Record<string, unknown> };
+          related?: { memberships?: Array<Record<string, unknown>> };
+          source: string;
+        }>(`/api/momence?module=members&id=${encodeURIComponent(selectedMemberId)}`);
+        if (cancelled) return;
+        if (res.source !== 'live') {
+          setProfile(null);
+          return;
+        }
+        const raw = res.item?.raw || {};
+        const visits = (raw.visits || {}) as Record<string, unknown>;
+        const membership = res.related?.memberships?.[0];
+        const num = (v: unknown) => (typeof v === 'number' ? v : typeof v === 'string' && v.trim() !== '' && !Number.isNaN(Number(v)) ? Number(v) : null);
+        setProfile({
+          email: typeof raw.email === 'string' ? raw.email : '',
+          phone: typeof raw.phoneNumber === 'string' ? raw.phoneNumber : '',
+          homeLocation: typeof raw.homeLocation === 'string' ? raw.homeLocation : '',
+          membershipName: membership ? String(membership.name || (membership.membership as Record<string, unknown> | undefined)?.name || '') : '',
+          credits: membership ? num(membership.creditsRemaining ?? membership.remainingCredits ?? membership.credits) : null,
+          totalVisits: num(visits.totalVisits),
+          expiresAt: membership && typeof membership.endDate === 'string' ? membership.endDate : '',
+        });
+      } catch {
+        if (!cancelled) setProfile(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedMemberId, live]);
 
   // Executing 1-Click Compensation Actions
   async function handleGrantCredit() {
@@ -210,20 +270,20 @@ export function MomenceActionCenter({
 
   // Pre-fill personalized WhatsApp message
   const whatsappText = useMemo(() => {
-    const s = studio ? studio.split(',')[0] : 'Kwality House, Kemps Corner';
+    const s = studio ? studio.split(',')[0] : profile?.homeLocation || 'our studio';
     const c = classFormat || 'your recent session';
-    const refCode = lastReceipt ? lastReceipt.momenceRef : 'MOM-829104';
+    const refCode = lastReceipt?.momenceRef || '';
 
     if (category === 'Facility, Maintenance & IT' || issueSummary?.toLowerCase().includes('ac')) {
-      return `Hi ${selectedMemberName}! ✧\n\nWe are sincerely sorry about the air conditioning issue during ${c} at our ${s} studio today. Our facilities engineering team has resolved the temperature regulation.\n\nAs a courtesy for the disruption, we have credited your Momence account with a complimentary session pass (Ref: ${refCode}). We can't wait to welcome you back at the barre!\n\nWarmly,\nPhysique 57 India Care Team`;
+      return `Hi ${selectedMemberName}! ✧\n\nWe are sincerely sorry about the air conditioning issue during ${c} at our ${s} studio today. Our facilities engineering team has resolved the temperature regulation.\n\nAs a courtesy for the disruption, we have credited your Momence account with a complimentary session pass ${refCode ? ` (Ref: ${refCode})` : ''}. We can't wait to welcome you back at the barre!\n\nWarmly,\nPhysique 57 India Care Team`;
     }
 
     if (category === 'Class & Schedule' || trainer) {
-      return `Hi ${selectedMemberName}! ✧\n\nThank you for sharing your feedback regarding ${c} at ${s}. We appreciate you taking the time to let us know. We've added 1 complimentary class credit to your Momence account (Ref: ${refCode}).\n\nLooking forward to seeing you in class soon!\n\nWarmly,\nPhysique 57 India Care Team`;
+      return `Hi ${selectedMemberName}! ✧\n\nThank you for sharing your feedback regarding ${c} at ${s}. We appreciate you taking the time to let us know. We've added 1 complimentary class credit to your Momence account ${refCode ? ` (Ref: ${refCode})` : ''}.\n\nLooking forward to seeing you in class soon!\n\nWarmly,\nPhysique 57 India Care Team`;
     }
 
-    return `Hi ${selectedMemberName}! ✧\n\nThank you for reaching out to the Physique 57 India team. Regarding your experience at ${s}, we've logged this directly with our Studio Duty Manager and updated your Momence profile (Ref: ${refCode}).\n\nPlease let us know if we can assist you with booking your upcoming classes!\n\nWarmly,\nPhysique 57 India Care Team`;
-  }, [selectedMemberName, studio, classFormat, category, trainer, issueSummary, lastReceipt]);
+    return `Hi ${selectedMemberName}! ✧\n\nThank you for reaching out to the Physique 57 India team. Regarding your experience at ${s}, we've logged this directly with our Studio Duty Manager and updated your Momence profile ${refCode ? ` (Ref: ${refCode})` : ''}.\n\nPlease let us know if we can assist you with booking your upcoming classes!\n\nWarmly,\nPhysique 57 India Care Team`;
+  }, [selectedMemberName, studio, classFormat, category, trainer, issueSummary, lastReceipt, profile]);
 
   function copyWhatsApp() {
     void navigator.clipboard.writeText(whatsappText);
@@ -232,7 +292,9 @@ export function MomenceActionCenter({
     setTimeout(() => setCopied(false), 2000);
   }
 
-  const cleanPhone = '919820157571';
+  // A fixed number here meant every "Open WhatsApp" sent the member's message to the same
+  // person. With no number on file the link is not offered at all.
+  const cleanPhone = (memberPhone || profile?.phone || '').replace(/[^\d]/g, '');
 
   return (
     <div className="momence-action-center">
@@ -245,13 +307,17 @@ export function MomenceActionCenter({
           </div>
           <div className="identity-text">
             <div className="name-status-row">
-              <strong className="member-name">{selectedMemberName}</strong>
-              <span className="tier-badge">VERIFIED MEMBER</span>
+              <strong className="member-name">{selectedMemberName || 'No Momence member linked'}</strong>
+              {profile && <span className="tier-badge">MOMENCE MEMBER</span>}
             </div>
             <div className="identity-sub">
-              <span><Mail size={10} /> {memberEmail || `${selectedMemberName.toLowerCase().replace(' ', '.')}@example.com`}</span>
-              <span className="sub-divider">·</span>
-              <span><Building2 size={10} /> {studio ? studio.split(',')[0] : 'Kwality House (Kemps)'}</span>
+              {(memberEmail || profile?.email) && (
+                <>
+                  <span><Mail size={10} /> {memberEmail || profile?.email}</span>
+                  <span className="sub-divider">·</span>
+                </>
+              )}
+              <span><Building2 size={10} /> {studio ? studio.split(',')[0] : profile?.homeLocation || '—'}</span>
             </div>
           </div>
         </div>
@@ -260,27 +326,42 @@ export function MomenceActionCenter({
         <div className="member-metrics-grid">
           <div className="metric-cell">
             <span className="m-label">MEMBERSHIP</span>
-            <span className="m-val">Unlimited 50 Pass</span>
+            <span className="m-val">{profile?.membershipName || '—'}</span>
           </div>
           <div className="metric-cell highlight">
             <span className="m-label">AVAILABLE CREDITS</span>
             <div className="credits-display">
-              <span className="m-val main-credits">{12 + bonusCredits}</span>
+              <span className="m-val main-credits">{profile?.credits === null || profile === null ? '—' : profile.credits + bonusCredits}</span>
               {bonusCredits > 0 && <span className="m-bonus">+{bonusCredits} comp</span>}
             </div>
           </div>
           <div className="metric-cell">
             <span className="m-label">TOTAL VISITS</span>
-            <span className="m-val">48 classes</span>
+            <span className="m-val">{profile?.totalVisits === null || profile === null ? '—' : `${profile.totalVisits} classes`}</span>
           </div>
           <div className="metric-cell">
             <span className="m-label">EXPIRY DATE</span>
             <div className="credits-display">
-              <span className="m-val">28 Nov 2026</span>
+              <span className="m-val">{profile?.expiresAt ? new Date(profile.expiresAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</span>
               {bonusDays > 0 && <span className="m-bonus">+{bonusDays}d</span>}
             </div>
           </div>
         </div>
+        {live === false && (
+          <p className="mac-disconnected">
+            <AlertCircle size={12} /> Momence isn&apos;t connected, so no member record can be read and no action here will reach Momence. Connect it under Integrations.
+          </p>
+        )}
+        {live === true && selectedMemberId && !profile && (
+          <p className="mac-disconnected">
+            <AlertCircle size={12} /> Momence returned no record for this member, so their membership and credits can&apos;t be shown.
+          </p>
+        )}
+        {live === true && !selectedMemberId && (
+          <p className="mac-disconnected">
+            <AlertCircle size={12} /> This ticket has no Momence member attached, so member actions are unavailable.
+          </p>
+        )}
       </section>
 
       {/* 2. RECENT CONFIRMED EXECUTION RECEIPT (IF ANY) */}
@@ -356,7 +437,7 @@ export function MomenceActionCenter({
               <button
                 type="button"
                 className="btn-primary-action"
-                disabled={busy}
+                disabled={busy || live !== true || !selectedMemberId}
                 onClick={() => void handleGrantCredit()}
               >
                 {busy ? <Loader2 size={13} className="animate-spin" /> : <Zap size={13} />}
@@ -423,7 +504,7 @@ export function MomenceActionCenter({
               <button
                 type="button"
                 className="btn-secondary-action"
-                disabled={busy}
+                disabled={busy || live !== true || !selectedMemberId}
                 onClick={() => void handleExtendMembership()}
               >
                 {busy ? <Loader2 size={13} className="animate-spin" /> : <Clock size={13} />}
@@ -469,16 +550,23 @@ export function MomenceActionCenter({
                   <Copy size={12} />
                   <span>{copied ? 'Copied!' : 'Copy Text'}</span>
                 </button>
-                <a
-                  href={`https://wa.me/${cleanPhone}?text=${encodeURIComponent(whatsappText)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="wa-btn-send"
-                >
-                  <Send size={12} />
-                  <span>Open WhatsApp Web</span>
-                  <ExternalLink size={10} />
-                </a>
+                {cleanPhone ? (
+                  <a
+                    href={`https://wa.me/${cleanPhone}?text=${encodeURIComponent(whatsappText)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="wa-btn-send"
+                  >
+                    <Send size={12} />
+                    <span>Open WhatsApp Web</span>
+                    <ExternalLink size={10} />
+                  </a>
+                ) : (
+                  <span className="wa-btn-send is-disabled" title="No phone number on this member's Momence record">
+                    <Send size={12} />
+                    <span>No number on file</span>
+                  </span>
+                )}
               </div>
             </div>
           )}
@@ -541,7 +629,7 @@ export function MomenceActionCenter({
               <button
                 type="button"
                 className="btn-primary-action"
-                disabled={busy}
+                disabled={busy || live !== true || !selectedMemberId}
                 onClick={() => void handleTrainerSubstitution()}
               >
                 {busy ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={13} />}
