@@ -132,5 +132,9 @@ export function fromCxExport(r:Record<string,unknown>){
     status:STATUS_ROUTE[str(r.current_status)]||'new',
     escalated:str(r.current_status)==='escalated',
     createdAt:str(r.date_opened),
+    // When the thread last saw traffic. Used as the closure date of a backfilled record:
+    // a 2022 email thread did not close today, and dating its closure today would put a
+    // four-year resolution time into the analytics.
+    resolvedAt:str(r.last_response_date)||str(r.date_opened),
   };
 }
