@@ -354,6 +354,17 @@ export function IrisChat({ presetCategory, presetSubcategory }: { presetCategory
     const sentText = text;
     setText('');
 
+    // The acknowledgement arrives as one validated piece and the question arrives live, so
+    // both are fed through a typewriter: the reporter sees a sentence being typed at a pace
+    // that does not jump when a burst lands.
+    let buffered = '';
+    let revealed = '';
+    const typer = setInterval(() => {
+      if (revealed.length >= buffered.length) return;
+      revealed = buffered.slice(0, revealed.length + Math.max(1, Math.ceil((buffered.length - revealed.length) / 12)));
+      setStreamed(revealed);
+    }, 28);
+
     try {
       const d = await streamTurn(
         {
@@ -363,20 +374,22 @@ export function IrisChat({ presetCategory, presetSubcategory }: { presetCategory
           patch: Object.keys(mergedPatch).length ? mergedPatch : undefined,
           attachmentIds: uploadedIds,
         },
-        (chunk) => setStreamed((t) => t + chunk)
+        (chunk) => {
+          buffered += chunk;
+        }
       );
-      setStreamed('');
       apply(d);
       setAttachments([]);
       setPendingContext({});
       if (fromVoice || voiceMode) void speak(d.message);
     } catch (e) {
       setError((e as Error).message);
-      setStreamed('');
       if (shown) setMessages((m) => m.slice(0, -1));
       // The send failed, so give them their words back rather than making them retype.
       if (sentText) setText((t) => t || sentText);
     } finally {
+      clearInterval(typer);
+      setStreamed('');
       setBusy(false);
       lock.current = false;
     }

@@ -8,7 +8,7 @@
  *
  * Run: npm run check:iris
  */
-import {mergeProposedTurn, scanStreamedString} from '@/lib/iris';
+import {mergeProposedTurn, scanStreamedString, ackSeparator} from '@/lib/iris';
 import {streamTurn} from '@/components/iris-chat';
 
 let failed = 0;
@@ -164,6 +164,36 @@ function check(name: string, cond: boolean, got?: unknown) {
   check('non-streaming response still works', plain.message === 'Plain reply', plain);
 
   globalThis.fetch = original;
+}
+
+
+// Text that has already been typed out to the reporter must not be swapped at the last
+// moment: whatever was streamed has to survive into the stored message.
+{
+  const shown = mergeProposedTurn({
+    fieldKey: 'bikeNumber',
+    question: 'Which bike number is this about?',
+    options: [],
+    proposed: {ack: 'Bike #3 has a scraping flywheel?', nextField: 'bikeNumber', question: 'Please give the bike number for reference.', shownAck: 'Bike #3 has a scraping flywheel?', shownQuestion: true},
+  });
+  check('an ack that was shown is kept verbatim', shown.question.startsWith('Bike #3 has a scraping flywheel?'), shown.question);
+  check('a question that was shown is kept verbatim', shown.question.endsWith('Please give the bike number for reference.'), shown.question);
+
+  const notShown = mergeProposedTurn({
+    fieldKey: 'bikeNumber',
+    question: 'Which bike number is this about?',
+    options: [],
+    proposed: {ack: 'Bike #3 has a scraping flywheel?', nextField: 'bikeNumber', question: 'Please give the bike number for reference.'},
+  });
+  check('unstreamed ack with a question mark is dropped', notShown.question === 'Which bike number is this about?', notShown.question);
+  check('unstreamed non-question is dropped', !notShown.question.includes('for reference'), notShown.question);
+
+  // The separator has to match what the streamer emitted, or the typed text stops being a
+  // prefix of the final message and the bubble rewrites itself.
+  check('separator adds a full stop when missing', ackSeparator('Noted, bike 3 is out') === '. ');
+  check('separator respects the model\'s own punctuation', ackSeparator('Got that!') === ' ' && ackSeparator('Really?') === ' ' && ackSeparator('Noted.') === ' ');
+  const joined = mergeProposedTurn({fieldKey: 'impact', question: 'How bad is it?', options: [], proposed: {ack: 'Got that!', nextField: 'impact', shownAck: 'Got that!'}});
+  check('joined message uses that separator', joined.question === 'Got that! How bad is it?', joined.question);
 }
 
 console.log(failed ? `\n${failed} FAILED` : '\nall passed');
