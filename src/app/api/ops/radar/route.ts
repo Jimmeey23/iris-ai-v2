@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/db';
-import { tickets, ticketActivities } from '@/db/schema';
-import { eq, notInArray, desc } from 'drizzle-orm';
-import { requireWorkspace, errorResponse, requireAgent, currentUser, sameOrigin } from '@/lib/auth';
+import { tickets, ticketActivities, ticketResolutions } from '@/db/schema';
+import { eq, and, sql, notInArray, desc } from 'drizzle-orm';
+import { z } from 'zod';
+import { requireWorkspace, errorResponse, requireAgent, sameOrigin, ApiError } from '@/lib/auth';
+import { canResolveTicket } from '@/lib/tickets';
 
 export const dynamic = 'force-dynamic';
 
@@ -409,12 +411,15 @@ function formatSlaLabel(mins: number | null): string {
     const hours = Math.floor(abs / 60);
     if (hours < 24) return `OVERDUE by ${hours}h ${abs % 60}m`;
     const days = Math.floor(hours / 24);
+    // Past a month the trailing hours are noise on a card this small.
+    if (days >= 30) return `OVERDUE by ${days}d`;
     return `OVERDUE by ${days}d ${hours % 24}h`;
   }
   if (mins < 60) return `${mins}m left`;
   const hours = Math.floor(mins / 60);
   if (hours < 24) return `${hours}h ${mins % 60}m left`;
   const days = Math.floor(hours / 24);
+  if (days >= 30) return `${days}d left`;
   return `${days}d ${hours % 24}h left`;
 }
 
@@ -593,25 +598,41 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     sameOrigin(req);
-    await requireAgent();
-    const user = await currentUser();
-    const body = await req.json();
-    const { action, ticketId, note } = body;
+    const user = await requireAgent();
+    const { action, ticketId, note } = z
+      .object({
+        action: z.enum(['quick_resolve', 'dispatch_staff']),
+        ticketId: z.coerce.number().int().positive(),
+        note: z.string().max(2000).optional(),
+      })
+      .parse(await req.json());
 
-    if (action === 'quick_resolve' && ticketId) {
+    if (action === 'quick_resolve') {
+      // This route used to set status directly, skipping every guard the ticket
+      // PATCH route enforces. Resolving from the radar is the same act as
+      // resolving from the ticket, so it answers to the same rules: only the
+      // owner, their manager or an admin, only with the private resolution
+      // filled in, and only against the revision the caller last saw.
+      const [ticket] = await db.select().from(tickets).where(eq(tickets.id, ticketId));
+      if (!ticket) throw new ApiError('Ticket not found', 404);
+      if (ticket.resolutionRequired) {
+        if (!(await canResolveTicket(user, ticket.assignedStaffId, ticket.resolutionRequired)))
+          throw new ApiError('Only the assigned owner, their reporting manager or an administrator may resolve this ticket.', 403);
+        const [r] = await db.select().from(ticketResolutions).where(eq(ticketResolutions.ticketId, ticketId));
+        if (!r?.actionTaken.trim() || !r.memberOutcome.trim())
+          throw new ApiError('Complete the private resolution action and outcome before resolving from the radar.');
+      }
       const now = new Date();
-      await db
+      const [updated] = await db
         .update(tickets)
-        .set({
-          status: 'resolved',
-          resolvedAt: now,
-          updatedAt: now,
-        })
-        .where(eq(tickets.id, Number(ticketId)));
+        .set({ status: 'resolved', resolvedAt: now, updatedAt: now, version: sql`${tickets.version}+1` })
+        .where(and(eq(tickets.id, ticketId), eq(tickets.version, ticket.version)))
+        .returning();
+      if (!updated) throw new ApiError('This ticket changed elsewhere. Refresh before resolving.', 409);
 
       await db.insert(ticketActivities).values({
-        ticketId: Number(ticketId),
-        actorName: user?.name || 'Studio Duty Manager',
+        ticketId,
+        actorName: user.name,
         action: 'resolved_via_ops_radar',
         detail: note || 'Resolved directly from Live Studio Operations Radar & Heatmap.',
         createdAt: now,
@@ -620,11 +641,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true, message: `Ticket #${ticketId} marked resolved.` });
     }
 
-    if (action === 'dispatch_staff' && ticketId) {
+    if (action === 'dispatch_staff') {
       const now = new Date();
       await db.insert(ticketActivities).values({
-        ticketId: Number(ticketId),
-        actorName: user?.name || 'Studio Duty Manager',
+        ticketId,
+        actorName: user.name,
         action: 'dispatched_lead',
         detail: note || 'Dispatched on-site operations duty officer to inspect room.',
         createdAt: now,
