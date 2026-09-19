@@ -8,9 +8,11 @@
  *
  * Run: npm run check:iris
  */
-import {mergeProposedTurn} from '@/lib/iris';
+import {mergeProposedTurn, scanStreamedString} from '@/lib/iris';
+import {streamTurn} from '@/components/iris-chat';
 
 let failed = 0;
+async function main() {
 function check(name: string, cond: boolean, got?: unknown) {
   if (cond) console.log('  PASS  ' + name);
   else { failed++; console.log('  FAIL  ' + name + '  got: ' + JSON.stringify(got)); }
@@ -95,5 +97,76 @@ function check(name: string, cond: boolean, got?: unknown) {
   check('picker choices untouched', JSON.stringify(r.options?.map(o => o.value)) === JSON.stringify(['__manual_session__']), r.options);
 }
 
+
+// The streamed acknowledgement is decoded out of JSON that has not finished arriving.
+{
+  const full = '{"turn":{"ack":"Noted, bike 3 is out of rotation","nextField":"studio"';
+  check('partial value, still open', (() => { const r = scanStreamedString('{"turn":{"ack":"Noted, bike', 'ack'); return r.value === 'Noted, bike' && !r.closed; })());
+  check('closed value read whole', (() => { const r = scanStreamedString(full, 'ack'); return r.value === 'Noted, bike 3 is out of rotation' && r.closed; })(), scanStreamedString(full, 'ack'));
+  check('key not yet arrived', scanStreamedString('{"tur', 'ack').value === '');
+  check('escapes decoded', scanStreamedString('{"ack":"She said \\"fix it\\" today"}', 'ack').value === 'She said "fix it" today', scanStreamedString('{"ack":"She said \\"fix it\\" today"}', 'ack'));
+  check('escape split across chunks is not mangled', (() => { const r = scanStreamedString('{"ack":"line one\\', 'ack'); return !r.closed && r.value === 'line one'; })());
+  check('null ack closes with nothing to show', (() => { const r = scanStreamedString('{"ack":null,"nextField":"studio"', 'ack'); return r.value === '' && r.closed; })());
+}
+
+
+// The client reader against the exact frames the route emits, including a frame that arrives
+// split across two chunks and a keep-alive-sized dribble.
+{
+  const frame = (event: string, data: unknown) => `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+  const wire =
+    frame('ack', {text: 'Noted, '}) +
+    frame('ack', {text: 'bike 3 '}) +
+    frame('ack', {text: 'is out of rotation'}) +
+    frame('turn', {sessionId: 's1', message: 'Noted, bike 3 is out of rotation. Which studio?', phase: 'collect', fieldKey: 'studio', options: [{label: 'Kemps', value: 'Kwality House, Kemps Corner'}], collected: {}, progress: {done: 1, total: 5}, engine: 'openai'});
+
+  // Deliberately chop the byte stream mid-frame.
+  const cuts = [12, 40, 41, 95, wire.length];
+  const chunks: Uint8Array[] = [];
+  const enc = new TextEncoder();
+  let from = 0;
+  for (const to of cuts) { chunks.push(enc.encode(wire.slice(from, to))); from = to; }
+
+  const original = globalThis.fetch;
+  globalThis.fetch = (async () => new Response(
+    new ReadableStream<Uint8Array>({start(c) { for (const ch of chunks) c.enqueue(ch); c.close(); }}),
+    {status: 200, headers: {'Content-Type': 'text/event-stream'}}
+  )) as typeof fetch;
+
+  const deltas: string[] = [];
+  const turn = await streamTurn({sessionId: 's1', message: 'hi'}, (d) => deltas.push(d));
+  check('all ack deltas arrive in order across split frames', deltas.join('') === 'Noted, bike 3 is out of rotation', deltas);
+  check('delta count preserved', deltas.length === 3, deltas);
+  check('final turn parsed', turn.fieldKey === 'studio' && turn.options?.[0].value === 'Kwality House, Kemps Corner', turn);
+  check('streamed text is a prefix of the final message', turn.message.startsWith(deltas.join('')), turn.message);
+
+  // An error event after the stream has opened must surface as a thrown error.
+  globalThis.fetch = (async () => new Response(
+    new ReadableStream<Uint8Array>({start(c) { c.enqueue(enc.encode(frame('ack', {text: 'One moment'}) + frame('error', {error: 'Another answer was received.'}))); c.close(); }}),
+    {status: 200, headers: {'Content-Type': 'text/event-stream'}}
+  )) as typeof fetch;
+  let thrown = '';
+  try { await streamTurn({sessionId: 's1'}, () => {}); } catch (e) { thrown = (e as Error).message; }
+  check('mid-stream error is thrown', thrown === 'Another answer was received.', thrown);
+
+  // A truncated stream must not be mistaken for a completed turn.
+  globalThis.fetch = (async () => new Response(
+    new ReadableStream<Uint8Array>({start(c) { c.enqueue(enc.encode(frame('ack', {text: 'Half a th'}))); c.close(); }}),
+    {status: 200, headers: {'Content-Type': 'text/event-stream'}}
+  )) as typeof fetch;
+  let cut = '';
+  try { await streamTurn({sessionId: 's1'}, () => {}); } catch (e) { cut = (e as Error).message; }
+  check('truncated stream rejected', /ended before it was complete/.test(cut), cut);
+
+  // No stream support (or a proxy that buffers): fall back to a plain JSON turn.
+  globalThis.fetch = (async () => new Response(JSON.stringify({sessionId: 's1', message: 'Plain reply', phase: 'collect', collected: {}, engine: 'guided'}), {status: 200, headers: {'Content-Type': 'application/json'}})) as typeof fetch;
+  const plain = await streamTurn({sessionId: 's1'}, () => { throw new Error('should not stream'); });
+  check('non-streaming response still works', plain.message === 'Plain reply', plain);
+
+  globalThis.fetch = original;
+}
+
 console.log(failed ? `\n${failed} FAILED` : '\nall passed');
-process.exit(failed ? 1 : 0);
+  process.exit(failed ? 1 : 0);
+}
+void main();
