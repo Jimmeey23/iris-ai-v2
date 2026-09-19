@@ -97,6 +97,8 @@ export const assets = pgTable("assets", {
    *  legitimately stand for several identical items. */
   quantity: integer("quantity").notNull().default(1),
   condition: text("condition"),
+  /** A photo of the item. Optional — the register renders a typed placeholder without one. */
+  imageUrl: text("image_url"),
   purchaseCost: numeric("purchase_cost",{precision:12,scale:2}),
   warrantyUntil: timestamp("warranty_until",{withTimezone:true}),
   notes: text("notes"),

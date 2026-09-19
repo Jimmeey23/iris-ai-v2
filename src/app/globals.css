@@ -1626,10 +1626,18 @@ pre{font:12px/1.7 var(--font-mono);white-space:pre-wrap;overflow-wrap:anywhere;c
    Collapsed by default. The header keeps the active-filter summary visible so a
    filtered board never reads as an empty one.
    ============================================================ */
-.ticket-filters{border-bottom:1px solid var(--border);background:var(--surface)}
-.tf-head{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:11px 20px;flex-wrap:wrap}
-.tf-toggle{display:inline-flex;align-items:center;gap:8px;background:none;border:0;padding:0;color:var(--text);font-size:12px;font-weight:600}
-.tf-toggle:hover{color:var(--accent)}
+.ticket-filters{border-bottom:1px solid var(--border);background:var(--surface-2)}
+.tf-head{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:10px 20px;flex-wrap:wrap}
+/* The toggle is the control people look for first, so it is shaped like one: a filled
+   button with its own accent rail, not a line of text that reads as a heading. */
+.tf-toggle{display:inline-flex;align-items:center;gap:8px;padding:8px 14px;border-radius:10px;
+  border:1px solid color-mix(in srgb,var(--accent) 34%,transparent);background:var(--accent-soft);
+  color:var(--accent);font-size:11.5px;font-weight:600;letter-spacing:.01em;
+  transition:background .15s,border-color .15s,box-shadow .15s}
+.tf-toggle:hover{background:color-mix(in srgb,var(--accent) 16%,transparent);border-color:var(--accent);
+  box-shadow:0 4px 14px -6px color-mix(in srgb,var(--accent) 65%,transparent)}
+.tf-open .tf-toggle{background:linear-gradient(150deg,var(--accent-bright),var(--accent));color:var(--accent-text);border-color:transparent}
+.tf-open .tf-toggle .badge{background:rgba(0,0,0,.18);color:inherit}
 .tf-toggle>svg:first-child{transition:transform .18s cubic-bezier(.16,1,.3,1)}
 .tf-head-right{display:flex;align-items:center;gap:12px;min-width:0;flex-wrap:wrap}
 .tf-summary{font-size:10.5px;color:var(--secondary);max-width:46ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:3px 9px;border-radius:99px;background:var(--accent-soft);border:1px solid color-mix(in srgb,var(--accent) 22%,transparent)}
@@ -1703,19 +1711,6 @@ pre{font:12px/1.7 var(--font-mono);white-space:pre-wrap;overflow-wrap:anywhere;c
 .tg-child td:first-child{padding-left:38px}
 .tg-child.tg-check+td{padding-left:20px}
 
-/* ============================================================
-   Metric cards — animated, and openable onto the rows behind them
-   ============================================================ */
-.metric-clickable{position:relative;overflow:hidden;text-align:left;width:100%;border:1px solid var(--border);cursor:pointer;transition:transform .18s cubic-bezier(.16,1,.3,1),border-color .18s,box-shadow .18s}
-.metric-clickable:hover{transform:translateY(-3px);border-color:color-mix(in srgb,var(--accent) 45%,transparent);box-shadow:var(--shadow-lg)}
-.metric-clickable:active{transform:translateY(-1px)}
-.metric-sheen{position:absolute;inset:0;pointer-events:none;background:linear-gradient(115deg,transparent 30%,color-mix(in srgb,var(--accent) 12%,transparent) 50%,transparent 70%);transform:translateX(-120%);transition:transform .7s cubic-bezier(.16,1,.3,1)}
-.metric-clickable:hover .metric-sheen{transform:translateX(120%)}
-.metric-drill{float:right;display:inline-flex;align-items:center;gap:3px;color:var(--accent);font-weight:600;opacity:0;transform:translateX(-4px);transition:opacity .18s,transform .18s}
-.metric-clickable:hover .metric-drill{opacity:1;transform:none}
-.metric-clickable .metric-spark polygon{transition:opacity .25s}
-.metric-clickable:hover .metric-spark polygon{opacity:.24!important}
-
 .mc-breakdowns{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:18px}
 .mc-breakdown{display:flex;flex-direction:column;gap:7px;min-width:0}
 .mc-breakdown-row{display:grid;grid-template-columns:1fr 54px 26px;align-items:center;gap:8px;font-size:11px;color:var(--secondary)}
@@ -1735,3 +1730,182 @@ pre{font:12px/1.7 var(--font-mono);white-space:pre-wrap;overflow-wrap:anywhere;c
   .metric-sheen,.tg-child,.mc-breakdown-fill,.tf-body{animation:none!important;transition:none!important}
   .metric-clickable:hover{transform:none}
 }
+
+/* ============================================================
+   Board telemetry — the dense readout strip above the cards
+   ============================================================ */
+.board-telemetry{border:1px solid var(--border);border-radius:16px;background:
+  linear-gradient(180deg,color-mix(in srgb,var(--surface-2) 90%,transparent),var(--surface));
+  overflow:hidden;position:relative;margin-bottom:16px}
+.board-telemetry:before{content:"";position:absolute;inset:0;pointer-events:none;opacity:.55;
+  background-image:linear-gradient(color-mix(in srgb,var(--border) 60%,transparent) 1px,transparent 1px),
+    linear-gradient(90deg,color-mix(in srgb,var(--border) 60%,transparent) 1px,transparent 1px);
+  background-size:26px 26px;mask-image:linear-gradient(180deg,#000,transparent 75%)}
+.bt-head{position:relative;display:flex;align-items:center;gap:14px;padding:9px 18px;border-bottom:1px solid var(--border);
+  font-family:var(--font-mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.bt-live{display:inline-flex;align-items:center;gap:6px;color:var(--green);font-weight:700}
+.bt-pulse{width:5px;height:5px;border-radius:50%;background:var(--green);box-shadow:0 0 0 0 color-mix(in srgb,var(--green) 70%,transparent);animation:bt-pulse 2s infinite}
+@keyframes bt-pulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--green) 55%,transparent)}70%{box-shadow:0 0 0 7px transparent}100%{box-shadow:0 0 0 0 transparent}}
+.bt-scope{color:var(--secondary)}.bt-scope strong{color:var(--accent);font-weight:700}
+.bt-clock{margin-left:auto;color:var(--secondary);letter-spacing:.1em}
+.bt-readouts{position:relative;display:grid;grid-template-columns:repeat(4,minmax(0,1fr)) auto auto;gap:14px 20px;padding:14px 18px;align-items:center}
+.bt-readout{display:flex;gap:9px;align-items:center;min-width:0}
+.bt-icon{display:grid;place-items:center;height:26px;width:26px;border-radius:8px;background:var(--accent-soft);color:var(--accent);flex-shrink:0}
+.bt-text{display:flex;flex-direction:column;min-width:0}
+.bt-label{font-family:var(--font-mono);font-size:8.5px;letter-spacing:.14em;color:var(--muted);text-transform:uppercase}
+.bt-value{font-family:var(--font-mono);font-size:16px;font-weight:700;color:var(--text);line-height:1.25}
+.bt-sub{font-size:9.5px;color:var(--secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bt-volume{display:flex;flex-direction:column;gap:6px}
+.bt-bars{display:flex;align-items:flex-end;gap:2px;height:30px}
+.bt-bar{width:4px;border-radius:2px;background:linear-gradient(180deg,var(--accent-bright),var(--accent-deep));display:block}
+.bt-chips{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.bt-chip{font-family:var(--font-mono);font-size:9.5px;padding:3px 8px;border-radius:99px;border:1px solid var(--border);background:var(--surface);color:var(--secondary);white-space:nowrap}
+.bt-chip-alert{border-color:color-mix(in srgb,var(--red) 45%,transparent);background:var(--red-bg);color:var(--red)}
+.bt-chip-warn{border-color:color-mix(in srgb,var(--amber) 45%,transparent);background:var(--amber-bg);color:var(--amber)}
+
+/* ============================================================
+   Metric cards — eight, flipping to their breakdown
+   ============================================================ */
+.metric-grid-8{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+.mc-card{position:relative;border:0;background:none;padding:0;perspective:1100px;height:132px;
+  animation:mc-in .45s cubic-bezier(.16,1,.3,1) both}
+@keyframes mc-in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.mc-inner{position:absolute;inset:0;transform-style:preserve-3d;transition:transform .6s cubic-bezier(.22,1,.28,1)}
+.mc-card:hover .mc-inner,.mc-card:focus-visible .mc-inner{transform:rotateY(180deg)}
+.mc-face{position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden;
+  display:flex;flex-direction:column;justify-content:space-between;gap:6px;overflow:hidden;
+  border:1px solid var(--border);border-radius:14px;background:var(--surface);
+  box-shadow:var(--shadow);padding:14px 15px;text-align:left}
+.mc-back{transform:rotateY(180deg);background:linear-gradient(155deg,var(--surface),color-mix(in srgb,var(--accent) 7%,var(--surface)))}
+.mc-card:hover .mc-face,.mc-card:focus-visible .mc-face{border-color:color-mix(in srgb,var(--accent) 42%,transparent)}
+/* Faint graph paper, so a card reads as an instrument rather than a tile. */
+.mc-grid-lines{position:absolute;inset:0;pointer-events:none;opacity:.5;
+  background-image:linear-gradient(color-mix(in srgb,var(--border) 55%,transparent) 1px,transparent 1px),
+    linear-gradient(90deg,color-mix(in srgb,var(--border) 55%,transparent) 1px,transparent 1px);
+  background-size:18px 18px;mask-image:radial-gradient(120% 90% at 100% 0%,#000,transparent 72%)}
+.mc-top,.mc-back-head{position:relative;display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+.mc-label{font-family:var(--font-mono);font-size:9px;letter-spacing:.13em;text-transform:uppercase;color:var(--muted);line-height:1.5}
+.mc-icon{display:grid;place-items:center;height:24px;width:24px;border-radius:8px;background:var(--surface-3);color:var(--secondary);flex-shrink:0}
+.mc-card[data-tone=accent] .mc-icon{background:var(--accent-soft);color:var(--accent)}
+.mc-card[data-tone=purple] .mc-icon{background:var(--purple-bg);color:var(--purple)}
+.mc-card[data-tone=amber] .mc-icon{background:var(--amber-bg);color:var(--amber)}
+.mc-card[data-tone=green] .mc-icon{background:var(--green-bg);color:var(--green)}
+.mc-card[data-tone=red] .mc-icon{background:var(--red-bg);color:var(--red)}
+.mc-value-row{position:relative;display:flex;align-items:flex-end;justify-content:space-between;gap:10px}
+.mc-value{font-family:var(--font-display);font-size:30px;font-weight:600;letter-spacing:-.04em;line-height:1;color:var(--text)}
+.metric-gauge{width:36px;height:36px;flex-shrink:0}
+.metric-gauge-fill{transition:stroke-dasharray .8s cubic-bezier(.16,1,.3,1)}
+.mc-foot{position:relative;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.mc-count{font-family:var(--font-mono);font-size:9px;color:var(--muted)}
+.metric-delta{display:inline-flex;align-items:center;gap:3px;font-family:var(--font-mono);font-size:9px;
+  padding:2px 6px;border-radius:99px;border:1px solid transparent;white-space:nowrap}
+.metric-delta-good{color:var(--green);background:var(--green-bg)}
+.metric-delta-bad{color:var(--red);background:var(--red-bg)}
+.metric-delta-flat{color:var(--muted);background:var(--surface-3)}
+.mc-back .mc-breakdown{position:relative;gap:5px}
+.mc-back .mc-breakdown-row{font-size:10px;grid-template-columns:1fr 40px 20px}
+.mc-empty{position:relative;font-size:10.5px;color:var(--muted)}
+.mc-open{position:relative;display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:600;color:var(--accent)}
+
+@media(max-width:1279px){.metric-grid-8{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .bt-readouts{grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.bt-volume,.bt-chips{grid-column:span 2}.bt-chips{justify-content:flex-start}}
+@media(max-width:767px){.metric-grid-8{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.mc-card{height:120px}.mc-value{font-size:24px}}
+
+/* Flipping on hover is a pointer affordance. Without a pointer, or with motion reduced,
+   show the front and put the breakdown in the drill-down instead. */
+@media(prefers-reduced-motion:reduce),(hover:none){
+  .mc-inner{transition:none}
+  .mc-card:hover .mc-inner,.mc-card:focus-visible .mc-inner{transform:none}
+  .mc-back{display:none}
+}
+
+/* ============================================================
+   Ticket table — quieter chrome, stronger hierarchy
+   ============================================================ */
+.ticket-grid thead th{font-family:var(--font-mono);font-size:9px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--muted);font-weight:600;padding:11px 13px;border-bottom:1px solid var(--border);
+  background:linear-gradient(180deg,var(--surface),color-mix(in srgb,var(--surface-2) 70%,var(--surface)))}
+.ticket-grid tbody td{border-bottom:1px solid color-mix(in srgb,var(--border) 62%,transparent);vertical-align:middle}
+.ticket-grid tbody tr{position:relative;transition:background .13s,box-shadow .13s}
+.ticket-grid tbody tr:hover{background:color-mix(in srgb,var(--accent) 5%,var(--surface))}
+/* The priority rail is the row's most important signal, so it gets a gradient rather than
+   a hairline and brightens on hover. */
+.ticket-grid .priority-row{border-left-width:3px}
+.ticket-grid .priority-row:hover{box-shadow:inset 3px 0 0 0 currentColor}
+.ticket-grid .priority-row-critical:hover{color:var(--red)}
+.ticket-grid .priority-row-high:hover{color:var(--amber)}
+.ticket-grid .priority-row-medium:hover{color:var(--accent)}
+.ticket-grid .priority-row-low:hover{color:var(--border-strong)}
+.ticket-grid .ticket-name{font-size:12.5px;font-weight:600;color:var(--text);letter-spacing:-.01em;line-height:1.4;max-width:420px}
+.ticket-grid tbody tr:hover .ticket-name{color:var(--accent)}
+.ticket-grid .ticket-meta{font-size:9.5px;gap:6px;margin-top:5px}
+.ticket-grid .ticket-id{font-weight:600;letter-spacing:.02em}
+.ticket-grid .chip{padding:3px 8px;font-size:10px;border-radius:99px}
+.ticket-grid .badge,.ticket-grid .chip-kind{text-transform:capitalize}
+.ticket-grid td .category-sub{font-size:9.5px;letter-spacing:.01em}
+.ticket-grid input[type=checkbox]{accent-color:var(--accent);width:14px;height:14px;cursor:pointer}
+
+/* Owner cell: a ringed avatar with a role line under the name, so a column of owners
+   reads as people rather than as repeated initials. */
+.ticket-grid .mini-owner{gap:9px;align-items:center}
+.ticket-grid .mini-owner .avatar{width:30px;height:30px;font-size:9.5px;font-weight:700;border:0;
+  background:linear-gradient(145deg,color-mix(in srgb,var(--purple) 26%,transparent),color-mix(in srgb,var(--accent) 22%,transparent));
+  color:var(--text);box-shadow:0 0 0 1px var(--border),0 2px 6px -2px rgba(0,0,0,.35);position:relative}
+.ticket-grid tbody tr:hover .mini-owner .avatar{box-shadow:0 0 0 1px color-mix(in srgb,var(--accent) 55%,transparent),0 4px 10px -3px rgba(0,0,0,.4)}
+.ticket-grid .mini-owner strong{font-size:11.5px;letter-spacing:-.01em}
+.ticket-grid .mini-owner small{font-size:9px;color:var(--muted);letter-spacing:.02em;text-transform:uppercase;font-family:var(--font-mono)}
+/* An unassigned ticket should look unassigned, not like a person called "Unassigned". */
+.ticket-grid .mini-owner-empty .avatar{background:var(--surface-3);color:var(--muted);box-shadow:0 0 0 1px var(--border)}
+.ticket-grid .mini-owner-empty strong{color:var(--muted);font-weight:500}
+
+.tg-compact .ticket-grid .mini-owner .avatar,.tg-compact .mini-owner .avatar{width:24px;height:24px;font-size:8.5px}
+.tg-compact .ticket-name{font-size:11.5px}
+
+/* The Iris prompt is a call to action, not the subject of the page. On the overview it is
+   compacted to a single strip so the telemetry, the cards and the top of the ticket table
+   all sit above the fold on a laptop. */
+.cc-overview .iris-banner{padding:13px 18px;gap:14px;align-items:center;border-radius:14px}
+.cc-overview .iris-banner .iris-orb{height:36px;width:36px}
+.cc-overview .iris-banner .iris-orb svg{width:17px;height:17px}
+.cc-overview .iris-banner h2{font-size:14px;letter-spacing:-.02em}
+.cc-overview .iris-banner p{font-size:10.5px;margin-top:2px;color:var(--secondary);
+  display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
+.cc-overview .iris-banner .badge{font-size:9px}
+
+/* ============================================================
+   Equipment register — table first, with photo thumbnails
+   ============================================================ */
+.eq-thumb{position:relative;display:inline-grid;place-items:center;flex-shrink:0;border-radius:10px;overflow:hidden;
+  background:var(--surface-3);border:1px solid var(--border)}
+.eq-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+/* The placeholder is a drawn slot, not an empty box: diagonal hatching says "no photo yet"
+   rather than "this failed to load". */
+.eq-thumb-placeholder{display:grid;place-items:center;width:100%;height:100%;color:var(--muted);
+  background-image:repeating-linear-gradient(135deg,transparent 0 5px,color-mix(in srgb,var(--border) 70%,transparent) 5px 6px)}
+.eq-thumb[data-category="Cardio"] .eq-thumb-placeholder{color:var(--accent)}
+.eq-thumb[data-category="IT & systems"] .eq-thumb-placeholder{color:var(--blue)}
+.eq-thumb[data-category="Audio & visual"] .eq-thumb-placeholder{color:var(--purple)}
+.eq-thumb[data-category="Climate & facilities"] .eq-thumb-placeholder{color:var(--green)}
+.eq-thumb[data-category="Strength & studio"] .eq-thumb-placeholder{color:var(--amber)}
+
+.equipment-table td{vertical-align:middle}
+.equipment-table .eq-th-img{width:52px}
+.equipment-table .ticket-name{max-width:260px}
+.equipment-table tbody tr{cursor:default}
+.equipment-table tbody tr:hover{background:color-mix(in srgb,var(--accent) 4%,var(--surface))}
+.eq-row-down{background:color-mix(in srgb,var(--red) 5%,transparent)}
+.eq-row-down:hover{background:color-mix(in srgb,var(--red) 8%,transparent)}
+.eq-loc{display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--text)}
+.eq-loc-free{color:var(--secondary);font-style:italic}
+.eq-status-select{font-size:10.5px;padding:4px 24px 4px 8px;min-width:132px}
+.eq-status-select[data-status="out-of-rotation"]{border-color:color-mix(in srgb,var(--red) 45%,transparent);color:var(--red)}
+.eq-status-select[data-status="in-repair"]{border-color:color-mix(in srgb,var(--amber) 45%,transparent);color:var(--amber)}
+.eq-status-select[data-status="in-service"]{border-color:color-mix(in srgb,var(--green) 40%,transparent);color:var(--green)}
+.eq-open-badge{margin-left:6px}
+.eq-icon-sm{height:28px;width:28px}
+
+.eq-image-field{display:flex;align-items:center;gap:10px}
+.eq-image-field input{flex:1;min-width:0}
+.eq-area-locked{display:flex;align-items:center;gap:8px;padding:9px 12px;border:1px dashed var(--border);
+  border-radius:9px;background:var(--surface-2);font-size:11.5px;color:var(--secondary)}
+.eq-area-locked .text-btn{margin-left:auto;font-size:10.5px;white-space:nowrap}

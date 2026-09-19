@@ -2,8 +2,8 @@
 
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {
-  Bike, Dumbbell, Laptop, Lightbulb, MapPin, Mic, Pencil, Plus, RefreshCw, ShieldCheck,
-  Snowflake, Trash2, TriangleAlert, Upload, Wrench,
+  Bike, Dumbbell, Image as ImageIcon, Laptop, LayoutGrid, Lightbulb, MapPin, Mic, Pencil,
+  Plus, RefreshCw, Rows3, ShieldCheck, Snowflake, Trash2, TriangleAlert, Upload, Wrench,
 } from 'lucide-react';
 import {api, Badge, Empty, Field, Loading, Modal, SearchField, useApp} from '@/components/ui';
 import {STUDIOS} from '@/lib/constants';
@@ -39,6 +39,7 @@ export type FleetAsset = {
   vendor: string | null;
   quantity: number;
   condition: string | null;
+  imageUrl: string | null;
   purchaseCost: string | null;
   warrantyUntil: string | null;
   acquiredAt: string | null;
@@ -93,6 +94,37 @@ function CategoryIcon({category, size = 15}: {category: string; size?: number}) 
   }
 }
 
+/** A picture of the item, or a typed placeholder standing in for one.
+ *
+ *  Equipment photographs are how the floor confirms it is looking at the right item —
+ *  "the barre in Studio 2" is three barres. Until a photo is added, the placeholder at
+ *  least carries the category glyph rather than an empty square. */
+export type ThumbLike = {imageUrl: string | null; category: string; name: string};
+
+function AssetThumb({asset, size = 38}: {asset: ThumbLike; size?: number}) {
+  const [failed, setFailed] = useState(false);
+  const showImage = Boolean(asset.imageUrl) && !failed;
+  return (
+    <span className="eq-thumb" style={{width: size, height: size}} data-category={asset.category}>
+      {showImage ? (
+        // Plain <img>: these are arbitrary external URLs a studio pastes in, which the
+        // image optimiser cannot be given an allow-list for.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={asset.imageUrl as string} alt={asset.name} onError={() => setFailed(true)} loading="lazy"/>
+      ) : (
+        <span className="eq-thumb-placeholder" title={asset.imageUrl ? 'Image could not be loaded' : 'No photo yet'}>
+          <CategoryIcon category={asset.category} size={Math.round(size * 0.42)}/>
+        </span>
+      )}
+    </span>
+  );
+}
+
+/** The catalogue entry's category for a type, used before an asset row exists. */
+function EQUIPMENT_CATEGORY_OF(type: string, catalogue: CatalogueEntry[]): string {
+  return catalogue.find((c) => c.type === type)?.category || 'Uncategorised';
+}
+
 /** The editable shape of one item. Kept as strings because it is bound to form inputs;
  *  the API does the coercion, and doing it twice is how the two disagree. */
 type FormState = {
@@ -100,13 +132,13 @@ type FormState = {
   studio: string; type: string; label: string; name: string;
   locationId: string; area: string; serial: string; assetTag: string;
   manufacturer: string; model: string; vendor: string; quantity: string;
-  condition: string; purchaseCost: string; warrantyUntil: string; acquiredAt: string;
+  condition: string; imageUrl: string; purchaseCost: string; warrantyUntil: string; acquiredAt: string;
   status: string; notes: string;
 };
 
 const emptyForm = (studio: string, type = ''): FormState => ({
   studio, type, label: '', name: '', locationId: '', area: '', serial: '', assetTag: '',
-  manufacturer: '', model: '', vendor: '', quantity: '1', condition: '', purchaseCost: '',
+  manufacturer: '', model: '', vendor: '', quantity: '1', condition: '', imageUrl: '', purchaseCost: '',
   warrantyUntil: '', acquiredAt: '', status: 'in-service', notes: '',
 });
 
@@ -117,7 +149,7 @@ const formFrom = (a: FleetAsset): FormState => ({
   locationId: a.locationId ? String(a.locationId) : '', area: a.area || '',
   serial: a.serial || '', assetTag: a.assetTag || '', manufacturer: a.manufacturer || '',
   model: a.model || '', vendor: a.vendor || '', quantity: String(a.quantity ?? 1),
-  condition: a.condition || '', purchaseCost: a.purchaseCost || '',
+  condition: a.condition || '', imageUrl: a.imageUrl || '', purchaseCost: a.purchaseCost || '',
   warrantyUntil: dateInput(a.warrantyUntil), acquiredAt: dateInput(a.acquiredAt),
   status: a.status, notes: a.notes || '',
 });
@@ -132,7 +164,9 @@ const payloadFrom = (f: FormState) => ({
   status: f.status || undefined,
   name: f.name.trim() || undefined,
   locationId: f.locationId ? Number(f.locationId) : null,
-  area: f.area.trim() || null,
+  // A managed location supersedes the free-text area; sending both leaves two competing
+  // answers to "where is it?" on the same row.
+  area: f.locationId ? null : (f.area.trim() || null),
   serial: f.serial.trim() || null,
   assetTag: f.assetTag.trim() || null,
   manufacturer: f.manufacturer.trim() || null,
@@ -140,6 +174,7 @@ const payloadFrom = (f: FormState) => ({
   vendor: f.vendor.trim() || null,
   quantity: Number(f.quantity) || 1,
   condition: f.condition || null,
+  imageUrl: f.imageUrl.trim() || null,
   purchaseCost: f.purchaseCost.trim() || null,
   warrantyUntil: f.warrantyUntil || null,
   acquiredAt: f.acquiredAt || null,
@@ -163,6 +198,9 @@ export function EquipmentPanel({initialStudio}: {initialStudio?: string}) {
   const [category, setCategory] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [tab, setTab] = useState<'items' | 'types'>('items');
+  // A register is a list you scan and compare, so it opens as a table. Cards stay available
+  // for the photo-led view once studios start adding pictures.
+  const [layout, setLayout] = useState<'table' | 'cards'>('table');
 
   const [editing, setEditing] = useState<FormState | null>(null);
   const [saving, setSaving] = useState(false);
@@ -357,6 +395,10 @@ export function EquipmentPanel({initialStudio}: {initialStudio?: string}) {
                 <option value="">Any status</option>
                 {statuses.map((s) => <option key={s} value={s}>{STATUS_LABEL[s] || s}</option>)}
               </select>
+              <div className="view-switch">
+                <button aria-label="Table view" title="Table view" className={layout === 'table' ? 'active' : ''} onClick={() => setLayout('table')}><Rows3 size={14}/></button>
+                <button aria-label="Card view" title="Card view" className={layout === 'cards' ? 'active' : ''} onClick={() => setLayout('cards')}><LayoutGrid size={14}/></button>
+              </div>
             </div>
           ) : null}
         </div>
@@ -396,13 +438,76 @@ export function EquipmentPanel({initialStudio}: {initialStudio?: string}) {
             title={assets.length ? 'Nothing matches those filters' : 'No equipment registered'}
             detail={assets.length ? 'Clear the search or the filters to see the whole register.' : 'Add an item, import a sheet, or let one be created the first time it is reported.'}
           />
+        ) : layout === 'table' ? (
+          <div className="table-wrap">
+            <table className="data-table data-table-rich equipment-table">
+              <thead>
+                <tr>
+                  <th className="eq-th-img"><ImageIcon size={11}/></th>
+                  <th>ITEM</th><th>CATEGORY</th><th>LOCATION</th><th>SERIAL / TAG</th>
+                  <th>QTY</th><th>STATUS</th><th style={{textAlign: 'right'}}>TICKETS</th>
+                  {canEdit ? <th/> : null}
+                </tr>
+              </thead>
+              <tbody>
+                {visible.map((a) => (
+                  <tr key={a.id} className={a.available ? '' : 'eq-row-down'}>
+                    <td><AssetThumb asset={a}/></td>
+                    <td>
+                      <p className="ticket-name">{a.name}</p>
+                      <div className="ticket-meta">
+                        <span>{a.type}</span>
+                        {(a.manufacturer || a.model) && <><span>·</span><span>{[a.manufacturer, a.model].filter(Boolean).join(' ')}</span></>}
+                      </div>
+                    </td>
+                    <td><span className="chip chip-quiet">{a.category}</span></td>
+                    <td>
+                      {a.locationName
+                        ? <span className="eq-loc"><MapPin size={10}/>{a.locationName}</span>
+                        : a.area
+                          ? <span className="eq-loc eq-loc-free">{a.area}</span>
+                          : <span className="muted">—</span>}
+                      <span className="category-sub">{a.studio.split(',')[0]}</span>
+                    </td>
+                    <td>
+                      {a.serial ? <span className="mono" style={{fontSize: 10.5}}>{a.serial}</span> : <span className="muted">—</span>}
+                      {a.assetTag ? <span className="category-sub">Tag {a.assetTag}</span> : null}
+                    </td>
+                    <td className="mono">{a.quantity > 1 ? `×${a.quantity}` : '1'}</td>
+                    <td>
+                      {canEdit ? (
+                        <select value={a.status} aria-label={`Status for ${a.name}`} className="filter-select eq-status-select" data-status={a.status}
+                          onChange={(e) => void changeStatus(a, e.target.value)}>
+                          {statuses.map((s) => <option key={s} value={s}>{STATUS_LABEL[s] || s}</option>)}
+                        </select>
+                      ) : <Badge tone={STATUS_TONE[a.status] || ''}>{STATUS_LABEL[a.status] || a.status}</Badge>}
+                      {a.statusNote ? <span className="category-sub">{a.statusNote}</span> : null}
+                    </td>
+                    <td style={{textAlign: 'right'}}>
+                      <strong>{a.faults || 0}</strong>
+                      {a.openFaults ? <Badge tone="amber" className="eq-open-badge">{a.openFaults} open</Badge> : null}
+                      <span className="category-sub">{a.lastFaultAt ? relativeTime(a.lastFaultAt) : 'none logged'}</span>
+                    </td>
+                    {canEdit ? (
+                      <td>
+                        <div className="flex-row" style={{gap: 5, justifyContent: 'flex-end'}}>
+                          <button className="icon-btn eq-icon-sm" onClick={() => { setFormError(''); setEditing(formFrom(a)); }} aria-label={`Edit ${a.name}`}><Pencil size={12}/></button>
+                          {isAdmin ? <button className="icon-btn eq-icon-sm" onClick={() => void remove(a)} aria-label={`Remove ${a.name}`}><Trash2 size={12}/></button> : null}
+                        </div>
+                      </td>
+                    ) : null}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         ) : (
           <div className="asset-grid">
             {visible.map((a) => (
               <div key={a.id} className={'asset-card' + (a.available ? '' : ' asset-card-down')}>
                 <div className="between">
-                  <strong className="flex-row" style={{gap: 7}}>
-                    <CategoryIcon category={a.category} />
+                  <strong className="flex-row" style={{gap: 9}}>
+                    <AssetThumb asset={a} size={34}/>
                     {a.name}
                     {a.quantity > 1 ? <span className="chip chip-quiet">×{a.quantity}</span> : null}
                   </strong>
@@ -560,15 +665,28 @@ function AssetForm({
         <Field label="Display name" hint="Leave blank to name it automatically from the type and label.">
           <input value={form.name} onChange={(e) => set({name: e.target.value})} maxLength={160} />
         </Field>
-        <Field label="Location">
-          <select value={form.locationId} onChange={(e) => set({locationId: e.target.value})}>
-            <option value="">No location set</option>
+        <Field label="Location" hint={locations.length ? undefined : 'No locations defined yet — add them from the Locations button.'}>
+          <select value={form.locationId} onChange={(e) => set({locationId: e.target.value, ...(e.target.value ? {area: ''} : {})})}>
+            <option value="">Not in a defined location</option>
             {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
           </select>
         </Field>
-        <Field label="Area" hint="Free text, for anywhere not in the location list.">
-          <input value={form.area} onChange={(e) => set({area: e.target.value})} maxLength={80} />
-        </Field>
+        {/* Area is the fallback for anywhere that is not a defined location — a pantry shelf,
+            a corridor. Once a location is chosen it is the answer, so the free-text field is
+            withdrawn rather than left to contradict it. */}
+        {form.locationId ? (
+          <Field label="Area">
+            <div className="eq-area-locked">
+              <MapPin size={13}/>
+              <span>{locations.find((l) => String(l.id) === form.locationId)?.name || 'Selected location'}</span>
+              <button type="button" className="text-btn" onClick={() => set({locationId: ''})}>Use free text instead</button>
+            </div>
+          </Field>
+        ) : (
+          <Field label="Area" hint="Free text, for anywhere not in the location list.">
+            <input value={form.area} onChange={(e) => set({area: e.target.value})} maxLength={80} placeholder="e.g. Pantry shelf" />
+          </Field>
+        )}
         <Field label="Serial number">
           <input value={form.serial} onChange={(e) => set({serial: e.target.value})} maxLength={120} />
         </Field>
@@ -609,6 +727,12 @@ function AssetForm({
         </Field>
         <Field label="Warranty until">
           <input type="date" value={form.warrantyUntil} onChange={(e) => set({warrantyUntil: e.target.value})} />
+        </Field>
+        <Field label="Photo" hint="An https link to a picture of the item. Left blank, the register shows a typed placeholder.">
+          <div className="eq-image-field">
+            <AssetThumb asset={{imageUrl: form.imageUrl, category: EQUIPMENT_CATEGORY_OF(form.type, catalogue), name: form.name || form.type} as ThumbLike} size={46}/>
+            <input value={form.imageUrl} onChange={(e) => set({imageUrl: e.target.value})} maxLength={600} placeholder="https://…" />
+          </div>
         </Field>
         <Field label="Notes" wide>
           <textarea rows={3} value={form.notes} onChange={(e) => set({notes: e.target.value})} maxLength={2000} />

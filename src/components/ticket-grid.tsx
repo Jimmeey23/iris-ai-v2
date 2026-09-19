@@ -1,6 +1,6 @@
 "use client";
 
-import {useMemo} from 'react';
+import {useEffect, useMemo, useState} from 'react';
 import {ChevronDown, ChevronRight, ArrowDown, ArrowUp, ChevronsUpDown, TriangleAlert} from 'lucide-react';
 import {Avatar, Badge, Priority, Status} from './ui';
 import {SlaCountdown} from './tickets-board';
@@ -44,9 +44,9 @@ function durationLabel(ms: number): string {
   return `${Math.round(hours / 24)}d`;
 }
 
-function Cell({column, ticket, staleDays}: {column: TicketColumn; ticket: TicketListRecord; staleDays: number}) {
+function Cell({column, ticket, staleDays, nowMs}: {column: TicketColumn; ticket: TicketListRecord; staleDays: number; nowMs: number}) {
   const t = ticket;
-  const stale = Date.now() - new Date(t.createdAt).getTime() > staleDays * 86400000 && isOpen(t);
+  const stale = nowMs > 0 && nowMs - new Date(t.createdAt).getTime() > staleDays * 86400000 && isOpen(t);
   switch (column) {
     case 'label':
       return (
@@ -68,15 +68,22 @@ function Cell({column, ticket, staleDays}: {column: TicketColumn; ticket: Ticket
     case 'status':
       return <td><Status status={t.status}/>{!t.resolutionRequired && <span className="category-sub">record only</span>}</td>;
     case 'priority': return <td><Priority priority={t.priority}/></td>;
-    case 'owner':
+    case 'owner': {
+      // An unassigned ticket is styled as absent rather than as a person whose initials
+      // happen to be "UN".
+      const unassigned = !t.assignedStaffName;
       return (
         <td>
-          <div className="mini-owner">
-            <Avatar name={t.assignedStaffName || 'Unassigned'} tone="purple"/>
-            <span><strong>{t.assignedStaffName?.split(' ')[0] || 'Unassigned'}</strong><small>{t.departmentName || '—'}</small></span>
+          <div className={'mini-owner' + (unassigned ? ' mini-owner-empty' : '')} title={t.assignedStaffName || 'Not yet assigned'}>
+            <Avatar name={unassigned ? '?' : t.assignedStaffName} tone="purple"/>
+            <span>
+              <strong>{unassigned ? 'Unassigned' : t.assignedStaffName.split(' ')[0]}</strong>
+              <small>{t.departmentName || 'No desk'}</small>
+            </span>
           </div>
         </td>
       );
+    }
     case 'department': return <td>{t.departmentName || <span className="muted">—</span>}</td>;
     case 'source': return <td><span className="chip chip-quiet">{SOURCE_LABEL[t.source] || t.source}</span></td>;
     case 'created': return <td><span title={indiaDate(t.createdAt)}>{indiaDate(t.createdAt, true)}</span></td>;
@@ -128,6 +135,15 @@ export function TicketGrid({
 }: TicketGridProps) {
   const sorted = useMemo(() => sortTickets(tickets, sortKey, sortDir), [tickets, sortKey, sortDir]);
 
+  // A slow clock so the ageing flag keeps up with a board left open, without reading the
+  // wall clock during render.
+  const [nowMs, setNowMs] = useState(0);
+  useEffect(() => {
+    setNowMs(Date.now());
+    const id = setInterval(() => setNowMs(Date.now()), 60000);
+    return () => clearInterval(id);
+  }, []);
+
   const groups = useMemo(() => (groupBy === 'none' ? null : groupTickets(sorted, groupBy)), [sorted, groupBy]);
 
   const span = columns.length + (onToggleSelect ? 1 : 0);
@@ -178,7 +194,7 @@ export function TicketGrid({
           />
         </td>
       )}
-      {columns.map((c) => <Cell key={c} column={c} ticket={t} staleDays={staleDays}/>)}
+      {columns.map((c) => <Cell key={c} column={c} ticket={t} staleDays={staleDays} nowMs={nowMs}/>)}
     </tr>
   );
 

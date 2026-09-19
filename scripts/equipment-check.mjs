@@ -92,6 +92,21 @@ try {
   check('the same item twice is a conflict', (await agent('/api/assets', 'POST', {studio: STUDIO, type: 'Laptop', label: TAG})).status === 409);
   check('a type outside the catalogue is refused', (await agent('/api/assets', 'POST', {studio: STUDIO, type: 'Hovercraft', label: TAG + 'x'})).status === 400);
 
+  section('Photos and where a thing lives');
+  const withPhoto = await agent('/api/assets', 'PATCH', {id: laptopId, imageUrl: 'https://example.invalid/laptop.jpg'});
+  check('a photo link is stored', withPhoto.body.asset?.imageUrl === 'https://example.invalid/laptop.jpg', withPhoto.body.asset?.imageUrl);
+  check('a javascript: url is refused', (await agent('/api/assets', 'PATCH', {id: laptopId, imageUrl: 'javascript:alert(1)'})).status === 400);
+  check('a data: url is refused', (await agent('/api/assets', 'PATCH', {id: laptopId, imageUrl: 'data:image/png;base64,iVBOR'})).status === 400);
+  check('the photo can be cleared', (await agent('/api/assets', 'PATCH', {id: laptopId, imageUrl: null})).body.asset?.imageUrl === null);
+
+  // The form withdraws the free-text area once a location is chosen; the API has to agree,
+  // or a row ends up with two competing answers to "where is it?".
+  const placed = await agent('/api/assets', 'PATCH', {id: laptopId, locationId, area: 'Somewhere else'});
+  check('a managed location supersedes the free-text area', placed.body.asset?.locationId === locationId && placed.body.asset?.area === null, {loc: placed.body.asset?.locationId, area: placed.body.asset?.area});
+  const freed = await agent('/api/assets', 'PATCH', {id: laptopId, locationId: null, area: 'Pantry shelf'});
+  check('free text is kept when there is no location', freed.body.asset?.area === 'Pantry shelf' && freed.body.asset?.locationId === null, {loc: freed.body.asset?.locationId, area: freed.body.asset?.area});
+  await agent('/api/assets', 'PATCH', {id: laptopId, locationId});
+
   section('Editing it');
   const edited = await agent('/api/assets', 'PATCH', {id: laptopId, model: 'MacBook Pro', condition: 'fair', quantity: 2});
   check('an edit saves', edited.status === 200, edited.body);
