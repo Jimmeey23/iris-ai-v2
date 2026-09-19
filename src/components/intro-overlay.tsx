@@ -1,5 +1,5 @@
 "use client";
-import {useCallback,useEffect,useRef,useState} from 'react';
+import {useCallback,useEffect,useRef,useState,useSyncExternalStore} from 'react';
 
 const STAGES=[
   {at:0,label:'Waking Iris…'},
@@ -22,6 +22,34 @@ const SOURCES:Record<'gold'|'blue',{src:string;poster:string}>={
   blue:{src:'/video/iris-intro-light.mp4',poster:'/video/iris-intro-light.webp'},
 };
 
+/** The store never changes after mount, so subscribing is a no-op. It has to be
+ *  referentially stable or `useSyncExternalStore` re-subscribes every render. */
+const subscribeNoop=()=>()=>{};
+/** On the server the curtain must not exist — see `shouldPlay`. */
+const serverSnapshot=()=>false;
+
+/**
+ * Should the curtain play on this visit?
+ *
+ * Read through `useSyncExternalStore` rather than `useState` + an effect, for two
+ * reasons. First, it depends on `matchMedia` and `sessionStorage`, neither of
+ * which exists during server rendering, so the answer genuinely differs between
+ * server and client — which is exactly what that hook is for. Second, and more
+ * importantly, the server snapshot is `false`, so the `<video>` element is absent
+ * from the SSR markup.
+ *
+ * That matters: the clip used to be in the initial HTML with `preload="auto"`,
+ * so the browser started pulling a 1.9MB (dark) or 4.6MB (light) file from the
+ * HTML stream itself — before a line of JS had run, and including on repeat
+ * visits where the effect immediately bailed out and threw it away. Returning
+ * visitors now render no curtain at all, not even a one-frame black flash.
+ */
+function shouldPlay(){
+  if(typeof window==='undefined')return false;
+  if(window.matchMedia('(prefers-reduced-motion: reduce)').matches)return false;
+  try{return !sessionStorage.getItem('iris-intro-seen');}catch{return true;}
+}
+
 /**
  * Full-screen cinematic opening for the home page: the branded IRIS Ai clip
  * plays full-bleed (gold in dark mode, blue in light) with the wordmark and a
@@ -41,26 +69,33 @@ export function IntroOverlay({onDone,palette='gold'}:{onDone:()=>void;palette?:'
   const finish=useRef(onDone);
   useEffect(()=>{finish.current=onDone;},[onDone]);
 
+  const armed=useSyncExternalStore(subscribeNoop,shouldPlay,serverSnapshot);
+
   /** Lift the curtain, then hand the page over — used by both the clip end and the timers. */
   const close=useCallback(()=>{
     if(done.current)return;
     done.current=true;
-    sessionStorage.setItem('iris-intro-seen','1');
     setLeaving(true);
-    setTimeout(()=>finish.current(),EXIT_MS);
+    // The "seen" flag is written at the same moment we hand over, not when the
+    // exit starts. Writing it earlier would flip `armed` mid-animation and
+    // unmount the video while the curtain was still lifting.
+    window.setTimeout(()=>{
+      try{sessionStorage.setItem('iris-intro-seen','1');}catch{}
+      finish.current();
+    },EXIT_MS);
   },[]);
 
   /** Skip: no curtain animation, straight to the hero. */
   const skip=useCallback(()=>{
     if(done.current)return;
     done.current=true;
-    sessionStorage.setItem('iris-intro-seen','1');
+    try{sessionStorage.setItem('iris-intro-seen','1');}catch{}
     finish.current();
   },[]);
 
   useEffect(()=>{
-    if(window.matchMedia('(prefers-reduced-motion: reduce)').matches){finish.current();return;}
-    if(sessionStorage.getItem('iris-intro-seen')){finish.current();return;}
+    // Nothing to play — release the page immediately and render no curtain.
+    if(!armed){finish.current();return;}
 
     const el=video.current;
     // React does not emit `muted` into the SSR markup (it sets the DOM property on
@@ -92,7 +127,7 @@ export function IntroOverlay({onDone,palette='gold'}:{onDone:()=>void;palette?:'
       document.body.style.overflow=prev;
       window.removeEventListener('keydown',onKey);
     };
-  },[close,skip]);
+  },[armed,close,skip]);
 
   // Progress tracks the clip itself so the status line stays honest.
   const onTime=()=>{
@@ -100,6 +135,10 @@ export function IntroOverlay({onDone,palette='gold'}:{onDone:()=>void;palette?:'
     if(!el||!el.duration||!isFinite(el.duration))return;
     setProgress(Math.min(100,Math.round(el.currentTime/el.duration*100)));
   };
+
+  // Every hook has run, so bailing out here is safe — and it is what keeps the
+  // curtain out of the HTML for the visits that were never going to show it.
+  if(!armed)return null;
 
   const stage=[...STAGES].reverse().find(s=>progress>=s.at)??STAGES[0];
   const{src,poster}=SOURCES[palette];
@@ -114,6 +153,8 @@ export function IntroOverlay({onDone,palette='gold'}:{onDone:()=>void;palette?:'
         muted
         playsInline
         autoPlay
+        /* Mounted only once we know we intend to play, so eager preloading is
+           now the right call instead of a multi-megabyte waste on skipped visits. */
         preload="auto"
         onTimeUpdate={onTime}
         onEnded={close}
