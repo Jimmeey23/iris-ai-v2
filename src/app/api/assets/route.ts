@@ -91,6 +91,8 @@ const detailSchema = {
   vendor: z.string().max(120).nullable().optional(),
   quantity: z.number().int().min(1).max(10000).nullable().optional(),
   condition: z.enum(EQUIPMENT_CONDITIONS).nullable().optional(),
+  // Only http(s) — a data: or javascript: URL has no business in an <img src> we render.
+  imageUrl: z.string().max(600).url().refine(v=>/^https?:\/\//i.test(v),'Use an http or https image link.').nullable().optional(),
   purchaseCost: z.union([z.number(), z.string().max(30)]).nullable().optional(),
   warrantyUntil: z.string().max(40).nullable().optional(),
   acquiredAt: z.string().max(40).nullable().optional(),

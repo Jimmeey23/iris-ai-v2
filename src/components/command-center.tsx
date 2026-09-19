@@ -10,7 +10,8 @@ import {Shell} from './shell';
 import {useTickets, Kanban, TicketCard, MatrixView, FeedView} from './tickets-board';
 import {TicketGrid} from './ticket-grid';
 import {TicketFilters} from './ticket-filters';
-import {MetricCards, headlineMetrics, pulseMetrics} from './metric-cards';
+import {MetricCards, boardMetrics} from './metric-cards';
+import {BoardTelemetry} from './board-telemetry';
 import {useDashboardPrefs} from './use-dashboard-prefs';
 import {TicketDialog} from './ticket-detail';
 import {TicketComposer} from './ticket-composer';
@@ -80,8 +81,7 @@ export function CommandCenter({directory = false}: {directory?: boolean}) {
     sla: filtered.filter((t) => !isClosed(t) && slaState(t.slaDueAt, t.status) !== 'ok').length,
   }), [filtered, user]);
 
-  const headline = useMemo(() => headlineMetrics(filtered), [filtered]);
-  const pulse = useMemo(() => pulseMetrics(filtered), [filtered]);
+  const metrics = useMemo(() => boardMetrics(filtered), [filtered]);
 
   const open = useMemo(() => filtered.filter((t) => !isClosed(t)), [filtered]);
   const slaRisk = useMemo(() => open.filter((t) => slaState(t.slaDueAt, t.status) !== 'ok'), [open]);
@@ -334,10 +334,8 @@ export function CommandCenter({directory = false}: {directory?: boolean}) {
             </div>
             <Link className="btn btn-primary" href="/iris">Log with Iris <ArrowUpRight size={14}/></Link>
           </div>
-          <MetricCards metrics={headline} onApplyFilter={applyMetricFilter} onOpenTicket={setDetail}/>
-          <div style={{marginTop: 16}}>
-            <MetricCards metrics={pulse} onApplyFilter={applyMetricFilter} onOpenTicket={setDetail}/>
-          </div>
+          <BoardTelemetry tickets={filtered} total={tickets.length} staleDays={staleTicketDays}/>
+          <MetricCards metrics={metrics} onApplyFilter={applyMetricFilter} onOpenTicket={setDetail}/>
         </div>
       )}
 

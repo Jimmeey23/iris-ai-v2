@@ -43,6 +43,7 @@ ALTER TABLE "assets" ADD COLUMN IF NOT EXISTS "vendor" text;
 ALTER TABLE "assets" ADD COLUMN IF NOT EXISTS "location_id" integer;
 ALTER TABLE "assets" ADD COLUMN IF NOT EXISTS "quantity" integer NOT NULL DEFAULT 1;
 ALTER TABLE "assets" ADD COLUMN IF NOT EXISTS "condition" text;
+ALTER TABLE "assets" ADD COLUMN IF NOT EXISTS "image_url" text;
 ALTER TABLE "assets" ADD COLUMN IF NOT EXISTS "purchase_cost" numeric(12,2);
 ALTER TABLE "assets" ADD COLUMN IF NOT EXISTS "warranty_until" timestamp with time zone;
 ALTER TABLE "assets" ADD COLUMN IF NOT EXISTS "notes" text;

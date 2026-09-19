@@ -325,6 +325,7 @@ export interface AssetInput {
   vendor?: string | null;
   quantity?: number | null;
   condition?: string | null;
+  imageUrl?: string | null;
   purchaseCost?: string | number | null;
   warrantyUntil?: string | Date | null;
   acquiredAt?: string | Date | null;
@@ -361,7 +362,11 @@ function assetFields(input: AssetInput) {
     label,
     name: trimOrNull(input.name) || assetName(type, label),
     category: categoryOf(type),
-    area: trimOrNull(input.area),
+    // `area` is the fallback for anywhere that is not a defined location. Once a location
+    // is set it is the answer, so the free text is dropped rather than left to contradict
+    // it — otherwise a row carries two competing answers to "where is it?" and the counts
+    // per location cannot be trusted.
+    area: input.locationId ? null : trimOrNull(input.area),
     locationId: input.locationId ?? null,
     serial: trimOrNull(input.serial),
     assetTag: trimOrNull(input.assetTag),
@@ -370,6 +375,7 @@ function assetFields(input: AssetInput) {
     vendor: trimOrNull(input.vendor),
     quantity: Math.max(1, Number(input.quantity) || 1),
     condition: trimOrNull(input.condition),
+    imageUrl: trimOrNull(input.imageUrl),
     purchaseCost: asCost(input.purchaseCost),
     warrantyUntil: asDate(input.warrantyUntil),
     acquiredAt: asDate(input.acquiredAt),
@@ -410,6 +416,7 @@ export async function updateAsset(id: number, patch: Partial<AssetInput>): Promi
     vendor: patch.vendor !== undefined ? patch.vendor : existing.vendor,
     quantity: patch.quantity !== undefined ? patch.quantity : existing.quantity,
     condition: patch.condition !== undefined ? patch.condition : existing.condition,
+    imageUrl: patch.imageUrl !== undefined ? patch.imageUrl : existing.imageUrl,
     purchaseCost: patch.purchaseCost !== undefined ? patch.purchaseCost : existing.purchaseCost,
     warrantyUntil: patch.warrantyUntil !== undefined ? patch.warrantyUntil : existing.warrantyUntil,
     acquiredAt: patch.acquiredAt !== undefined ? patch.acquiredAt : existing.acquiredAt,
