@@ -30,27 +30,116 @@ function Typewriter(){
   return <span className="lb-type">{text}<span className="lb-caret"/></span>;
 }
 
-/** Orbiting gold particles + data-ring behind Iris — canvas, cheap, reduced-motion aware. */
+/**
+ * Orbiting particles + data-ring behind Iris.
+ *
+ * Three things made this expensive before, and it is the first thing painted on
+ * the landing page:
+ *
+ *  1. Every orbiting particle set `ctx.shadowBlur`. Canvas shadow-blur forces
+ *     an offscreen blur pass *per draw call* — ~84 of them per frame here, which
+ *     is one of the most costly things a 2D context can do. The glow is now a
+ *     pre-rendered radial-gradient sprite blitted with `drawImage`, which is
+ *     effectively free by comparison and looks the same.
+ *  2. It ran forever — after the hero had scrolled away and while the tab was in
+ *     the background. An IntersectionObserver and a `visibilitychange` listener
+ *     now stop the loop when nothing can see it.
+ *  3. The effect captured `rgb` with an empty dependency array, so switching
+ *     theme left the halo drawing the *previous* palette's colour. `rgb` is now
+ *     a dependency and the sprites are rebuilt when it changes.
+ *
+ * Timing is driven by a real delta rather than an assumed 16ms, so the motion
+ * keeps the same speed on a 120Hz display instead of running twice as fast.
+ */
 function Halo({rgb='255,209,102'}:{rgb?:string}){
   const ref=useRef<HTMLCanvasElement>(null);
   useEffect(()=>{
-    const c=ref.current;if(!c)return;const ctx=c.getContext('2d');if(!ctx)return;
+    const c=ref.current;if(!c)return;const ctx=c.getContext('2d',{alpha:true});if(!ctx)return;
     if(window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;
-    let w=0,h=0,raf=0,t=0;const dpr=Math.min(2,devicePixelRatio||1);
-    const resize=()=>{w=c.width=c.offsetWidth*dpr;h=c.height=c.offsetHeight*dpr;};resize();window.addEventListener('resize',resize);
+
+    let w=0,h=0,raf=0,last=0,t=0,running=true,visible=true,inView=true;
+    const dpr=Math.min(2,window.devicePixelRatio||1);
+
+    /** One soft radial sprite, reused for every glow — see note above. */
+    const SPRITE=64;
+    const glow=document.createElement('canvas');
+    glow.width=glow.height=SPRITE;
+    const gctx=glow.getContext('2d')!;
+    const grad=gctx.createRadialGradient(SPRITE/2,SPRITE/2,0,SPRITE/2,SPRITE/2,SPRITE/2);
+    grad.addColorStop(0,`rgba(${rgb},.95)`);
+    grad.addColorStop(.22,`rgba(${rgb},.55)`);
+    grad.addColorStop(.55,`rgba(${rgb},.14)`);
+    grad.addColorStop(1,`rgba(${rgb},0)`);
+    gctx.fillStyle=grad;gctx.fillRect(0,0,SPRITE,SPRITE);
+
+    const resize=()=>{
+      const cw=c.offsetWidth,ch=c.offsetHeight;
+      if(!cw||!ch)return;
+      w=c.width=Math.round(cw*dpr);h=c.height=Math.round(ch*dpr);
+    };
+    resize();
+
     const orbit=Array.from({length:3},(_,i)=>({r:.30+i*.085,speed:(.12+i*.05)*(i%2?-1:1),n:18+i*10,ph:i*1.3}));
     const dust=Array.from({length:70},()=>({x:Math.random(),y:Math.random(),r:Math.random()*1.4+.3,vy:-(Math.random()*.00035+.00008),a:Math.random()*.5+.2,ph:Math.random()*6.28}));
-    const draw=()=>{
-      t+=.016;ctx.clearRect(0,0,w,h);const cx=w/2,cy=h*.52,R=Math.min(w,h);
-      for(const d of dust){d.y+=d.vy;if(d.y<-.02){d.y=1.02;d.x=Math.random();}const a=d.a*(.55+.45*Math.sin(t*1.3+d.ph));ctx.beginPath();ctx.arc(d.x*w,d.y*h,d.r*dpr,0,6.28);ctx.fillStyle=`rgba(${rgb},${a})`;ctx.fill();}
-      for(const o of orbit){
-        ctx.beginPath();ctx.arc(cx,cy,o.r*R,0,6.28);ctx.strokeStyle=`rgba(${rgb},.10)`;ctx.lineWidth=1*dpr;ctx.stroke();
-        for(let k=0;k<o.n;k++){const ang=o.ph+t*o.speed+k/o.n*6.28;const px=cx+Math.cos(ang)*o.r*R,py=cy+Math.sin(ang)*o.r*R*.62;const depth=(Math.sin(ang)+1)/2;const a=.18+depth*.75;const sz=(.9+depth*1.8)*dpr;ctx.beginPath();ctx.arc(px,py,sz,0,6.28);ctx.fillStyle=`rgba(${rgb},${a})`;ctx.shadowBlur=10*dpr;ctx.shadowColor=`rgba(${rgb},.9)`;ctx.fill();ctx.shadowBlur=0;}
+
+    const draw=(now:number)=>{
+      if(!running)return;
+      // Clamp the delta so returning from a background tab doesn't teleport
+      // every particle across the canvas in one frame.
+      const dt=last?Math.min(.05,(now-last)/1000):.016;
+      last=now;t+=dt;
+      if(visible&&inView&&w&&h){
+        ctx.clearRect(0,0,w,h);
+        const cx=w/2,cy=h*.52,R=Math.min(w,h);
+        // Dust: plain fills, no glow — they are sub-pixel and don't need one.
+        for(const d of dust){
+          d.y+=d.vy*dt*60;if(d.y<-.02){d.y=1.02;d.x=Math.random();}
+          const a=d.a*(.55+.45*Math.sin(t*1.3+d.ph));
+          ctx.globalAlpha=a;ctx.fillStyle=`rgb(${rgb})`;
+          ctx.beginPath();ctx.arc(d.x*w,d.y*h,d.r*dpr,0,6.28);ctx.fill();
+        }
+        ctx.globalAlpha=1;
+        for(const o of orbit){
+          ctx.beginPath();ctx.arc(cx,cy,o.r*R,0,6.28);
+          ctx.strokeStyle=`rgba(${rgb},.10)`;ctx.lineWidth=1*dpr;ctx.stroke();
+          for(let k=0;k<o.n;k++){
+            const ang=o.ph+t*o.speed+k/o.n*6.28;
+            const px=cx+Math.cos(ang)*o.r*R,py=cy+Math.sin(ang)*o.r*R*.62;
+            const depth=(Math.sin(ang)+1)/2;
+            const sz=(.9+depth*1.8)*dpr;
+            // Blit the glow sprite instead of asking the context to blur a path.
+            const halo=sz*4.5;
+            ctx.globalAlpha=.18+depth*.75;
+            ctx.drawImage(glow,px-halo,py-halo,halo*2,halo*2);
+            // Crisp core on top, so the particle still reads as a point of light.
+            ctx.globalAlpha=.5+depth*.5;ctx.fillStyle=`rgb(${rgb})`;
+            ctx.beginPath();ctx.arc(px,py,sz*.62,0,6.28);ctx.fill();
+          }
+        }
+        ctx.globalAlpha=1;
       }
       raf=requestAnimationFrame(draw);
-    };draw();
-    return()=>{cancelAnimationFrame(raf);window.removeEventListener('resize',resize);};
-  },[]);
+    };
+
+    const start=()=>{if(running)return;running=true;last=0;raf=requestAnimationFrame(draw);};
+    const stop=()=>{running=false;cancelAnimationFrame(raf);};
+
+    const onVis=()=>{visible=document.visibilityState==='visible';visible?start():stop();};
+    document.addEventListener('visibilitychange',onVis);
+
+    // Stop the loop once the hero has scrolled out of view.
+    let io:IntersectionObserver|undefined;
+    if(typeof IntersectionObserver!=='undefined'){
+      io=new IntersectionObserver(([e])=>{inView=e.isIntersecting;},{rootMargin:'120px'});
+      io.observe(c);
+    }
+    let ro:ResizeObserver|undefined;
+    if(typeof ResizeObserver!=='undefined'){ro=new ResizeObserver(resize);ro.observe(c);}
+    else window.addEventListener('resize',resize);
+
+    raf=requestAnimationFrame(draw);
+    return()=>{stop();document.removeEventListener('visibilitychange',onVis);io?.disconnect();ro?.disconnect();window.removeEventListener('resize',resize);};
+  },[rgb]);
   return <canvas ref={ref} className="lb-halo" aria-hidden="true"/>;
 }
 
@@ -108,8 +197,14 @@ export function LandingHero(){
           <RadarRings className="radar-rings lb-radar"/>
           <div className="lb-glow"/>
           <div className={'lb-frame'+(sealed?' sealed':'')}>
-            <img src="/images/iris-hero-dark.webp" alt="Iris — the Physique 57 India operations assistant" className="lb-img lb-img-dark" fetchPriority="high"/>
-            <img src="/images/iris-hero.webp" alt="" aria-hidden="true" className="lb-img lb-img-light"/>
+            {/* One theme-aware image, not two. The previous markup shipped both
+                palettes and hid one with `display:none` — which still downloads
+                it, so the hero was paying 254KB to show 121KB. Width/height are
+                intrinsic so the frame reserves its box and the page doesn't
+                reflow when the bytes land. */}
+            <img src={theme==='dark'?'/images/iris-hero-dark.webp':'/images/iris-hero.webp'}
+              alt="Iris — the Physique 57 India operations assistant" className="lb-img"
+              width={1024} height={1024} decoding="async" fetchPriority="high"/>
             <div className="lb-frame-fade"/>
             <span className="lb-corner tl"/><span className="lb-corner tr"/><span className="lb-corner bl"/><span className="lb-corner br"/>
             {!sealed&&<div className="lb-scan" aria-hidden="true"/>}

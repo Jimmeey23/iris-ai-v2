@@ -1,10 +1,10 @@
 "use client";
-import Link from 'next/link';import {usePathname,useRouter} from 'next/navigation';import {useEffect,useState,type ReactNode} from 'react';
-import {LayoutDashboard,Sparkles,Ticket,Layers,ChartNoAxesCombined,Users,Blocks,Settings,ChevronDown,ChevronRight,Search,Bell,Menu,PanelLeft,Building2,ArrowUpRight,Command,LifeBuoy,FileBarChart2,GraduationCap,ClipboardList,Radio,Wrench} from 'lucide-react';
+import Link from 'next/link';import {usePathname,useRouter} from 'next/navigation';import {useEffect,useRef,useState,type ReactNode} from 'react';
+import {LayoutDashboard,Sparkles,Ticket,Layers,ChartNoAxesCombined,Users,Blocks,Settings,ChevronDown,ChevronRight,Search,Bell,Menu,PanelLeft,Building2,ArrowUpRight,Command,LifeBuoy,FileBarChart2,GraduationCap,ClipboardList,Radio,Wrench,Palette} from 'lucide-react';
 import {useApp,ThemeToggle,Avatar,Modal,api,SearchField,Badge} from './ui';
 import {IrisLockup} from './iris-mark';
 const nav=[{href:'/dashboard',label:'Overview',icon:LayoutDashboard},{href:'/iris',label:'Iris assistant',icon:Sparkles,ai:true},{href:'/radar',label:'Ops Radar & Heatmap',icon:Radio,live:true},{href:'/tickets',label:'All tickets',icon:Ticket},{href:'/equipment',label:'Equipment',icon:Wrench},{href:'/templates',label:'Template library',icon:Layers},{href:'/reports',label:'Reports library',icon:FileBarChart2},{href:'/analytics',label:'Trend dashboard',icon:ChartNoAxesCombined},{href:'/trainers',label:'Trainer reviews',icon:GraduationCap},{href:'/forms',label:'Evaluation forms',icon:ClipboardList}];
-const org=[{href:'/momence',label:'Momence',icon:Building2},{href:'/staff',label:'People & teams',icon:Users},{href:'/integrations',label:'Integrations',icon:Blocks},{href:'/settings',label:'Settings',icon:Settings}];
+const org=[{href:'/momence',label:'Momence',icon:Building2},{href:'/staff',label:'People & teams',icon:Users},{href:'/integrations',label:'Integrations',icon:Blocks},{href:'/settings',label:'Settings',icon:Settings},{href:'/design-system',label:'Design system',icon:Palette}];
 export {Badge};
 export function Shell({
   children,
@@ -28,6 +28,23 @@ export function Shell({
   const path = usePathname(), router = useRouter();
   const { user, openAuth, workspaceName } = useApp();
   const [mobile, setMobile] = useState(false), [searchOpen, setSearchOpen] = useState(false), [notifications, setNotifications] = useState(false), [query, setQuery] = useState(''), [items, setItems] = useState<{ id: number; title: string; ticketNumber: string; memberName: string; status: string; priority: string }[]>([]);
+  /**
+   * The topbar only claims elevation once there is content underneath it to lift
+   * off. Passive listener, and it writes straight to the DOM attribute rather
+   * than to state — a scroll handler that re-renders the whole shell on every
+   * frame is how an app starts to feel sticky.
+   */
+  const topbarRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const el = topbarRef.current;
+    if (!el) return;
+    let ticking = false;
+    const apply = () => { ticking = false; el.dataset.scrolled = String(window.scrollY > 8); };
+    const onScroll = () => { if (!ticking) { ticking = true; requestAnimationFrame(apply); } };
+    apply();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
   useEffect(() => { void api<{ tickets: typeof items }>('/api/tickets').then(d => setItems(d.tickets)).catch(() => {}); }, [user]);
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -55,12 +72,13 @@ export function Shell({
         {nav.map(n => {
           const Icon = n.icon;
           const active = path === n.href || (path === '/' && n.href === '/dashboard');
-          return <Link key={n.href} href={n.href} className={'nav-link' + (active ? ' active' : '')} onClick={() => setMobile(false)}><Icon size={16} />{n.label}{n.ai && <span className="nav-ai">AI</span>}{n.href === '/radar' && <span className="nav-radar-pill">LIVE</span>}{n.href === '/tickets' && <span className="nav-count">{items.length}</span>}</Link>;
+          return <Link key={n.href} href={n.href} className={'nav-link' + (active ? ' active' : '')} aria-current={active ? 'page' : undefined} onClick={() => setMobile(false)}><Icon size={16} />{n.label}{n.ai && <span className="nav-ai">AI</span>}{n.href === '/radar' && <span className="nav-radar-pill">LIVE</span>}{n.href === '/tickets' && <span className="nav-count">{items.length}</span>}</Link>;
         })}
         <div className="nav-heading">ORGANIZATION</div>
         {org.map(n => {
           const Icon = n.icon;
-          return <Link key={n.href} href={n.href} className={'nav-link' + (path.startsWith(n.href) ? ' active' : '')} onClick={() => setMobile(false)}><Icon size={16} />{n.label}</Link>;
+          const active = path.startsWith(n.href);
+          return <Link key={n.href} href={n.href} className={'nav-link' + (active ? ' active' : '')} aria-current={active ? 'page' : undefined} onClick={() => setMobile(false)}><Icon size={16} />{n.label}</Link>;
         })}
         </div>
         <div className="sidebar-bottom">
@@ -77,7 +95,7 @@ export function Shell({
         </div>
       </aside>
       <div className="workspace-main">
-        <header className="topbar">
+        <header className="topbar" ref={topbarRef}>
           <div className="flex-row">
             <button className="icon-btn mobile-menu" onClick={() => setMobile(true)} aria-label="Open navigation"><Menu size={19} /></button>
             <div className="breadcrumb"><PanelLeft size={15} /><span>Workspace</span><ChevronRight size={11} /><strong>{activeName}</strong></div>
