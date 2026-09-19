@@ -322,7 +322,7 @@ export function extractContext(message: string): Record<string, unknown> {
     extracted.studioReport = true;
   } else if (/\b(member|client|community member|guest)\b.*\b(told|said|reported|mentioned|shared|asked|complained)\b/i.test(message)) {
     extracted.reportedBy = "A member told me about it";
-    const nameMatch = message.match(/(?:member|client|guest|named?)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i);
+    const nameMatch = message.match(/(?:member|client|guest|named?)\s+([A-Za-z]+(?:\s+[A-Za-z]+)?)(?=[,.!]|$)/i);
     if (nameMatch) extracted.memberName = nameMatch[1];
   } else if (/\b(i |we )(noticed|saw|found|spotted|observed|checked)\b/i.test(message)) {
     extracted.reportedBy = "I noticed this myself";

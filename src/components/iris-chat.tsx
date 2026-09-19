@@ -161,6 +161,7 @@ export function IrisChat({ presetCategory, presetSubcategory }: { presetCategory
   const exportRef = useRef<HTMLDivElement>(null);
   const startedAt = useRef(new Date().toISOString());
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const messageTimestamps = useRef(new WeakMap<IrisMessage, string>());
 
   useEffect(() => {
     const v = localStorage.getItem('iris-voice-replies');
@@ -679,6 +680,15 @@ export function IrisChat({ presetCategory, presetSubcategory }: { presetCategory
     }
   }
 
+  function getMessageTime(m: IrisMessage) {
+    let t = messageTimestamps.current.get(m);
+    if (!t) {
+      t = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+      messageTimestamps.current.set(m, t);
+    }
+    return t;
+  }
+
   const collected = turn?.collected || {};
   const fieldOrder: [string, string][] = [
     ['reportedBy', 'reported_by'],
@@ -699,6 +709,7 @@ export function IrisChat({ presetCategory, presetSubcategory }: { presetCategory
     <>
       <div className="chat-layout">
         <section className="card chat-panel">
+          <div className="chat-ambient-glow" aria-hidden="true" />
           <div className="chat-head">
             <div className="chat-identity">
               <div className={'avatar-ring' + (speaking ? ' speaking' : '')}>
@@ -768,7 +779,8 @@ export function IrisChat({ presetCategory, presetSubcategory }: { presetCategory
                   <Download size={13} />
                 </button>
                 {exportOpen && (
-                  <div className="card" style={{ position: 'absolute', right: 0, top: 40, zIndex: 20, width: 190, padding: 6 }}>
+                  <div className="card export-popover">
+                    <div className="export-popover-title">Export transcript</div>
                     {[
                       ['txt', 'Plain text', FileText],
                       ['md', 'Markdown', FileText],
@@ -779,8 +791,9 @@ export function IrisChat({ presetCategory, presetSubcategory }: { presetCategory
                     ].map(([k, label, Icon]) => {
                       const I = Icon as typeof FileText;
                       return (
-                        <button key={k as string} className="quick-template" style={{ padding: '9px 8px' }} onClick={() => void exportAs(k as 'txt')}>
-                          <I size={14} /> <span style={{ fontSize: 12 }}>{label as string}</span>
+                        <button key={k as string} className="export-popover-item" onClick={() => void exportAs(k as 'txt')}>
+                          <span className="export-popover-icon"><I size={14} /></span>
+                          <span className="export-popover-label">{label as string}</span>
                         </button>
                       );
                     })}
@@ -794,7 +807,8 @@ export function IrisChat({ presetCategory, presetSubcategory }: { presetCategory
           </div>
 
           <div className="chat-scroll" ref={scroller}>
-            <div className="chat-day">Internal ticket logging · Physique 57 India</div>
+            <div className="chat-scroll-vignette" aria-hidden="true" />
+            <div className="chat-day"><span>Internal ticket logging · Physique 57 India</span></div>
             {!turn && busy ? (
               <Loading />
             ) : (
@@ -805,8 +819,18 @@ export function IrisChat({ presetCategory, presetSubcategory }: { presetCategory
                       <img src={theme === 'dark' ? '/images/iris-avatar-dark.webp' : '/images/iris-avatar-light.webp'} alt="" />
                     </span>
                   )}
-                  <div className="bubble">
-                    {m.content.startsWith('__') ? 'Selection made from Momence' : m.content}
+                  <div className="bubble-wrap">
+                    <div className="bubble">
+                      {m.content.startsWith('__') ? 'Selection made from Momence' : m.content}
+                    </div>
+                    <div className="chat-message-meta">
+                      <span>{getMessageTime(m)}</span>
+                      {m.role === 'user' && (
+                        <span className="chat-message-status">
+                          <CheckCircle2 size={9} />
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
               ))
@@ -816,19 +840,21 @@ export function IrisChat({ presetCategory, presetSubcategory }: { presetCategory
                 <span className="msg-avatar">
                   <img src={theme === 'dark' ? '/images/iris-avatar-dark.webp' : '/images/iris-avatar-light.webp'} alt="" />
                 </span>
-                <div className="bubble">
-                  {streamed ? (
-                    <span className="streaming-text">
-                      {streamed}
-                      <i className="stream-caret" aria-hidden="true" />
-                    </span>
-                  ) : (
-                    <span className="chat-status">
-                      <i />
-                      <i />
-                      <i />
-                    </span>
-                  )}
+                <div className="bubble-wrap">
+                  <div className="bubble">
+                    {streamed ? (
+                      <span className="streaming-text">
+                        {streamed}
+                        <i className="stream-caret" aria-hidden="true" />
+                      </span>
+                    ) : (
+                      <span className="chat-status">
+                        <i />
+                        <i />
+                        <i />
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
