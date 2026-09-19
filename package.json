@@ -9,7 +9,8 @@
     "typecheck": "tsc --noEmit",
     "db:push": "drizzle-kit push",
     "db:seed": "npx tsx -r dotenv/config src/lib/seed.ts",
-    "check:iris": "npx tsx --tsconfig tsconfig.json -r dotenv/config scripts/iris-turn-check.ts"
+    "check:iris": "npx tsx --tsconfig tsconfig.checks.json scripts/iris-turn-check.ts",
+    "check:iris:flow": "npx tsx --tsconfig tsconfig.checks.json scripts/iris-replay.ts"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.23",

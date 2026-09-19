@@ -801,6 +801,7 @@ export function IrisChat({ presetCategory, presetSubcategory }: { presetCategory
                   value={[]}
                   studio={turn.lookupFilters?.studio}
                   sessionTypes={turn.lookupFilters?.sessionTypes}
+                  upcoming={turn.lookupFilters?.upcoming}
                   onChange={(opts: PickerOption[]) => {
                     const o = opts[0];
                     if (o) void send(undefined, o.label, { module: turn.lookup!, id: String(o.id) });

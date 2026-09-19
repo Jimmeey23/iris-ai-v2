@@ -184,6 +184,72 @@ export function getStudioRoomsForStudio(studioNameOrId?: string): StudioRoom[] {
   return STUDIO_LAYOUTS.kwality.rooms;
 }
 
+/** How the floor team actually says it, mapped to the room name on the room plan.
+ *  Without this the same room is filed under two spellings — "Cycle studio" and
+ *  "PowerCycle Studio" — and every report, filter and branch that keys off the name
+ *  (including the PowerCycle bike intake) only ever sees half of them. */
+export const AREA_ALIASES: Record<string, string> = {
+  "cycle studio": "PowerCycle Studio",
+  "spin studio": "PowerCycle Studio",
+  "cycle room": "PowerCycle Studio",
+  "strength lab": "Strength Studio",
+  "strength lab floor": "Strength Studio",
+  "main floor": "Main studio floor",
+  "reception": "Reception / lobby",
+  "reception / lobby": "Reception / lobby",
+  "front desk": "Reception / lobby",
+  "locker rooms": "Locker room",
+  "changing room": "Lockers & Changing",
+  "changing rooms": "Lockers & Changing",
+  "washroom": "Washrooms",
+  "gents": "His Space",
+  "ladies": "Her Space",
+};
+
+/** Areas every site has, offered in addition to the rooms that studio's own plan lists. */
+const COMMON_STUDIO_AREAS = [
+  "Main studio floor",
+  "Reception / lobby",
+  "Locker room",
+  "Showers / washroom",
+  "Member lounge",
+  "Boutique",
+  "Parking / valet",
+  "Back office",
+  "Staircase / corridor",
+] as const;
+
+/** True for a string that names a site we hold a room plan for. `getStudioRoomsForStudio`
+ *  silently falls back to the Kwality plan for anything else, so it cannot be used to
+ *  decide whether a plan was actually found. */
+const HAS_ROOM_PLAN = /kwality|kemps|supreme|bandra|shq|kenkere|indiranagar|courtside|copper|cloves/i;
+
+/** The rooms offered for a studio: that studio's own plan plus the shared areas, with the
+ *  two spellings of a room collapsed into one. Offering all 23 areas at every site let a
+ *  Bandra ticket be filed against "Brain Cell" or "His Space", which only exist at
+ *  Kwality House. When the studio is not known yet, everything stays on offer — narrowing
+ *  the list before we know where we are would only strand the reporter. */
+export function studioAreasFor(studioName?: string | null): string[] {
+  const canonical = (name: string): string => {
+    const trimmed = name.trim();
+    if (!trimmed) return "";
+    const alias = AREA_ALIASES[trimmed.toLowerCase()];
+    if (alias) return alias;
+    return STUDIO_AREAS.find((a) => a.toLowerCase() === trimmed.toLowerCase()) ?? trimmed;
+  };
+  const planned =
+    studioName && HAS_ROOM_PLAN.test(studioName)
+      ? getStudioRoomsForStudio(studioName).map((r) => r.name)
+      : [...STUDIO_AREAS];
+  const out: string[] = [];
+  for (const raw of [...planned, ...COMMON_STUDIO_AREAS]) {
+    const name = canonical(raw);
+    if (!name) continue;
+    if (!out.some((x) => x.toLowerCase() === name.toLowerCase())) out.push(name);
+  }
+  return out;
+}
+
 export const SYSTEMS = [
   "Momence",
   "POS / card machine",
@@ -1155,6 +1221,7 @@ export const STAGES_SC3_TROUBLESHOOTING: CycleTroubleshoot[] = [
   { symptom: "FitLoc lever slipping / handlebar dropping", keywords: ["fitloc","handlebar dropping","handlebar slipping","handlebar loose","lever loose","handlebar won't hold"], diagnosis: "FitLoc cam mechanism worn or post not inserted deep enough.", action: "Check post insertion depth (min line visible). If still slipping, tag bike for FitLoc replacement.", severity: "high", partId: "fitloc-lever" },
   { symptom: "Power meter not pairing / no watts displayed", keywords: ["no power","watts not showing","power meter","not pairing","ant+","no reading","console blank power"], diagnosis: "ANT+ pairing failure or dead batteries in SPM2.", action: "1. Check/replace AA batteries (use spacer or tape). 2. Re-pair using 5-digit ANT+ ID on console. 3. If still dead, check power wire channel connection.", severity: "medium", partId: "spm2-power-meter" },
   { symptom: "Zero reset failing (ADC outside 790–990)", keywords: ["zero reset","adc","calibration","power calibration","zero offset"], diagnosis: "SPM2 zero offset out of range. May indicate mechanical stress on crank arm.", action: "Re-attempt zero reset with NO weight on pedals. If ADC reads outside 790–990 after 3 attempts, remove and reseat crank arm at 52–57 N·m. Escalate to Stages support if persistent.", severity: "medium", partId: "spm2-power-meter" },
+  { symptom: "Pedal detached / came off", keywords: ["pedal came off","pedal off","pedal fell off","pedal detached","pedal missing","pedal came loose","lost a pedal","pedal is off"], diagnosis: "Pedal has unscrewed from the crank arm — most often the left (CR-L) pedal, which is REVERSE threaded and works loose if it was never torqued to spec.", action: "Take the bike out of rotation immediately — a pedal that can detach is a rider-safety fault. Refit at 42 N·m with a 15mm pedal wrench (left pedal: turn CLOCKWISE to tighten). Inspect the crank-arm threads; if they are stripped, replace the crank arm (8mm hex, 52–57 N·m).", severity: "critical", partId: "pedal-left" },
   { symptom: "Pedal cross-threaded / won't tighten", keywords: ["pedal cross","stripped","pedal stuck","pedal loose","pedal thread","cross thread"], diagnosis: "Pedal threads stripped or cross-threaded. Remember: left pedal is REVERSE threaded.", action: "Do NOT force. Remove pedal, inspect threads. If crank arm threads are stripped, replace crank arm (8mm hex, 52–57 N·m). Apply grease to threads before reinstall.", severity: "high", partId: "pedal-left" },
   { symptom: "Console dead / no display", keywords: ["console dead","no display","screen blank","console not working","monitor dead"], diagnosis: "Power wire disconnected or console battery dead.", action: "1. Check power wire in channel under handlebar. 2. Replace console batteries. 3. Reseat 3mm hex screws. If still dead, replace SIC2 console unit.", severity: "medium", partId: "sic2-console" },
   { symptom: "Belt vibration or slipping", keywords: ["belt vibration","belt slip","belt noise","vibrating","belt squeal"], diagnosis: "Belt tension loss or misalignment. Normal wear after heavy usage.", action: "Take bike out of rotation. Belt tensioning requires trained technician. Do not attempt field adjustment.", severity: "high", partId: "belt-drive" },
