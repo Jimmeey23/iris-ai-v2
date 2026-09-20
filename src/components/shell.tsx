@@ -80,18 +80,20 @@ export function Shell({
         <header className="topbar">
           <div className="flex-row">
             <button className="icon-btn mobile-menu" onClick={() => setMobile(true)} aria-label="Open navigation"><Menu size={19} /></button>
-            <div className="breadcrumb"><PanelLeft size={15} /><span>Workspace</span><ChevronRight size={11} /><strong>{activeName}</strong></div>
+            <div className="breadcrumb"><PanelLeft size={15} /><span>Workspace</span><ChevronRight size={11} /><strong key={activeName} className="breadcrumb-current">{activeName}</strong></div>
           </div>
           <div className="topbar-actions">
-            <button className="topbar-search" onClick={() => setSearchOpen(true)}><Search size={14} /><span>Search tickets, staff, modules…</span><kbd>⌘ K</kbd></button>
+            <button className="topbar-search" onClick={() => setSearchOpen(true)}><Search size={14} /><span>Search tickets, staff, modules…</span><kbd>⌘K</kbd></button>
+            <span className="topbar-divider" />
+            <span className="topbar-status" title={openItems.length + ' open tickets'}><span className="live-label"><i /></span><span className="topbar-status-count">{openItems.length}</span><span className="topbar-status-label">open</span></span>
             <span className="topbar-divider" />
             <ThemeToggle />
             <button className="icon-btn" aria-label="Open notifications" onClick={() => setNotifications(true)} style={{ position: 'relative' }}>
               <Bell size={17} />
-              {openItems.some(t => t.priority === 'critical') && <i style={{ position: 'absolute', top: 3, right: 2, width: 5, height: 5, borderRadius: 9, background: 'var(--red)', border: '1px solid var(--surface)' }} />}
+              {openItems.some(t => t.priority === 'critical') && <i className="notif-dot" />}
             </button>
             <span className="topbar-divider" />
-            <button style={{ background: 'none', border: 0, padding: 0 }} onClick={openAuth} aria-label="Account"><Avatar name={user?.name || 'IRIS'} tone="purple" /></button>
+            <button className="topbar-avatar" onClick={openAuth} aria-label="Account"><Avatar name={user?.name || 'IRIS'} tone="purple" /></button>
           </div>
         </header>
         {banner}
@@ -106,7 +108,7 @@ export function Shell({
           {!hideFooter && (
             <footer className="page-footer">
               <span><span className="live-label"><i /></span>Every issue logged. Every follow-up tracked.</span>
-              <span>Crafted for Physique 57 India <span style={{ color: 'var(--accent)' }}>✧</span></span>
+              <span className="page-footer-brand">IRIS <span className="page-footer-sep">/</span> Physique 57 India <span style={{ color: 'var(--accent)' }}>✧</span></span>
             </footer>
           )}
         </main>
