@@ -221,12 +221,17 @@ export function TrainerReport({trainer}:{trainer:Trainer}){
     <div className="tr-report">
       {/* 01 — masthead */}
       <section className="tr-masthead">
-        {(() => { const img = getTrainerImage(trainer.name); return img ? <img src={img} alt={trainer.name} className="trainer-photo-lg" /> : null; })()}
-        <ScoreDial value={avg}/>
-        <div style={{minWidth:0,flex:1}}>
+        {(() => { const img = getTrainerImage(trainer.name); return (
+          <div className="tr-portrait" data-empty={!img}>
+            {img
+              ? <img src={img} alt={trainer.name} className="trainer-photo-lg" loading="lazy" decoding="async"/>
+              : <span className="tr-portrait-initials">{trainer.name.split(' ').map(w=>w[0]).slice(0,2).join('')}</span>}
+          </div>
+        ); })()}
+        <div className="tr-masthead-body">
           <span className="eyebrow">TRAINER PERFORMANCE REPORT</span>
           <h2>{trainer.name}</h2>
-          <div className="flex-row wrap" style={{gap:6,marginTop:8}}>
+          <div className="flex-row wrap" style={{gap:6,marginTop:10}}>
             <Badge tone={trainer.bandTone}>{trainer.band||'Awaiting a formal assessment'}</Badge>
             {delta!==0&&<Badge tone={delta>0?'green':'red'}>{delta>0?'+':''}{delta} vs previous</Badge>}
             <Badge>{trainer.assessmentCount} assessments</Badge>
@@ -234,6 +239,7 @@ export function TrainerReport({trainer}:{trainer:Trainer}){
             {latest&&<Badge>Last reviewed {indiaDate(latest.submittedAt)}</Badge>}
           </div>
         </div>
+        <ScoreDial value={avg}/>
       </section>
 
       <div className="tr-kpis">
