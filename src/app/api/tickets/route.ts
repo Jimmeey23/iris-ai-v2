@@ -19,4 +19,6 @@ export async function GET(){try{
   }
   return Response.json({tickets:rows});
 }catch(e){return errorResponse(e);}}
-export async function POST(req:NextRequest){try{sameOrigin(req);await intakeActor();await ensureSeeded();const body=await req.json();const draft=await makeDraft(body);if(req.nextUrl.searchParams.get('preview')==='true')return Response.json({draft});const ticket=await createTicketFromDraft(draft);after(()=>deliverPending());return Response.json({ticket},{status:201});}catch(e){return errorResponse(e);}}
+export async function POST(req:NextRequest){try{sameOrigin(req);await intakeActor();await ensureSeeded();const body=await req.json();const draft=await makeDraft(body);if(req.nextUrl.searchParams.get('preview')==='true')return Response.json({draft});// The form-based intake files through here too; `channel` only labels the row — routing,
+// SLA and idempotency are identical whichever surface filed it.
+const channel=req.nextUrl.searchParams.get('channel');const ticket=await createTicketFromDraft(draft,draft.source,channel==='form'||channel==='chat'?channel:'workspace');after(()=>deliverPending());return Response.json({ticket},{status:201});}catch(e){return errorResponse(e);}}

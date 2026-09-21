@@ -11,6 +11,8 @@
     "db:seed": "npx tsx -r dotenv/config src/lib/seed.ts",
     "check:iris": "npx tsx --tsconfig tsconfig.checks.json scripts/iris-turn-check.ts",
     "check:iris:flow": "npx tsx --tsconfig tsconfig.checks.json scripts/iris-replay.ts",
+    "check:intake": "npx tsx --tsconfig tsconfig.checks.json scripts/intake-check.ts",
+    "build:intake-plan": "node scripts/build-intake-plan.mjs",
     "check:history:import": "npx tsx --tsconfig tsconfig.checks.json scripts/history-import-check.ts",
     "db:migrate": "node scripts/migrate-equipment.mjs",
     "check:equipment": "npx tsx --tsconfig tsconfig.checks.json scripts/equipment-check.mjs",
