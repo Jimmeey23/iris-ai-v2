@@ -381,10 +381,10 @@ export function CommandCenter({directory = false}: {directory?: boolean}) {
             <span className="iris-banner-shine" aria-hidden="true"/>
             <div className="iris-orb"><Sparkles size={24}/></div>
             <div className="grow">
-              <div className="flex-row"><h2>Saw something? Heard something? Tell Iris.</h2><Badge tone="blue">AI ASSISTANT</Badge></div>
-              <p>Log it in your own words — Iris classifies it, links the right member or class, and routes it to the right desk with a follow-up target.</p>
+              <div className="flex-row"><h2>Saw something? Heard something? Raise it with Iris.</h2><Badge tone="blue">TICKET GENERATOR</Badge></div>
+              <p>Pick the category and sub-category, answer the questions that desk needs, link the member or class from Momence — and it routes itself to the right owner with a follow-up target.</p>
             </div>
-            <Link className="btn btn-primary" href="/iris">Log with Iris <ArrowUpRight size={14}/></Link>
+            <Link className="btn btn-primary" href="/iris">Raise a ticket <ArrowUpRight size={14}/></Link>
           </div>
           <BoardTelemetry tickets={filtered} total={tickets.length} staleDays={staleTicketDays}/>
           <MetricCards metrics={metrics} onApplyFilter={applyMetricFilter} onOpenTicket={setDetail}/>
