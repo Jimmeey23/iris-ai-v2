@@ -10,7 +10,7 @@ import {object} from '@/lib/display';
 import type {AdvancedDraft} from '@/lib/ticket-contract';
 import {MEMBER_LOOKUP_IDS, autoTitle, composeWriteup, encodeLookup, filled, gatingFor, linkedLookup, localDateTime, missingFields, priorityInputs, relativeFor, seedData, toTicketInput, visibleFields, type ClassSnapshot, type IntakeData, type IntakeValue, type TicketKind} from '@/lib/intake/plan';
 import {matchStudio, sessionFacts, sessionSnapshot, type RosterEntry, type SessionDetail} from '@/lib/intake/class-desk';
-import {FormEngine} from './form-engine';
+import {FormEngine, IntakeContextHeader} from './form-engine';
 import {CategoryGrid, SubcategoryGrid} from './pickers';
 import {ClassDesk, type ClassDeskResult} from './class-desk';
 import {ReviewSheet} from './review-sheet';
@@ -51,6 +51,7 @@ export function IntakeFlow({presetCategory, presetSubcategory, presetDesk, onLeg
   const [result, setResult] = useState<Result>();
   const [detailOpen, setDetailOpen] = useState(false);
   const [submissionKey, setSubmissionKey] = useState('');
+  const [aiBusy, setAiBusy] = useState(false);
   const presetDone = useRef(false);
 
   const rememberedStudio = () => { try { return localStorage.getItem(STUDIO_KEY) || ''; } catch { return ''; } };
@@ -240,6 +241,36 @@ export function IntakeFlow({presetCategory, presetSubcategory, presetDesk, onLeg
     setCollapsed(c => ({...c, 'Description & ask': false}));
     setTimeout(() => (document.getElementById('f-summary') as HTMLTextAreaElement | null)?.focus({preventScroll: true}), 40);
   };
+  /** Ask the connected model to tighten the title and summary from the answers so far.
+   *  Falls back to the deterministic write-up if the model is not connected or returns nothing. */
+  const aiDraft = async (target: 'title' | 'summary' | 'both') => {
+    if (!category || !sub) return;
+    setAiBusy(true); setFileError('');
+    try {
+      const answers = Object.fromEntries(Object.entries(data).filter(([, v]) => filled(v) && !String(v).startsWith('[')));
+      const res = await fetch('/api/intake/draft', {method: 'POST', body: JSON.stringify({category: category.name, subcategory: sub, kind, answers, target}), headers: {'content-type': 'application/json'}});
+      if (!res.ok) throw new Error('AI draft request failed');
+      const json = await res.json() as {title?: string; summary?: string};
+      if (target === 'title' || target === 'both') {
+        const t = String(json.title || '').trim();
+        if (t) { setAuto(a => ({...a, title: t})); patch('title', t); }
+      }
+      if (target === 'summary' || target === 'both') {
+        const s = String(json.summary || '').trim();
+        if (s) { setAuto(a => ({...a, summary: s})); patch('summary', s); setCollapsed(c => ({...c, 'Description & ask': false})); }
+      }
+      if (!json.title && !json.summary) {
+        const fallback = composeWriteup({sub: {name: sub, category: category.name}, fields, data});
+        setAuto(a => ({...a, summary: fallback})); patch('summary', fallback);
+      }
+    } catch (err) {
+      notify(err instanceof Error ? err.message : 'AI draft failed — using the deterministic write-up.', 'error');
+      if (target !== 'title') {
+        const fallback = composeWriteup({sub: {name: sub, category: category.name}, fields, data});
+        setAuto(a => ({...a, summary: fallback})); patch('summary', fallback);
+      }
+    } finally { setAiBusy(false); }
+  };
   const reviewThenFile = () => {
     const e: Record<string, string> = {};
     for (const f of missing) e[f.id] = 'Required for this sub-category';
@@ -345,7 +376,14 @@ export function IntakeFlow({presetCategory, presetSubcategory, presetDesk, onLeg
             )}
             {planBusy && !plan && <div className="skeleton-cards"><div className="skeleton" style={{height: 220}} /><div className="skeleton" style={{height: 220}} /></div>}
             {plan && <FormEngine fields={fields} data={data} patch={patch} errors={errors} auto={auto} collapsed={collapsed} onToggle={(s, c) => setCollapsed(x => ({...x, [s]: c}))} gatingIds={gatingIds} requiredOnly={requiredOnly}
-              extras={{summary: <button type="button" className="text-btn intake-writeup" onClick={writeUp} title="Phrase the answers already on this form as a paragraph — nothing is added that was not answered"><PenLine size={11} /> Write it up from the answers</button>}} />}
+              contextHeader={<IntakeContextHeader data={data} patch={patch} studio={studio} />}
+              extras={{
+                title: <button type="button" className="text-btn intake-writeup" onClick={() => aiDraft('title')} disabled={aiBusy} title="Tighten the title from the answers so far"><Sparkles size={11} /> AI title</button>,
+                summary: <div className="flex-row" style={{gap: 6}}>
+                  <button type="button" className="text-btn intake-writeup" onClick={writeUp} title="Phrase the answers already on this form as a paragraph — nothing is added that was not answered"><PenLine size={11} /> Write it up from the answers</button>
+                  <button type="button" className="text-btn intake-writeup" onClick={() => aiDraft('both')} disabled={aiBusy} title="Ask the connected model to rewrite title and summary from the answers"><Sparkles size={11} />{aiBusy ? 'Drafting…' : 'AI draft'}</button>
+                </div>,
+              }} />}
             <div className="intake-footer">
               <span className="intake-footer-status">
                 {missing.length + gating.length ? <>{missing.length + gating.length} outstanding · {missing.length ? `${missing.length} required` : ''}{missing.length && gating.length ? ' + ' : ''}{gating.length ? `${gating.map(g => g.label).join(' & ')} to link` : ''}</> : <><Check size={13} className="accent" /> Ready to route to {plan?.routing?.owner?.name || plan?.routing?.departmentName || 'the desk'}</>}

@@ -31,6 +31,8 @@ export const LIMITS = {
   speak: {max: 20, windowSeconds: 60},
   /** File uploads, which cost storage rather than tokens. */
   upload: {max: 20, windowSeconds: 60},
+  /** AI-assisted title/summary drafting from the intake form. */
+  'intake-draft': {max: 20, windowSeconds: 60},
 } satisfies Record<string, Limit>;
 
 /**

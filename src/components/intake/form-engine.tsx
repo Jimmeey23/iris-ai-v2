@@ -1,6 +1,6 @@
 "use client";
 import {useMemo, useState, type ReactNode} from 'react';
-import {Check, ChevronDown, GitBranch, Minus, Plus, Sparkles, X} from 'lucide-react';
+import {Building2, CalendarDays, Check, ChevronDown, GitBranch, Minus, Plus, Sparkles, UserRound, X} from 'lucide-react';
 import {studioAreasFor} from '@/lib/constants';
 import {ENRICH_SECTIONS, SECTION_ORDER, filled, isVisible, localDateTime, type IntakeData, type IntakeField, type IntakeValue, type LookupRef} from '@/lib/intake/plan';
 import {LookupField} from './lookup-field';
@@ -120,9 +120,10 @@ export function IntakeFieldRow({f, value, onChange, error, auto, studio, onLooku
 }) {
   const done = filled(value);
   const must = required ?? Boolean(f.required);
+  const wide = isWide(f);
   return (
-    <div className={'field intake-field' + (isWide(f) ? ' wide' : '') + (done ? ' done' : '') + (error ? ' has-error' : '')} data-fid={f.id}>
-      <label htmlFor={'f-' + f.id} className="intake-label">
+    <div className={'field intake-field' + (wide ? ' wide' : ' aligned') + (done ? ' done' : '') + (error ? ' has-error' : '')} data-fid={f.id}>
+      <label htmlFor={'f-' + f.id} className={'intake-label' + (wide ? ' wide' : '')}>
         <span className="intake-label-text">
           {f.label}
           {must ? <i className="intake-req" title={f.required ? 'Required' : 'Needed before filing'}>*</i> : <small className="intake-opt">optional</small>}
@@ -131,13 +132,72 @@ export function IntakeFieldRow({f, value, onChange, error, auto, studio, onLooku
         </span>
         {extra}
       </label>
-      <FieldControl f={f} value={value} onChange={onChange} invalid={Boolean(error)} studio={studio} onLookupPick={onLookupPick} />
-      {error ? <span className="intake-error">{error}</span> : f.desc ? <span className="field-hint">{f.desc}</span> : null}
+      <div className="intake-field-control">
+        <FieldControl f={f} value={value} onChange={onChange} invalid={Boolean(error)} studio={studio} onLookupPick={onLookupPick} />
+        {error ? <span className="intake-error">{error}</span> : f.desc ? <span className="field-hint">{f.desc}</span> : null}
+      </div>
     </div>
   );
 }
 
-export function FormEngine({fields, data, patch, errors, auto, onLookupPick, collapsed, onToggle, gatingIds, requiredOnly, extras}: {
+function ToggleChip({label, hint, on, onClick}: {label: string; hint?: string; on: boolean; onClick: () => void}) {
+  return <button type="button" role="switch" aria-checked={on} title={hint} className={'intake-chip intake-toggle' + (on ? ' on' : '')} onClick={onClick}><span className={'intake-toggle-dot' + (on ? ' on' : '')} />{label}</button>;
+}
+
+/** The top-of-form context card: who is reporting, where, and whether a member or class
+ *  is at the centre of the ticket. The toggles surface the member/class lookups when on. */
+export function IntakeContextHeader({data, patch, studio}: {data: IntakeData; patch: Patch; studio?: string}) {
+  const involvesMember = /yes/i.test(String(data._involves_member || ''));
+  const involvesClass = /yes/i.test(String(data._involves_class || ''));
+  const setFlag = (id: string, yes: boolean) => patch(id, yes ? 'Yes' : 'No');
+  const reporterType = String(data.reporter_type || '');
+  const reporterName = String(data.reporter_name || '');
+  const studioName = String(data.studio || studio || '');
+  return (
+    <div className="intake-context card">
+      <div className="intake-context-row">
+        <div className="intake-context-block">
+          <span className="intake-context-label"><UserRound size={12} /> Reporter</span>
+          <div className="intake-context-values">
+            {reporterType ? <span className="intake-context-pill">{reporterType}</span> : <span className="intake-context-placeholder">Not set</span>}
+            {reporterName ? <span className="intake-context-pill">{reporterName}</span> : null}
+          </div>
+        </div>
+        <div className="intake-context-block">
+          <span className="intake-context-label"><Building2 size={12} /> Studio</span>
+          <div className="intake-context-values">
+            {studioName ? <span className="intake-context-pill">{studioName.split(',')[0]}</span> : <span className="intake-context-placeholder">Not set</span>}
+          </div>
+        </div>
+        <div className="intake-context-block intake-context-toggles">
+          <span className="intake-context-label">Ticket involves</span>
+          <div className="intake-context-values">
+            <ToggleChip label="A member" hint="Toggle on when a member is directly or indirectly involved" on={involvesMember} onClick={() => setFlag('_involves_member', !involvesMember)} />
+            <ToggleChip label="A class" hint="Toggle on when a class or session is directly or indirectly involved" on={involvesClass} onClick={() => setFlag('_involves_class', !involvesClass)} />
+          </div>
+        </div>
+      </div>
+      {(involvesMember || involvesClass) && (
+        <div className="intake-context-lookups">
+          {involvesMember && (
+            <div className="intake-context-lookup">
+              <label htmlFor="f-member_name" className="intake-label"><span className="intake-label-text">Member this is about <i className="intake-req" title="Required when a member is involved">*</i></span></label>
+              <LookupField id="f-member_name" module="member" value={data.member_name} onChange={v => patch('member_name', v)} studio={studioName} />
+            </div>
+          )}
+          {involvesClass && (
+            <div className="intake-context-lookup">
+              <label htmlFor="f-class_date" className="intake-label"><span className="intake-label-text">Class / session <i className="intake-req" title="Required when a class is involved">*</i></span></label>
+              <LookupField id="f-class_date" module="session" value={data.class_date} onChange={v => patch('class_date', v)} studio={studioName} />
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function FormEngine({fields, data, patch, errors, auto, onLookupPick, collapsed, onToggle, gatingIds, requiredOnly, extras, contextHeader}: {
   fields: IntakeField[]; data: IntakeData; patch: Patch; errors: Record<string, string>; auto: Record<string, IntakeValue>;
   onLookupPick?: (f: IntakeField, ref: LookupRef, raw?: Record<string, unknown>) => void;
   /** Section collapse state lives with the flow so "fix this field" can open the right section. */
@@ -148,20 +208,27 @@ export function FormEngine({fields, data, patch, errors, auto, onLookupPick, col
   requiredOnly?: boolean;
   /** Controls rendered beside a field's label, keyed by field id. */
   extras?: Record<string, ReactNode>;
+  /** Render the reporter/context header above the first section. */
+  contextHeader?: ReactNode;
 }) {
   const studio = typeof data.studio === 'string' ? data.studio : undefined;
   const labels = useMemo(() => new Map(fields.map(f => [f.id, f.label])), [fields]);
   const sections = useMemo(() => {
+    // When the context header is shown, the member and class lookups live there — showing
+    // them again inside the regular sections is noisy and splits the desk's attention.
+    const hidden = contextHeader ? new Set(['member_name', 'member_named', 'member_id', 'member_email', 'class_date', 'session_point']) : new Set<string>();
     const m = new Map<string, IntakeField[]>();
     for (const f of fields) {
+      if (hidden.has(f.id)) continue;
       if (!isVisible(f, data)) continue;
       if (requiredOnly && !f.required && !gatingIds?.has(f.id) && !filled(data[f.id])) continue;
       const s = f.section; if (!m.has(s)) m.set(s, []); m.get(s)!.push(f);
     }
     return SECTION_ORDER.filter(s => m.has(s)).map(s => ({name: s, fields: m.get(s)!}));
-  }, [fields, data, requiredOnly, gatingIds]);
+  }, [fields, data, requiredOnly, gatingIds, contextHeader]);
   return (
     <div className="intake-sections">
+      {contextHeader}
       {sections.map((s, i) => {
         const req = s.fields.filter(f => f.required || gatingIds?.has(f.id));
         const answered = s.fields.filter(f => filled(data[f.id])).length;

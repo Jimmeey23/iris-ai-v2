@@ -109,8 +109,14 @@
 .intake-section-body{padding:4px 16px 18px}
 .intake-section-head.static{cursor:default}
 
-.intake-field .intake-label{display:flex;flex-direction:row;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:4px 12px}
-.intake-label-text{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;color:var(--secondary);flex-wrap:wrap}
+/* Aligned grid: labels sit in a fixed left column so every question lines up. */
+.intake-section-body .form-grid{display:grid;grid-template-columns:1fr;gap:14px}
+.intake-field{display:grid;grid-template-columns:minmax(130px,180px) minmax(0,1fr);gap:10px 16px;align-items:start;min-width:0}
+.intake-field.wide{grid-template-columns:1fr}
+.intake-field.aligned .intake-label{display:flex;flex-direction:column;justify-content:flex-start;align-items:flex-start;gap:6px;padding-top:8px}
+.intake-field.wide .intake-label{display:flex;flex-direction:row;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:4px 12px}
+.intake-field-control{display:flex;flex-direction:column;gap:6px;min-width:0}
+.intake-label-text{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;color:var(--secondary);flex-wrap:wrap;line-height:1.35}
 .intake-field.done .intake-label-text{color:var(--text)}
 .intake-req{color:var(--accent);font-style:normal;font-weight:700}
 .intake-opt{font-family:var(--font-mono);font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:500}
@@ -122,6 +128,22 @@
 .intake-field input[type=datetime-local]{font-family:var(--font-mono);font-size:11.5px}
 .intake-cond{display:inline-flex;align-items:center;gap:3px;font-family:var(--font-mono);font-size:9px;letter-spacing:.04em;color:var(--muted);font-weight:500}
 .intake-writeup{font-size:11px;white-space:nowrap}
+
+/* Top-of-form context card */
+.intake-context{padding:14px 16px 16px;display:flex;flex-direction:column;gap:14px;margin-bottom:4px}
+.intake-context-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;align-items:start}
+.intake-context-block{display:flex;flex-direction:column;gap:6px;min-width:0}
+.intake-context-label{display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-family:var(--font-mono)}
+.intake-context-values{display:flex;flex-wrap:wrap;gap:6px;align-items:center;min-width:0}
+.intake-context-pill{padding:4px 10px;border-radius:999px;background:var(--surface-2);border:1px solid var(--hairline-strong);font-size:12px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.intake-context-placeholder{font-size:12px;color:var(--muted);font-style:italic}
+.intake-context-toggles .intake-context-values{gap:8px}
+.intake-toggle{display:inline-flex;align-items:center;gap:7px;padding:6px 12px;border-radius:999px}
+.intake-toggle-dot{width:10px;height:10px;border-radius:50%;background:var(--muted);opacity:.5;transition:background var(--dur-fast),opacity var(--dur-fast),transform var(--dur-fast) var(--ease-spring)}
+.intake-toggle.on .intake-toggle-dot{background:var(--accent);opacity:1;transform:scale(1.15);box-shadow:0 0 0 3px var(--accent-soft)}
+.intake-context-lookups{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;padding-top:12px;border-top:1px solid var(--hairline)}
+.intake-context-lookup{display:flex;flex-direction:column;gap:6px;min-width:0}
+.intake-context-lookup .intake-label{padding-top:0}
 /* Field controls the Hub's engine had that a plain input lacks: a read-back and shortcuts on a
    datetime, a counter on a textarea, a stepper on a count, the host on a URL. */
 .intake-datetime{display:flex;flex-direction:column;gap:6px}
@@ -332,6 +354,9 @@
   .intake-stepper li.current .intake-stepper-label{display:inline}
   .intake-step-head h2{font-size:21px}
   .intake-cat-grid,.intake-sub-grid{grid-template-columns:1fr 1fr}
+  .intake-field{grid-template-columns:1fr}
+  .intake-field.aligned .intake-label{padding-top:0}
+  .intake-context-row,.intake-context-lookups{grid-template-columns:1fr}
   .cd-grid{grid-template-columns:1fr}
   .cd-row-main{grid-template-columns:auto minmax(0,1fr) auto;grid-auto-rows:auto}
   .cd-row-main select{grid-column:1/-1}

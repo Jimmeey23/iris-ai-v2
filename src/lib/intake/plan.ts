@@ -55,7 +55,7 @@ export type IntakeSubMeta = {
 
 type RawDef = {
   id: string; label: string; type: IntakeFieldType; desc?: string; required?: boolean; conditional?: boolean;
-  dependsOn?: string; condText?: string; placeholder?: string; o?: number; module?: LookupModule; multi?: boolean; enrich?: string;
+  dependsOn?: string; condText?: string; placeholder?: string; o?: number; options?: string[]; module?: LookupModule; multi?: boolean; enrich?: string;
   when?: string;
 };
 type RawSub = {f: number[]; p: string; sla: string; h: [number | null, number | null]; hist: number; department?: string};
@@ -99,9 +99,10 @@ export function hubCategories(): HubCategory[] { return DATA.categories; }
 export function hubSub(category: string, sub: string): IntakeSubMeta | null {
   const raw = DATA.subs[subKey(category, sub)];
   if (!raw) return null;
-  const ids = [...DATA.universal, ...raw.f];
+  const overlay = SUB_OVERLAYS[subKey(category, sub)] || [];
+  const defs = [...DATA.universal.map(i => DATA.defs[i]), ...raw.f.map(i => DATA.defs[i]), ...overlay];
   const seen = new Set<string>(); let required = 0, total = 0;
-  for (const i of ids) { const d = DATA.defs[i]; if (seen.has(d.id)) continue; seen.add(d.id); total++; if (d.required) required++; }
+  for (const d of defs) { if (seen.has(d.id)) continue; seen.add(d.id); total++; if (d.required) required++; }
   return {key: subKey(category, sub), category, name: sub, hubPriority: raw.p, slaLabel: raw.sla, hours: raw.h, hist: raw.hist, fieldCount: total, requiredCount: required};
 }
 export function cycleIntakeQuestions() { return DATA.cycleIntake; }
@@ -133,6 +134,7 @@ function materialise(def: RawDef, universal: boolean, ctx: PlanContext): Omit<In
   else if (def.id === 'trainer' || def.id === 'trainer_under_review') f.options = ctx.trainers;
   else if (def.id === 'membership' && def.type !== 'lookup' && ctx.memberships?.length) f.options = ctx.memberships;
   else if (def.id === 'area') f.options = []; // per studio, see areasFor in the form
+  else if (Array.isArray(def.options) && def.options.length) f.options = def.options;
   else if (typeof def.o === 'number') f.options = DATA.opts[def.o];
   return f;
 }
@@ -164,15 +166,47 @@ const MEMBER_LOOKUP_DEF: RawDef = {
   desc: 'Leave blank for a studio observation. Picking the member links their Momence record, so the ticket carries their contact and membership.',
 };
 
-/** The full field list for a sub-category: the universal block first, then its own fields.
- *  Unknown sub-categories (added in Settings, absent from the Hub plan) get the universal block. */
+/** Extra questions that make sense only for a specific sub-category. These are injected
+ *  after the Hub plan so a rebuild of plan-data.json does not wipe them. */
+const CLASS_LEVELS = ['Beginner', 'Intermediate', 'Advanced', 'All levels'];
+const DAYS_OF_WEEK = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+const SUB_OVERLAYS: Record<string, RawDef[]> = {
+  'Scheduling|||Level Change': [
+    {id: 'current_level', label: 'Current level', type: 'select', desc: 'The class level the member is currently booked into or attending.', required: true, options: CLASS_LEVELS},
+    {id: 'requested_level', label: 'Requested level', type: 'select', desc: 'The level the member wants to move to.', required: true, options: CLASS_LEVELS},
+    {id: 'change_day', label: 'Preferred day(s)', type: 'multiselect', desc: 'Which day(s) of the week work for the new level.', required: true, options: DAYS_OF_WEEK},
+    {id: 'change_time', label: 'Preferred time', type: 'text', desc: 'e.g. 7:00 AM, evening, lunch class.', required: true, placeholder: 'Free text'},
+    {id: 'members_requesting_change', label: 'Members requesting change', type: 'number', desc: 'How many members want this level change.', required: true},
+    {id: 'change_reason', label: 'Reason for change', type: 'textarea', desc: 'Why the change is needed — pace, recovery, goal shift, etc.', required: true, placeholder: 'Brief reason'},
+  ],
+  'Scheduling|||Time Change': [
+    {id: 'current_slot', label: 'Current / affected slot', type: 'text', desc: 'Existing day and time the request is against.', required: true, placeholder: 'e.g. Tuesday 7:00 AM'},
+    {id: 'requested_time', label: 'Requested time', type: 'text', desc: 'The new day/time the member or staff wants.', required: true, placeholder: 'e.g. Thursday 6:30 PM'},
+    {id: 'change_day', label: 'Preferred day(s)', type: 'multiselect', desc: 'Which day(s) of the week work.', required: true, options: DAYS_OF_WEEK},
+    {id: 'members_requesting_change', label: 'Members requesting change', type: 'number', desc: 'How many members want this time change.', required: true},
+    {id: 'change_reason', label: 'Reason for change', type: 'textarea', desc: 'Why the time change is needed.', required: true, placeholder: 'Brief reason'},
+  ],
+  'Scheduling|||Trainer Preferences': [
+    {id: 'preferred_trainer', label: 'Preferred trainer', type: 'text', desc: 'Trainer the member wants.', required: true, placeholder: 'Trainer name'},
+    {id: 'current_trainer', label: 'Current / past trainer', type: 'text', desc: 'Trainer they currently have or had.', placeholder: 'Trainer name'},
+    {id: 'preference_reason', label: 'Reason for preference', type: 'textarea', desc: 'Style, injury handling, motivation, etc.', required: true, placeholder: 'Brief reason'},
+  ],
+};
+
+/** The full field list for a sub-category: the universal block first, then its own fields,
+ *  then any Iris-specific overlay. Unknown sub-categories get the universal block. */
 export function planFields(category: string, sub: string, ctx: PlanContext): IntakeField[] {
   const raw = DATA.subs[subKey(category, sub)];
   const base = DATA.universal.map(i => materialise(DATA.defs[i], true, ctx));
   const own = (raw?.f || []).map(i => materialise(DATA.defs[i], false, ctx));
+  const overlay = (SUB_OVERLAYS[subKey(category, sub)] || []).map(d => materialise(d, false, ctx));
   const seen = new Set<string>();
-  const all = [...base, ...own].filter(f => { if (seen.has(f.id)) return false; seen.add(f.id); return true; });
+  const all = [...base, ...own, ...overlay].filter(f => { if (seen.has(f.id)) return false; seen.add(f.id); return true; });
+  // Always offer a member lookup if the plan does not already have one.
   if (!all.some(f => f.type === 'lookup' && f.module === 'member' && MEMBER_LOOKUP_IDS.includes(f.id))) all.push(materialise(MEMBER_LOOKUP_DEF, true, ctx));
+  // Prompt for the exact spot inside the chosen room/area.
+  if (!all.some(f => f.id === 'specific_area')) all.push(materialise({id: 'specific_area', label: 'Specific spot / equipment', type: 'text', desc: 'Exact location within the area — e.g. bike 3, mirror wall, front desk left.', conditional: true, dependsOn: 'area', condText: 'Asked when an area is selected', placeholder: 'e.g. bike 3, front row'}, false, ctx));
   const index = new Map(all.map(f => [f.id, f]));
   return all.map(f => ({...f, dep: dependencyOf(f, index)}));
 }
@@ -234,9 +268,11 @@ export function gatingFor(fields: IntakeField[], data: IntakeData, sub: {name: s
   // Only a member field the desk can see can be asked for; a plan's own member lookup that is
   // still hidden behind another answer is not a gate yet.
   const memberField = fields.find(f => f.type === 'lookup' && f.module === 'member' && MEMBER_LOOKUP_IDS.includes(f.id) && isVisible(f, data));
-  const staffOnBehalf = /member told me|on behalf/i.test(String(data.reporter_type || ''));
+  const involvesMember = /yes|directly|indirectly|behalf|told me/i.test(String(data._involves_member || ''));
+  const staffOnBehalf = involvesMember || /member told me|on behalf/i.test(String(data.reporter_type || ''));
   if (memberField && staffOnBehalf && !hasLookup(data[memberField.id])) out.push({id: memberField.id, label: memberField.label, reason: 'pick the member this is about'});
-  const impacted = /^\s*(yes|not yet)/i.test(String(data.class_impacted || ''));
+  const involvesClass = /yes|directly|indirectly/i.test(String(data._involves_class || ''));
+  const impacted = involvesClass || /^\s*(yes|not yet)/i.test(String(data.class_impacted || ''));
   const classTouched = impacted || filled(data.class_format) || CLASS_BOUND_SUB.test(sub.name);
   if (classTouched && !hasLookup(data.class_date)) out.push({id: 'class_date', label: 'Class', reason: 'link the affected class'});
   return out;
