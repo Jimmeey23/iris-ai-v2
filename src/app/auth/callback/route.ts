@@ -15,6 +15,13 @@ export async function GET(req: NextRequest) {
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase.auth.exchangeCodeForSession(code);
   if (error || !data.user) {
+    // The exchange fails for reasons the person can act on — a verifier cookie
+    // dropped by the browser, a code already spent by a reload — so the reason
+    // is logged rather than collapsed into one opaque message.
+    console.error(
+      "exchangeCodeForSession failed:",
+      error?.message ?? "no user returned",
+    );
     login.searchParams.set("error", "google_signin");
     return NextResponse.redirect(login);
   }
