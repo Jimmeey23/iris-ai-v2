@@ -1,7 +1,7 @@
 "use client";
 import Link from 'next/link';
 import {useEffect,useMemo,useRef,useState} from 'react';
-import {ArrowUpRight,Sparkles,Ticket,ShieldCheck,Mic,FileBarChart2,GraduationCap,ChevronRight,ArrowRight} from 'lucide-react';
+import {ArrowUpRight,Sparkles,Ticket,ShieldCheck,Mic,CalendarDays,FileBarChart2,GraduationCap,ChevronRight,ArrowRight} from 'lucide-react';
 import {useApp,api} from './ui';
 import {IrisEyeMark,IrisLockup} from './iris-mark';
 import {IntroOverlay} from './intro-overlay';
@@ -55,8 +55,8 @@ function Halo({rgb='255,209,102'}:{rgb?:string}){
 }
 
 const FEATURES=[
-  {icon:Sparkles,label:'Talk to Iris',desc:'Describe what you saw or heard — Iris drafts the whole ticket.',href:'/iris',tone:''},
-  {icon:Mic,label:'Voice logging',desc:'Speak it out loud on the floor. Iris transcribes and replies back.',href:'/iris',tone:'purple'},
+  {icon:Sparkles,label:'Raise a ticket',desc:'Pick the category and sub-category; answer the questions that desk needs; it routes itself.',href:'/iris',tone:''},
+  {icon:CalendarDays,label:'Start from a class',desc:'Pick the session out of Momence — roll call, capacity and coach come with it.',href:'/iris?desk=class',tone:'purple'},
   {icon:Ticket,label:'Guided templates',desc:'Dozens of ready-made forms for every situation, pre-filled and routed.',href:'/templates',tone:'amber'},
   {icon:FileBarChart2,label:'30+ reports · 7 formats',desc:'Filterable, exportable reports for every category, studio and team.',href:'/reports',tone:'green'},
   {icon:GraduationCap,label:'Trainer scorecards',desc:'Weighted assessments and feedback, consolidated per trainer.',href:'/trainers',tone:''},
@@ -139,7 +139,7 @@ export function LandingHero(){
           <div className="lb-cards">
             <div className="lb-card" style={{animationDelay:'1.4s'}}><span className="metric-icon amber"><Ticket size={13}/></span><div><strong>Bike fault · PowerCycle</strong><small>Auto-routed to Ops · 48h relapse check set</small></div></div>
             <div className="lb-card" style={{animationDelay:'1.6s'}}><span className="metric-icon green"><ShieldCheck size={13}/></span><div><strong>Resolution locked</strong><small>Visible to owner &amp; manager only</small></div></div>
-            <div className="lb-card" style={{animationDelay:'1.8s'}}><span className="metric-icon purple"><Mic size={13}/></span><div><strong>Voice-to-ticket</strong><small>“AC at Kemps blowing warm air” → filed</small></div></div>
+            <div className="lb-card" style={{animationDelay:'1.8s'}}><span className="metric-icon purple"><Mic size={13}/></span><div><strong>Form-to-ticket</strong><small>Category › sub-category › answers → filed</small></div></div>
           </div>
           <Link href="/reports" className="lb-link">Explore 30+ reports <ArrowRight size={13}/></Link>
         </div>

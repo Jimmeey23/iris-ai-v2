@@ -11,7 +11,16 @@ import {buildTemplate} from './templates';
 import {ticketNumberFor,slugify} from './utils';
 import {scoreAssessment} from './guided-templates';
 import {configuredTemplates} from './template-store';
+import {indiaDate} from './display';
 
+/** Department and owner for a category at a studio — the same rule makeDraft applies, exposed
+ *  so the intake form can show who will pick a ticket up before it is filed. */
+export async function resolveRouting(cfg:Awaited<ReturnType<typeof getConfig>>,category:string,studio:string){
+const departmentId=cfg.categoryDepartments[category]||'operations';const[dept]=await db.select().from(departments).where(eq(departments.id,departmentId));if(!dept?.active)throw new ApiError('The routing department is inactive. Ask an administrator to update the routing rule.');
+const people=await db.select().from(staff).where(and(eq(staff.isActive,true),eq(staff.department,dept.name)));
+const ids=studioIdsFor(studio);const override=cfg.routingOwners[category+'::'+studio]||cfg.routingOwners[category];
+const owner=cfg.autoAssign?(people.find(p=>p.id===override)||people.sort((a,b)=>{const score=(p:typeof a)=>(p.categories.includes(category)?10:0)+(p.studioId&&ids.includes(p.studioId)?8:0)+(/Head|Coordinator|Ops Manager|Chief/.test(p.role)?3:0);return score(b)-score(a);})[0]):{id:null,name:'Unassigned',email:'',role:'Department queue'};if(!owner)throw new ApiError('No active owner is available in the routing department.');
+return{departmentId,dept,owner,ids,override};}
 export async function makeDraft(raw:unknown):Promise<AdvancedDraft>{const input=ticketInputSchema.parse(raw);const cfg=await getConfig();if(!cfg.taxonomy[input.category]?.includes(input.subcategory))throw new ApiError('Choose a subcategory belonging to the selected category.');
 const template=input.templateId?(await configuredTemplates()).find(t=>t.id===input.templateId):undefined;
 if(template)for(const field of template.fields.filter(f=>f.required)){const val=input.customFields[field.id];if(val===undefined||val===null||val==='')throw new ApiError(`${field.label} is required.`);if(field.type==='rating'&&(!Number.isFinite(Number(val))||Number(val)<0||Number(val)>5))throw new ApiError(`${field.label} must be scored from 0 to 5.`);}
@@ -21,10 +30,7 @@ const praise=input.kind==='compliment'||input.kind==='feedback'&&input.sentiment
 // they have to be read back out here or the reporter's own urgency signal never
 // reaches the priority rules.
 const priority=noSla?'low':input.category==='Safety and Security'?'critical':input.priority||inferPriority({category:input.category,subcategory:input.subcategory,isClassImpacted:String(input.customFields.isClassImpacted||''),isImmediateDanger:String(input.customFields.isImmediateDanger||''),impact:input.impact,memberImpact:String(input.customFields.memberImpact||''),cycleSeverity:String(input.customFields.cycleSeverity||'')});
-const departmentId=cfg.categoryDepartments[input.category]||'operations';const[dept]=await db.select().from(departments).where(eq(departments.id,departmentId));if(!dept?.active)throw new ApiError('The routing department is inactive. Ask an administrator to update the routing rule.');
-const people=await db.select().from(staff).where(and(eq(staff.isActive,true),eq(staff.department,dept.name)));
-const ids=studioIdsFor(input.studio);const override=cfg.routingOwners[input.category+'::'+input.studio]||cfg.routingOwners[input.category];
-const owner=cfg.autoAssign?(people.find(p=>p.id===override)||people.sort((a,b)=>{const score=(p:typeof a)=>(p.categories.includes(input.category)?10:0)+(p.studioId&&ids.includes(p.studioId)?8:0)+(/Head|Coordinator|Ops Manager|Chief/.test(p.role)?3:0);return score(b)-score(a);})[0]):{id:null,name:'Unassigned',email:'',role:'Department queue'};if(!owner)throw new ApiError('No active owner is available in the routing department.');
+const{departmentId,dept,owner,ids,override}=await resolveRouting(cfg,input.category,input.studio);
 const studioShort=input.studio.split(',')[0].trim();
 // A title that reads on its own in a list. It used to be the taxonomy joined with middots,
 // which told a reader which drawer the ticket was in rather than what had happened; see
@@ -36,7 +42,10 @@ const title=input.title?.trim()||(cfg.labelStyle==='classification'
 // The summary is what every list, card and digest shows instead of the full description, so
 // it carries the who/where/when the description usually assumes.
 const narrative=input.description.replace(/\s+/g,' ').trim();
-const summary=input.summary?.trim()||[`${input.kind==='issue'?'Reported':'Logged'} by ${input.memberName} at ${studioShort}`,input.classFormat?`during ${input.classFormat}${input.trainer?` with ${input.trainer}`:''}`:null,input.incidentAt?`(${input.incidentAt})`:null].filter(Boolean).join(' ')+' — '+narrative.slice(0,280)+(narrative.length>280?'…':'');
+// The form files an exact instant for incidentAt where the chat records a phrase; the summary
+// reads the same either way.
+const when=/^\d{4}-\d{2}-\d{2}T/.test(input.incidentAt)?indiaDate(input.incidentAt):input.incidentAt;
+const summary=input.summary?.trim()||[`${input.kind==='issue'?'Reported':'Logged'} by ${input.memberName} at ${studioShort}`,input.classFormat?`during ${input.classFormat}${input.trainer?` with ${input.trainer}`:''}`:null,when?`(${when})`:null].filter(Boolean).join(' ')+' — '+narrative.slice(0,280)+(narrative.length>280?'…':'');
 const slaHours=noSla?0:cfg.responseHours[priority];const base=buildTemplate(input.category,input.subcategory);
 const opsChecklist=noSla
   ?['Record the feedback accurately, in the reporter\u2019s own words','Share the recognition with the named team member and their manager','File under the studio\u2019s monthly highlights']
