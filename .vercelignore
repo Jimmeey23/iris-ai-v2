@@ -1,0 +1,12 @@
+# Vercel builds from source; anything generated locally only slows the upload
+# or trips the 100 MB per-file limit. The per-port .next-* directories are dev
+# caches written by scripts/dev.mjs and run to several GB.
+node_modules
+.next
+.next-*
+.git
+.artifacts
+playwright-report
+test-results
+*.tsbuildinfo
+.env.bak.*
