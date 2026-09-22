@@ -32,7 +32,10 @@ export default function LoginPage() {
       .catch(() => {});
   }, [router]);
   useEffect(() => {
-    const code = new URLSearchParams(window.location.search).get("error");
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get("error");
+    const detail = params.get("detail");
+    if (detail) setNotice(detail);
     if (code)
       setError(
         code === "google_not_configured"
