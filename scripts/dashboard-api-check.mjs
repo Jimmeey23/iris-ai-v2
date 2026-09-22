@@ -3,10 +3,11 @@
  * saving and taking effect, and the re-label action.
  */
 import 'dotenv/config';
-import {randomBytes, scryptSync, randomUUID} from 'node:crypto';
+import {randomUUID} from 'node:crypto';
 import {eq, inArray, like} from 'drizzle-orm';
 import {db, pool} from '../src/db/index.ts';
 import {appUsers, appSettings, auditLogs, tickets, ticketResolutions} from '../src/db/schema.ts';
+import {createTestUser, deleteTestAuthUsers} from './lib/test-auth.mjs';
 
 const base = process.env.TEST_BASE_URL || 'http://localhost:3000';
 let pass = 0, fail = 0;
@@ -32,10 +33,7 @@ function client() {
 }
 
 const admin = client(), agent = client(), viewer = client();
-const userIds = [], createdTickets = [];
-const password = randomBytes(24).toString('base64url');
-const salt = randomBytes(16).toString('hex');
-const passwordHash = salt + ':' + scryptSync(password, salt, 64).toString('hex');
+const userIds = [], authUserIds = [], createdTickets = [];
 const originalSettings = await db.select().from(appSettings).where(eq(appSettings.key, 'workspace'));
 
 try {
@@ -43,11 +41,11 @@ try {
   const staffId = [31, 24, 19, 3, 16, 9].find((id) => !used.some((u) => u.staffId === id));
   const stamp = Date.now();
   for (const [role, sid] of [['admin', null], ['agent', staffId], ['viewer', null]]) {
-    const email = `iris-dash-${role}-${stamp}@example.invalid`;
-    const [u] = await db.insert(appUsers).values({name: 'IRIS DASH ' + role, email, passwordHash, role, staffId: sid}).returning();
+    const u = await createTestUser({name: 'IRIS DASH ' + role, email: `iris-dash-${role}-${stamp}@example.invalid`, role, staffId: sid});
     userIds.push(u.id);
+    authUserIds.push(u.supabaseUserId);
     const c = role === 'admin' ? admin : role === 'agent' ? agent : viewer;
-    await c('/api/auth', 'POST', {action: 'login', email, password});
+    await c('/api/auth', 'POST', {action: 'login', email: u.email, password: u.password});
   }
 
   section('Board preferences live in the database, not the browser');
@@ -98,10 +96,10 @@ try {
 
   section('The workspace default seeds a new person');
   const fresh = client();
-  const freshEmail = `iris-dash-fresh-${stamp}@example.invalid`;
-  const [fu] = await db.insert(appUsers).values({name: 'IRIS DASH fresh', email: freshEmail, passwordHash, role: 'agent'}).returning();
+  const fu = await createTestUser({name: 'IRIS DASH fresh', email: `iris-dash-fresh-${stamp}@example.invalid`, role: 'agent'});
   userIds.push(fu.id);
-  await fresh('/api/auth', 'POST', {action: 'login', email: freshEmail, password});
+  authUserIds.push(fu.supabaseUserId);
+  await fresh('/api/auth', 'POST', {action: 'login', email: fu.email, password: fu.password});
   const freshPrefs = await fresh('/api/preferences');
   check('a new person starts on the workspace default', freshPrefs.body.dashboard.groupBy === 'category', freshPrefs.body.dashboard.groupBy);
   check('and their own choice then overrides it', await (async () => {
@@ -166,6 +164,7 @@ try {
   if (userIds.length) {
     await db.delete(appSettings).where(inArray(appSettings.key, userIds.map((id) => 'preferences:user:' + id)));
     await db.delete(auditLogs).where(inArray(auditLogs.actorId, userIds));
+    await deleteTestAuthUsers(authUserIds);
     await db.delete(appUsers).where(inArray(appUsers.id, userIds));
   }
   await pool.end();

@@ -1,7 +1,26 @@
-import {NextRequest,NextResponse} from 'next/server';
-const PUBLIC=['/login','/api/auth','/video','/_next','/favicon.ico'];
-function bytes(value:string){return new TextEncoder().encode(value)}
-function hex(buffer:ArrayBuffer){return [...new Uint8Array(buffer)].map(v=>v.toString(16).padStart(2,'0')).join('')}
-async function validSession(value:string|undefined){if(!value)return false;const[raw,signature]=value.split('.');const secret=process.env.AUTH_SESSION_SECRET||process.env.INTEGRATION_ENCRYPTION_KEY;if(!raw||!signature||!secret)return false;const key=await crypto.subtle.importKey('raw',bytes(secret),{name:'HMAC',hash:'SHA-256'},false,['sign']);return hex(await crypto.subtle.sign('HMAC',key,bytes(raw)))===signature;}
-export async function middleware(req:NextRequest){const path=req.nextUrl.pathname;if(PUBLIC.some(p=>path===p||path.startsWith(p+'/')))return NextResponse.next();if(!await validSession(req.cookies.get('iris_session')?.value))return NextResponse.redirect(new URL('/login',req.url));return NextResponse.next();}
-export const config={matcher:['/((?!.*\\.[^/]+$).*)']};
+import { NextResponse, type NextRequest } from "next/server";
+import { updateSession } from "@/lib/supabase/middleware";
+
+const PUBLIC = ["/login", "/auth", "/api/auth", "/video", "/_next", "/favicon.ico"];
+
+export async function middleware(request: NextRequest) {
+  const path = request.nextUrl.pathname;
+  const isPublic = PUBLIC.some((p) => path === p || path.startsWith(p + "/"));
+  let session: Awaited<ReturnType<typeof updateSession>>;
+  try {
+    session = await updateSession(request);
+  } catch {
+    // Supabase is not configured yet. Let public routes through so the login
+    // page can render its own error rather than redirect-looping.
+    if (isPublic || path.startsWith("/api/")) return NextResponse.next();
+    return NextResponse.redirect(new URL("/login", request.url));
+  }
+  if (isPublic) return session.response;
+  // API routes answer for themselves with a 401 and a JSON body; redirecting them
+  // to the login page would hand a fetch() an HTML document instead of an error.
+  if (!session.user && !path.startsWith("/api/"))
+    return NextResponse.redirect(new URL("/login", request.url));
+  return session.response;
+}
+
+export const config = { matcher: ["/((?!.*\\.[^/]+$).*)"] };

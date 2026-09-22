@@ -1,17 +1,17 @@
 import 'dotenv/config';
 import assert from 'node:assert/strict';
-import {randomBytes,scryptSync,randomUUID} from 'node:crypto';
+import {randomUUID} from 'node:crypto';
 import {eq,inArray} from 'drizzle-orm';
 import {db,pool} from '../src/db/index.ts';
 import {appUsers,appSettings,tickets,chatSessions,chatMessages,auditLogs} from '../src/db/schema.ts';
+import {createTestUser,deleteTestAuthUsers} from './lib/test-auth.mjs';
 const base=process.env.TEST_BASE_URL||'http://localhost:3000';
 function client(){const cookies=new Map();return async(path,method='GET',body)=>{const res=await fetch(base+path,{method,headers:{'Content-Type':'application/json',Cookie:[...cookies].map(([k,v])=>k+'='+v).join('; ')},body:body===undefined?undefined:JSON.stringify(body)});for(const line of res.headers.getSetCookie()){const part=line.split(';')[0],index=part.indexOf('=');cookies.set(part.slice(0,index),part.slice(index+1));}return{status:res.status,body:await res.json()};};}
-const admin=client(),owner=client(),viewer=client(),anon=client();const userIds=[],createdTickets=[],chatIds=[];const originalSettings=await db.select().from(appSettings).where(eq(appSettings.key,'workspace'));
-const password=randomBytes(24).toString('base64url'),salt=randomBytes(16).toString('hex'),passwordHash=salt+':'+scryptSync(password,salt,64).toString('hex');
+const admin=client(),owner=client(),viewer=client(),anon=client();const userIds=[],authUserIds=[],createdTickets=[],chatIds=[];const originalSettings=await db.select().from(appSettings).where(eq(appSettings.key,'workspace'));
 try{
 assert.equal((await anon('/api/health')).status,200);
 const used=await db.select({staffId:appUsers.staffId}).from(appUsers);const staffId=[31,24,19,3,16,9].find(id=>!used.some(u=>u.staffId===id));assert.ok(staffId,'A spare staff profile is needed for isolated API tests');
-const stamp=Date.now();for(const [role,staffIdValue]of [['admin',null],['agent',staffId],['viewer',null]]){const email=`iris-test-${role}-${stamp}@example.invalid`;const[u]=await db.insert(appUsers).values({name:'IRIS QA '+role,email,passwordHash,role,staffId:staffIdValue}).returning();userIds.push(u.id);const c=role==='admin'?admin:role==='agent'?owner:viewer;assert.equal((await c('/api/auth','POST',{action:'login',email,password})).status,200);}
+const stamp=Date.now();for(const [role,staffIdValue]of [['admin',null],['agent',staffId],['viewer',null]]){const u=await createTestUser({name:'IRIS QA '+role,email:`iris-test-${role}-${stamp}@example.invalid`,role,staffId:staffIdValue});userIds.push(u.id);authUserIds.push(u.supabaseUserId);const c=role==='admin'?admin:role==='agent'?owner:viewer;assert.equal((await c('/api/auth','POST',{action:'login',email:u.email,password:u.password})).status,200);}
 assert.equal((await anon('/api/tickets')).status,401);
 let settings=(await admin('/api/settings')).body;assert.ok(settings.config);const cfg={...settings.config,webhookOnCreate:false,assignmentEmail:false,autoAssign:true,responseHours:{...settings.config.responseHours,medium:12}};assert.equal((await admin('/api/settings','PUT',{config:cfg,version:settings.version})).status,200);assert.equal((await admin('/api/settings')).body.config.responseHours.medium,12);assert.equal((await viewer('/api/settings')).status,403);
 assert.equal((await owner('/api/preferences','PATCH',{theme:'dark',view:'cards'})).status,200);let prefs=(await owner('/api/preferences')).body;assert.equal(prefs.theme,'dark');assert.equal(prefs.view,'cards');
@@ -33,6 +33,7 @@ console.log('PASS: authenticated roles, private resolutions, idempotency, confli
 if(createdTickets.length)await db.delete(tickets).where(inArray(tickets.id,createdTickets));
 if(chatIds.length){await db.delete(chatMessages).where(inArray(chatMessages.sessionId,chatIds));await db.delete(chatSessions).where(inArray(chatSessions.id,chatIds));}
 await db.delete(appSettings).where(eq(appSettings.key,'workspace'));for(const s of originalSettings)await db.insert(appSettings).values(s);
+await deleteTestAuthUsers(authUserIds);
 if(userIds.length){await db.delete(appSettings).where(inArray(appSettings.key,userIds.map(id=>'preferences:user:'+id)));await db.delete(auditLogs).where(inArray(auditLogs.actorId,userIds));await db.delete(appUsers).where(inArray(appUsers.id,userIds));}
 await pool.end();
 }

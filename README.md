@@ -5,11 +5,28 @@ A Next.js App Router workspace backed by PostgreSQL and Drizzle. The default wor
 ## Configuration
 
 - `DATABASE_URL` — PostgreSQL connection.
+- `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SERVICE_ROLE_KEY` — Supabase Auth. See **Authentication** below. The service-role key is server-side only.
 - `INTEGRATION_ENCRYPTION_KEY` — 64-character hexadecimal AES-256 key. Created locally for this workspace. Keep this key with your encrypted backup; changing it without re-encrypting credentials makes saved secrets unreadable.
 - `OPENAI_API_KEY`, optional `OPENAI_MODEL` — OpenAI API access (not a ChatGPT subscription).
 - `MOMENCE_USERNAME`, `MOMENCE_PASSWORD`, `MOMENCE_CLIENT_ID`, `MOMENCE_CLIENT_SECRET` — password grant exchanged directly for a Momence OAuth access token using Basic client authentication. Token expiry and refresh are managed on the server.
 - Alternatively configure encrypted credentials in **Integrations**. Environment variables take precedence.
 - Google connectors accept their individual credentials or `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN`. Enable the respective APIs and grant the scopes described in each connector.
+
+## Authentication
+
+Sign-in runs entirely on Supabase Auth. This application stores no passwords and issues no session cookies of its own; `app_users` holds only the workspace profile (role, linked staff member, department, studio) keyed to the Supabase user id.
+
+To set up a project:
+
+1. Copy the project URL, the publishable (anon) key and the `service_role` key from **Supabase Dashboard > Project Settings > API** into `.env`.
+2. In **Authentication > URL Configuration**, add `<your-app>/auth/callback` to the redirect allow list for every environment, including `http://localhost:3000/auth/callback`.
+3. In **Authentication > Providers > Google**, enable Google and paste your Google OAuth client id and secret. Add the callback URL Supabase shows there to the Google credential's authorised redirect URIs. Google is configured in Supabase, not in this application's environment.
+4. Leave **Confirm email** enabled under **Authentication > Sign In / Providers**. Email sign-up returns `confirmationRequired` and the account becomes usable once the link is clicked. Configure SMTP under **Authentication > Emails** before relying on it in production; the built-in sender is rate limited.
+5. Run `npm run db:push` (or apply `drizzle/0002_supabase_auth.sql`) so `app_users` carries `supabase_user_id` and the retired `auth_sessions` table is dropped.
+
+The first administrator is created from the in-app setup dialog, which uses the service-role key to mint a pre-confirmed account. Administrator-created accounts under **Settings** work the same way. Deactivating a user bans them in Supabase and revokes their live sessions, so access ends immediately rather than when the access token expires.
+
+`middleware.ts` refreshes the Supabase session on every request and redirects unauthenticated visitors to `/login`. Authorisation always verifies the token with `supabase.auth.getUser()`; `getSession()` reads the cookie without verifying it and must not be used for access decisions.
 
 Never commit `.env` or the integration encryption key. The database contains member information and should be backed up and access-controlled at infrastructure level.
 

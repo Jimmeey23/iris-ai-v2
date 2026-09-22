@@ -1,4 +1,4 @@
-import { boolean, customType, integer, jsonb, numeric, pgTable, serial, text, timestamp, index, uniqueIndex, primaryKey } from "drizzle-orm/pg-core";
+import { boolean, customType, integer, jsonb, numeric, pgTable, serial, text, timestamp, index, uniqueIndex, primaryKey, uuid } from "drizzle-orm/pg-core";
 
 /** Postgres `bytea`. Attachments are held in the database because this deployment has no
  *  object store configured; the upload route previously wrote a placeholder URL and dropped
@@ -31,12 +31,11 @@ export const chatMessages = pgTable("chat_messages", {
 export const chatAttachments = pgTable("chat_attachments", {
   id: text("id").primaryKey(), sessionId: text("session_id").notNull(), fileName: text("file_name").notNull(), fileType: text("file_type").notNull(), fileSize: integer("file_size").notNull(), storageUrl: text("storage_url").notNull(), data: bytea("data"), checksum: text("checksum"), uploadedBy: text("uploaded_by"), createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 }, (t) => [index("chat_attachments_session_idx").on(t.sessionId)]);
+/** Workspace profile for a Supabase auth user. Credentials live in Supabase
+ *  (auth.users); this table holds only the workspace role and scoping. */
 export const appUsers = pgTable("app_users", {
-  id: serial("id").primaryKey(), email: text("email").notNull().unique(), name: text("name").notNull(), passwordHash: text("password_hash"), googleSub: text("google_sub"), avatarUrl: text("avatar_url"), role: text("role").notNull().default("agent"), staffId: integer("staff_id").references(() => staff.id), department: text("department"), studio: text("studio"), active: boolean("active").notNull().default(true), createdAt: timestamp("created_at",{withTimezone:true}).defaultNow().notNull(),
-},(t)=>[uniqueIndex("app_users_staff_profile_idx").on(t.staffId),uniqueIndex("app_users_google_sub_idx").on(t.googleSub)]);
-export const authSessions = pgTable("auth_sessions", {
-  tokenHash: text("token_hash").primaryKey(), userId: integer("user_id").notNull().references(()=>appUsers.id,{onDelete:"cascade"}), expiresAt: timestamp("expires_at",{withTimezone:true}).notNull(),
-});
+  id: serial("id").primaryKey(), email: text("email").notNull().unique(), name: text("name").notNull(), supabaseUserId: uuid("supabase_user_id"), googleSub: text("google_sub"), avatarUrl: text("avatar_url"), role: text("role").notNull().default("agent"), staffId: integer("staff_id").references(() => staff.id), department: text("department"), studio: text("studio"), active: boolean("active").notNull().default(true), createdAt: timestamp("created_at",{withTimezone:true}).defaultNow().notNull(),
+},(t)=>[uniqueIndex("app_users_staff_profile_idx").on(t.staffId),uniqueIndex("app_users_google_sub_idx").on(t.googleSub),uniqueIndex("app_users_supabase_user_idx").on(t.supabaseUserId)]);
 export const appSettings = pgTable("app_settings", {
   key: text("key").primaryKey(), value: jsonb("value").$type<Record<string, unknown>>().notNull(), version: integer("version").notNull().default(1), updatedBy: integer("updated_by").references(()=>appUsers.id), updatedAt: timestamp("updated_at",{withTimezone:true}).defaultNow().notNull(),
 });

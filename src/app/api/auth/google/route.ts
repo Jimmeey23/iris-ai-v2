@@ -1,15 +1,23 @@
-import {randomBytes} from 'crypto';
-import {cookies} from 'next/headers';
-import {NextRequest,NextResponse} from 'next/server';
+import { NextResponse, type NextRequest } from "next/server";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-export async function GET(req:NextRequest){
-  const clientId=process.env.GOOGLE_AUTH_CLIENT_ID;
-  if(!clientId)return NextResponse.redirect(new URL('/login?error=google_not_configured',req.url));
-  const state=randomBytes(24).toString('hex');
-  const jar=await cookies();
-  jar.set('iris_oauth_state',state,{httpOnly:true,secure:process.env.NODE_ENV==='production',sameSite:'lax',path:'/',maxAge:600});
-  const callback=new URL('/api/auth/google/callback',req.url).toString();
-  const url=new URL('https://accounts.google.com/o/oauth2/v2/auth');
-  url.search=new URLSearchParams({client_id:clientId,redirect_uri:callback,response_type:'code',scope:'openid email profile',state,prompt:'select_account'}).toString();
-  return NextResponse.redirect(url);
+/** Starts Google sign-in through Supabase. Google is configured in
+ *  Supabase Dashboard > Authentication > Providers, not in this app's env. */
+export async function GET(req: NextRequest) {
+  try {
+    const supabase = await createSupabaseServerClient();
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: new URL("/auth/callback", req.url).toString(),
+        queryParams: { prompt: "select_account" },
+      },
+    });
+    if (error || !data.url) throw error ?? new Error("no redirect url");
+    return NextResponse.redirect(data.url);
+  } catch {
+    const login = new URL("/login", req.url);
+    login.searchParams.set("error", "google_not_configured");
+    return NextResponse.redirect(login);
+  }
 }

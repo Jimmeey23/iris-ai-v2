@@ -3,10 +3,10 @@
  * endpoints that spend OpenAI credit, and attachment storage actually storing bytes.
  */
 import 'dotenv/config';
-import {randomBytes, scryptSync} from 'node:crypto';
 import {eq, inArray, like} from 'drizzle-orm';
 import {db, pool} from '../src/db/index.ts';
 import {appUsers, auditLogs, chatAttachments, chatMessages, chatSessions, rateLimits} from '../src/db/schema.ts';
+import {createTestUser, deleteTestAuthUsers} from './lib/test-auth.mjs';
 
 const base = process.env.TEST_BASE_URL || 'http://localhost:3000';
 let pass = 0, fail = 0;
@@ -41,17 +41,15 @@ async function upload(form) {
 }
 
 const userIds = [];
+const authUserIds = [];
 const sessionIds = [];
-const password = randomBytes(24).toString('base64url');
-const salt = randomBytes(16).toString('hex');
-const passwordHash = salt + ':' + scryptSync(password, salt, 64).toString('hex');
 const stamp = Date.now();
 
 try {
-  const email = `iris-ops-${stamp}@example.invalid`;
-  const [u] = await db.insert(appUsers).values({name: 'IRIS OPS', email, passwordHash, role: 'agent'}).returning();
+  const u = await createTestUser({name: 'IRIS OPS', email: `iris-ops-${stamp}@example.invalid`, role: 'agent'});
   userIds.push(u.id);
-  await call('/api/auth', 'POST', {action: 'login', email, password});
+  authUserIds.push(u.supabaseUserId);
+  await call('/api/auth', 'POST', {action: 'login', email: u.email, password: u.password});
 
   section('The AI endpoints are rate limited');
   // /api/iris/speak allows 20 a minute. An empty `text` is rejected before the OpenAI call
@@ -123,6 +121,7 @@ try {
   await db.delete(rateLimits).where(like(rateLimits.key, '%user:' + (userIds[0] ?? 0)));
   if (userIds.length) {
     await db.delete(auditLogs).where(inArray(auditLogs.actorId, userIds));
+    await deleteTestAuthUsers(authUserIds);
     await db.delete(appUsers).where(inArray(appUsers.id, userIds));
   }
   await pool.end();

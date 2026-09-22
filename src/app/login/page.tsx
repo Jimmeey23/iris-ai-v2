@@ -21,7 +21,8 @@ export default function LoginPage() {
     [password, setPassword] = useState(""),
     [show, setShow] = useState(false),
     [busy, setBusy] = useState(false),
-    [error, setError] = useState("");
+    [error, setError] = useState(""),
+    [notice, setNotice] = useState("");
   useEffect(() => {
     fetch("/api/auth")
       .then((r) => r.json())
@@ -35,14 +36,17 @@ export default function LoginPage() {
     if (code)
       setError(
         code === "google_not_configured"
-          ? "Google sign-in is not configured yet. Add the Google OAuth environment values."
-          : "Google sign-in could not be completed. Please try again.",
+          ? "Google sign-in is not enabled. Turn on the Google provider in your Supabase project."
+          : code === "inactive"
+            ? "This account is not active in the workspace. Ask an administrator to restore it."
+            : "Google sign-in could not be completed. Please try again.",
       );
   }, []);
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
     setError("");
+    setNotice("");
     try {
       const r = await fetch("/api/auth", {
         method: "POST",
@@ -56,6 +60,15 @@ export default function LoginPage() {
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || "Unable to continue");
+      if (d.confirmationRequired) {
+        // Supabase has sent a confirmation link; there is no session to redirect with yet.
+        setNotice(
+          `Check ${email} for a confirmation link. Your account is ready once you have clicked it.`,
+        );
+        setMode("login");
+        setPassword("");
+        return;
+      }
       router.replace("/dashboard");
       router.refresh();
     } catch (e) {
@@ -137,6 +150,7 @@ export default function LoginPage() {
               onClick={() => {
                 setMode("login");
                 setError("");
+                setNotice("");
               }}
             >
               Sign in
@@ -146,6 +160,7 @@ export default function LoginPage() {
               onClick={() => {
                 setMode("signup");
                 setError("");
+                setNotice("");
               }}
             >
               Sign up
@@ -215,6 +230,11 @@ export default function LoginPage() {
             {error && (
               <div className="auth-error" role="alert">
                 {error}
+              </div>
+            )}
+            {notice && (
+              <div className="auth-notice" role="status">
+                {notice}
               </div>
             )}
             <button className="auth-submit" disabled={busy}>

@@ -8,10 +8,11 @@
  */
 import 'dotenv/config';
 import assert from 'node:assert/strict';
-import {randomBytes, scryptSync, randomUUID} from 'node:crypto';
+import {randomUUID} from 'node:crypto';
 import {eq, inArray, like} from 'drizzle-orm';
 import {db, pool} from '../src/db/index.ts';
 import {appUsers, assets, assetLocations, auditLogs, tickets} from '../src/db/schema.ts';
+import {createTestUser, deleteTestAuthUsers} from './lib/test-auth.mjs';
 
 const base = process.env.TEST_BASE_URL || 'http://localhost:3000';
 const STUDIO = 'Kwality House, Kemps Corner';
@@ -40,10 +41,7 @@ const check = (name, ok, detail) => { if (ok) { pass++; console.log('  PASS  ' +
 const section = (t) => console.log('\n' + t);
 
 const admin = client(), agent = client(), viewer = client(), anon = client();
-const userIds = [], createdTickets = [];
-const password = randomBytes(24).toString('base64url');
-const salt = randomBytes(16).toString('hex');
-const passwordHash = salt + ':' + scryptSync(password, salt, 64).toString('hex');
+const userIds = [], authUserIds = [], createdTickets = [];
 
 try {
   const used = await db.select({staffId: appUsers.staffId}).from(appUsers);
@@ -51,11 +49,11 @@ try {
   assert.ok(staffId, 'A spare staff profile is needed');
   const stamp = Date.now();
   for (const [role, sid] of [['admin', null], ['agent', staffId], ['viewer', null]]) {
-    const email = `iris-eq-${role}-${stamp}@example.invalid`;
-    const [u] = await db.insert(appUsers).values({name: 'IRIS EQ ' + role, email, passwordHash, role, staffId: sid}).returning();
+    const u = await createTestUser({name: 'IRIS EQ ' + role, email: `iris-eq-${role}-${stamp}@example.invalid`, role, staffId: sid});
     userIds.push(u.id);
+    authUserIds.push(u.supabaseUserId);
     const c = role === 'admin' ? admin : role === 'agent' ? agent : viewer;
-    assert.equal((await c('/api/auth', 'POST', {action: 'login', email, password})).status, 200);
+    assert.equal((await c('/api/auth', 'POST', {action: 'login', email: u.email, password: u.password})).status, 200);
   }
 
   section('The register is not readable by anyone who asks');
@@ -200,6 +198,7 @@ try {
   await db.delete(assetLocations).where(like(assetLocations.name, TAG + '%'));
   if (userIds.length) {
     await db.delete(auditLogs).where(inArray(auditLogs.actorId, userIds));
+    await deleteTestAuthUsers(authUserIds);
     await db.delete(appUsers).where(inArray(appUsers.id, userIds));
   }
   await pool.end();

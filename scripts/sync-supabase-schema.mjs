@@ -69,11 +69,13 @@ if (!(await fkExists('app_users', 'app_users_staff_id_staff_id_fk'))) {
 }
 
 // ------------------------------------------------------------------
-// 3. auth_sessions FK
+// 3. Supabase Auth link. Passwords and sessions live in Supabase's auth schema,
+//    so app_users only carries the auth user id.
 // ------------------------------------------------------------------
-if (!(await fkExists('auth_sessions', 'auth_sessions_user_id_app_users_id_fk'))) {
-  statements.push(`ALTER TABLE "auth_sessions" ADD CONSTRAINT "auth_sessions_user_id_app_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "app_users"("id") ON DELETE CASCADE;`);
-}
+statements.push(`ALTER TABLE "app_users" ADD COLUMN IF NOT EXISTS "supabase_user_id" uuid;`);
+statements.push(`CREATE UNIQUE INDEX IF NOT EXISTS "app_users_supabase_user_idx" ON "app_users" ("supabase_user_id");`);
+statements.push(`ALTER TABLE "app_users" DROP COLUMN IF EXISTS "password_hash";`);
+statements.push(`DROP TABLE IF EXISTS "auth_sessions";`);
 
 // ------------------------------------------------------------------
 // 4. chat_messages FK (if missing)
