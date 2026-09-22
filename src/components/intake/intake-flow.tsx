@@ -213,6 +213,8 @@ export function IntakeFlow({presetCategory, presetSubcategory, presetDesk, onLeg
   }, [fields, data, category, sub]);
   const summaryShort = filled(data.summary) && String(data.summary).trim().length < 12;
   const requiredVisible = visible.filter(f => f.required);
+  const completedRequired = Math.max(0, requiredVisible.length - missing.length);
+  const completion = requiredVisible.length ? Math.round(100 * completedRequired / requiredVisible.length) : 100;
   const baseline = category && sub ? inferPriority({category: category.name, subcategory: sub}) : 'medium';
   const priority = category && sub ? inferPriority(priorityInputs(category.name, sub, data)) : 'medium';
   const recordOnly = kind === 'compliment' || (kind === 'feedback' && String(data.sentiment || '').toLowerCase() === 'positive' && (taxonomy?.positiveNoSla ?? true));
@@ -358,9 +360,9 @@ export function IntakeFlow({presetCategory, presetSubcategory, presetDesk, onLeg
               </div>
               <div className="between wrap" style={{gap: 12}}>
                 <div>
-                  <div className="eyebrow">Step 3 of 4</div>
+                  <div className="intake-stage-label"><span>Step 3 of 4</span><i />Details</div>
                   <h2>{sub}</h2>
-                  <p className="secondary" style={{fontSize: 12.5}}>{requiredVisible.length} required of {visible.length} questions shown · conditional questions appear as you answer.</p>
+                  <p className="secondary" style={{fontSize: 12.5}}>Answer the essentials first. Relevant follow-up questions appear automatically.</p>
                 </div>
                 <div className="intake-head-controls">
                   <div className="intake-kind" role="radiogroup" aria-label="What kind of entry is this">
@@ -369,7 +371,10 @@ export function IntakeFlow({presetCategory, presetSubcategory, presetDesk, onLeg
                   <button type="button" className={'intake-chip intake-toggle' + (requiredOnly ? ' on' : '')} role="switch" aria-checked={requiredOnly} onClick={() => setRequiredOnly(v => !v)} title="Show only the questions the ticket cannot file without"><ListFilter size={12} /> Required only</button>
                 </div>
               </div>
-              <div className="progress-bar intake-progress" aria-label="Required answers"><span style={{width: `${requiredVisible.length ? Math.round(100 * (requiredVisible.length - missing.length) / requiredVisible.length) : 100}%`}} /></div>
+              <div className="intake-progress-row">
+                <div className="progress-bar intake-progress" role="progressbar" aria-label="Required answers completed" aria-valuemin={0} aria-valuemax={100} aria-valuenow={completion}><span style={{width: `${completion}%`}} /></div>
+                <span className="intake-progress-copy"><strong>{completion}%</strong> complete · {completedRequired}/{requiredVisible.length} required</span>
+              </div>
             </div>
             {classSnapshot && (
               <div className="info-box intake-class-note"><CalendarDays size={14} /><span><strong>{classSnapshot.name}</strong> · {classSnapshot.booked ?? 0} booked, {classSnapshot.attended ?? 0} attended of {classSnapshot.capacity ?? '—'} places{classSnapshot.attendees?.length ? ` · ${classSnapshot.attendees.length} attendee note${classSnapshot.attendees.length > 1 ? 's' : ''} attached` : ''}. Read from Momence; the answers below were filled from it and stay editable.</span></div>
@@ -395,7 +400,8 @@ export function IntakeFlow({presetCategory, presetSubcategory, presetDesk, onLeg
             </div>
           </div>
 
-          <aside className="intake-aside">
+          <aside className="intake-aside" aria-label="Ticket routing and readiness">
+            <div className="intake-aside-title"><span>Live ticket preview</span><small>Updates as you answer</small></div>
             <div className="form-aside intake-aside-card">
               <div className="eyebrow">Routing</div>
               <div className="intake-route">

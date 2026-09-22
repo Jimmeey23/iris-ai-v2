@@ -1,5 +1,5 @@
 "use client";
-import {useCallback,useEffect,useMemo,useRef,useState} from 'react';
+import {useCallback,useDeferredValue,useEffect,useMemo,useRef,useState} from 'react';
 import {FileBarChart2,Download,ChevronLeft,ChevronRight,RefreshCw,ChevronDown,FileSpreadsheet,FileJson,FileText,FileType,Code2,Columns3,ShieldCheck,Clock3,TriangleAlert,CheckCircle2,TrendingUp,TrendingDown,Loader2} from 'lucide-react';
 import {Shell} from '@/components/shell';
 import {api,SearchField,Badge,Loading,Empty,Avatar,useApp} from '@/components/ui';
@@ -28,16 +28,17 @@ export default function ReportsPage(){
   const[busy,setBusy]=useState(true);const[error,setError]=useState('');const[exporting,setExporting]=useState<ExportFormat|''>('');
   const[exportOpen,setExportOpen]=useState(false);const[hidden,setHidden]=useState<Set<string>>(new Set());const[colsOpen,setColsOpen]=useState(false);
   const[tab,setTab]=useState<'data'|'insights'>('insights');
+  const deferredSearch=useDeferredValue(search);
   const menuRef=useRef<HTMLDivElement>(null);const colRef=useRef<HTMLDivElement>(null);
 
   useEffect(()=>{void api<{reports:ReportMeta[]}>('/api/reports?list=true').then(d=>{setList(d.reports);if(d.reports.length)setActive(d.reports[0].id);}).catch(e=>setError(e.message));},[]);
   useEffect(()=>{const onDoc=(e:MouseEvent)=>{if(menuRef.current&&!menuRef.current.contains(e.target as Node))setExportOpen(false);if(colRef.current&&!colRef.current.contains(e.target as Node))setColsOpen(false);};document.addEventListener('mousedown',onDoc);return()=>document.removeEventListener('mousedown',onDoc);},[]);
 
-  const params=useCallback((all=false)=>{const p=new URLSearchParams({type:active,page:String(page),pageSize:String(pageSize),search,studio,priority,status});if(from)p.set('from',from);if(to)p.set('to',to);if(all)p.set('all','true');return p;},[active,page,pageSize,search,studio,priority,status,from,to]);
+  const params=useCallback((all=false)=>{const p=new URLSearchParams({type:active,page:String(page),pageSize:String(pageSize),search:deferredSearch,studio,priority,status});if(from)p.set('from',from);if(to)p.set('to',to);if(all)p.set('all','true');return p;},[active,page,pageSize,deferredSearch,studio,priority,status,from,to]);
   const load=useCallback(async()=>{if(!active)return;setBusy(true);setError('');try{setData(await api<ReportData>('/api/reports?'+params()));}catch(e){setError((e as Error).message);}finally{setBusy(false);}},[active,params]);
   useEffect(()=>{void load();},[load]);
-  useEffect(()=>setPage(0),[active,search,studio,priority,status,from,to,pageSize]);
-  useEffect(()=>setHidden(new Set()),[active]);
+  const changeReport=(id:string)=>{setActive(id);setPage(0);setHidden(new Set());};
+  const changeFilter=(apply:()=>void)=>{apply();setPage(0);};
 
   const groups=useMemo(()=>{const g:Record<string,ReportMeta[]>={};for(const r of list)(g[r.group]=g[r.group]||[]).push(r);return g;},[list]);
   const filteredGroups=useMemo(()=>{if(!q)return groups;const o:Record<string,ReportMeta[]>={};for(const[k,v]of Object.entries(groups)){const m=v.filter(r=>r.name.toLowerCase().includes(q.toLowerCase()));if(m.length)o[k]=m;}return o;},[groups,q]);
@@ -60,7 +61,7 @@ export default function ReportsPage(){
           <div className="report-nav-scroll">
             {Object.entries(filteredGroups).map(([group,reports])=>(
               <div key={group} className="report-nav-group"><div className="report-nav-heading">{group}</div>
-                {reports.map(r=><button key={r.id} className={'report-nav-item'+(active===r.id?' active':'')} onClick={()=>setActive(r.id)}>{r.name}</button>)}
+                {reports.map(r=><button key={r.id} className={'report-nav-item'+(active===r.id?' active':'')} onClick={()=>changeReport(r.id)}>{r.name}</button>)}
               </div>))}
             {!list.length&&!error&&<div style={{padding:16}}><Loading/></div>}
           </div>
@@ -123,12 +124,12 @@ export default function ReportsPage(){
 
               {tab==='data'&&<>
                 <div className="ticket-toolbar">
-                  <SearchField value={search} onChange={setSearch} placeholder="Search within this report…"/>
-                  <select className="filter-select" aria-label="Filter studio" value={studio} onChange={e=>setStudio(e.target.value)}><option value="">All studios</option>{STUDIOS.map(s=><option key={s.id}>{s.name}</option>)}</select>
-                  <select className="filter-select" aria-label="Filter status" value={status} onChange={e=>setStatus(e.target.value)}><option value="">All statuses</option>{Object.entries(STATUS_LABELS).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select>
-                  <select className="filter-select" aria-label="Filter priority" value={priority} onChange={e=>setPriority(e.target.value)}><option value="">All priorities</option>{['critical','high','medium','low'].map(p=><option key={p}>{p}</option>)}</select>
-                  <input type="date" aria-label="From date" value={from} onChange={e=>setFrom(e.target.value)} style={{fontSize:10,padding:7,maxWidth:120}}/>
-                  <input type="date" aria-label="To date" value={to} onChange={e=>setTo(e.target.value)} style={{fontSize:10,padding:7,maxWidth:120}}/>
+                  <SearchField value={search} onChange={v=>changeFilter(()=>setSearch(v))} placeholder="Search within this report…"/>
+                  <select className="filter-select" aria-label="Filter studio" value={studio} onChange={e=>changeFilter(()=>setStudio(e.target.value))}><option value="">All studios</option>{STUDIOS.map(s=><option key={s.id}>{s.name}</option>)}</select>
+                  <select className="filter-select" aria-label="Filter status" value={status} onChange={e=>changeFilter(()=>setStatus(e.target.value))}><option value="">All statuses</option>{Object.entries(STATUS_LABELS).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select>
+                  <select className="filter-select" aria-label="Filter priority" value={priority} onChange={e=>changeFilter(()=>setPriority(e.target.value))}><option value="">All priorities</option>{['critical','high','medium','low'].map(p=><option key={p}>{p}</option>)}</select>
+                  <input type="date" aria-label="From date" value={from} onChange={e=>changeFilter(()=>setFrom(e.target.value))} style={{fontSize:10,padding:7,maxWidth:120}}/>
+                  <input type="date" aria-label="To date" value={to} onChange={e=>changeFilter(()=>setTo(e.target.value))} style={{fontSize:10,padding:7,maxWidth:120}}/>
                   <div style={{position:'relative',marginLeft:'auto'}} ref={colRef}>
                     <button className="btn btn-sm" onClick={()=>setColsOpen(v=>!v)}><Columns3 size={12}/>Columns{hidden.size?` (${hidden.size} hidden)`:''}</button>
                     {colsOpen&&<div className="card rp-export-menu" style={{width:220}}>{data.columns.map(c=><label key={c.key} className="rp-col-toggle"><input type="checkbox" checked={!hidden.has(c.key)} onChange={()=>setHidden(h=>{const n=new Set(h);if(n.has(c.key))n.delete(c.key);else n.add(c.key);return n;})}/>{c.label}</label>)}</div>}
@@ -138,7 +139,7 @@ export default function ReportsPage(){
                   <div className="table-wrap"><table className="data-table"><thead><tr>{visibleCols.map(c=><th key={c.key}>{c.label}</th>)}</tr></thead>
                     <tbody>{data.rows.map((r,i)=><tr key={i}>{visibleCols.map(c=><td key={c.key}>{cell(c.key,r[c.key])}</td>)}</tr>)}</tbody></table></div>)}
                 <div className="table-pagination">
-                  <div className="flex-row"><span>{data.total?page*pageSize+1:0}–{Math.min((page+1)*pageSize,data.total)} of {data.total}</span><select className="filter-select" style={{height:28,padding:'2px 22px 2px 8px'}} value={pageSize} onChange={e=>setPageSize(Number(e.target.value))}>{[10,25,50,100,200].map(n=><option key={n} value={n}>{n} / page</option>)}</select></div>
+                  <div className="flex-row"><span>{data.total?page*pageSize+1:0}–{Math.min((page+1)*pageSize,data.total)} of {data.total}</span><select className="filter-select" style={{height:28,padding:'2px 22px 2px 8px'}} value={pageSize} onChange={e=>changeFilter(()=>setPageSize(Number(e.target.value)))}>{[10,25,50,100,200].map(n=><option key={n} value={n}>{n} / page</option>)}</select></div>
                   <div className="pagination-controls"><button disabled={!page} aria-label="Previous page" onClick={()=>setPage(p=>Math.max(0,p-1))}><ChevronLeft size={12}/></button><span style={{padding:'0 8px',fontSize:11}}>Page {page+1}</span><button disabled={!data.hasMore} aria-label="Next page" onClick={()=>setPage(p=>p+1)}><ChevronRight size={12}/></button></div>
                 </div>
               </>}

@@ -1,6 +1,6 @@
 "use client";
 import * as Dialog from '@radix-ui/react-dialog';
-import {useEffect,useLayoutEffect,useState,useRef,createContext,useContext,useCallback,type ReactNode} from 'react';
+import {useEffect,useLayoutEffect,useState,useRef,createContext,useContext,useCallback,type CSSProperties,type ReactNode} from 'react';
 import {X,CheckCircle2,AlertCircle,Loader2,Search,Sun,Moon,UserRound} from 'lucide-react';
 import {EmptyArt,type ArtVariant} from './graphics';
 import {cn,initials} from '@/lib/utils';
@@ -260,9 +260,10 @@ export function CountUp({value,format,duration=900}:{value:number;format?:(n:num
 }
 export function Empty({title,detail,action,art='inbox'}:{title:string;detail?:string;action?:ReactNode;art?:ArtVariant}){return <div className="empty-state"><EmptyArt variant={art}/><h3>{title}</h3>{detail&&<p>{detail}</p>}{action}</div>;}
 export function Loading({rows=3,variant='block'}:{rows?:number;variant?:'block'|'list'|'card'}){
-  if(variant==='list')return <div className="skeleton-list" aria-label="Loading" aria-busy="true">{Array.from({length:rows}).map((_,i)=><div className="skeleton-row" key={i} style={{animationDelay:(i*90)+'ms'}}><div className="skeleton sk-avatar"/><div className="grow"><div className="skeleton sk-line" style={{width:'42%'}}/><div className="skeleton sk-line sk-sm" style={{width:'68%'}}/></div><div className="skeleton sk-pill"/></div>)}</div>;
-  if(variant==='card')return <div className="skeleton-cards" aria-label="Loading" aria-busy="true">{Array.from({length:rows}).map((_,i)=><div className="skeleton sk-card" key={i} style={{animationDelay:(i*90)+'ms'}}/>)}</div>;
-  return <div className="stack" aria-label="Loading" aria-busy="true">{Array.from({length:rows}).map((_,i)=><div className="skeleton" key={i} style={{animationDelay:(i*90)+'ms'}}/>)}</div>;
+  const status=<span className="loading-status">Loading content…</span>;
+  if(variant==='list')return <div className="loading-state skeleton-list" aria-label="Loading content" aria-busy="true">{status}{Array.from({length:rows}).map((_,i)=><div className="skeleton-row" key={i} style={{'--skeleton-delay':`${i*70}ms`} as CSSProperties}><div className="skeleton sk-avatar"/><div className="grow"><div className="skeleton sk-line" style={{width:'42%'}}/><div className="skeleton sk-line sk-sm" style={{width:'68%'}}/></div><div className="skeleton sk-pill"/></div>)}</div>;
+  if(variant==='card')return <div className="loading-state skeleton-cards" aria-label="Loading content" aria-busy="true">{status}{Array.from({length:rows}).map((_,i)=><div className="skeleton sk-card" key={i} style={{'--skeleton-delay':`${i*70}ms`} as CSSProperties}><span className="sk-card-mark"/><span className="sk-card-line"/><span className="sk-card-line short"/><span className="sk-card-foot"/></div>)}</div>;
+  return <div className="loading-state skeleton-blocks" aria-label="Loading content" aria-busy="true">{status}{Array.from({length:rows}).map((_,i)=><div className="skeleton sk-block" key={i} style={{'--skeleton-delay':`${i*70}ms`} as CSSProperties}><span className="sk-block-line"/><span className="sk-block-line short"/><span className="sk-block-pill"/></div>)}</div>;
 }
 /** Animated SVG progress ring — used for scores, SLA health and completeness. */
 export function Switch({checked,onChange,label}:{checked:boolean;onChange:(v:boolean)=>void;label:string}){return <button type="button" role="switch" aria-checked={checked} aria-label={label} onClick={()=>onChange(!checked)} className={cn('toggle',checked&&'on')}/>;}

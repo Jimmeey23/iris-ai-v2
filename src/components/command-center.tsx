@@ -1,7 +1,7 @@
 "use client";
 
 import Link from 'next/link';
-import {useEffect, useMemo, useState} from 'react';
+import {useMemo, useState} from 'react';
 import {
   Plus, Sparkles, ArrowUpRight, ChevronRight, ChevronLeft, CalendarDays, LayoutGrid, List,
   Columns3, Grid2x2, Rss, Download, TriangleAlert, ArrowRight, Users, RefreshCw, Save,
@@ -78,9 +78,8 @@ export function CommandCenter({directory = false}: {directory?: boolean}) {
 
   const f = prefs.filters;
 
-  // Any change to what is being shown puts you back on the first page; staying on page 4
-  // of a list that now has two pages shows nothing and reads as a bug.
-  useEffect(() => { setPage(0); }, [f, prefs.groupBy, prefs.pageSize]);
+  const changeFilters = (patch: Partial<FilterState>) => { setFilters(patch); setPage(0); };
+  const clearFilters = () => { resetFilters(); setPage(0); };
 
   const filtered = useMemo(() => applyFilters(tickets, f), [tickets, f]);
 
@@ -137,7 +136,7 @@ export function CommandCenter({directory = false}: {directory?: boolean}) {
   }
 
   function applyMetricFilter(patch: Partial<FilterState>, label: string) {
-    setFilters({...patch, tab: 'all'});
+    changeFilters({...patch, tab: 'all'});
     update({filtersOpen: true});
     notify(`Showing ${label.toLowerCase()} in the table.`);
   }
@@ -230,7 +229,7 @@ export function CommandCenter({directory = false}: {directory?: boolean}) {
 
       <div className="workspace-tabs">
         {TABS.map((t) => (
-          <button key={t.id} className={f.tab === t.id ? 'active' : ''} onClick={() => setFilters({tab: t.id})}>
+          <button key={t.id} className={f.tab === t.id ? 'active' : ''} onClick={() => changeFilters({tab: t.id})}>
             {t.name}<span>{tabCounts[t.id as keyof typeof tabCounts]}</span>
           </button>
         ))}
@@ -240,8 +239,8 @@ export function CommandCenter({directory = false}: {directory?: boolean}) {
         open={prefs.filtersOpen}
         onOpenChange={(filtersOpen) => update({filtersOpen})}
         filters={f}
-        onChange={setFilters}
-        onReset={resetFilters}
+        onChange={changeFilters}
+        onReset={clearFilters}
         tickets={tickets}
         matched={tabbed.length}
         groupBy={prefs.groupBy}
@@ -254,7 +253,7 @@ export function CommandCenter({directory = false}: {directory?: boolean}) {
         onPageSize={(n) => update({pageSize: n})}
         views={views}
         onApplyView={(v) => {
-          setFilters({...EMPTY_FILTERS, ...v.filters});
+          changeFilters({...EMPTY_FILTERS, ...v.filters});
           update({
             groupBy: v.groupBy,
             ...(v.columns ? {columns: v.columns} : {}),
@@ -319,7 +318,7 @@ export function CommandCenter({directory = false}: {directory?: boolean}) {
           />
         )
         : view === 'board' ? <Kanban tickets={tabbed} onSelect={setDetail} groupBy={prefs.kanbanGroupBy} fields={prefs.kanbanFields}/>
-        : view === 'matrix' ? <MatrixView tickets={tabbed} onCell={(category, states) => { setFilters({category, statuses: states, tab: 'all'}); setView('list'); }}/>
+        : view === 'matrix' ? <MatrixView tickets={tabbed} onCell={(category, states) => { changeFilters({category, statuses: states, tab: 'all'}); setView('list'); }}/>
         : view === 'feed' ? <FeedView tickets={tabbed} onSelect={setDetail}/>
         : view === 'cards' ? <div className="ticket-cards-grid rise-stagger">{rows.map((t) => <TicketCard key={t.id} ticket={t} onSelect={setDetail}/>)}</div>
         : (
@@ -365,7 +364,7 @@ export function CommandCenter({directory = false}: {directory?: boolean}) {
       eyebrow={directory ? 'TICKET DIRECTORY' : 'INTERNAL OPERATIONS'}
       action={
         <div className="flex-row">
-          <select className="btn" aria-label="Reporting date range" value={f.from || f.to ? 'custom' : f.range} onChange={(e) => setFilters({range: e.target.value, from: '', to: ''})}>
+          <select className="btn" aria-label="Reporting date range" value={f.from || f.to ? 'custom' : f.range} onChange={(e) => changeFilters({range: e.target.value, from: '', to: ''})}>
             <option value="all">All time</option>
             <option value="7">Last 7 days</option>
             <option value="30">Last 30 days</option>
@@ -403,7 +402,7 @@ export function CommandCenter({directory = false}: {directory?: boolean}) {
                 <div>
                   <strong>{slaRisk.length} ticket{slaRisk.length === 1 ? '' : 's'} need a timely follow-up</strong>
                   <p>{slaRisk.length ? 'Bring at-risk and overdue tickets to the top of the team’s list.' : 'Every follow-up target is currently on track.'}</p>
-                  <button className="text-btn" style={{fontSize: 10, marginTop: 7}} onClick={() => { setFilters({tab: 'sla'}); update({filtersOpen: true}); }}>Review priority tickets <ArrowRight size={11}/></button>
+                  <button className="text-btn" style={{fontSize: 10, marginTop: 7}} onClick={() => { changeFilters({tab: 'sla'}); update({filtersOpen: true}); }}>Review priority tickets <ArrowRight size={11}/></button>
                 </div>
               </div>
               <div className="insight-line">

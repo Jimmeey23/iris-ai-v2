@@ -26,7 +26,7 @@ import {
   UserCheck,
   Eye,
 } from 'lucide-react';
-import { Badge, useApp, api } from './ui';
+import { Badge, Loading, useApp, api } from './ui';
 
 interface RoomTicket {
   id: number;
@@ -45,6 +45,7 @@ interface RoomTicket {
   createdAt: string;
   impact?: string;
 }
+const RADAR_BOOT_TIME = Date.now();
 
 interface RoomData {
   id: string;
@@ -118,9 +119,11 @@ export function StudioOpsRadar({ initialStudio = 'kwality' }: { initialStudio?: 
   const [data, setData] = useState<RadarApiResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState('');
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
   const [resolvingId, setResolvingId] = useState<number | null>(null);
-  const [now, setNow] = useState(Date.now());
+  const [now, setNow] = useState(RADAR_BOOT_TIME);
 
   // Keep live SLA ticking every second
   useEffect(() => {
@@ -131,16 +134,18 @@ export function StudioOpsRadar({ initialStudio = 'kwality' }: { initialStudio?: 
   // Fetch Radar data
   const fetchData = async (isManual = false) => {
     if (isManual) setRefreshing(true);
+    setError('');
     try {
       const res = await api<RadarApiResponse>(`/api/ops/radar?studio=${encodeURIComponent(selectedStudioId)}`);
       setData(res);
+      setLastUpdated(new Date());
       // Auto-select first room with incident or first room
       if (!selectedRoomId && res.activeStudio.rooms.length > 0) {
         const incidentRoom = res.activeStudio.rooms.find((r) => r.status !== 'optimal');
         setSelectedRoomId(incidentRoom ? incidentRoom.id : res.activeStudio.rooms[0].id);
       }
-    } catch {
-      // Handled
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'The live operations feed could not be loaded.');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -197,8 +202,13 @@ export function StudioOpsRadar({ initialStudio = 'kwality' }: { initialStudio?: 
           <Activity size={32} className="animate-pulse accent" />
           <p>Connecting to Studio Floor Sensors &amp; Live SLA Radar…</p>
         </div>
+        <Loading rows={4} variant="card" />
       </div>
     );
+  }
+
+  if (!data) {
+    return <div className="empty-state radar-error-state"><AlertTriangle size={28} /><h3>Operations Radar is unavailable</h3><p>{error || 'The live studio feed could not be reached.'}</p><button type="button" className="btn btn-primary" onClick={() => void fetchData(true)} disabled={refreshing}><RefreshCw size={13} className={refreshing ? 'animate-spin' : ''}/>Retry connection</button></div>;
   }
 
   const activeStudio = data?.activeStudio;
@@ -272,13 +282,15 @@ export function StudioOpsRadar({ initialStudio = 'kwality' }: { initialStudio?: 
             className="radar-sync-btn"
             onClick={() => void fetchData(true)}
             disabled={refreshing}
-            title="Poll latest telemetry and tickets"
+            title={lastUpdated ? `Last updated ${lastUpdated.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}` : 'Poll latest telemetry and tickets'}
           >
             <RefreshCw size={13} className={refreshing ? 'animate-spin' : ''} />
             <span>{refreshing ? 'Syncing…' : 'Refresh'}</span>
           </button>
         </div>
       </section>
+
+      {error && <div className="error-box radar-refresh-error" role="alert">Live refresh failed. Showing the last successful snapshot. <button type="button" className="text-btn" onClick={() => void fetchData(true)}>Retry</button></div>}
 
       {/* 2. STUDIO LOCATION SELECTOR TABS */}
       <nav className="studio-tabs-nav">
@@ -565,7 +577,7 @@ export function StudioOpsRadar({ initialStudio = 'kwality' }: { initialStudio?: 
                               <span>Dispatch Duty Lead</span>
                             </button>
 
-                            <Link href={`/tickets?id=${t.id}`} className="btn-view-ticket">
+                            <Link href={`/tickets/${t.id}`} className="btn-view-ticket">
                               <Eye size={12} />
                               <span>Full Ticket</span>
                               <ChevronRight size={10} />

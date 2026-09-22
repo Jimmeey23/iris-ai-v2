@@ -2597,11 +2597,25 @@ pre{font:12px/1.7 var(--font-mono);white-space:pre-wrap;overflow-wrap:anywhere;c
    A sweeping highlight rather than a whole-element opacity pulse: it implies
    progress in a specific direction instead of a generic "busy". */
 .skeleton{position:relative;overflow:hidden;height:80px;border-radius:var(--radius-md);
-  background:var(--surface-2);animation:fade-in var(--dur-3) both}
+  background:linear-gradient(145deg,var(--surface-2),color-mix(in srgb,var(--surface-3) 52%,var(--surface-2)));animation:fade-in var(--dur-3) both;animation-delay:var(--skeleton-delay,0ms)}
 .skeleton::after{content:'';position:absolute;inset:0;transform:translateX(-100%);
-  background:linear-gradient(90deg,transparent,color-mix(in srgb,var(--text) 7%,transparent) 45%,color-mix(in srgb,var(--text) 11%,transparent) 55%,transparent);
-  animation:skeleton-sweep 1.5s var(--ease-in-out-quart) infinite}
-@keyframes skeleton-sweep{100%{transform:translateX(100%)}}
+  background:linear-gradient(100deg,transparent 22%,color-mix(in srgb,var(--text) 5%,transparent) 42%,color-mix(in srgb,var(--accent) 10%,transparent) 50%,color-mix(in srgb,var(--text) 5%,transparent) 58%,transparent 78%);
+  animation:skeleton-sweep 1.75s var(--ease-in-out-quart) infinite;animation-delay:var(--skeleton-delay,0ms)}
+@keyframes skeleton-sweep{0%{transform:translateX(-110%)}100%{transform:translateX(110%)}}
+.loading-state{position:relative;isolation:isolate;width:100%}
+.loading-status{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.skeleton-blocks{display:flex;flex-direction:column;gap:12px}
+.skeleton-row{border-bottom:1px solid var(--hairline);animation-delay:var(--skeleton-delay,0ms)}
+.skeleton-row:last-child{border-bottom:0}
+.sk-block{height:92px;padding:18px;display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-rows:auto auto;gap:11px 18px;align-content:center}
+.sk-block-line,.sk-card-line,.sk-block-pill,.sk-card-mark,.sk-card-foot{position:relative;z-index:1;display:block;background:color-mix(in srgb,var(--text) 8%,transparent);border-radius:var(--radius-full)}
+.sk-block-line{width:min(54%,360px);height:11px}.sk-block-line.short{width:min(78%,520px);height:8px;opacity:.68;grid-column:1/-1}.sk-block-pill{width:76px;height:24px;grid-column:2;grid-row:1/3;align-self:center}
+.sk-card{height:148px;padding:17px;display:flex;flex-direction:column;align-items:flex-start}
+.sk-card-mark{width:34px;height:34px;border-radius:10px;margin-bottom:20px}.sk-card-line{width:62%;height:10px;margin-bottom:9px}.sk-card-line.short{width:82%;height:8px;opacity:.68}.sk-card-foot{width:48px;height:19px;margin-top:auto}
+.skeleton-cards{grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px}
+.form-embed-skeleton .skeleton-line{position:relative;overflow:hidden;background:linear-gradient(145deg,var(--surface-2),color-mix(in srgb,var(--surface-3) 52%,var(--surface-2)));animation:fade-in var(--dur-3) both}
+.form-embed-skeleton .skeleton-line::after{content:'';position:absolute;inset:0;transform:translateX(-110%);background:linear-gradient(100deg,transparent 22%,color-mix(in srgb,var(--text) 5%,transparent) 42%,color-mix(in srgb,var(--accent) 10%,transparent) 50%,transparent 78%);animation:skeleton-sweep 1.75s var(--ease-in-out-quart) infinite;animation-delay:inherit}
+.radar-loading-skeleton{display:flex;flex-direction:column;gap:22px;padding:22px}.radar-spinner-wrap{display:flex;align-items:center;gap:12px;color:var(--secondary)}.radar-spinner-wrap p{font-size:var(--text-sm)}
 
 /* ── Progress ────────────────────────────────────────────────────────────*/
 .progress-bar{position:relative;height:5px;border-radius:var(--radius-full);background:var(--surface-3);overflow:hidden;margin-top:7px;
@@ -2661,7 +2675,7 @@ pre{font:12px/1.7 var(--font-mono);white-space:pre-wrap;overflow-wrap:anywhere;c
   /* Anything whose entrance animation ends at opacity:0 must be forced visible. */
   .reveal,.reveal-scroll,.rise,.rise-stagger>*,.stagger>*,.skeleton::after,.toast,.dialog-content,
   .empty-art-subject,.lb-frame,.lb-halo,.lb-glow{opacity:1!important;transform:none!important;filter:none!important}
-  .skeleton::after,.progress-bar>span::after,.lb-scan,[data-tip]::after{display:none!important}
+  .skeleton::after,.form-embed-skeleton .skeleton-line::after,.progress-bar>span::after,.lb-scan,[data-tip]::after{display:none!important}
   .tabs-thumb{transition:none!important}
   /* One deliberate exception: a frozen spinner reads as a hung request rather
      than as a calm interface, so loading indicators keep turning — just more
