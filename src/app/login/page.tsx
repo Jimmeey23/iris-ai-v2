@@ -39,7 +39,9 @@ export default function LoginPage() {
           ? "Google sign-in is not enabled. Turn on the Google provider in your Supabase project."
           : code === "inactive"
             ? "This account is not active in the workspace. Ask an administrator to restore it."
-            : "Google sign-in could not be completed. Please try again.",
+            : code === "profile_unavailable"
+              ? "Signed in with Google, but your workspace profile could not be loaded. The database may be unreachable or out of date."
+              : "Google sign-in could not be completed. Please try again.",
       );
   }, []);
   async function submit(e: React.FormEvent) {

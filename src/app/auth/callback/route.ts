@@ -19,8 +19,18 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(login);
   }
   // Creates the workspace profile on first sign-in, and returns null when the
-  // account has been deactivated here.
-  const profile = await profileFor(data.user);
+  // account has been deactivated here. A database failure here must not escape:
+  // an unhandled throw renders a blank platform error page instead of the login
+  // screen, which hides the real cause from the person signing in.
+  let profile;
+  try {
+    profile = await profileFor(data.user);
+  } catch (err) {
+    console.error("profileFor failed during OAuth callback", err);
+    await logout();
+    login.searchParams.set("error", "profile_unavailable");
+    return NextResponse.redirect(login);
+  }
   if (!profile) {
     await logout();
     login.searchParams.set("error", "inactive");
