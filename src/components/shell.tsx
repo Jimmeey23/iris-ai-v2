@@ -45,7 +45,7 @@ export function Shell({
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
-  useEffect(() => { void api<{ tickets: typeof items }>('/api/tickets').then(d => setItems(d.tickets)).catch(() => {}); }, [user]);
+  useEffect(() => { if(!user)return;void api<{ tickets: typeof items }>('/api/tickets?limit=50').then(d => setItems(d.tickets)).catch(() => {}); }, [user]);
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') { e.preventDefault(); setSearchOpen(v => !v); }
@@ -54,7 +54,9 @@ export function Shell({
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, []);
-  const routes = [...nav, ...org];
+  const visibleNav=user?.role==='agent'?nav.filter(n=>['/dashboard','/iris','/tickets'].includes(n.href)):nav;
+  const visibleOrg=user?.role==='admin'?org:[];
+  const routes = [...visibleNav, ...visibleOrg];
   const activeName = routes.find(n => path.startsWith(n.href))?.label || (path === '/' ? 'Overview' : title);
   const openItems = items.filter(t => !['resolved', 'closed', 'recorded'].includes(t.status));
   return (
@@ -69,13 +71,13 @@ export function Shell({
         </Link>
         <div className="sidebar-scrollable">
         <div className="nav-heading">WORKSPACE</div>
-        {nav.map(n => {
+        {visibleNav.map(n => {
           const Icon = n.icon;
           const active = path === n.href || (path === '/' && n.href === '/dashboard');
           return <Link key={n.href} href={n.href} className={'nav-link' + (active ? ' active' : '')} aria-current={active ? 'page' : undefined} onClick={() => setMobile(false)}><Icon size={16} />{n.label}{n.ai && <span className="nav-ai">AI</span>}{n.href === '/radar' && <span className="nav-radar-pill">LIVE</span>}{n.href === '/tickets' && <span className="nav-count">{items.length}</span>}</Link>;
         })}
-        <div className="nav-heading">ORGANIZATION</div>
-        {org.map(n => {
+        {visibleOrg.length>0&&<div className="nav-heading">ORGANIZATION</div>}
+        {visibleOrg.map(n => {
           const Icon = n.icon;
           const active = path.startsWith(n.href);
           return <Link key={n.href} href={n.href} className={'nav-link' + (active ? ' active' : '')} aria-current={active ? 'page' : undefined} onClick={() => setMobile(false)}><Icon size={16} />{n.label}</Link>;
@@ -87,7 +89,7 @@ export function Shell({
             <p>Turn what you saw — or what a member told you — into a clean ticket.</p>
             <Link href="/iris" className="text-btn">Start logging <ArrowUpRight size={13} /></Link>
           </div>
-          <button className="user-button" onClick={openAuth}>
+          <button className="user-button" onClick={()=>user?router.push('/profile'):openAuth()}>
             <Avatar name={user?.name || 'Guest'} tone="purple" />
             <div className="grow"><strong>{user?.name || 'Preview workspace'}</strong><small>{user ? user.role + ' access' : 'Sign in to your account'}</small></div>
             <ChevronDown size={13} className="muted" />
@@ -111,7 +113,7 @@ export function Shell({
               {openItems.some(t => t.priority === 'critical') && <i className="notif-dot" />}
             </button>
             <span className="topbar-divider" />
-            <button className="topbar-avatar" onClick={openAuth} aria-label="Account"><Avatar name={user?.name || 'IRIS'} tone="purple" /></button>
+            <button className="topbar-avatar" onClick={()=>user?router.push('/profile'):openAuth()} aria-label="Account"><Avatar name={user?.name || 'IRIS'} tone="purple" /></button>
           </div>
         </header>
         {banner}

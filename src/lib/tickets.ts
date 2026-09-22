@@ -5,7 +5,7 @@ import {db} from '@/db';
 import {tickets,staff,departments,ticketActivities,ticketComments,ticketLinks,ticketResolutions,ticketResolutionSteps,ticketFollowUps,ticketContactLog,deliveryLogs} from '@/db/schema';
 import {ticketInputSchema,type TicketInput,type AdvancedDraft} from './ticket-contract';
 import {getConfig,getSetting,setSetting} from './config';
-import {ApiError,currentUser,type Identity} from './auth';
+import {ApiError,canAccessTicket,currentUser,type Identity} from './auth';
 import {inferPriority,inferSeverity,studioIdsFor} from './routing';
 import {buildTemplate} from './templates';
 import {ticketNumberFor,slugify} from './utils';
@@ -62,8 +62,14 @@ if(source!=='history'&&cfg.assignmentEmail&&draft.assignedStaffEmail)await tx.in
 return{...row,ticketNumber:number};});}
 /** List views never read `customFields` or the long-form text, which are ~85% of the
  *  table's bytes. Selecting only the rendered columns keeps this response small. */
-const LIST_COLUMNS={id:tickets.id,ticketNumber:tickets.ticketNumber,title:tickets.title,status:tickets.status,priority:tickets.priority,category:tickets.category,subcategory:tickets.subcategory,studio:tickets.studio,memberName:tickets.memberName,assignedStaffId:tickets.assignedStaffId,assignedStaffName:tickets.assignedStaffName,departmentName:tickets.departmentName,kind:tickets.kind,source:tickets.source,resolutionRequired:tickets.resolutionRequired,slaDueAt:tickets.slaDueAt,resolvedAt:tickets.resolvedAt,createdAt:tickets.createdAt,updatedAt:tickets.updatedAt,version:tickets.version};
-export async function listTickets(){return db.select(LIST_COLUMNS).from(tickets).orderBy(desc(tickets.createdAt)).limit(2000);}
+const LIST_COLUMNS={id:tickets.id,ticketNumber:tickets.ticketNumber,title:tickets.title,status:tickets.status,priority:tickets.priority,category:tickets.category,subcategory:tickets.subcategory,studio:tickets.studio,memberName:tickets.memberName,assignedStaffId:tickets.assignedStaffId,assignedStaffName:tickets.assignedStaffName,departmentName:tickets.departmentName,createdByUserId:tickets.createdByUserId,kind:tickets.kind,source:tickets.source,resolutionRequired:tickets.resolutionRequired,slaDueAt:tickets.slaDueAt,resolvedAt:tickets.resolvedAt,createdAt:tickets.createdAt,updatedAt:tickets.updatedAt,version:tickets.version};
+export async function listTickets(user?:Identity,limit=2000){
+  const safeLimit=Math.max(1,Math.min(limit,2000));
+  const scope=!user||user.role==='admin'?undefined:user.role==='agent'
+    ? or(user.staffId===null?undefined:eq(tickets.assignedStaffId,user.staffId),eq(tickets.createdByUserId,user.id))
+    : and(user.department?eq(tickets.departmentName,user.department):undefined,user.studio?eq(tickets.studio,user.studio):undefined,user.department||user.studio?undefined:sql`false`);
+  return db.select(LIST_COLUMNS).from(tickets).where(scope).orderBy(desc(tickets.createdAt)).limit(safeLimit);
+}
 
 /** Masks a member's name in list payloads when the workspace asks for it. The full record
  *  is still available on the ticket itself, to whoever is allowed to open it. */
@@ -100,10 +106,10 @@ export async function applyEscalations(){
  *  manager, or an administrator. Admins are granted unconditionally: they are
  *  frequently not linked to a staff profile at all, which previously locked the
  *  people responsible for the workspace out of every resolution in it. */
-export async function canResolveTicket(user:{staffId:number|null;role:string}|null,assignedStaffId:number|null,resolutionRequired:boolean):Promise<boolean>{if(!user||!resolutionRequired)return false;if(user.role==='admin')return true;if(user.role!=='agent'||user.staffId===null||assignedStaffId===null)return false;if(user.staffId===assignedStaffId)return true;const[assignee]=await db.select({manager:staff.manager}).from(staff).where(eq(staff.id,assignedStaffId));if(!assignee?.manager)return false;const[managerRow]=await db.select({id:staff.id}).from(staff).where(eq(staff.name,assignee.manager));return managerRow?.id===user.staffId;}
+export async function canResolveTicket(user:{staffId:number|null;role:string}|null,assignedStaffId:number|null,resolutionRequired:boolean):Promise<boolean>{if(!user||!resolutionRequired)return false;if(user.role==='admin'||user.role==='manager')return true;if(user.role!=='agent'||user.staffId===null||assignedStaffId===null)return false;if(user.staffId===assignedStaffId)return true;const[assignee]=await db.select({manager:staff.manager}).from(staff).where(eq(staff.id,assignedStaffId));if(!assignee?.manager)return false;const[managerRow]=await db.select({id:staff.id}).from(staff).where(eq(staff.name,assignee.manager));return managerRow?.id===user.staffId;}
 /** Single gate for every resolution-workspace write. Returns the actor and the
  *  ticket so callers do not re-read either. */
-export async function requireResolutionAccess(ticketId:number):Promise<{user:Identity;ticket:typeof tickets.$inferSelect}>{const user=await currentUser();const[ticket]=await db.select().from(tickets).where(eq(tickets.id,ticketId));if(!ticket)throw new ApiError('Ticket not found',404);if(!ticket.resolutionRequired)throw new ApiError('This ticket does not require a resolution.');if(!user)throw new ApiError('Sign in to open the resolution workspace.',401);if(!(await canResolveTicket(user,ticket.assignedStaffId,ticket.resolutionRequired)))throw new ApiError('Only the assigned staff member, their reporting manager and administrators can edit this resolution.',403);return{user,ticket};}
+export async function requireResolutionAccess(ticketId:number):Promise<{user:Identity;ticket:typeof tickets.$inferSelect}>{const user=await currentUser();const[ticket]=await db.select().from(tickets).where(eq(tickets.id,ticketId));if(!ticket)throw new ApiError('Ticket not found',404);if(!ticket.resolutionRequired)throw new ApiError('This ticket does not require a resolution.');if(!user)throw new ApiError('Sign in to open the resolution workspace.',401);if(!canAccessTicket(user,ticket))throw new ApiError('You do not have access to this ticket resolution.',403);return{user,ticket};}
 /** The full private workspace payload. Only ever called once access is proven. */
 export async function getResolutionWorkspace(ticketId:number){const[[resolution],steps,followUps,contacts]=await Promise.all([
   db.select().from(ticketResolutions).where(eq(ticketResolutions.ticketId,ticketId)),

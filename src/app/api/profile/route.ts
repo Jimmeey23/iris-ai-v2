@@ -1,0 +1,3 @@
+import {z} from 'zod';import {eq} from 'drizzle-orm';import {db} from '@/db';import {appUsers} from '@/db/schema';import {errorResponse,hashPassword,requireWorkspace,sameOrigin} from '@/lib/auth';
+export async function GET(){try{return Response.json({user:await requireWorkspace()});}catch(e){return errorResponse(e);}}
+export async function PATCH(req:Request){try{sameOrigin(req);const user=await requireWorkspace();const b=z.object({name:z.string().min(2).max(80),password:z.string().min(12).max(200).optional()}).parse(await req.json());await db.update(appUsers).set({name:b.name,...(b.password?{passwordHash:hashPassword(b.password)}:{})}).where(eq(appUsers.id,user.id));return Response.json({ok:true});}catch(e){return errorResponse(e);}}

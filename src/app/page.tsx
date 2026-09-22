@@ -1,2 +1,2 @@
-import {LandingHero} from '@/components/landing-hero';
-export default function HomePage(){return <LandingHero/>;}
+import {redirect} from 'next/navigation';
+export default function HomePage(){redirect('/dashboard');}

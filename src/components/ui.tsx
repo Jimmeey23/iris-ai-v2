@@ -78,7 +78,7 @@ const notify=useCallback((text:string,type:'success'|'error'='success')=>{
     setToasts(t=>t.map(x=>x.id===id?{...x,leaving:true}:x));
     window.setTimeout(()=>setToasts(t=>t.filter(x=>x.id!==id)),TOAST_EXIT_MS);
   },[]);
-const refreshUser=useCallback(async()=>{try{const d=await api<{user:Identity|null;setupRequired:boolean}>('/api/auth');setUser(d.user);setSetupRequired(d.setupRequired);}catch{}},[]);
+const refreshUser=useCallback(async()=>{try{const d=await api<{user:Identity|null;setupRequired:boolean}>('/api/auth');setUser(d.user);setSetupRequired(d.setupRequired);if(!d.user&&window.location.pathname!=='/login')window.location.replace('/login');}catch{if(window.location.pathname!=='/login')window.location.replace('/login');}},[]);
 useEffect(()=>{
   // The user's explicit theme choice (once made) lives in localStorage and must
   // never be silently overwritten by a server round-trip on navigation/remount —
