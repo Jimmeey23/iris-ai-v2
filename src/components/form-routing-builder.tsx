@@ -3,13 +3,14 @@ import {useEffect,useMemo,useState} from 'react';
 import {ArrowDown,ArrowUp,Braces,CheckCircle2,Copy,Eye,GitBranch,GripVertical,Plus,RotateCcw,Search,Trash2} from 'lucide-react';
 import {api,Badge,Field,Switch} from '@/components/ui';
 import type {WorkspaceConfig} from '@/lib/settings-contract';
+import {SECTION_ORDER} from '@/lib/intake/plan';
 
 type BuilderField=WorkspaceConfig['formOverrides'][string][number];
 type Staff={id:number;name:string;department:string;isActive:boolean};
 type Department={id:string;name:string};
 type Plan={fields:BuilderField[]};
 const TYPES:BuilderField['type'][]=['text','textarea','number','url','datetime','select','multiselect','radio','lookup'];
-const SECTIONS=['Reporter','Who this is about','Where & when','Class context','Impact & triage','Sub-category specifics','Description & ask','Evidence'];
+const SECTIONS=SECTION_ORDER;
 const keyFor=(c:string,s:string)=>`${c}|||${s}`;
 const slug=(v:string)=>v.toLowerCase().trim().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'').slice(0,70);
 
@@ -26,7 +27,7 @@ export function FormRoutingBuilder({config,onChange,staff,departments,initialCat
   const updateField=(patch:Partial<BuilderField>)=>updateFields(fields.map((f,i)=>i===selected?{...f,...patch}:f));
   const updateRoute=(patch:Partial<typeof route>)=>onChange({...config,subcategoryRouting:{...config.subcategoryRouting,[formKey]:{...route,...patch}}});
   const chooseCategory=(c:string)=>{setCategory(c);setSub(config.taxonomy[c]?.[0]||'');setSelected(0);};
-  const add=()=>{const n=fields.length+1;const next:BuilderField={id:`custom_question_${n}`,label:'New question',type:'text',section:'Sub-category specifics',required:false};updateFields([...fields,next]);setSelected(fields.length);};
+  const add=()=>{const n=fields.length+1;const next:BuilderField={id:`custom_question_${n}`,label:'New question',type:'text',section:'Other details',required:false};updateFields([...fields,next]);setSelected(fields.length);};
   const move=(dir:-1|1)=>{const to=selected+dir;if(to<0||to>=fields.length)return;const next=[...fields];[next[selected],next[to]]=[next[to],next[selected]];updateFields(next);setSelected(to);};
   const remove=()=>{if(fields.length<=1)return;updateFields(fields.filter((_,i)=>i!==selected));setSelected(Math.max(0,selected-1));};
   const duplicate=()=>{const f=fields[selected];const copy={...f,id:`${f.id}_copy`};updateFields([...fields.slice(0,selected+1),copy,...fields.slice(selected+1)]);setSelected(selected+1);};

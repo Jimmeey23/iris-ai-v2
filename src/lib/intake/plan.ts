@@ -57,6 +57,8 @@ type RawDef = {
   id: string; label: string; type: IntakeFieldType; desc?: string; required?: boolean; conditional?: boolean;
   dependsOn?: string; condText?: string; placeholder?: string; o?: number; options?: string[]; module?: LookupModule; multi?: boolean; enrich?: string;
   when?: string;
+  /** Overlay questions can name their group when the shared id means something else here. */
+  section?: string;
 };
 type RawSub = {f: number[]; p: string; sla: string; h: [number | null, number | null]; hist: number; department?: string};
 type PlanData = {
@@ -74,24 +76,54 @@ export const PLAN_SOURCE = DATA.source;
 export const subKey = (category: string, sub: string) => `${category}|||${sub}`;
 
 /* ------------------------------------------------------------------ sections */
-const SECTION: Record<string, string> = {
-  reporter_type: 'Reporter', report_channel: 'Reporter', reporter_name: 'Reporter', reporter_contact: 'Reporter', preferred_contact: 'Reporter', follow_up_channel: 'Reporter',
-  studio: 'Where & when', area: 'Where & when', occurred_at: 'Where & when', occurred_relative: 'Where & when',
-  class_format: 'Class context', class_date: 'Class context', trainer: 'Class context',
-  member_name: 'Who this is about', member_named: 'Who this is about', member_email: 'Who this is about',
-  member_id: 'Who this is about', membership: 'Who this is about', notified_members: 'Who this is about',
-  valet_ticket: 'Evidence', ticket_vendor: 'Evidence', asset_link: 'Evidence',
-  affected_count: 'Impact & triage', is_repeat: 'Impact & triage', linked_ticket: 'Impact & triage',
-  member_impact: 'Impact & triage', class_impacted: 'Impact & triage', immediate_danger: 'Impact & triage',
-  sentiment: 'Impact & triage', churn_risk: 'Impact & triage',
-  title: 'Description & ask', summary: 'Description & ask', requested_outcome: 'Description & ask',
+/** Topical groups. Every question lands in the group a desk would look for it in — money with
+ *  money, the broken thing with the building, the injury with the incident — instead of one
+ *  catch-all "specifics" block. Ids not listed fall back to their category's own group. */
+const GROUPS: Record<string, string[]> = {
+  'Reporter': ['reporter_type', 'reporter_name', 'reporter_contact'],
+  'Who this is about': ['member_name', 'member_named', 'member_email', 'member_id', 'membership', 'notified_members', 'preferred_contact', 'follow_up_channel'],
+  'Where & when': ['report_channel', 'studio', 'area', 'specific_area', 'incident_location', 'affected_room', 'occurred_at', 'occurred_relative', 'time_of_day', 'service_time'],
+  'Class context': ['class_format', 'class_date', 'trainer', 'session_point'],
+  'Safety & incident': ['incident_type', 'injury_occurred', 'injury_risk', 'medical_response', 'member_notified', 'police_escalation', 'witnesses', 'statement_taken', 'cctv_requested', 'cctv_time', 'cctv_retention', 'privacy_flag', 'followup_due', 'regulatory_note'],
+  'Lost & found': ['item_category', 'item_desc', 'item_value', 'serial_imei', 'lost_or_stolen', 'last_seen', 'time_window', 'locker_number', 'cfhr_checked', 'staff_implicated', 'police_complaint', 'compensation'],
+  'Payment & billing': ['transaction_ref', 'payment_mode', 'payment_date', 'amount_inr', 'amount_charged', 'amount_expected', 'amount_basis', 'city_rate', 'gst_invoice', 'dispute_reason', 'refund_required', 'refund_amount', 'receipt_needed', 'entitlement_state', 'balance_classes', 'freeze_type', 'freeze_dates', 'approval_ref', 'accounts_action'],
+  'Equipment & facility': ['asset_type', 'asset_id', 'asset_condition', 'usable', 'downtime', 'amenity', 'cycle_symptom', 'cycle_part', 'light_circuit', 'isolation', 'temp_reading', 'reading_now', 'noise_source', 'audio_source', 'music_action', 'supply_count', 'par_level', 'sku', 'stock_on_hand', 'housekeeping_log', 'immediate_fix', 'vendor_needed', 'vendor_name', 'vendor_amc', 'vendor_visit_log', 'eng_site_ref', 'quote_ref'],
+  'Systems & data': ['system', 'device', 'user_type', 'login_user', 'failure_mode', 'error_text', 'repro_steps', 'frequency', 'scope', 'workaround', 'fallback_entry', 'bandwidth_check', 'last_restart', 'momence_record', 'data_impact', 'backdated', 'data_source', 'report_spec', 'change_window'],
+  'Schedule & timetable': ['schedule_action', 'current_slot', 'requested_slot', 'requested_time', 'change_day', 'change_time', 'current_level', 'requested_level', 'weekly_impact', 'grid_impact', 'members_requesting_change', 'demand_evidence', 'change_reason', 'roster_alternates'],
+  'Trainer & method': ['trainer_under_review', 'feedback_nature', 'coaching_status', 'method_conformance', 'conflict_of_interest', 'current_trainer', 'preferred_trainer', 'preference_reason'],
+  'Member experience': ['experience_dimension', 'complaint_nature', 'service_channel', 'response_waited', 'contact_attempted', 'desk_owner', 'goodwill_offered', 'reply_deadline', 'review_or_public'],
+  'Brand & partnerships': ['partner_name', 'program_name', 'brand_topic', 'ambassador_status', 'platform', 'commercial_terms', 'value_inr', 'deliverables', 'go_live', 'rights_used', 'pr_speaker'],
+  'Internal & policy': ['internal_type', 'misc_bucket', 'idea_type', 'suggested_action', 'decision_needed', 'policy_owner', 'applies_to_roles', 'affected_studios', 'effective_date', 'version_from', 'sop_action', 'sop_ref', 'rollout_plan', 'people_impact', 'lead_ref', 'due_date', 'followup_owner', 'followup_date'],
+  'Impact & triage': ['affected_count', 'guest_count', 'member_impact', 'class_impacted', 'immediate_danger', 'is_repeat', 'linked_ticket', 'sentiment', 'churn_risk'],
+  'Description & ask': ['title', 'summary', 'member_verbatim', 'requested_outcome'],
+  'Evidence': ['valet_ticket', 'ticket_vendor', 'asset_link'],
 };
-const ENRICH_SECTION: Record<string, string> = {class: 'Class detail', roster: 'Roll call', trainer: 'Trainer detail', asset: 'Asset detail', payment: 'Payment detail', vendor: 'Vendor detail'};
-export const ENRICH_SECTIONS = new Set(Object.values(ENRICH_SECTION));
-export const SECTION_ORDER = ['Reporter', 'Who this is about', 'Where & when', 'Class context', 'Impact & triage', 'Sub-category specifics', 'Description & ask', 'Evidence', ...Object.values(ENRICH_SECTION)];
-/** Enrichment groups (what the class desk captures, asset/payment/vendor detail) sit in their
- *  own optional sections so a 50-question plan reads as a short form with drawers. */
-export const sectionOf = (id: string, enrich?: string) => SECTION[id] || (enrich && ENRICH_SECTION[enrich]) || 'Sub-category specifics';
+const SECTION: Record<string, string> = Object.fromEntries(Object.entries(GROUPS).flatMap(([s, ids]) => ids.map(id => [id, s])));
+/** Where a question sits inside its group — the order a desk would answer them in. */
+const RANK: Record<string, number> = Object.fromEntries(Object.values(GROUPS).flatMap(ids => ids.map((id, i) => [id, i])));
+export const fieldRank = (id: string) => RANK[id] ?? 999;
+/** Class-desk enrichment rides inside the group it belongs to, as an optional "more detail" drawer. */
+const ENRICH_SECTION: Record<string, string> = {class: 'Class context', roster: 'Class context', trainer: 'Trainer & method', asset: 'Equipment & facility', payment: 'Payment & billing', vendor: 'Equipment & facility'};
+export const ENRICH_GROUP_LABEL: Record<string, string> = {class: 'Class detail', roster: 'Roll call', trainer: 'Trainer detail', asset: 'Asset detail', payment: 'Payment detail', vendor: 'Vendor detail'};
+/** Unmapped questions go to the group their category is about. */
+const CATEGORY_SECTION: Record<string, string> = {
+  'Scheduling': 'Schedule & timetable', 'Class Experience': 'Member experience', 'Trainer Feedback': 'Trainer & method',
+  'Repair and Maintenance': 'Equipment & facility', 'Studio Amenities and Facilities': 'Equipment & facility',
+  'Operating Systems': 'Systems & data', 'Tech Issues': 'Systems & data', 'Pricing and Memberships': 'Payment & billing',
+  'Customer Service and Communication': 'Member experience', 'Brand Feedback': 'Brand & partnerships',
+  'Safety and Security': 'Safety & incident', 'Theft and Lost Items': 'Lost & found', 'Miscellaneous': 'Other details',
+  'Internal Operations & Admin': 'Internal & policy',
+};
+export const SECTION_ORDER = ['Reporter', 'Who this is about', 'Where & when', 'Class context', 'Safety & incident', 'Lost & found', 'Payment & billing', 'Equipment & facility', 'Systems & data', 'Schedule & timetable', 'Trainer & method', 'Member experience', 'Brand & partnerships', 'Internal & policy', 'Other details', 'Impact & triage', 'Description & ask', 'Evidence'];
+/** Section names earlier plans (and published builder plans) were saved with. */
+const LEGACY_SECTIONS = new Set(['Sub-category specifics', 'Class detail', 'Roll call', 'Trainer detail', 'Asset detail', 'Payment detail', 'Vendor detail']);
+export const sectionOf = (id: string, enrich?: string, category?: string) =>
+  SECTION[id] || (enrich && ENRICH_SECTION[enrich]) || (category && CATEGORY_SECTION[category]) || 'Other details';
+/** Known sections in form order, then anything an administrator named themselves. */
+export const orderSections = (names: Iterable<string>) => {
+  const set = new Set(names);
+  return [...SECTION_ORDER.filter(s => set.has(s)), ...[...set].filter(s => !SECTION_ORDER.includes(s))];
+};
 
 /* ------------------------------------------------------------------ taxonomy */
 export type HubCategory = PlanData['categories'][number];
@@ -116,8 +148,8 @@ export function fieldOptions(id: string): string[] {
 /* ------------------------------------------------------------------ fields */
 export type PlanContext = {studios: string[]; formats: string[]; trainers: string[]; memberships?: string[]};
 
-function materialise(def: RawDef, universal: boolean, ctx: PlanContext): Omit<IntakeField, 'dep'> {
-  const f: Omit<IntakeField, 'dep'> = {id: def.id, label: def.label, type: def.type, section: sectionOf(def.id, def.enrich), universal};
+function materialise(def: RawDef, universal: boolean, ctx: PlanContext, category?: string): Omit<IntakeField, 'dep'> {
+  const f: Omit<IntakeField, 'dep'> = {id: def.id, label: def.label, type: def.type, section: def.section || sectionOf(def.id, def.enrich, category), universal};
   if (def.desc) f.desc = def.desc;
   if (def.required) f.required = true;
   if (def.conditional) f.conditional = true;
@@ -175,7 +207,7 @@ const SUB_OVERLAYS: Record<string, RawDef[]> = {
   'Brand Feedback|||Hosted Class Feedback': [
     {id: 'partner_name', label: 'Partner, host or community', type: 'text', required: true, placeholder: 'Partner or creator name'},
     {id: 'hosted_objective', label: 'Partnership objective', type: 'select', required: true, options: ['Community expansion', 'New prospect acquisition', 'Brand visibility', 'Corporate wellness', 'Partner relationship', 'Content / social amplification']},
-    {id: 'guest_count', label: 'Guests attending', type: 'number', required: true},
+    {id: 'guest_count', label: 'Guests attending', type: 'number', required: true, section: 'Brand & partnerships'},
     {id: 'newcomer_count', label: 'Newcomers to the Method', type: 'number'},
     {id: 'audience_fit', label: 'Audience alignment', type: 'select', required: true, options: ['Excellent fit', 'Good fit with nurturing', 'Mixed fit', 'Low fit', 'Not enough information']},
     {id: 'member_voice', label: 'Community member voice', type: 'textarea', required: true, desc: 'Document what attendees said in their own words.', placeholder: 'Member reported… / Guest expressed…'},
@@ -208,23 +240,103 @@ const SUB_OVERLAYS: Record<string, RawDef[]> = {
   ],
 };
 
+/* ------------------------------------------------------------------ relevance */
+/** The Hub attaches its category's whole question bank to every sub-category, so a "Community
+ *  Events" suggestion was asked for a thermometer reading and a par level, and "Laptops Not
+ *  Functioning" for a UPI reference. These rules keep a question only where the sub-category
+ *  gives it meaning. `keep`: asked only when the sub-category matches. `drop`: never asked when
+ *  it matches. `cats` narrows a rule to categories. Published builder plans are left alone —
+ *  an administrator's snapshot is deliberate. */
+type Relevance = {ids: string[]; cats?: RegExp; keep?: RegExp; drop?: RegExp};
+const RELEVANCE: Relevance[] = [
+  // Where exactly in the building: only for something physical.
+  {ids: ['specific_area'], cats: /^(?!Repair and Maintenance|Studio Amenities|Safety and Security|Theft and Lost).*/, keep: /odou?r|temperature|audio|music|overcrowding|injury|discomfort|equipment|layout|laptop|speaker|mic |mic$|phones|camera|wi-fi|router|ipad|pos |cash|noise|lighting|decor|charging|lockers|drafts|lobby|signage|storage/i},
+  {ids: ['specific_area', 'area', 'temp_reading', 'par_level', 'supply_count', 'vendor_needed', 'amenity'], cats: /Studio Amenities/, drop: /challenges|perks|community events|holiday-themed|sustainable|integration|lost and found/i},
+  {ids: ['area'], cats: /Pricing|Customer Service|Brand Feedback|Internal Operations|Scheduling|Trainer Feedback/},
+  {ids: ['area'], cats: /Operating Systems|Tech Issues/, keep: /router|ipad|cash|pos|laptop|speaker|mic|phones|camera|wi-fi|music|streaming/i},
+  // Danger and class disruption belong where something can go wrong in the room.
+  {ids: ['immediate_danger'], cats: /Pricing|Customer Service|Brand Feedback|Internal Operations|Operating Systems|Scheduling/},
+  {ids: ['immediate_danger'], cats: /Tech Issues/, keep: /camera|surveillance/i},
+  {ids: ['class_impacted'], cats: /Pricing|Customer Service|Brand Feedback|Internal Operations|Theft and Lost/},
+  {ids: ['member_impact', 'affected_count', 'churn_risk'], cats: /Internal Operations/},
+  // Tech: money and logins only where the fault is about money or logins.
+  {ids: ['transaction_ref', 'amount_inr', 'amount_basis', 'receipt_needed', 'accounts_action'], cats: /Tech Issues/, keep: /payment|charge|debit|receipt|invoice|booking system|wrong class/i},
+  {ids: ['login_user'], cats: /Tech Issues/, keep: /login|password|app|booking|website|notification|social|virtual|streaming/i},
+  {ids: ['bandwidth_check'], cats: /Tech Issues/, keep: /wi-fi|streaming|buffering|video|app|website|notification|booking|laptop/i},
+  // Pricing: freezes, refunds and rate cards only where they are the subject.
+  {ids: ['freeze_type', 'freeze_dates'], cats: /Pricing/, keep: /freeze|pause|flexibility|upgrade|downgrade|expiry|auto-renewal/i},
+  {ids: ['refund_required', 'refund_amount'], cats: /Pricing/, drop: /transparency|t ?and ?c|clarity|payment plan|international|location/i},
+  {ids: ['city_rate'], cats: /Pricing/, keep: /price|pricing|location|international|corporate|group|private|discount|offer/i},
+  // Brand: deal terms only for partnerships and campaigns.
+  {ids: ['partner_name', 'commercial_terms', 'value_inr', 'deliverables', 'go_live'], cats: /Brand Feedback/, keep: /hosted|collab|partnership|influencer|event|collateral|post-event|advertising/i},
+  {ids: ['ambassador_status'], cats: /Brand Feedback/, keep: /influencer|ambassador|recognition|loyalty/i},
+  {ids: ['rights_used'], cats: /Brand Feedback/, keep: /testimonial|social|content|influencer|recognition|collateral|advertising|newsletter/i},
+  {ids: ['platform'], cats: /Brand Feedback/, keep: /social|influencer|advertising|newsletter|testimonial|marketing|content|collateral|perception|positioning/i},
+  {ids: ['pr_speaker'], cats: /Brand Feedback/, keep: /perception|positioning|press|market|advertising|social|message|tone/i},
+  {ids: ['program_name'], cats: /Brand Feedback/, keep: /program|campaign|event|newsletter|collab|partnership|recognition|loyalty|influencer|collateral|advertising/i},
+  // Safety: injury questions do not apply to a data breach or a drill.
+  {ids: ['injury_occurred', 'medical_response', 'member_notified', 'followup_due'], cats: /Safety and Security/, drop: /data breach|training|fire drills|cctv malfunction|panic button|front desk not checking|unregistered walk-ins/i},
+  // Theft vs lost: police and staff questions only where something was taken.
+  {ids: ['staff_implicated', 'police_complaint'], cats: /Theft and Lost/, drop: /misplaced|left behind|forgetting|lost shoes|missing towels|lost and found|coffee/i},
+  {ids: ['item_category', 'item_desc', 'item_value', 'serial_imei', 'lost_or_stolen', 'last_seen', 'time_window', 'locker_number', 'cfhr_checked', 'staff_implicated', 'police_complaint', 'compensation', 'cctv_requested'], cats: /Theft and Lost/, drop: /coffee|refreshments|theft prevention|safe storage/i},
+  // Repair: asset questions only for things with an asset tag.
+  {ids: ['asset_type', 'asset_id', 'asset_condition', 'usable', 'downtime'], cats: /Repair and Maintenance/, drop: /pest|uniforms|toiletries|supplies|towel|air fresheners|standard operating|retail|stock|attendance|dust|vendor \/ amc|fire safety/i},
+  // Class experience: injury only where the class itself can hurt someone.
+  {ids: ['injury_risk'], cats: /Class Experience/, keep: /injury|discomfort|adjustments|hands-on|modifications|intensity|overcrowding|temperature|flow|pacing|fitness levels|following|demonstration|knowledge/i},
+  // Internal: each block to its own kind of request.
+  {ids: ['data_source', 'report_spec'], cats: /Internal Operations/, keep: /report|intelligence|post-class|lead capture|b2b/i},
+  {ids: ['rollout_plan', 'version_from', 'applies_to_roles'], cats: /Internal Operations/, keep: /sop|policy|governance|audit|checklist|handover|communication|memo/i},
+  {ids: ['people_impact'], cats: /Internal Operations/, keep: /hr|performance|payroll|leave|shift|zoho/i},
+  {ids: ['lead_ref'], cats: /Internal Operations/, keep: /lead|b2b|corporate|hosted/i},
+  {ids: ['noise_source'], cats: /Miscellaneous/, keep: /noise|music|construction|volume/i},
+  // A hosted class is a partnership report, not a fault: no room, danger or triage block.
+  {ids: ['specific_area', 'area', 'class_format', 'class_impacted', 'immediate_danger', 'member_impact', 'affected_count', 'is_repeat', 'linked_ticket', 'churn_risk', 'sentiment', 'requested_outcome'], keep: /^(?!.*hosted class)/i},
+];
+const relevant = (id: string, category: string, sub: string) => RELEVANCE.every(r => {
+  if (!r.ids.includes(id) || (r.cats && !r.cats.test(category))) return true;
+  if (r.keep) return r.keep.test(sub);
+  if (r.drop) return !r.drop.test(sub);
+  return false;
+});
+
+/** Follow-ups the Hub asks on *any* answer to their parent, narrowed to the answers their own
+ *  condition text describes ("if injury_occurred is not 'No'"). */
+const WHEN: Record<string, string> = {
+  medical_response: '^(yes|fatality)', member_notified: '^(yes|fatality)', followup_due: '^(yes|fatality)',
+  temp_reading: 'air conditioning|ventilation|steam|hot water',
+  supply_count: 'towels|toiletries|drinking water|boutique|smoothie|shoe sanitiser',
+  serial_imei: 'phone|laptop|tablet|watch', locker_number: 'locker', police_complaint: 'stolen|valet|damaged',
+  downtime: '^(?!yes, fully)', refund_amount: '^yes', freeze_dates: '^(?!not a freeze)',
+  transaction_ref: 'payment|pos|card|momence', bandwidth_check: 'wi-fi|router|website|app',
+  noise_source: 'noise|construction',
+  cctv_retention: 'injury|fall|theft|harassment|abuse|threat|trespass|security|lost child|unsafe',
+  witnesses: 'injury|fall|theft|harassment|abuse|threat|medical|unsafe', regulatory_note: 'fire|exit|hazard|equipment failure|medical',
+  cctv_time: '^(requested|not yet|downloaded)',
+  eng_site_ref: '^yes', vendor_name: '^yes', vendor_visit_log: '^(yes|no - one-off)', quote_ref: '^no',
+};
+
 /** The full field list for a sub-category: the universal block first, then its own fields,
  *  then any Iris-specific overlay. Unknown sub-categories get the universal block. */
 export function planFields(category: string, sub: string, ctx: PlanContext, configured?: Omit<IntakeField, 'dep'>[]): IntakeField[] {
   const raw = DATA.subs[subKey(category, sub)];
-  const base = DATA.universal.map(i => materialise(DATA.defs[i], true, ctx));
-  const own = (raw?.f || []).map(i => materialise(DATA.defs[i], false, ctx));
-  const overlay = (SUB_OVERLAYS[subKey(category, sub)] || []).map(d => materialise(d, false, ctx));
+  const base = DATA.universal.map(i => materialise(DATA.defs[i], true, ctx, category));
+  const own = (raw?.f || []).map(i => materialise(DATA.defs[i], false, ctx, category));
+  const overlay = (SUB_OVERLAYS[subKey(category, sub)] || []).map(d => materialise(d, false, ctx, category));
   const seen = new Set<string>();
-  const generated = [...base, ...own, ...overlay].filter(f => { if (seen.has(f.id)) return false; seen.add(f.id); return true; });
+  const merged = [...base, ...own, ...overlay].filter(f => { if (seen.has(f.id)) return false; seen.add(f.id); return true; });
+  // Irrelevant questions go, and so does anything that only followed on from one of them —
+  // otherwise its condition could never be met and it would show unconditionally.
+  const dropped = new Set(merged.filter(f => !relevant(f.id, category, sub)).map(f => f.id));
+  for (let changed = true; changed;) { changed = false; for (const f of merged) if (!dropped.has(f.id) && f.dependsOn && dropped.has(f.dependsOn)) { dropped.add(f.id); changed = true; } }
+  const generated = merged.filter(f => !dropped.has(f.id)).map(f => WHEN[f.id] && !f.when ? {...f, when: WHEN[f.id]} : f);
   // A published builder plan replaces the generated plan for this sub-category. It is a full
   // snapshot on purpose: administrators can remove irrelevant inherited fields as well as add
   // questions, while Reset can always return to the source-backed generated version.
-  const all = configured?.length ? configured.map(f => ({...f})) : generated;
+  const all = configured?.length ? configured.map(f => ({...f, section: !f.section || LEGACY_SECTIONS.has(f.section) ? sectionOf(f.id, f.enrich, category) : f.section})) : generated;
   // Always offer a member lookup if the plan does not already have one.
-  if (!all.some(f => f.type === 'lookup' && f.module === 'member' && MEMBER_LOOKUP_IDS.includes(f.id))) all.push(materialise(MEMBER_LOOKUP_DEF, true, ctx));
+  if (!all.some(f => f.type === 'lookup' && f.module === 'member' && MEMBER_LOOKUP_IDS.includes(f.id))) all.push(materialise(MEMBER_LOOKUP_DEF, true, ctx, category));
   // Prompt for the exact spot inside the chosen room/area.
-  if (!all.some(f => f.id === 'specific_area')) all.push(materialise({id: 'specific_area', label: 'Specific spot / equipment', type: 'text', desc: 'Exact location within the area — e.g. bike 3, mirror wall, front desk left.', conditional: true, dependsOn: 'area', condText: 'Asked when an area is selected', placeholder: 'e.g. bike 3, front row'}, false, ctx));
+  if (!configured?.length && !all.some(f => f.id === 'specific_area') && relevant('specific_area', category, sub)) all.push(materialise({id: 'specific_area', label: 'Specific spot / equipment', type: 'text', desc: 'Exact location within the area — e.g. bike 3, mirror wall, front desk left.', conditional: true, dependsOn: 'area', condText: 'Asked when an area is selected', placeholder: 'e.g. bike 3, front row'}, false, ctx, category));
   const index = new Map(all.map(f => [f.id, f]));
   return all.map(f => {
     if (f.id === 'preferred_contact' || f.id === 'follow_up_channel') {
@@ -441,6 +553,8 @@ export type ClassSnapshot = {
 export function toTicketInput(args: {
   category: string; sub: string; fields: IntakeField[]; data: IntakeData; kind: TicketKind; submissionKey: string;
   classSnapshot?: ClassSnapshot | null; momenceContext?: Record<string, unknown>;
+  /** The hosted-class roster, one line per attendee as the desk filled it in. */
+  hostedAttendees?: {name: string; memberId?: string; email?: string; session?: string; booking: string; attendance: string; outcome: string; followUp: string; flags: string[]; note: string}[];
   memberDetail?: {email?: string; phone?: string; membership?: string};
 }): TicketInput & {submissionKey: string} {
   const {category, sub, fields, kind, submissionKey} = args;
@@ -498,6 +612,7 @@ export function toTicketInput(args: {
   if (affected.length) custom.impactedMembers = affected.join(', ');
   const linkedTicket = decodeLookup(data.linked_ticket);
   if (linkedTicket) custom.linkedTicket = linkedTicket.label;
+  if (args.hostedAttendees?.length) custom.hostedAttendees = args.hostedAttendees;
   if (args.classSnapshot) {
     const c = args.classSnapshot;
     custom.classSnapshot = {sessionId: c.sessionId, name: c.name, startsAt: c.startsAt, capacity: c.capacity, booked: c.booked, attended: c.attended, absent: c.absent, waitlist: c.waitlist, guests: c.guests, firstTimers: c.firstTimers, overbook: c.overbook, fillPct: c.fillPct, source: c.source};
@@ -509,7 +624,7 @@ export function toTicketInput(args: {
     custom.sessionContext = {manual: true, note: decodeLookups(data.class_date)[0]?.label};
   }
   // The plan itself, so a later reader can label every answer and see which form produced it.
-  const labels: Record<string, string> = {reportedBy: 'Raised by', reporterName: 'Reporter name', reporterContact: 'Reporter contact', isClassImpacted: 'Class impacted', isImmediateDanger: 'Immediate danger', memberImpact: 'Member impact', affectedCount: 'Members affected', impactedMembers: 'Attendees affected', linkedTicket: 'Related ticket'};
+  const labels: Record<string, string> = {reportedBy: 'Raised by', reporterName: 'Reporter name', reporterContact: 'Reporter contact', isClassImpacted: 'Class impacted', isImmediateDanger: 'Immediate danger', memberImpact: 'Member impact', affectedCount: 'Members affected', impactedMembers: 'Attendees affected', linkedTicket: 'Related ticket', hostedAttendees: 'Hosted class attendees'};
   for (const f of visible) if (custom[f.id] !== undefined) labels[f.id] = f.label;
   custom._intake = {plan: subKey(category, sub), source: PLAN_SOURCE.repo, version: PLAN_SOURCE.generatedAt, labels, memberLinked: Boolean(member), sessionLinked: Boolean(session || args.classSnapshot)};
 

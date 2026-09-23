@@ -36,6 +36,7 @@ import {
   Switch,
 } from "./ui";
 import { MultiSelect } from "./multi-select";
+import { OptionSelect } from "./intake/option-select";
 import type {
   AdvancedDraft,
   GuidedTemplate,
@@ -788,7 +789,7 @@ export function TicketComposer({
       {step === "review" && draft ? (
         <DraftDocument draft={draft} onEdit={() => setStep("details")} />
       ) : (
-        <div className="form-layout">
+        <div className="form-layout composer-sheet">
           <div>
             <section
               className="form-context-gate"
@@ -1042,65 +1043,46 @@ export function TicketComposer({
               </h3>
               <div className="form-grid">
                 <Field label="Entry type">
-                  <select
+                  <OptionSelect
+                    options={["issue", "request", "feedback", "compliment", "assessment"]}
                     value={String(form.kind || "issue")}
-                    onChange={(e) => {
-                      set("kind", e.target.value);
-                      if (e.target.value === "compliment")
-                        set("sentiment", "positive");
+                    format={niceKey}
+                    clearable={false}
+                    onChange={(v) => {
+                      set("kind", String(v));
+                      if (v === "compliment") set("sentiment", "positive");
                     }}
-                  >
-                    {[
-                      "issue",
-                      "request",
-                      "feedback",
-                      "compliment",
-                      "assessment",
-                    ].map((k) => (
-                      <option key={k} value={k}>
-                        {niceKey(k)}
-                      </option>
-                    ))}
-                  </select>
+                  />
                 </Field>
                 <Field label="Sentiment">
-                  <select
+                  <OptionSelect
+                    options={["neutral", "positive", "frustrated", "negative"]}
                     value={String(form.sentiment || "neutral")}
-                    onChange={(e) => set("sentiment", e.target.value)}
-                  >
-                    {["neutral", "positive", "frustrated", "negative"].map(
-                      (k) => (
-                        <option key={k} value={k}>
-                          {niceKey(k)}
-                        </option>
-                      ),
-                    )}
-                  </select>
+                    format={niceKey}
+                    clearable={false}
+                    onChange={(v) => set("sentiment", String(v))}
+                  />
                 </Field>
                 <Field label="Category">
-                  <select
+                  <OptionSelect
                     disabled={Boolean(template)}
+                    options={Object.keys(config.taxonomy)}
                     value={String(form.category || "")}
-                    onChange={(e) => {
-                      set("category", e.target.value);
-                      set("subcategory", config.taxonomy[e.target.value][0]);
+                    clearable={false}
+                    onChange={(v) => {
+                      set("category", String(v));
+                      set("subcategory", config.taxonomy[String(v)]?.[0]);
                     }}
-                  >
-                    {Object.keys(config.taxonomy).map((c) => (
-                      <option key={c}>{c}</option>
-                    ))}
-                  </select>
+                  />
                 </Field>
                 <Field label="Subcategory">
-                  <select
+                  <OptionSelect
                     disabled={Boolean(template)}
+                    options={config.taxonomy[String(form.category)] || []}
                     value={String(form.subcategory || "")}
-                    onChange={(e) => set("subcategory", e.target.value)}
-                  >
-                    {(config.taxonomy[String(form.category)] || []).map((s) => (
-                      <option key={s}>{s}</option>
-                    ))}
-                  </select>
+                    clearable={false}
+                    onChange={(v) => set("subcategory", String(v))}
+                  />
                 </Field>
               </div>
             </section>
@@ -1123,14 +1105,12 @@ export function TicketComposer({
               </div>
               <div className="form-grid">
                 <Field label="How the feedback reached the team" wide>
-                  <select
+                  <OptionSelect
+                    options={[...REPORTED_BY_OPTIONS]}
                     value={reportedBy}
-                    onChange={(e) => setReportedBy(e.target.value)}
-                  >
-                    {REPORTED_BY_OPTIONS.map((o) => (
-                      <option key={o}>{o}</option>
-                    ))}
-                  </select>
+                    clearable={false}
+                    onChange={(v) => setReportedBy(String(v))}
+                  />
                 </Field>
               </div>
             </section>
@@ -1343,15 +1323,12 @@ export function TicketComposer({
               </h3>
               <div className="form-grid">
                 <Field label="Studio *">
-                  <select
+                  <OptionSelect
+                    options={config.studios}
                     value={String(form.studio || "")}
-                    onChange={(e) => set("studio", e.target.value)}
-                  >
-                    <option value="">Choose studio</option>
-                    {config.studios.map((s) => (
-                      <option key={s}>{s}</option>
-                    ))}
-                  </select>
+                    placeholder="Choose studio"
+                    onChange={(v) => set("studio", String(v))}
+                  />
                 </Field>
                 <Field label="When did this happen? *">
                   <input
@@ -1391,20 +1368,17 @@ export function TicketComposer({
                 {!recordOnly &&
                   !template?.fields.some((f) => f.id === "impact") && (
                     <Field label="Impact">
-                      <select
-                        value={String(form.impact || "")}
-                        onChange={(e) => set("impact", e.target.value)}
-                      >
-                        <option value="">Select impact</option>
-                        {[
+                      <OptionSelect
+                        options={[
                           "Minor inconvenience",
                           "Affected the experience",
                           "Class or service unavailable",
                           "Safety concern",
-                        ].map((i) => (
-                          <option key={i}>{i}</option>
-                        ))}
-                      </select>
+                        ]}
+                        value={String(form.impact || "")}
+                        placeholder="Select impact"
+                        onChange={(v) => set("impact", String(v))}
+                      />
                     </Field>
                   )}
                 {!recordOnly && (
@@ -1545,15 +1519,11 @@ function StructuredInput({
           ))}
         </div>
       ) : field.type === "select" ? (
-        <select
+        <OptionSelect
+          options={field.options || []}
           value={String(value || "")}
-          onChange={(e) => onChange(e.target.value)}
-        >
-          <option value="">Select an option</option>
-          {field.options?.map((o) => (
-            <option key={o}>{o}</option>
-          ))}
-        </select>
+          onChange={(v) => onChange(String(v))}
+        />
       ) : field.type === "textarea" ? (
         <textarea
           rows={2}

@@ -1,8 +1,9 @@
 "use client";
 import Link from 'next/link';
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
-import {ArrowLeft, ArrowRight, ArrowUpRight, Building2, CalendarDays, Check, CheckCircle2, ChevronRight, Clock3, ListFilter, LockKeyhole, MessageSquareText, PenLine, RotateCcw, Settings2, ShieldAlert, Sparkles, UserRound, Zap} from 'lucide-react';
+import {ArrowLeft, ArrowRight, ArrowUpRight, Building2, CalendarClock, CalendarDays, Camera, Check, CheckCircle2, ChevronRight, ClipboardList, Clock3, IndianRupee, ListFilter, LockKeyhole, Megaphone, MessageSquareText, MonitorCog, PenLine, Quote, RotateCcw, Search, Settings2, ShieldAlert, Sparkles, UserRound, Wrench, Zap, type LucideIcon} from 'lucide-react';
 import {Avatar, Badge, Priority, useApp, api} from '../ui';
+import {PasscodeDialog} from '../passcode-dialog';
 import {DraftDocument} from '../ticket-composer';
 import {TicketDialog} from '../ticket-detail';
 import {inferPriority} from '@/lib/routing';
@@ -10,7 +11,10 @@ import {object} from '@/lib/display';
 import type {AdvancedDraft} from '@/lib/ticket-contract';
 import {MEMBER_LOOKUP_IDS, autoTitle, composeWriteup, encodeLookup, filled, gatingFor, linkedLookup, localDateTime, missingFields, priorityInputs, relativeFor, seedData, toTicketInput, visibleFields, type ClassSnapshot, type IntakeData, type IntakeValue, type TicketKind} from '@/lib/intake/plan';
 import {matchStudio, sessionFacts, sessionSnapshot, type RosterEntry, type SessionDetail} from '@/lib/intake/class-desk';
-import {FormEngine, IntakeContextHeader} from './form-engine';
+import {FormEngine, IntakeContextHeader, SECTION_META, SectionNav, groupSections, headerIds, sectionSlug, withInjected, type InjectedSection} from './form-engine';
+import {HOSTED_FLAGS, HostedRoster, type HostedRow} from './hosted-roster';
+import {alertFor, focusOf, tipsFor, type Tip} from './nuance';
+import {CategoryArt, CATEGORY_TONE, HeroBackdrop} from '../ticket-art';
 import {CategoryGrid, SubcategoryGrid} from './pickers';
 import {ClassDesk, type ClassDeskResult} from './class-desk';
 import {ReviewSheet} from './review-sheet';
@@ -27,6 +31,28 @@ const KINDS: {id: TicketKind; label: string; hint: string}[] = [
   {id: 'compliment', label: 'Compliment', hint: 'Praise — recorded, no SLA'},
 ];
 const STUDIO_KEY = 'iris-intake-studio';
+const TIP_ICON: Record<Tip['icon'], LucideIcon> = {shield: ShieldAlert, rupee: IndianRupee, wrench: Wrench, monitor: MonitorCog, calendar: CalendarClock, user: UserRound, quote: Quote, megaphone: Megaphone, search: Search, clipboard: ClipboardList, camera: Camera, clock: Clock3};
+const PRIORITY_STEPS = ['low', 'medium', 'high', 'critical'] as const;
+
+/** Four bars that fill to the live priority. It moves as triage answers raise it. */
+function PriorityMeter({priority, raised, recordOnly, slaHours}: {priority: string; raised: boolean; recordOnly: boolean; slaHours: number}) {
+  const level = Math.max(0, PRIORITY_STEPS.indexOf(priority as typeof PRIORITY_STEPS[number]));
+  return <div className="imeter" data-level={level} aria-label={`Priority ${priority}${raised ? ', raised by your answers' : ''}`}>
+    <div className="imeter-bars" aria-hidden="true">{PRIORITY_STEPS.map((p, i) => <i key={p} className={i <= level ? 'on' : ''} style={{'--b': i} as React.CSSProperties} />)}</div>
+    <div className="imeter-copy">
+      <strong key={priority}>{priority[0].toUpperCase() + priority.slice(1)} priority</strong>
+      <span>{recordOnly ? 'Recorded only · no follow-up target' : `${slaHours}h follow-up target`}{raised ? ' · raised by your answers' : ''}</span>
+    </div>
+  </div>;
+}
+
+function ProgressDial({value}: {value: number}) {
+  const r = 22, c = 2 * Math.PI * r;
+  return <div className="idial" role="progressbar" aria-label="Required answers completed" aria-valuemin={0} aria-valuemax={100} aria-valuenow={value}>
+    <svg viewBox="0 0 52 52" aria-hidden="true"><circle cx="26" cy="26" r={r} className="idial-track" /><circle cx="26" cy="26" r={r} className="idial-fill" strokeDasharray={c} strokeDashoffset={c * (1 - value / 100)} /></svg>
+    <b>{value}<small>%</small></b>
+  </div>;
+}
 const PRAISE_OPTIONAL = new Set(['is_repeat', 'member_impact', 'immediate_danger']);
 
 export function IntakeFlow({presetCategory, presetSubcategory, presetDesk, onLegacy}: {presetCategory?: string; presetSubcategory?: string; presetDesk?: boolean; onLegacy?: () => void}) {
@@ -40,7 +66,9 @@ export function IntakeFlow({presetCategory, presetSubcategory, presetDesk, onLeg
   const [data, setData] = useState<IntakeData>({});
   const [auto, setAuto] = useState<Record<string, IntakeValue>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  // One section open at a time; undefined opens the first.
+  const [openSec, setOpenSec] = useState<string | null | undefined>(undefined);
+  const [hostedRows, setHostedRows] = useState<HostedRow[]>([]);
   const [kind, setKind] = useState<TicketKind>('issue');
   const [requiredOnly, setRequiredOnly] = useState(false);
   const [classDetail, setClassDetail] = useState<SessionDetail | null>(null);
@@ -54,6 +82,8 @@ export function IntakeFlow({presetCategory, presetSubcategory, presetDesk, onLeg
   const [submissionKey, setSubmissionKey] = useState('');
   const [aiBusy, setAiBusy] = useState(false);
   const [designing, setDesigning] = useState(false);
+  const [askPass, setAskPass] = useState(false);
+  const [designUnlocked, setDesignUnlocked] = useState(false);
   const presetDone = useRef(false);
 
   const rememberedStudio = () => { try { return localStorage.getItem(STUDIO_KEY) || ''; } catch { return ''; } };
@@ -73,7 +103,7 @@ export function IntakeFlow({presetCategory, presetSubcategory, presetDesk, onLeg
     for (const id of ['occurred_at', 'occurred_relative']) if (!filled(prefill[id]) && filled(seed[id])) nextAuto[id] = seed[id];
     const title = autoTitle(s, seed);
     seed.title = title; nextAuto.title = title;
-    setCategory(c); setSub(s); setData(seed); setAuto(nextAuto); setErrors({}); setCollapsed({}); setKind('issue');
+    setCategory(c); setSub(s); setData(seed); setAuto(nextAuto); setErrors({}); setOpenSec(undefined); setHostedRows([]); setKind('issue');
     setClassDetail(detail); setClassEntries(entries); setMemberDetail(undefined); setResult(undefined); setFileError('');
     setSubmissionKey(crypto.randomUUID()); setStep('form');
     window.scrollTo({top: 0, behavior: 'smooth'});
@@ -229,9 +259,9 @@ export function IntakeFlow({presetCategory, presetSubcategory, presetDesk, onLeg
   const fix = (id: string) => {
     setReview(false);
     const f = fields.find(x => x.id === id);
-    if (f) setCollapsed(c => ({...c, [f.section]: false}));
+    if (f) setOpenSec(f.section);
     setTimeout(() => {
-      const el = document.querySelector(`[data-fid="${id}"]`);
+      const el = document.querySelector(`[data-fid="${id}"]`) || document.querySelector(`[data-fids~="${id}"]`);
       el?.scrollIntoView({behavior: 'smooth', block: 'center'});
       (document.getElementById('f-' + id) as HTMLElement | null)?.focus?.({preventScroll: true});
     }, 60);
@@ -245,7 +275,7 @@ export function IntakeFlow({presetCategory, presetSubcategory, presetDesk, onLeg
     if (current && current !== String(auto.summary || '') && !window.confirm('Replace what is in the summary with a write-up of the answers so far?')) return;
     setAuto(a => ({...a, summary: text}));
     patch('summary', text);
-    setCollapsed(c => ({...c, 'Description & ask': false}));
+    setOpenSec('Description & ask');
     setTimeout(() => (document.getElementById('f-summary') as HTMLTextAreaElement | null)?.focus({preventScroll: true}), 40);
   };
   /** Ask the connected model to tighten the title and summary from the answers so far.
@@ -264,7 +294,7 @@ export function IntakeFlow({presetCategory, presetSubcategory, presetDesk, onLeg
       }
       if (target === 'summary' || target === 'both') {
         const s = String(json.summary || '').trim();
-        if (s) { setAuto(a => ({...a, summary: s})); patch('summary', s); setCollapsed(c => ({...c, 'Description & ask': false})); }
+        if (s) { setAuto(a => ({...a, summary: s})); patch('summary', s); setOpenSec('Description & ask'); }
       }
       if (!json.title && !json.summary) {
         const fallback = composeWriteup({sub: {name: sub, category: category.name}, fields, data});
@@ -291,7 +321,7 @@ export function IntakeFlow({presetCategory, presetSubcategory, presetDesk, onLeg
     if (!plan || !category) return;
     setBusy(true); setFileError('');
     try {
-      const input = toTicketInput({category: category.name, sub, fields, data, kind, submissionKey, classSnapshot, memberDetail: memberDetail ? {email: memberDetail.email, phone: memberDetail.phone, membership: memberDetail.membership} : undefined, momenceContext: memberDetail?.context});
+      const input = toTicketInput({category: category.name, sub, fields, data, kind, submissionKey, classSnapshot, hostedAttendees: hostedClass ? hostedRows.filter(r => r.name.trim()).map(r => ({name: r.name, memberId: r.memberId, email: r.email, session: r.session, booking: r.booking, attendance: r.attendance, outcome: r.outcome, followUp: r.followUp, flags: r.flags.map(f => HOSTED_FLAGS.find(x => x.id === f)?.label || f), note: r.note})) : undefined, memberDetail: memberDetail ? {email: memberDetail.email, phone: memberDetail.phone, membership: memberDetail.membership} : undefined, momenceContext: memberDetail?.context});
       const {draft} = await api<{draft: AdvancedDraft}>('/api/tickets?preview=true', {method: 'POST', body: JSON.stringify(input)});
       const {ticket} = await api<{ticket: {id: number; ticketNumber: string}}>('/api/tickets?channel=form', {method: 'POST', body: JSON.stringify({...draft, submissionKey})});
       window.dispatchEvent(new Event('iris:tickets-updated'));
@@ -311,13 +341,43 @@ export function IntakeFlow({presetCategory, presetSubcategory, presetDesk, onLeg
     window.addEventListener('beforeunload', warn);
     return () => window.removeEventListener('beforeunload', warn);
   }, [dirty]);
-  const reset = () => { setStep('category'); setCategory(undefined); setSub(''); setLoaded(undefined); setData({}); setAuto({}); setErrors({}); setResult(undefined); setClassDetail(null); setClassEntries({}); setMemberDetail(undefined); window.scrollTo({top: 0}); };
+  const reset = () => { setStep('category'); setCategory(undefined); setSub(''); setLoaded(undefined); setData({}); setAuto({}); setErrors({}); setResult(undefined); setClassDetail(null); setClassEntries({}); setMemberDetail(undefined); setHostedRows([]); window.scrollTo({top: 0}); };
   const cancel = () => { if (dirty && !window.confirm('Discard this ticket? The answers on the form will be lost.')) return; reset(); };
   const onClassBuild = (r: ClassDeskResult) => {
     const c = taxonomy?.categories.find(x => x.name === r.category);
     if (!c) return;
     openSub(c, r.sub, r.answers, r.detail, r.entries);
     notify(`Class loaded · ${r.detail.item.name}`);
+  };
+
+  const tone = category ? CATEGORY_TONE[category.name] || 'accent' : 'accent';
+  const tips = useMemo(() => category && sub ? tipsFor(category.name, sub) : [], [category, sub]);
+  const alert = step === 'form' ? alertFor(data) : null;
+  const hostedClass = category?.name === 'Brand Feedback' && /hosted class/i.test(sub);
+  const baseSections = useMemo(() => groupSections(fields, data, {hidden: headerIds(fields), requiredOnly, gatingIds, errors}), [fields, data, requiredOnly, gatingIds, errors]);
+  // The roster fills the head-count questions it can answer, never over a typed number.
+  const onHostedRows = useCallback((next: HostedRow[] | ((prev: HostedRow[]) => HostedRow[]), loaded?: {firstTimers: number; booked: number}) => {
+    setHostedRows(next);
+    if (!loaded) return;
+    setData(d => {
+      const add: IntakeData = {};
+      if (!filled(d.guest_count) && loaded.booked) add.guest_count = String(loaded.booked);
+      if (!filled(d.newcomer_count) && loaded.firstTimers) add.newcomer_count = String(loaded.firstTimers);
+      if (!Object.keys(add).length) return d;
+      setAuto(a => ({...a, ...add}));
+      return {...d, ...add};
+    });
+  }, []);
+  const injected: InjectedSection[] = hostedClass ? [{
+    name: 'Attendees', after: baseSections.some(x => x.name === 'Class context') ? 'Class context' : 'Where & when',
+    answered: hostedRows.filter(r => r.attendance && r.outcome).length, total: hostedRows.length,
+    body: <HostedRoster sessions={data.class_date} rows={hostedRows} onRows={onHostedRows} />,
+  }] : [];
+  const navSections = withInjected(baseSections, injected);
+  const focus = useMemo(() => focusOf(visible.filter(f => !headerIds(fields).has(f.id))), [visible, fields]);
+  const jump = (name: string) => {
+    setOpenSec(name);
+    setTimeout(() => document.getElementById(sectionSlug(name))?.scrollIntoView({behavior: 'smooth', block: 'start'}), 30);
   };
 
   const stepIndex = step === 'category' || step === 'classdesk' ? 0 : step === 'subcategory' ? 1 : step === 'form' ? 2 : 3;
@@ -353,94 +413,98 @@ export function IntakeFlow({presetCategory, presetSubcategory, presetDesk, onLeg
       {taxonomy && step === 'classdesk' && <ClassDesk taxonomy={taxonomy} onBack={() => setStep('category')} onBuild={onClassBuild} />}
 
       {taxonomy && step === 'form' && category && (
-        <div className="intake-form rise">
-          <div className="intake-form-main">
-            <div className="intake-form-head card">
-              <div className="intake-crumbs">
-                <button type="button" className="text-btn" onClick={() => setStep('category')}><ArrowLeft size={12} /> Categories</button>
-                <ChevronRight size={12} className="muted" />
-                <button type="button" className="text-btn" onClick={() => setStep('subcategory')}>{category.name}</button>
-                <ChevronRight size={12} className="muted" />
-                <strong>{sub}</strong>
-              </div>
-              <div className="between wrap" style={{gap: 12}}>
-                <div>
-                  <div className="intake-stage-label"><span>Step 3 of 4</span><i />Details</div>
+        <div className="isheet" data-tone={tone} data-alert={alert?.tone} data-priority={priority}>
+          <header className="isheet-hero">
+            <HeroBackdrop tone={tone} />
+            <CategoryArt category={category.name} className="isheet-art" />
+            <div className="isheet-hero-layout">
+              <div className="isheet-hero-left">
+                <nav className="intake-crumbs" aria-label="Breadcrumb">
+                  <button type="button" className="text-btn" onClick={() => setStep('category')}><ArrowLeft size={12} /> Categories</button>
+                  <ChevronRight size={12} className="muted" />
+                  <button type="button" className="text-btn" onClick={() => setStep('subcategory')}>{category.name}</button>
+                  <ChevronRight size={12} className="muted" />
+                  <strong>{sub}</strong>
+                </nav>
+                <div className="isheet-hero-copy">
                   <h2>{sub}</h2>
-                  <p className="secondary" style={{fontSize: 12.5}}>Answer the essentials first. Relevant follow-up questions appear automatically.</p>
+                  <p>{category.department.name || 'Operations'}{plan?.sub.hist ? ` · filed ${plan.sub.hist} times before` : ''}{plan?.sub.slaLabel ? ` · ${plan.sub.slaLabel}` : ''}</p>
                 </div>
-                <div className="intake-head-controls">
-                  {user?.role === 'admin' && <button type="button" className="intake-chip intake-admin-edit" onClick={()=>setDesigning(true)} title="Edit this live form and its routing"><Settings2 size={12}/> Design form</button>}
-                  <div className="intake-kind" role="radiogroup" aria-label="What kind of entry is this">
-                    {KINDS.map(k => <button type="button" key={k.id} role="radio" aria-checked={kind === k.id} className={'intake-chip' + (kind === k.id ? ' on' : '')} title={k.hint} onClick={() => setKind(k.id)}>{k.label}</button>)}
-                  </div>
-                  <button type="button" className={'intake-chip intake-toggle' + (requiredOnly ? ' on' : '')} role="switch" aria-checked={requiredOnly} onClick={() => setRequiredOnly(v => !v)} title="Show only the questions the ticket cannot file without"><ListFilter size={12} /> Required only</button>
-                </div>
+                <ul className="isheet-tips">
+                  {tips.map(t => { const Icon = TIP_ICON[t.icon]; return <li key={t.text}><Icon size={13} /><span>{t.text}</span></li>; })}
+                </ul>
               </div>
-              <div className="intake-progress-row">
-                <div className="progress-bar intake-progress" role="progressbar" aria-label="Required answers completed" aria-valuemin={0} aria-valuemax={100} aria-valuenow={completion}><span style={{width: `${completion}%`}} /></div>
-                <span className="intake-progress-copy"><strong>{completion}%</strong> complete · {completedRequired}/{requiredVisible.length} required</span>
+              <div className="isheet-hero-right">
+                <button type="button" className="isheet-design" onClick={() => designUnlocked ? setDesigning(true) : setAskPass(true)} title="Edit this live form and its routing">{designUnlocked ? <Settings2 size={13} /> : <LockKeyhole size={13} />} Design form</button>
+                <PriorityMeter priority={priority} raised={priority !== baseline && !recordOnly} recordOnly={recordOnly} slaHours={slaHours} />
+                {focus.length > 0 && <div className="isheet-focus" aria-label="This form covers">{focus.map(name => { const Icon = SECTION_META[name]?.icon; return <button type="button" key={name} className="isheet-focus-chip" onClick={() => jump(name)}>{Icon && <Icon size={11} />}{name}</button>; })}</div>}
               </div>
             </div>
-            {classSnapshot && (
-              <div className="info-box intake-class-note"><CalendarDays size={14} /><span><strong>{classSnapshot.name}</strong> · {classSnapshot.booked ?? 0} booked, {classSnapshot.attended ?? 0} attended of {classSnapshot.capacity ?? '—'} places{classSnapshot.attendees?.length ? ` · ${classSnapshot.attendees.length} attendee note${classSnapshot.attendees.length > 1 ? 's' : ''} attached` : ''}. Read from Momence; the answers below were filled from it and stay editable.</span></div>
+            <div className="isheet-controls">
+              <div className="intake-kind" role="radiogroup" aria-label="What kind of entry is this">
+                <span className="intake-kind-thumb" aria-hidden="true" style={{'--k': KINDS.findIndex(k => k.id === kind)} as React.CSSProperties} />
+                {KINDS.map(k => <button type="button" key={k.id} role="radio" aria-checked={kind === k.id} className={'intake-chip' + (kind === k.id ? ' on' : '')} title={k.hint} onClick={() => setKind(k.id)}>{k.label}</button>)}
+              </div>
+              <button type="button" className={'intake-chip intake-toggle' + (requiredOnly ? ' on' : '')} role="switch" aria-checked={requiredOnly} onClick={() => setRequiredOnly(v => !v)} title="Show only the questions the ticket cannot file without"><ListFilter size={12} /> Required only</button>
+            </div>
+            {alert && (
+              <div className={'isheet-alert ' + alert.tone} role="alert" key={alert.title}>
+                <ShieldAlert size={16} /><div><strong>{alert.title}</strong><span>{alert.body}</span></div>
+              </div>
             )}
-            {planBusy && !plan && <div className="skeleton-cards"><div className="skeleton" style={{height: 220}} /><div className="skeleton" style={{height: 220}} /></div>}
-            {plan && <FormEngine fields={fields} data={data} patch={patch} errors={errors} auto={auto} collapsed={collapsed} onToggle={(s, c) => setCollapsed(x => ({...x, [s]: c}))} gatingIds={gatingIds} requiredOnly={requiredOnly}
-              contextHeader={<IntakeContextHeader data={data} patch={patch} studio={studio} hostedClass={category.name === 'Brand Feedback' && sub === 'Hosted Class Feedback'} />}
-              extras={{
-                title: <button type="button" className="text-btn intake-writeup" onClick={() => aiDraft('title')} disabled={aiBusy} title="Tighten the title from the answers so far"><Sparkles size={11} /> AI title</button>,
-                summary: <div className="flex-row" style={{gap: 6}}>
-                  <button type="button" className="text-btn intake-writeup" onClick={writeUp} title="Phrase the answers already on this form as a paragraph — nothing is added that was not answered"><PenLine size={11} /> Write it up from the answers</button>
-                  <button type="button" className="text-btn intake-writeup" onClick={() => aiDraft('both')} disabled={aiBusy} title="Ask the connected model to rewrite title and summary from the answers"><Sparkles size={11} />{aiBusy ? 'Drafting…' : 'AI draft'}</button>
-                </div>,
-              }} />}
-            <div className="intake-footer">
-              <span className="intake-footer-status">
-                {missing.length + gating.length ? <>{missing.length + gating.length} outstanding · {missing.length ? `${missing.length} required` : ''}{missing.length && gating.length ? ' + ' : ''}{gating.length ? `${gating.map(g => g.label).join(' & ')} to link` : ''}</> : <><Check size={13} className="accent" /> Ready to route to {plan?.routing?.owner?.name || plan?.routing?.departmentName || 'the desk'}</>}
-              </span>
-              <div className="flex-row" style={{gap: 8}}>
-                <button type="button" className="btn" onClick={cancel}>Cancel</button>
-                <button type="button" className="btn btn-primary" onClick={reviewThenFile} disabled={!plan}><Zap size={14} /> Review & create ticket</button>
-              </div>
+          </header>
+
+          <div className="isheet-grid">
+            <div className="isheet-main">
+              {classSnapshot && (
+                <div className="isheet-note"><CalendarDays size={14} /><span><strong>{classSnapshot.name}</strong> · {classSnapshot.booked ?? 0} booked, {classSnapshot.attended ?? 0} attended of {classSnapshot.capacity ?? '—'} places{classSnapshot.attendees?.length ? ` · ${classSnapshot.attendees.length} attendee note${classSnapshot.attendees.length > 1 ? 's' : ''} attached` : ''}. Read from Momence; the answers below were filled from it and stay editable.</span></div>
+              )}
+              {planBusy && !plan && <div className="isheet-skeleton"><div className="skeleton" style={{height: 180}} /><div className="skeleton" style={{height: 240}} /></div>}
+              {plan && <FormEngine fields={fields} data={data} patch={patch} errors={errors} auto={auto} open={openSec} onOpen={setOpenSec} injected={injected} onFinish={reviewThenFile} gatingIds={gatingIds} requiredOnly={requiredOnly}
+                contextHeader={<IntakeContextHeader data={data} patch={patch} studio={studio} fields={fields} gatingIds={gatingIds} hostedClass={hostedClass} />}
+                extras={{
+                  title: <button type="button" className="text-btn intake-writeup" onClick={() => aiDraft('title')} disabled={aiBusy} title="Tighten the title from the answers so far"><Sparkles size={11} /> AI title</button>,
+                  summary: <span className="flex-row" style={{gap: 10}}>
+                    <button type="button" className="text-btn intake-writeup" onClick={writeUp} title="Phrase the answers already on this form as a paragraph. Nothing is added that was not answered."><PenLine size={11} /> Write it up from the answers</button>
+                    <button type="button" className="text-btn intake-writeup" onClick={() => aiDraft('both')} disabled={aiBusy} title="Ask the connected model to rewrite the title and summary from the answers"><Sparkles size={11} />{aiBusy ? 'Drafting…' : 'AI draft'}</button>
+                  </span>,
+                }} />}
             </div>
+
+            <aside className="isheet-aside" aria-label="Progress and routing">
+              <div className="isheet-aside-block isheet-progress">
+                <ProgressDial value={completion} />
+                <div><strong>{completedRequired} of {requiredVisible.length} required</strong><span>{missing.length + gating.length ? `${missing.length + gating.length} still to answer or link` : 'Everything the desk needs is here'}</span></div>
+              </div>
+              {plan && <div className="isheet-aside-block"><SectionNav sections={navSections} onJump={jump} /></div>}
+              <div className="isheet-aside-block">
+                <div className="isheet-aside-label">Routes to</div>
+                <div className="intake-route">
+                  <div className="intake-route-row"><Building2 size={14} /><div><small>Department</small><b>{plan?.routing?.departmentName || category.department.name || '—'}</b></div></div>
+                  <div className="intake-route-row">{plan?.routing?.owner ? <Avatar name={plan.routing.owner.name} tone="purple" /> : <Avatar name="" emptyDark />}<div><small>Owner{studio ? ` at ${studio.split(',')[0]}` : ''}</small><b>{plan?.routing?.owner?.name || 'Department queue'}</b>{plan?.routing?.owner?.role && <em>{plan.routing.owner.role}</em>}</div></div>
+                </div>
+              </div>
+              <div className="isheet-aside-block">
+                <div className="isheet-aside-label">Linked records</div>
+                <div className="intake-links">
+                  {memberRef ? <LookupChip module="member" value={encodeLookup(memberRef)} /> : <span className="intake-link-empty"><UserRound size={12} /> No member linked</span>}
+                  {filled(data.class_date) ? <LookupChip module="session" value={data.class_date} /> : <span className="intake-link-empty"><CalendarDays size={12} /> No class linked</span>}
+                </div>
+                {!user && <p className="muted flex-row" style={{fontSize: 10.5, marginTop: 10, gap: 6}}><LockKeyhole size={11} /> <span>Momence search needs a workspace sign-in. <button type="button" className="text-btn" style={{fontSize: 10.5}} onClick={openAuth}>Sign in</button></span></p>}
+                {user && taxonomy && !taxonomy.momence.configured && <p className="muted" style={{fontSize: 10.5, marginTop: 10}}>Momence is not connected. Lookups show demo records, labelled as such.</p>}
+              </div>
+            </aside>
           </div>
 
-          <aside className="intake-aside" aria-label="Ticket routing and readiness">
-            <div className="intake-aside-title"><span>Live ticket preview</span><small>Updates as you answer</small></div>
-            <div className="form-aside intake-aside-card">
-              <div className="eyebrow">Routing</div>
-              <div className="intake-route">
-                <div className="intake-route-row"><Building2 size={14} /><div><small>Department</small><b>{plan?.routing?.departmentName || category.department.name || '—'}</b></div></div>
-                <div className="intake-route-row">{plan?.routing?.owner ? <Avatar name={plan.routing.owner.name} tone="purple" /> : <Avatar name="" emptyDark />}<div><small>Owner{studio ? ` at ${studio.split(',')[0]}` : ''}</small><b>{plan?.routing?.owner?.name || 'Department queue'}</b>{plan?.routing?.owner?.role && <em>{plan.routing.owner.role}</em>}</div></div>
-              </div>
-              <div className="intake-route-badges">
-                <Priority priority={priority} />
-                {priority !== baseline && !recordOnly && <Badge tone="amber"><ShieldAlert size={10} /> raised from {baseline}</Badge>}
-                <Badge tone={recordOnly ? 'green' : 'amber'}><Clock3 size={10} />{recordOnly ? 'Record only · no SLA' : `${slaHours}h follow-up target`}</Badge>
-              </div>
-              {plan?.sub.slaLabel && <p className="muted" style={{fontSize: 10.5, marginTop: 8}}>Support Hub tier: {plan.sub.slaLabel}</p>}
+          <footer className="isheet-foot">
+            <span className="intake-footer-status">
+              {missing.length + gating.length ? <><span className="isheet-foot-dot" />{missing.length ? `${missing.length} required answer${missing.length > 1 ? 's' : ''}` : ''}{missing.length && gating.length ? ' and ' : ''}{gating.length ? `${gating.map(g => g.label.toLowerCase()).join(' & ')} to link` : ''}</> : <><Check size={13} className="accent" /> Ready to route to {plan?.routing?.owner?.name || plan?.routing?.departmentName || 'the desk'}</>}
+            </span>
+            <div className="flex-row" style={{gap: 8}}>
+              <button type="button" className="btn" onClick={cancel}>Cancel</button>
+              <button type="button" className="btn btn-primary" onClick={reviewThenFile} disabled={!plan}><Zap size={14} /> Review &amp; create ticket</button>
             </div>
-            <div className="form-aside intake-aside-card">
-              <div className="eyebrow">Linked records</div>
-              <div className="intake-links">
-                {memberRef ? <LookupChip module="member" value={encodeLookup(memberRef)} /> : <span className="intake-link-empty"><UserRound size={12} /> No member linked</span>}
-                {filled(data.class_date) ? <LookupChip module="session" value={data.class_date} /> : <span className="intake-link-empty"><CalendarDays size={12} /> No class linked</span>}
-              </div>
-              {!user && <p className="muted flex-row" style={{fontSize: 10.5, marginTop: 10, gap: 6}}><LockKeyhole size={11} /> <span>Momence search needs a workspace sign-in. <button type="button" className="text-btn" style={{fontSize: 10.5}} onClick={openAuth}>Sign in</button></span></p>}
-              {user && taxonomy && !taxonomy.momence.configured && <p className="muted" style={{fontSize: 10.5, marginTop: 10}}>Momence is not connected — lookups show demo records, labelled as such.</p>}
-            </div>
-            <div className="form-aside intake-aside-card">
-              <div className="eyebrow">Before it files</div>
-              <ul className="checklist intake-checklist">
-                <li className={missing.length ? '' : 'ok'}>{missing.length ? <span className="intake-check-dot" /> : <Check size={13} />}{missing.length ? `${missing.length} required answer${missing.length > 1 ? 's' : ''} outstanding` : 'Every required question answered'}</li>
-                <li className={gating.length ? '' : 'ok'}>{gating.length ? <span className="intake-check-dot" /> : <Check size={13} />}{gating.length ? `Link the ${gating.map(g => g.label.toLowerCase()).join(' and ')}` : 'Linked records in place'}</li>
-                <li className={summaryShort || !filled(data.summary) ? '' : 'ok'}>{summaryShort || !filled(data.summary) ? <span className="intake-check-dot" /> : <Check size={13} />}A summary the owner can act on</li>
-                <li className="ok"><Check size={13} />Idempotent filing — a double click cannot create two tickets</li>
-              </ul>
-              <button type="button" className="btn btn-primary" style={{width: '100%', marginTop: 14}} onClick={reviewThenFile} disabled={!plan}><Zap size={14} /> Review & create ticket</button>
-            </div>
-          </aside>
+          </footer>
         </div>
       )}
 
@@ -473,6 +537,7 @@ export function IntakeFlow({presetCategory, presetSubcategory, presetDesk, onLeg
         <ReviewSheet open={review} onClose={() => setReview(false)} plan={plan} data={data} kind={kind} priority={priority} slaHours={slaHours} recordOnly={recordOnly}
           missing={summaryShort ? [...missing, ...(missing.some(f => f.id === 'summary') ? [] : fields.filter(f => f.id === 'summary'))] : missing} gating={gating} onFix={fix} onFile={file} busy={busy} error={fileError} classSnapshot={classSnapshot} />
       )}
+      <PasscodeDialog open={askPass} onClose={() => setAskPass(false)} onUnlock={() => { setDesignUnlocked(true); setAskPass(false); setDesigning(true); }} />
       {category&&sub&&<InlineFormDesigner key={`${category.name}|||${sub}`} open={designing} onClose={()=>setDesigning(false)} category={category.name} subcategory={sub} onPublished={async()=>{const params=new URLSearchParams({category:category.name,subcategory:sub});if(studio)params.set('studio',studio);const[t,p]=await Promise.all([api<IntakeTaxonomy>('/api/intake'),api<IntakePlan>(`/api/intake?${params}`)]);setTaxonomy(t);setLoaded({key:wantKey,plan:p});}}/>}
     </div>
   );

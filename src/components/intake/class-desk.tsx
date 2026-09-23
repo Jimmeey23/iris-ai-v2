@@ -6,7 +6,7 @@ import {object} from '@/lib/display';
 import {decodeLookups, fieldOptions, type IntakeData, type IntakeValue} from '@/lib/intake/plan';
 import {ATT_ACTION, ATT_STATUS, CLASS_CAPTURE, CLASS_SUB_CANDIDATES, classDeskAnswers, flaggedEntry, rosterRows, sessionSnapshot, sessionStats, type RosterEntry, type SessionDetail} from '@/lib/intake/class-desk';
 import {LookupField} from './lookup-field';
-import {ChipGroup} from './form-engine';
+import {OptionSelect} from './option-select';
 import type {IntakeTaxonomy} from './types';
 
 export type ClassDeskResult = {category: string; sub: string; answers: IntakeData; detail: SessionDetail; entries: Record<string, RosterEntry>};
@@ -114,7 +114,7 @@ export function ClassDesk({taxonomy, onBack, onBuild}: {taxonomy: IntakeTaxonomy
               </div>
               {stats.incompatible > 0 && <div className="info-box warning" style={{marginTop: 12}}><AlertTriangle size={14} /><span>{stats.incompatible} attendee{stats.incompatible > 1 ? 's were' : ' was'} flagged by Momence as unable to pay with an active membership — see the roll below.</span></div>}
               <div className="cd-grid">
-                {CLASS_CAPTURE.map(c => <div className="field" key={c.id}><label><span>{c.label}</span></label><ChipGroup options={fieldOptions(c.id)} value={captured[c.id]} onChange={v => set(c.id, v)} multi={c.multi} /></div>)}
+                {CLASS_CAPTURE.map(c => <div className="field" key={c.id}><label><span>{c.label}</span></label><OptionSelect options={fieldOptions(c.id)} value={captured[c.id]} onChange={v => set(c.id, v)} multi={c.multi} /></div>)}
                 <div className="field wide"><label><span>Notes on the host / coach</span><textarea rows={2} value={String(captured.class_host_notes || '')} placeholder="Held the stretch block, explained the corrections, kept the pace for the beginners…" onChange={e => set('class_host_notes', e.target.value)} /></label></div>
                 <div className="field"><label><span>Notes on the audience</span><textarea rows={2} value={String(captured.class_audience_notes || '')} placeholder="Six first-timers; two were standing because the mats ran out…" onChange={e => set('class_audience_notes', e.target.value)} /></label></div>
                 <div className="field"><label><span>Notes on membership compatibility</span><textarea rows={2} value={String(captured.class_compatibility_notes || '')} placeholder="Three class-pack members were blocked by the usage limit…" onChange={e => set('class_compatibility_notes', e.target.value)} /></label></div>

@@ -2,7 +2,7 @@
 import {useMemo, useState} from 'react';
 import {AlertTriangle, ArrowRight, Check, Clock3, Loader2, Zap} from 'lucide-react';
 import {Avatar, Badge, Modal, Priority} from '../ui';
-import {SECTION_ORDER, decodeLookups, filled, visibleFields, type ClassSnapshot, type Gate, type IntakeData, type IntakeField} from '@/lib/intake/plan';
+import {decodeLookups, orderSections, filled, visibleFields, type ClassSnapshot, type Gate, type IntakeData, type IntakeField} from '@/lib/intake/plan';
 import {LookupChip} from './lookup-field';
 import type {IntakePlan} from './types';
 
@@ -21,7 +21,7 @@ export function ReviewSheet({open, onClose, plan, data, kind, priority, slaHours
   const visible = useMemo(() => visibleFields(plan.fields, data), [plan.fields, data]);
   const answered = visible.filter(f => filled(data[f.id]));
   const shown = showAll ? answered : answered.filter(f => !['title', 'summary', 'requested_outcome'].includes(f.id));
-  const groups = SECTION_ORDER.map(s => ({name: s, fields: shown.filter(f => f.section === s)})).filter(g => g.fields.length);
+  const groups = orderSections(shown.map(f => f.section)).map(s => ({name: s, fields: shown.filter(f => f.section === s)}));
   const blockers = [...missing.map(f => ({id: f.id, label: f.label, reason: 'required for this sub-category'})), ...gating];
   const lookups = answered.filter(f => f.type === 'lookup');
   const owner = plan.routing?.owner;

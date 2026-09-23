@@ -1,10 +1,13 @@
 "use client";
 import Link from 'next/link';import {usePathname,useRouter} from 'next/navigation';import {useEffect,useRef,useState,type ReactNode} from 'react';
-import {LayoutDashboard,Sparkles,Ticket,Layers,ChartNoAxesCombined,Users,Blocks,Settings,ChevronDown,ChevronRight,Search,Bell,Menu,PanelLeft,Building2,ArrowUpRight,Command,LifeBuoy,FileBarChart2,GraduationCap,ClipboardList,Radio,Wrench,Palette} from 'lucide-react';
+import {LayoutDashboard,Sparkles,Ticket,Layers,ChartNoAxesCombined,Users,Blocks,Settings,ChevronDown,ChevronRight,Search,Bell,Menu,PanelLeft,Building2,ArrowUpRight,Command,LifeBuoy,FileBarChart2,GraduationCap,ClipboardList,Radio,Wrench,Palette,Lock} from 'lucide-react';
 import {useApp,ThemeToggle,Avatar,Modal,api,SearchField,Badge} from './ui';
 import {IrisLockup} from './iris-mark';
 const nav=[{href:'/dashboard',label:'Overview',icon:LayoutDashboard},{href:'/iris',label:'Iris assistant',icon:Sparkles,ai:true},{href:'/radar',label:'Ops Radar & Heatmap',icon:Radio,live:true},{href:'/tickets',label:'All tickets',icon:Ticket},{href:'/equipment',label:'Equipment',icon:Wrench},{href:'/templates',label:'Template library',icon:Layers},{href:'/reports',label:'Reports library',icon:FileBarChart2},{href:'/analytics',label:'Trend dashboard',icon:ChartNoAxesCombined},{href:'/trainers',label:'Trainer reviews',icon:GraduationCap},{href:'/forms',label:'Evaluation forms',icon:ClipboardList}];
 const org=[{href:'/momence',label:'Momence',icon:Building2},{href:'/staff',label:'People & teams',icon:Users},{href:'/integrations',label:'Integrations',icon:Blocks},{href:'/settings',label:'Settings',icon:Settings},{href:'/design-system',label:'Design system',icon:Palette}];
+/** Every tab is listed for everyone; these open for administrators only. */
+const ADMIN_ONLY=['/settings','/integrations','/staff','/trainers'];
+const lockedFor=(href:string,role?:string)=>role!=='admin'&&ADMIN_ONLY.some(h=>href===h||href.startsWith(h+'/'));
 export {Badge};
 export function Shell({
   children,
@@ -54,8 +57,10 @@ export function Shell({
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, []);
-  const visibleNav=user?.role==='agent'?nav.filter(n=>['/dashboard','/iris','/tickets'].includes(n.href)):nav;
-  const visibleOrg=user?.role==='admin'?org:[];
+  const visibleNav=nav;
+  const visibleOrg=org;
+  // A signed-in non-admin who lands on a locked page directly sees why, not the page.
+  const pageLocked=Boolean(user)&&lockedFor(path,user?.role);
   const routes = [...visibleNav, ...visibleOrg];
   const activeName = routes.find(n => path.startsWith(n.href))?.label || (path === '/' ? 'Overview' : title);
   const openItems = items.filter(t => !['resolved', 'closed', 'recorded'].includes(t.status));
@@ -74,12 +79,14 @@ export function Shell({
         {visibleNav.map(n => {
           const Icon = n.icon;
           const active = path === n.href || (path === '/' && n.href === '/dashboard');
+          if (lockedFor(n.href, user?.role)) return <span key={n.href} className="nav-link locked" aria-disabled="true" title="Available to administrators"><Icon size={16} />{n.label}<Lock size={12} className="nav-lock" /></span>;
           return <Link key={n.href} href={n.href} className={'nav-link' + (active ? ' active' : '')} aria-current={active ? 'page' : undefined} onClick={() => setMobile(false)}><Icon size={16} />{n.label}{n.ai && <span className="nav-ai">AI</span>}{n.href === '/radar' && <span className="nav-radar-pill">LIVE</span>}{n.href === '/tickets' && <span className="nav-count">{items.length}</span>}</Link>;
         })}
-        {visibleOrg.length>0&&<div className="nav-heading">ORGANIZATION</div>}
+        <div className="nav-heading">ORGANIZATION</div>
         {visibleOrg.map(n => {
           const Icon = n.icon;
           const active = path.startsWith(n.href);
+          if (lockedFor(n.href, user?.role)) return <span key={n.href} className="nav-link locked" aria-disabled="true" title="Available to administrators"><Icon size={16} />{n.label}<Lock size={12} className="nav-lock" /></span>;
           return <Link key={n.href} href={n.href} className={'nav-link' + (active ? ' active' : '')} aria-current={active ? 'page' : undefined} onClick={() => setMobile(false)}><Icon size={16} />{n.label}</Link>;
         })}
         </div>
@@ -124,7 +131,7 @@ export function Shell({
               {action}
             </div>
           )}
-          {children}
+          {pageLocked ? <div className="locked-page"><span className="locked-page-icon"><Lock size={20} /></span><h2>This page is for administrators</h2><p>Your account has {user?.role} access. Ask an administrator if you need something changed here.</p><Link href="/dashboard" className="btn">Back to the overview</Link></div> : children}
           {!hideFooter && (
             <footer className="page-footer">
               <span><span className="live-label"><i /></span>Every issue logged. Every follow-up tracked.</span>
