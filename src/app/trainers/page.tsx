@@ -5,7 +5,7 @@ import {Shell} from '@/components/shell';
 import {api,SearchField,Badge,Loading,Empty,Modal,Avatar,useApp} from '@/components/ui';
 import {TrainerReport,type Trainer} from '@/components/trainer-report';
 import {relativeTime} from '@/lib/utils';
-import {getTrainerImage} from '@/lib/constants';
+import {TrainerImg} from '@/components/ticket-art';
 
 
 /** How often the tab asks the server to pull the form and the two Zite apps again. */
@@ -111,14 +111,13 @@ export default function TrainersPage(){
       {busy?<Loading/>:!filtered.length?<Empty art="people" title="No trainers found"/>:(
         <div className="entity-grid rise-stagger">
           {filtered.map(t=>{
-            const img=getTrainerImage(t.name);
             return (
             <button key={t.name} className="trainer-profile-card" onClick={()=>setActiveName(t.name)}>
-              {img?<img src={img} alt={t.name} className="trainer-photo-card" loading="lazy" decoding="async" fetchPriority="low"/>:(
+              <TrainerImg name={t.name} className="trainer-photo-card" fallback={
                 <div style={{width:'100%',aspectRatio:'1/1',display:'grid',placeItems:'center',background:'linear-gradient(135deg,var(--surface-2),var(--accent-soft))'}}>
                   <Avatar name={t.name} large tone={t.bandTone==='green'?'green':t.bandTone==='amber'?'amber':''}/>
                 </div>
-              )}
+              }/>
               <div className="trainer-profile-meta">
                 <div className="between">
                   <h3>{t.name}</h3>

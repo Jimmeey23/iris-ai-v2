@@ -3,6 +3,7 @@ import {useEffect,useMemo,useState} from 'react';
 import {Badge,Empty} from './ui';
 import {indiaDate} from '@/lib/display';
 import {getTrainerImage} from '@/lib/constants';
+import {TrainerImg} from './ticket-art';
 
 /* ------------------------------------------------------------------ */
 /* Types                                                               */
@@ -221,13 +222,9 @@ export function TrainerReport({trainer}:{trainer:Trainer}){
     <div className="tr-report">
       {/* 01 — masthead */}
       <section className="tr-masthead">
-        {(() => { const img = getTrainerImage(trainer.name); return (
-          <div className="tr-portrait" data-empty={!img}>
-            {img
-              ? <img src={img} alt={trainer.name} className="trainer-photo-lg" loading="lazy" decoding="async"/>
-              : <span className="tr-portrait-initials">{trainer.name.split(' ').map(w=>w[0]).slice(0,2).join('')}</span>}
-          </div>
-        ); })()}
+        <div className="tr-portrait" data-empty={!getTrainerImage(trainer.name)}>
+          <TrainerImg name={trainer.name} className="trainer-photo-lg" lazy={false} fallback={<span className="tr-portrait-initials">{trainer.name.split(' ').map(w=>w[0]).slice(0,2).join('')}</span>}/>
+        </div>
         <div className="tr-masthead-body">
           <span className="eyebrow">TRAINER PERFORMANCE REPORT</span>
           <h2>{trainer.name}</h2>

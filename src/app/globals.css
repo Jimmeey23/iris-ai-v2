@@ -799,7 +799,7 @@ pre{font:12px/1.7 var(--font-mono);white-space:pre-wrap;overflow-wrap:anywhere;c
 .method{font:9px var(--font-mono);padding:2px 4px;background:var(--green-bg);color:var(--green);border-radius:3px}.method.POST{background:var(--blue-bg);color:var(--blue)}.method.PUT{background:var(--amber-bg);color:var(--amber)}.method.DELETE{background:var(--red-bg);color:var(--red)}
 .template-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}.template-card{padding:24px;cursor:pointer;text-align:left;transition:.2s;color:var(--text);position:relative}.template-card:hover{border-color:var(--accent);transform:translateY(-3px);box-shadow:0 10px 30px -12px color-mix(in srgb,var(--accent) 40%,transparent)}
 .template-card h3{font-size:15px;margin-top:20px;margin-bottom:7px;letter-spacing:-.02em}.template-card p{font-size:12px;color:var(--secondary);line-height:1.7;min-height:40px}.template-card .between{margin-top:20px;font-size:11px}.template-icon{height:38px;width:38px;border-radius:11px;display:grid;place-items:center;background:var(--accent-soft);color:var(--accent)}
-.template-category-nav{display:flex;gap:8px;overflow:auto;padding-bottom:12px;margin-bottom:16px}.template-category-nav button{white-space:nowrap}.template-category-nav .active{background:var(--accent);color:var(--accent-text);border-color:var(--accent)}
+.template-category-nav{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 20px;padding:0}
 /* Conversation Layout */
 .chat-layout{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:16px;flex:1;min-height:0;height:100%;max-height:100%;overflow:hidden}
 .chat-panel{height:100%;min-height:0;max-height:100%;display:flex;flex-direction:column;overflow:hidden;position:relative;border-radius:22px;background:
@@ -2567,7 +2567,6 @@ pre{font:12px/1.7 var(--font-mono);white-space:pre-wrap;overflow-wrap:anywhere;c
 .template-action-icon{display:grid;place-items:center;width:27px;height:27px;border-radius:8px;background:var(--accent-soft);transition:transform var(--dur-2) var(--ease-spring)}
 .template-card-modern:hover .template-action-icon{transform:translate(2px,-2px)}
 .saved-drafts{margin:0 0 24px;padding:20px 22px;border:1px solid color-mix(in srgb,var(--border) 84%,var(--accent) 16%);border-radius:18px;background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 5%,var(--surface)),var(--surface) 42%);box-shadow:var(--shadow-1)}.saved-drafts-head{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;margin-bottom:16px}.saved-drafts-head h2{font-size:17px;margin:5px 0 3px}.saved-drafts-head p{font-size:10.5px;color:var(--muted)}.draft-capacity{display:grid;grid-template-columns:auto auto;align-items:end;gap:0 8px;min-width:106px}.draft-capacity strong{font:700 21px var(--font-display);line-height:1}.draft-capacity strong span{font-size:12px;color:var(--muted)}.draft-capacity small{font-size:9px;color:var(--muted);padding-bottom:2px}.draft-capacity-dots{grid-column:1/-1;display:flex;gap:4px;margin-top:7px}.draft-capacity-dots i{height:3px;flex:1;border-radius:99px;background:var(--surface-3)}.draft-capacity-dots i.used{background:linear-gradient(90deg,var(--accent-deep),var(--accent-bright));box-shadow:0 0 8px color-mix(in srgb,var(--accent) 35%,transparent)}.saved-draft-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.saved-draft-card{display:grid;grid-template-columns:auto minmax(0,1fr);gap:11px;padding:13px;border:1px solid var(--border);border-radius:13px;background:color-mix(in srgb,var(--surface) 92%,transparent);transition:border-color .2s,transform .2s,box-shadow .2s}.saved-draft-card:hover{transform:translateY(-2px);border-color:color-mix(in srgb,var(--accent) 40%,var(--border));box-shadow:0 12px 24px -20px color-mix(in srgb,var(--accent) 70%,transparent)}.saved-draft-icon{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:var(--accent-soft);color:var(--accent)}.saved-draft-copy{min-width:0}.saved-draft-meta{display:flex;align-items:center;gap:5px;font:600 8px var(--font-mono);letter-spacing:.05em;text-transform:uppercase;color:var(--muted);white-space:nowrap;overflow:hidden}.saved-draft-meta span{overflow:hidden;text-overflow:ellipsis}.saved-draft-meta i{width:3px;height:3px;border-radius:50%;background:var(--accent);flex:none}.saved-draft-copy h3{font-size:11.5px;margin:5px 0 3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.saved-draft-copy p{font-size:9px;color:var(--muted)}.saved-draft-actions{grid-column:1/-1;display:flex;justify-content:flex-end;align-items:center;gap:6px;padding-top:9px;border-top:1px solid var(--border)}.saved-draft-actions .icon-btn{width:30px;height:30px;color:var(--red)}.saved-drafts-empty{display:flex;align-items:center;justify-content:center;gap:9px;min-height:56px;border:1px dashed var(--border);border-radius:12px;color:var(--muted);font-size:10.5px}.saved-drafts-empty svg{color:var(--accent)}
-.dialog-scroll .ticket-detail-shell .td-masthead{position:sticky;top:0;z-index:var(--z-raised);backdrop-filter:blur(18px) saturate(1.3)}
 @media(max-width:1100px){.template-hero{align-items:flex-start}.template-hero-stats{display:grid}.template-hero-stats>div{border-right:0;border-bottom:1px solid var(--border)}.template-grid-modern{grid-template-columns:repeat(2,minmax(0,1fr))}.saved-draft-grid{grid-template-columns:1fr}}
 @media(max-width:700px){.template-hero{flex-wrap:wrap;padding:20px}.template-hero-stats{width:100%;grid-template-columns:repeat(3,1fr)}.template-hero-stats>div{min-width:0;border-bottom:0;border-right:1px solid var(--border)}.template-grid-modern{grid-template-columns:1fr}.template-toolbar{align-items:flex-start;flex-direction:column}.template-card-modern{min-height:370px}.saved-drafts{padding:17px}.saved-drafts-head{align-items:flex-start}.saved-drafts-head p{max-width:220px}.saved-drafts-empty{padding:12px;align-items:flex-start}}
 
@@ -2907,3 +2906,69 @@ pre{font:12px/1.7 var(--font-mono);white-space:pre-wrap;overflow-wrap:anywhere;c
 .locked-page-icon{width:48px;height:48px;display:grid;place-items:center;border-radius:14px;background:var(--surface-2);color:var(--secondary)}
 .locked-page h2{font-size:18px;font-weight:650}
 .locked-page p{font-size:12.5px;color:var(--secondary);line-height:1.6}
+
+/* Template library: category pills wrap into tidy rows instead of shrinking into each other. */
+.template-cat-pill{flex:0 0 auto;display:inline-flex;align-items:center;gap:7px;height:34px;padding:0 6px 0 13px;border:1px solid var(--border);border-radius:999px;background:var(--surface);color:var(--secondary);font-size:12px;font-weight:550;white-space:nowrap;cursor:pointer;transition:border-color var(--dur-fast),background var(--dur-fast),color var(--dur-fast)}
+.template-cat-pill:hover:not(:disabled){border-color:var(--border-strong);color:var(--text)}
+.template-cat-pill:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.template-cat-pill:disabled{opacity:.45;cursor:default}
+.template-cat-pill.active{background:var(--accent);border-color:var(--accent);color:var(--accent-text)}
+.template-cat-count{min-width:22px;height:22px;padding:0 7px;display:grid;place-items:center;border-radius:999px;background:var(--surface-2);color:var(--muted);font-size:10.5px;font-weight:650;font-variant-numeric:tabular-nums}
+.template-cat-pill.active .template-cat-count{background:color-mix(in srgb,var(--accent-text) 22%,transparent);color:var(--accent-text)}
+.template-cat-pill:not(:has(.template-cat-count)){padding-right:13px}
+
+/* Equipment types grouped by category */
+.eq-types .eq-type-group th{padding-top:14px;padding-bottom:8px;background:color-mix(in srgb,var(--surface-2) 55%,var(--surface));font-size:12px;font-weight:650;color:var(--text);text-align:left;border-top:1px solid var(--hairline)}
+.eq-type-group-count{margin-left:auto;font-size:11px;font-weight:500}
+.eq-types tr.eq-type-empty td:first-child{color:var(--secondary)}
+.eq-types tbody:first-of-type .eq-type-group th{border-top:0}
+
+/* ══ Ticket detail modal ════════════════════════════════════════════════
+   The masthead scrolls away with the content; only the slim tab bar stays
+   pinned, so nothing large ever sits over the fields being read. */
+.dialog-content .ticket-detail-shell>.stack{gap:18px}
+.dialog-content .ticket-detail-shell .td-masthead{position:relative;top:auto;z-index:auto;backdrop-filter:none;grid-template-columns:minmax(0,1fr) auto;gap:20px;align-items:center;padding:20px 22px;border:1px solid var(--border);border-radius:16px;box-shadow:none;background:linear-gradient(115deg,color-mix(in srgb,var(--surface-2) 70%,var(--surface)),var(--surface) 70%)}
+.dialog-content .ticket-detail-shell .td-masthead::before{content:'';position:absolute;inset:0 auto 0 0;width:3px;background:var(--accent)}
+.dialog-content .ticket-detail-shell .td-masthead[data-tone=purple]::before{background:var(--purple)}
+.dialog-content .ticket-detail-shell .td-masthead[data-tone=amber]::before{background:var(--amber)}
+.dialog-content .ticket-detail-shell .td-masthead[data-tone=blue]::before{background:var(--blue)}
+.dialog-content .ticket-detail-shell .td-masthead[data-tone=green]::before{background:var(--green)}
+.dialog-content .ticket-detail-shell .td-masthead[data-tone=red]::before{background:var(--red)}
+.dialog-content .ticket-detail-shell .td-masthead-art{width:150px;opacity:.07;right:150px;bottom:-30px}
+.dialog-content .ticket-detail-shell .td-trail{font-size:11.5px}
+.dialog-content .ticket-detail-shell .td-rev{padding:2px 8px;border-radius:999px;background:var(--surface-2);border:1px solid var(--hairline)}
+.dialog-content .ticket-detail-shell .td-title{font-size:22px;line-height:1.2;letter-spacing:-.02em;max-width:36ch;margin-top:8px;text-wrap:balance}
+.dialog-content .ticket-detail-shell .td-summary{font-size:12.5px;margin-top:6px;max-width:72ch;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.dialog-content .ticket-detail-shell .td-chips{margin-top:12px}
+.dialog-content .ticket-detail-shell .td-masthead-sla{flex-direction:row;align-items:center;gap:12px;min-width:0;padding:10px 14px 10px 10px;border:1px solid var(--hairline-strong);border-radius:12px;background:var(--surface);box-shadow:none;text-align:left}
+.dialog-content .ticket-detail-shell .td-masthead-sla .sla-ring{width:52px!important;height:52px!important}
+.dialog-content .ticket-detail-shell .td-masthead-sla small{font-size:10.5px}
+
+/* The pinned tab bar: solid, thin, flush with the top of the scroll area. */
+.dialog-content .ticket-detail-shell .workspace-tabs{position:sticky;top:-24px;z-index:5;margin:0 -26px;padding:8px 26px;gap:4px;border:0;border-bottom:1px solid var(--hairline);border-radius:0;background:color-mix(in srgb,var(--surface) 94%,transparent);backdrop-filter:blur(12px) saturate(1.2);-webkit-backdrop-filter:blur(12px) saturate(1.2);box-shadow:none}
+.dialog-content .ticket-detail-shell .workspace-tabs button{padding:8px 14px;border-radius:9px;font-size:12px}
+.dialog-content .ticket-detail-shell .workspace-tabs button.active{background:var(--accent-soft);color:var(--accent);box-shadow:none}
+.dialog-content .ticket-detail-shell .workspace-tabs button.rail-toggle.active{background:var(--accent);color:var(--accent-text)}
+.dialog-content .ticket-detail-shell .td-aside,.dialog-content .ticket-detail-shell .rw{top:40px}
+
+/* Blocks and facts: ruled lists instead of boxes inside boxes. */
+.dialog-content .ticket-detail-shell .td-column{gap:14px}
+.dialog-content .ticket-detail-shell .td-block,.dialog-content .ticket-detail-shell .td-block:first-child{padding:20px 22px;border:1px solid var(--border);border-radius:14px;background:var(--surface);box-shadow:none}
+.dialog-content .ticket-detail-shell .td-block-note{margin:-6px 0 12px}
+.dialog-content .ticket-detail-shell .td-block-highlight,.dialog-content .ticket-detail-shell .td-block-raised{border-radius:14px}
+.dialog-content .ticket-detail-shell .td-section-icon{width:30px;height:30px;border-radius:9px;box-shadow:none}
+.dialog-content .ticket-detail-shell .td-section-head{margin-bottom:14px}
+.dialog-content .ticket-detail-shell .td-section-head h3{font-size:14.5px;font-weight:650;letter-spacing:-.01em}
+.dialog-content .ticket-detail-shell .td-facts{gap:0;border:1px solid var(--border);border-radius:12px;overflow:hidden;grid-template-columns:repeat(auto-fill,minmax(220px,1fr))}
+.dialog-content .ticket-detail-shell .td-facts>div,.dialog-content .ticket-detail-shell .td-fact-tile{margin:0;padding:12px 14px;border:0;border-radius:0;background:transparent;box-shadow:none;border-right:1px solid var(--hairline);border-bottom:1px solid var(--hairline)}
+.dialog-content .ticket-detail-shell .td-fact-icon{width:28px;height:28px;border-radius:8px;box-shadow:none}
+.dialog-content .ticket-detail-shell .td-facts dt,.dialog-content .ticket-detail-shell .td-fact-body dt{font-family:inherit;font-size:11px;font-weight:500;letter-spacing:0;text-transform:none;color:var(--muted)}
+.dialog-content .ticket-detail-shell .td-facts dd,.dialog-content .ticket-detail-shell .td-fact-body dd{font-size:13px;font-weight:550}
+.dialog-content .ticket-detail-shell .td-panel{padding:16px;border-radius:14px;background:var(--surface);box-shadow:none}
+.dialog-content .ticket-detail-shell .td-panel h3{font-size:13px}
+.dialog-content .ticket-detail-shell .related-ticket{border-radius:12px;box-shadow:none;transition:border-color var(--dur-fast),background var(--dur-fast)}
+.dialog-content .ticket-detail-shell .related-ticket:hover{border-color:color-mix(in srgb,var(--accent) 40%,var(--border));background:var(--surface-2)}
+@media(max-width:767px){
+  .dialog-content .ticket-detail-shell .td-masthead{grid-template-columns:1fr}
+  .dialog-content .ticket-detail-shell .workspace-tabs{top:-18px;margin:0 -18px;padding:8px 18px}
+}

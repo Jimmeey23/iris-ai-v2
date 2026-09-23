@@ -2,8 +2,8 @@
 
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {
-  Bike, Dumbbell, Image as ImageIcon, Laptop, LayoutGrid, Lightbulb, MapPin, Mic, Pencil,
-  Plus, RefreshCw, Rows3, ShieldCheck, Snowflake, Trash2, TriangleAlert, Upload, Wrench,
+  Bike, BrickWall, ConciergeBell, Droplets, Dumbbell, FireExtinguisher, Image as ImageIcon, Laptop, LayoutGrid, Lightbulb, MapPin, Mic, Pencil,
+  Plus, RefreshCw, Rows3, ShieldCheck, ShowerHead, Snowflake, Sparkles, Trash2, TriangleAlert, Upload, Wind, Wrench, Zap,
 } from 'lucide-react';
 import {api, Badge, Empty, Field, Loading, Modal, SearchField, useApp} from '@/components/ui';
 import {STUDIOS} from '@/lib/constants';
@@ -90,6 +90,15 @@ function CategoryIcon({category, size = 15}: {category: string; size?: number}) 
     case 'Audio & visual': return <Mic size={size} />;
     case 'Climate & facilities': return <Snowflake size={size} />;
     case 'Pantry': return <Lightbulb size={size} />;
+    case 'Building & Civil': return <BrickWall size={size} />;
+    case 'Electrical': return <Zap size={size} />;
+    case 'HVAC': return <Wind size={size} />;
+    case 'Plumbing': return <Droplets size={size} />;
+    case 'Fire & Safety': return <FireExtinguisher size={size} />;
+    case 'Studio / Equipment': return <Dumbbell size={size} />;
+    case 'Changing Room / Shower': return <ShowerHead size={size} />;
+    case 'Housekeeping': return <Sparkles size={size} />;
+    case 'Reception': return <ConciergeBell size={size} />;
     default: return <Wrench size={size} />;
   }
 }
@@ -237,6 +246,17 @@ export function EquipmentPanel({initialStudio}: {initialStudio?: string}) {
     return () => clearInterval(t);
   }, [load]);
 
+  const typeGroups = useMemo(() => {
+    const counted = new Map(typeRows.map((r) => [r.type, r]));
+    const rows: TypeSummaryRow[] = [
+      ...catalogue.map((c) => counted.get(c.type) || {type: c.type, category: c.category, items: 0, units: 0, outOfService: 0, faults: 0, openFaults: 0}),
+      // Types filed before they were in the catalogue still show, under their own category.
+      ...typeRows.filter((r) => !catalogue.some((c) => c.type === r.type)),
+    ].filter((r) => !category || r.category === category);
+    const order = [...new Set([...categories, ...rows.map((r) => r.category)])];
+    return order.map((cat) => ({category: cat, rows: rows.filter((r) => r.category === cat)})).filter((g) => g.rows.length);
+  }, [catalogue, typeRows, categories, category]);
+
   const summary = useMemo(() => {
     const available = assets.filter((a) => a.available).length;
     const total = assets.length;
@@ -381,7 +401,7 @@ export function EquipmentPanel({initialStudio}: {initialStudio?: string}) {
               Items ({assets.length})
             </button>
             <button className={'context-tab' + (tab === 'types' ? ' active' : '')} onClick={() => setTab('types')}>
-              By type ({typeRows.length})
+              By type ({catalogue.length || typeRows.length})
             </button>
           </div>
           {tab === 'items' ? (
@@ -406,33 +426,36 @@ export function EquipmentPanel({initialStudio}: {initialStudio?: string}) {
         {busy && !assets.length ? (
           <Loading rows={3} variant="card" />
         ) : tab === 'types' ? (
-          !typeRows.length ? (
-            <Empty title="Nothing registered yet" detail="Add equipment, or import a sheet of it, to see fault counts per type." />
-          ) : (
-            <div className="data-table">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Type</th><th>Category</th><th>Items</th><th>Units</th>
-                    <th>Off the floor</th><th>Tickets</th><th>Open</th>
+          // Every type the catalogue knows, grouped by its category, with the register's counts
+          // beside it — so a type nobody has filed yet is one click from its first entry.
+          <div className="data-table eq-types">
+            <table>
+              <thead>
+                <tr>
+                  <th>Type</th><th>Items</th><th>Units</th>
+                  <th>Off the floor</th><th>Tickets</th><th>Open</th><th><span className="sr-only">Add</span></th>
+                </tr>
+              </thead>
+              {typeGroups.map((g) => (
+                <tbody key={g.category}>
+                  <tr className="eq-type-group">
+                    <th colSpan={7} scope="rowgroup"><span className="flex-row" style={{gap: 8}}><CategoryIcon category={g.category} size={14} />{g.category}<span className="muted eq-type-group-count">{g.rows.reduce((n, r) => n + r.items, 0)} registered · {g.rows.length} types</span></span></th>
                   </tr>
-                </thead>
-                <tbody>
-                  {typeRows.map((r) => (
-                    <tr key={r.type}>
-                      <td><span className="flex-row" style={{gap: 7}}><CategoryIcon category={r.category} size={13} />{r.type}</span></td>
-                      <td className="muted">{r.category}</td>
-                      <td>{r.items}</td>
-                      <td>{r.units}</td>
+                  {g.rows.map((r) => (
+                    <tr key={r.type} className={r.items ? '' : 'eq-type-empty'}>
+                      <td>{r.type}</td>
+                      <td>{r.items || <span className="muted">—</span>}</td>
+                      <td>{r.units || <span className="muted">—</span>}</td>
                       <td>{r.outOfService ? <Badge tone="red">{r.outOfService}</Badge> : <span className="muted">—</span>}</td>
-                      <td><strong>{r.faults}</strong></td>
+                      <td>{r.faults ? <strong>{r.faults}</strong> : <span className="muted">0</span>}</td>
                       <td>{r.openFaults ? <Badge tone="amber">{r.openFaults}</Badge> : <span className="muted">0</span>}</td>
+                      <td style={{textAlign: 'right'}}>{canEdit && <button className="icon-btn eq-icon-sm" aria-label={`Add ${r.type}`} title={`Add ${r.type}`} onClick={() => { setFormError(''); setEditing(emptyForm(studio, r.type)); }}><Plus size={12} /></button>}</td>
                     </tr>
                   ))}
                 </tbody>
-              </table>
-            </div>
-          )
+              ))}
+            </table>
+          </div>
         ) : !visible.length ? (
           <Empty
             title={assets.length ? 'Nothing matches those filters' : 'No equipment registered'}

@@ -1251,6 +1251,10 @@ export const TRAINER_IMAGES: Record<string, string> = {
   "Anmol Sharma": "/Trainer Images/Anmol.jpeg",
   "Atulan Purohit": "/Trainer Images/002-Atulan-Image-1.jpg",
   "Bret Saldanha": "/Trainer Images/Bret.jpeg",
+  "Cauveri Vikrant": "/Trainer Images/Cauveri-Vikrant.jpg",
+  "Chaitanya Nahar": "/Trainer Images/Chaitanya-Nahar.jpg",
+  "Kajol Kanchan": "/Trainer Images/Kajol-Kanchan.jpg",
+  "Karan Bhatia": "/Trainer Images/Karan-Bhatia.jpg",
   "Mrigakshi Jaiswal": "/Trainer Images/007-Mrigakshi-Image-2.jpg",
   "Pranjali Jain": "/Trainer Images/008-Pranjali-Image-1.jpg",
   "Pushyank Nahar": "/Trainer Images/009-Pushyank-Nahar-1.jpeg",
@@ -1263,19 +1267,24 @@ export const TRAINER_IMAGES: Record<string, string> = {
   "Vivaran Dhasmana": "/Trainer Images/015-Vivaran-Image-4.jpg",
 };
 
-/** Get trainer image URL by name (case-insensitive partial match) */
+/** A trainer's headshot, URL-encoded (the folder name has a space), or null. Matches the full
+ *  name first, then a first name on its own ("Anisha") — never a different person who happens
+ *  to share a first name ("Rohan Mehta" is not "Rohan Dahima"), and never "Karanvir" for
+ *  "Karan". A co-taught "Anisha, Atulan" reads as its first trainer. */
 export function getTrainerImage(name: string): string | null {
   if (!name) return null;
-  // Exact match
-  if (TRAINER_IMAGES[name]) return TRAINER_IMAGES[name];
-  // Case-insensitive match
-  const lower = name.toLowerCase();
-  for (const [key, url] of Object.entries(TRAINER_IMAGES)) {
-    if (key.toLowerCase() === lower) return url;
-    // Partial match (first name)
-    if (lower.includes(key.split(' ')[0].toLowerCase()) || key.split(' ')[0].toLowerCase().includes(lower.split(' ')[0])) return url;
-  }
-  return null;
+  const first = name.split(/\s*(?:,|\+|&|\band\b)\s*/i)[0].trim().toLowerCase().replace(/\s+/g, ' ');
+  if (!first) return null;
+  const hit = (url: string) => encodeURI(url);
+  for (const [key, url] of Object.entries(TRAINER_IMAGES)) if (key.toLowerCase() === first) return hit(url);
+  const words = first.split(' ');
+  const matches = Object.entries(TRAINER_IMAGES).filter(([key]) => {
+    const k = key.toLowerCase().split(' ');
+    if (k[0] !== words[0]) return false;
+    // A second word has to agree too, at least by its first letter ("Simonelle D.").
+    return words.length === 1 || (k[1] || '').startsWith(words[1].replace(/\.$/, ''));
+  });
+  return matches.length === 1 ? hit(matches[0][1]) : null;
 }
 
 /* ------------------------------------------------------------------------ *
@@ -1296,7 +1305,17 @@ export type EquipmentCategory =
   | 'IT & systems'
   | 'Audio & visual'
   | 'Climate & facilities'
-  | 'Pantry';
+  | 'Pantry'
+  // The vendor service & complaint register's groups.
+  | 'Building & Civil'
+  | 'Electrical'
+  | 'HVAC'
+  | 'Plumbing'
+  | 'Fire & Safety'
+  | 'Studio / Equipment'
+  | 'Changing Room / Shower'
+  | 'Housekeeping'
+  | 'Reception';
 
 export interface EquipmentTypeDef {
   /** Canonical name. Stored on the asset row, so renaming one is a data migration. */
@@ -1309,10 +1328,10 @@ export interface EquipmentTypeDef {
 }
 
 export const EQUIPMENT_CATALOGUE: EquipmentTypeDef[] = [
-  {type: 'PowerCycle bike', category: 'Cardio', aliases: ['bike', 'cycle', 'powercycle', 'spin bike']},
+  {type: 'PowerCycle bike', category: 'Cardio', aliases: ['bike', 'cycle', 'powercycle', 'spin bike', 'studio cycle']},
 
   {type: 'Barre', category: 'Strength & studio', aliases: ['barre', 'ballet barre']},
-  {type: 'Resistance band', category: 'Strength & studio', countable: true, aliases: ['band', 'bands', 'resistance band']},
+  {type: 'Resistance band', category: 'Strength & studio', countable: true, aliases: ['band', 'bands', 'resistance band', 'resistance bands']},
   {type: 'Exercise ball', category: 'Strength & studio', countable: true, aliases: ['ball', 'balls', 'pilates ball', 'swiss ball']},
   {type: 'Weight 1 kg', category: 'Strength & studio', countable: true, aliases: ['1kg', '1 kg weight', '1kg weight']},
   {type: 'Weight 2 kg', category: 'Strength & studio', countable: true, aliases: ['2kg', '2 kg weight', '2kg weight']},
@@ -1327,12 +1346,12 @@ export const EQUIPMENT_CATALOGUE: EquipmentTypeDef[] = [
   {type: 'Biometric machine', category: 'IT & systems', aliases: ['biometric', 'biometric machine', 'attendance machine', 'fingerprint scanner']},
   {type: 'TFA system', category: 'IT & systems', aliases: ['tfa', 'tfa system', 'two factor', 'access control']},
   {type: 'Landline', category: 'IT & systems', aliases: ['landline', 'landline phone']},
-  {type: 'Studio phone', category: 'IT & systems', aliases: ['studio phone', 'front desk phone', 'reception phone']},
+  {type: 'Studio phone', category: 'IT & systems', aliases: ['studio phone', 'front desk phone', 'reception phone', 'reception landline']},
 
-  {type: 'Microphone', category: 'Audio & visual', aliases: ['mic', 'microphone', 'headset mic']},
+  {type: 'Microphone', category: 'Audio & visual', aliases: ['mic', 'microphone', 'headset mic', 'studio mic']},
   {type: 'Portable microphone', category: 'Audio & visual', aliases: ['portable mic', 'handheld mic', 'roving mic']},
   {type: 'Music system', category: 'Audio & visual', aliases: ['music system', 'sound system', 'console', 'mixer', 'amp']},
-  {type: 'Speaker', category: 'Audio & visual', aliases: ['speaker', 'speakers', 'monitor speaker']},
+  {type: 'Speaker', category: 'Audio & visual', aliases: ['speaker', 'speakers', 'monitor speaker', 'speakers / audio']},
   {type: 'Studio lighting rig', category: 'Audio & visual', aliases: ['lighting rig', 'studio lights', 'light rig']},
   {type: 'Ambient light', category: 'Audio & visual', aliases: ['ambient light', 'mood light']},
   {type: 'Spotlight', category: 'Audio & visual', aliases: ['spotlight', 'spot light']},
@@ -1347,6 +1366,61 @@ export const EQUIPMENT_CATALOGUE: EquipmentTypeDef[] = [
 
   {type: 'Coffee maker', category: 'Pantry', aliases: ['coffee maker', 'coffee machine', 'espresso machine']},
   {type: 'Microwave', category: 'Pantry', aliases: ['microwave', 'microwave oven']},
+
+  /* The vendor service & complaint register (Assets sheet). Items the catalogue already had —
+   * cycle, studio mic, speakers, resistance bands, laptop, printer, phone — stay under their
+   * existing types (the aliases above now include the register's wording) so no equipment
+   * already filed is regrouped. */
+  {type: 'Walls / paint', category: 'Building & Civil', aliases: ['wall paint', 'paint peeling', 'damp wall', 'crack in the wall']},
+  {type: 'Ceiling / fabric', category: 'Building & Civil', aliases: ['ceiling fabric', 'false ceiling', 'ceiling panel']},
+  {type: 'Flooring', category: 'Building & Civil', aliases: ['flooring', 'floorboard', 'floor tile', 'floor tiles']},
+  {type: 'Doors & locks', category: 'Building & Civil', aliases: ['door lock', 'door handle', 'door hinge']},
+  {type: 'Glass / mirrors', category: 'Building & Civil', aliases: ['mirror wall', 'broken mirror', 'glass panel', 'cracked mirror']},
+
+  {type: 'Lights', category: 'Electrical', aliases: ['tube light', 'light bulb', 'lights not working', 'light not working']},
+  {type: 'Switches & sockets', category: 'Electrical', aliases: ['switch board', 'switchboard', 'plug point', 'power socket']},
+  {type: 'Electrical panel / DB', category: 'Electrical', aliases: ['electrical panel', 'distribution board', 'db box', 'mcb']},
+
+  {type: 'AC operation', category: 'HVAC', aliases: ['ac remote', 'ac not turning on', 'ac operation']},
+  {type: 'AC cooling effect', category: 'HVAC', aliases: ['ac not cooling', 'cooling effect']},
+  {type: 'AC filters', category: 'HVAC', aliases: ['ac filter', 'ac filters']},
+  {type: 'AC water leakage / unusual noise', category: 'HVAC', aliases: ['ac leak', 'ac leakage', 'ac dripping', 'ac noise']},
+
+  {type: 'Taps', category: 'Plumbing', aliases: ['water tap', 'tap leaking', 'taps', 'faucet']},
+  {type: 'Showers', category: 'Plumbing', aliases: ['shower head', 'shower not working']},
+  {type: 'Toilets / flush', category: 'Plumbing', aliases: ['toilet', 'toilets', 'flush', 'commode']},
+  {type: 'Drains', category: 'Plumbing', aliases: ['blocked drain', 'drain', 'drains']},
+  {type: 'Water leakage', category: 'Plumbing', aliases: ['water leak', 'water leakage', 'pipe leak']},
+  {type: 'Water pressure', category: 'Plumbing', aliases: ['water pressure', 'low pressure']},
+
+  {type: 'Fire extinguishers', category: 'Fire & Safety', countable: true, aliases: ['fire extinguisher', 'fire extinguishers', 'extinguisher']},
+  {type: 'Fire alarm', category: 'Fire & Safety', aliases: ['fire alarm', 'smoke detector', 'smoke alarm']},
+  {type: 'Emergency exits', category: 'Fire & Safety', aliases: ['emergency exit', 'fire exit']},
+  {type: 'First-aid kit', category: 'Fire & Safety', countable: true, aliases: ['first aid kit', 'first-aid kit', 'first aid box']},
+
+  {type: 'Fitness equipment', category: 'Studio / Equipment', aliases: ['fitness equipment', 'gym equipment']},
+  {type: 'Mats', category: 'Studio / Equipment', countable: true, aliases: ['yoga mat', 'exercise mat', 'mats']},
+  {type: 'Dumbbells', category: 'Studio / Equipment', countable: true, aliases: ['dumbbell', 'dumbbells', 'dumbells']},
+  {type: 'Kettlebell', category: 'Studio / Equipment', countable: true, aliases: ['kettlebell', 'kettlebells', 'kettle bell']},
+  {type: 'Plyometric box', category: 'Studio / Equipment', countable: true, aliases: ['plyo box', 'plyometric box', 'jump box']},
+
+  {type: 'Lockers', category: 'Changing Room / Shower', countable: true, aliases: ['locker', 'lockers']},
+  {type: 'Hair dryers', category: 'Changing Room / Shower', countable: true, aliases: ['hair dryer', 'hair dryers', 'hairdryer']},
+  {type: 'Hair brushes', category: 'Changing Room / Shower', countable: true, aliases: ['hair brush', 'hair brushes', 'hairbrush']},
+  {type: 'Shower dispensers', category: 'Changing Room / Shower', countable: true, aliases: ['shampoo dispenser', 'soap dispenser', 'shower dispenser', 'body wash dispenser']},
+  {type: 'Hooks', category: 'Changing Room / Shower', countable: true, aliases: ['wall hook', 'changing room hook', 'hooks']},
+  {type: 'Hot water', category: 'Changing Room / Shower', aliases: ['hot water', 'geyser', 'water heater']},
+
+  {type: 'Cleaning standards', category: 'Housekeeping', aliases: ['cleaning standards']},
+  {type: 'Storage areas', category: 'Housekeeping', aliases: ['storage area', 'store room', 'storeroom']},
+  {type: 'Waste bins', category: 'Housekeeping', countable: true, aliases: ['dustbin', 'waste bin', 'dustbins', 'waste bins']},
+  {type: 'Odour', category: 'Housekeeping', aliases: ['bad odour', 'foul smell', 'odour', 'odor']},
+  {type: 'Pest control', category: 'Housekeeping', aliases: ['pest control', 'cockroach', 'cockroaches', 'rodent', 'rats']},
+  {type: 'Consumables', category: 'Housekeeping', aliases: ['consumables', 'toilet paper', 'tissue box']},
+
+  {type: 'Reception furniture', category: 'Reception', aliases: ['reception furniture', 'reception sofa', 'reception chair']},
+  {type: 'POS terminal', category: 'Reception', aliases: ['pos terminal', 'pos machine', 'card machine']},
+  {type: 'Reception lighting', category: 'Reception', aliases: ['reception lighting', 'reception light']},
 ];
 
 export const EQUIPMENT_TYPES = EQUIPMENT_CATALOGUE.map((e) => e.type);

@@ -6,7 +6,7 @@ import {tickets,staff,departments,ticketActivities,ticketComments,ticketLinks,ti
 import {ticketInputSchema,type TicketInput,type AdvancedDraft} from './ticket-contract';
 import {getConfig,getSetting,setSetting} from './config';
 import {ApiError,canAccessTicket,currentUser,type Identity} from './auth';
-import {inferPriority,inferSeverity,studioIdsFor} from './routing';
+import {CITY_OWNERS,cityOf,inferPriority,inferSeverity,studioIdsFor} from './routing';
 import {buildTemplate} from './templates';
 import {ticketNumberFor,slugify} from './utils';
 import {scoreAssessment} from './guided-templates';
@@ -20,7 +20,14 @@ const subRule=subcategory?cfg.subcategoryRouting[category+'|||'+subcategory]:und
 const departmentId=subRule?.departmentId||cfg.categoryDepartments[category]||'operations';const[dept]=await db.select().from(departments).where(eq(departments.id,departmentId));if(!dept?.active)throw new ApiError('The routing department is inactive. Ask an administrator to update the routing rule.');
 const people=await db.select().from(staff).where(and(eq(staff.isActive,true),eq(staff.department,dept.name)));
 const ids=studioIdsFor(studio);const override=subRule?.ownerId||cfg.routingOwners[category+'::'+studio]||cfg.routingOwners[category];
-const owner=cfg.autoAssign?(people.find(p=>p.id===override)||people.sort((a,b)=>{const score=(p:typeof a)=>(p.categories.includes(category)?10:0)+(p.studioId&&ids.includes(p.studioId)?8:0)+(/Head|Coordinator|Ops Manager|Chief/.test(p.role)?3:0);return score(b)-score(a);})[0]):{id:null,name:'Unassigned',email:'',role:'Department queue'};if(!owner)throw new ApiError('No active owner is available in the routing department.');
+// Named city owners come after a rule an administrator set on the sub-category itself.
+const city=cityOf(studio);const named=CITY_OWNERS[departmentId]?.[city||'mumbai'];
+let cityOwner:typeof people[number]|undefined;
+if(cfg.autoAssign&&city&&named&&!subRule?.ownerId){const candidates=named.map(re=>people.find(p=>re.test(p.name))).filter((p):p is typeof people[number]=>Boolean(p));
+  if(candidates.length===1)cityOwner=candidates[0];
+  else if(candidates.length>1){const load=await db.select({id:tickets.assignedStaffId,n:sql<number>`count(*)::int`}).from(tickets).where(and(inArray(tickets.assignedStaffId,candidates.map(c=>c.id)),sql`${tickets.status} not in ('resolved','closed','recorded')`)).groupBy(tickets.assignedStaffId);
+    const open=(id:number)=>load.find(l=>l.id===id)?.n||0;cityOwner=[...candidates].sort((a,b)=>open(a.id)-open(b.id))[0];}}
+const owner=cfg.autoAssign?(cityOwner||people.find(p=>p.id===override)||people.sort((a,b)=>{const score=(p:typeof a)=>(p.categories.includes(category)?10:0)+(p.studioId&&ids.includes(p.studioId)?8:0)+(/Head|Coordinator|Ops Manager|Chief/.test(p.role)?3:0);return score(b)-score(a);})[0]):{id:null,name:'Unassigned',email:'',role:'Department queue'};if(!owner)throw new ApiError('No active owner is available in the routing department.');
 return{departmentId,dept,owner,ids,override};}
 export async function makeDraft(raw:unknown):Promise<AdvancedDraft>{const input=ticketInputSchema.parse(raw);const cfg=await getConfig();if(!cfg.taxonomy[input.category]?.includes(input.subcategory))throw new ApiError('Choose a subcategory belonging to the selected category.');
 const template=input.templateId?(await configuredTemplates()).find(t=>t.id===input.templateId):undefined;

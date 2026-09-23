@@ -53,6 +53,16 @@ export function studioRegion(studioName?: string | null) {
   return studio?.region ?? null;
 }
 
+/** Named owners per department and city. Marketing, training and operations tickets go to these
+ *  people whatever the scoring below would pick; where a city has two, the one with fewer open
+ *  tickets takes it. Patterns match the staff directory's display names. */
+export const CITY_OWNERS: Record<string, {mumbai: RegExp[]; bengaluru: RegExp[]}> = {
+  marketing: {mumbai: [/^shaina\b/i], bengaluru: [/^saachi shetty jr/i]},
+  training: {mumbai: [/^mrigakshi\b/i, /^vivaran\b/i], bengaluru: [/^pushyank\b/i]},
+  operations: {mumbai: [/^zahur\b/i], bengaluru: [/^shifa\b/i]},
+};
+export const cityOf = (studioName?: string | null) => !studioName ? null : /bengaluru|bangalore/i.test(studioName) ? 'bengaluru' as const : 'mumbai' as const;
+
 export function studioIdsFor(studioName?: string | null) {
   if (!studioName) return [] as number[];
   const studio = STUDIOS.find((s) => s.name === studioName);
