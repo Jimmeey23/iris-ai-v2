@@ -5,6 +5,7 @@ export const ticketInputSchema=z.object({
   memberName:z.string().min(2).max(120),memberEmail:z.union([z.string().email(),z.literal('')]).optional(),memberPhone:z.string().max(30).optional(),momenceMemberId:z.string().optional(),momenceSessionId:z.string().optional(),
   classFormat:z.string().max(160).optional(),trainer:z.string().max(160).optional(),membership:z.string().max(200).optional(),incidentAt:z.string().min(1),preferredContact:z.string().max(50).default('Email'),
   requestedResolution:z.string().max(2000).optional(),priority:z.enum(['critical','high','medium','low']).optional(),sentiment:z.enum(['positive','neutral','frustrated','negative']).default('neutral'),impact:z.string().max(2000).optional(),
+  resolutionRequired:z.boolean().optional(),
   customFields:z.record(z.string(),z.unknown()).default({}),momenceContext:z.record(z.string(),z.unknown()).optional(),templateId:z.string().optional(),source:z.enum(['iris','template','manual','voice','fillout','history','system']).default('manual'),
   submissionKey:z.string().min(12).max(200).optional(),
 });

@@ -530,6 +530,7 @@ export function toTicketInput(args: {
     incidentAt,
     preferredContact: memberRelated ? String(data.preferred_contact || 'Email') : 'Internal log only',
     requestedResolution: filled(data.requested_outcome) ? String(data.requested_outcome) : undefined,
+    resolutionRequired: !/^no$/i.test(String(args.data._requires_resolution || 'Yes')),
     sentiment,
     impact: filled(data.member_impact) ? String(data.member_impact) : undefined,
     customFields: custom,

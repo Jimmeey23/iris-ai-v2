@@ -26,7 +26,7 @@ export async function makeDraft(raw:unknown):Promise<AdvancedDraft>{const input=
 const template=input.templateId?(await configuredTemplates()).find(t=>t.id===input.templateId):undefined;
 if(template)for(const field of template.fields.filter(f=>f.required)){const val=input.customFields[field.id];if(val===undefined||val===null||val==='')throw new ApiError(`${field.label} is required.`);if(field.type==='rating'&&(!Number.isFinite(Number(val))||Number(val)<0||Number(val)>5))throw new ApiError(`${field.label} must be scored from 0 to 5.`);}
 const calculatedScore=template?scoreAssessment(template.fields,input.customFields):null;if(calculatedScore!==null)input.customFields.evaluationScore=calculatedScore;
-const praise=input.kind==='compliment'||input.kind==='feedback'&&input.sentiment==='positive';const noSla=input.kind==='assessment'||praise&&cfg.positiveNoSla;
+const praise=input.kind==='compliment'||input.kind==='feedback'&&input.sentiment==='positive';const noSla=input.resolutionRequired===false||input.kind==='assessment'||praise&&cfg.positiveNoSla;
 // The intake answers ride in customFields — they are not columns on the schema — so
 // they have to be read back out here or the reporter's own urgency signal never
 // reaches the priority rules.

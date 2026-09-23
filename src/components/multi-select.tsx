@@ -62,6 +62,7 @@ export function MultiSelect({
   const [dataSource, setDataSource] = useState('');
   const [open, setOpen] = useState(false);
   const boxRef = useRef<HTMLDivElement>(null);
+  const sessionTypeKey = (sessionTypes || []).join(',');
 
   useEffect(() => {
     if (!LIVE_MODULES.has(module)) return;
@@ -71,7 +72,7 @@ export function MultiSelect({
       setBusy(true);
       const params = new URLSearchParams({ module, q, page: '0', pageSize: module === 'sessions' ? '120' : '80' });
       if (module === 'sessions' && studio) params.set('studio', studio);
-      if (module === 'sessions') for (const t of sessionTypes || []) params.append('type', t);
+      if (module === 'sessions') for (const t of sessionTypeKey.split(',').filter(Boolean)) params.append('types[]', t);
       if (module === 'sessions' && upcoming) params.set('upcoming', 'true');
       api<{ items: MomenceRecord[]; source: string }>(
         `/api/momence?${params}`,
@@ -85,7 +86,7 @@ export function MultiSelect({
         .finally(() => setBusy(false));
     }, 220);
     return () => { clearTimeout(t); controller.abort(); };
-  }, [module, q, open, studio, sessionTypes?.join(','), upcoming]);
+  }, [module, q, open, studio, sessionTypeKey, upcoming]);
 
   useEffect(() => {
     function onDocClick(e: MouseEvent) {

@@ -18,11 +18,12 @@ const META: Record<LookupModule, {title: string; placeholder: string; icon: type
  *  come through the same /api/momence gate the rest of the workspace uses; nothing is invented
  *  when it is disconnected — demo rows are labelled as demo, and a signed-out desk is told to
  *  sign in rather than shown an empty list it cannot explain. */
-function useLookupRows(module: LookupModule, q: string, open: boolean, opts: {studio?: string; when?: 'recent' | 'upcoming'}) {
+function useLookupRows(module: LookupModule, q: string, open: boolean, opts: {studio?: string; when?: 'recent' | 'upcoming'; sessionTypes?: string[]}) {
   const [rows, setRows] = useState<Row[]>([]);
   const [status, setStatus] = useState<LookupStatus>('idle');
   const [busy, setBusy] = useState(false);
   const [widened, setWidened] = useState(false);
+  const sessionTypesKey = (opts.sessionTypes || []).join(',');
   useEffect(() => {
     if (!open) return;
     const controller = new AbortController();
@@ -44,6 +45,7 @@ function useLookupRows(module: LookupModule, q: string, open: boolean, opts: {st
         const params = new URLSearchParams({module: module === 'member' ? 'members' : 'sessions', q, page: '0', pageSize: module === 'session' ? '120' : '60'});
         if (module === 'session') {
           if (opts.studio) params.set('studio', opts.studio);
+          for (const type of sessionTypesKey.split(',').filter(Boolean)) params.append('types[]', type);
           // A class starting in the next few minutes is one the desk is dealing with now, so
           // "recent" reaches slightly forward and "upcoming" slightly back.
           const grace = 15 * 60e3;
@@ -79,7 +81,7 @@ function useLookupRows(module: LookupModule, q: string, open: boolean, opts: {st
       } finally { setBusy(false); }
     }, 200);
     return () => { clearTimeout(t); controller.abort(); };
-  }, [module, q, open, opts.studio, opts.when]);
+  }, [module, q, open, opts.studio, opts.when, sessionTypesKey]);
   return {rows, status, busy, widened};
 }
 
@@ -88,11 +90,13 @@ export const STATUS_LINE: Record<LookupStatus, string> = {
   auth: 'Sign in to search Momence — or type the details', error: 'Momence did not answer — type the details for now', board: 'Tickets on the board',
 };
 
-export function LookupField({module, value, onChange, studio, multi = false, placeholder, allowManual = true, id, invalid, onPick, disabled}: {
+export function LookupField({module, value, onChange, studio, sessionTypes, multi = false, placeholder, allowManual = true, id, invalid, onPick, disabled}: {
   module: LookupModule;
   value: unknown;
   onChange: (encoded: string) => void;
   studio?: string;
+  /** Momence session types to request, sent as repeated `types[]` query parameters. */
+  sessionTypes?: string[];
   multi?: boolean;
   placeholder?: string;
   /** Lets the desk keep a typed name when there is no record to link — labelled as typed. */
@@ -109,7 +113,7 @@ export function LookupField({module, value, onChange, studio, multi = false, pla
   const [when, setWhen] = useState<'recent' | 'upcoming'>('recent');
   const box = useRef<HTMLDivElement>(null);
   const selected = useMemo(() => decodeLookups(value), [value]);
-  const {rows, status, busy, widened} = useLookupRows(module, q, open, {studio, when});
+  const {rows, status, busy, widened} = useLookupRows(module, q, open, {studio, when, sessionTypes});
 
   useEffect(() => {
     const onDoc = (e: MouseEvent) => { if (box.current && !box.current.contains(e.target as Node)) setOpen(false); };

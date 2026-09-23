@@ -63,6 +63,9 @@ export function IntakeFlow({presetCategory, presetSubcategory, presetDesk, onLeg
   const openSub = useCallback((c: IntakeCategory, s: string, prefill: IntakeData = {}, detail: SessionDetail | null = null, entries: Record<string, RosterEntry> = {}, tax: IntakeTaxonomy | undefined = taxonomy) => {
     const reporter = tax?.reporter || (user ? {name: user.name, email: user.email} : undefined);
     const seed = seedData({studio: rememberedStudio(), ...prefill}, reporter || undefined);
+    seed._involves_member = prefill._involves_member ?? 'No';
+    seed._involves_class = prefill._involves_class ?? 'No';
+    seed._requires_resolution = prefill._requires_resolution ?? 'Yes';
     const nextAuto: Record<string, IntakeValue> = {...Object.fromEntries(Object.entries(prefill).filter(([, v]) => filled(v)))};
     if (reporter?.name) nextAuto.reporter_name = reporter.name;
     if (reporter?.email) nextAuto.reporter_contact = reporter.email;
@@ -384,7 +387,7 @@ export function IntakeFlow({presetCategory, presetSubcategory, presetDesk, onLeg
             )}
             {planBusy && !plan && <div className="skeleton-cards"><div className="skeleton" style={{height: 220}} /><div className="skeleton" style={{height: 220}} /></div>}
             {plan && <FormEngine fields={fields} data={data} patch={patch} errors={errors} auto={auto} collapsed={collapsed} onToggle={(s, c) => setCollapsed(x => ({...x, [s]: c}))} gatingIds={gatingIds} requiredOnly={requiredOnly}
-              contextHeader={<IntakeContextHeader data={data} patch={patch} studio={studio} />}
+              contextHeader={<IntakeContextHeader data={data} patch={patch} studio={studio} hostedClass={category.name === 'Brand Feedback' && sub === 'Hosted Class Feedback'} />}
               extras={{
                 title: <button type="button" className="text-btn intake-writeup" onClick={() => aiDraft('title')} disabled={aiBusy} title="Tighten the title from the answers so far"><Sparkles size={11} /> AI title</button>,
                 summary: <div className="flex-row" style={{gap: 6}}>

@@ -1,6 +1,6 @@
 "use client";
 import {useMemo, useState, type ReactNode} from 'react';
-import {Building2, CalendarDays, Check, ChevronDown, GitBranch, LockKeyhole, Minus, Plus, Sparkles, UserRound, X} from 'lucide-react';
+import {Building2, CalendarDays, Check, ChevronDown, GitBranch, LockKeyhole, Minus, Plus, Sparkles, UserRound, UsersRound, Wrench, X} from 'lucide-react';
 import {studioAreasFor} from '@/lib/constants';
 import {ENRICH_SECTIONS, SECTION_ORDER, filled, isVisible, localDateTime, type IntakeData, type IntakeField, type IntakeValue, type LookupRef} from '@/lib/intake/plan';
 import {LookupField} from './lookup-field';
@@ -125,10 +125,12 @@ export function IntakeFieldRow({f, value, onChange, error, auto, studio, onLooku
     <div className={'field intake-field' + (wide ? ' wide' : ' aligned') + (done ? ' done' : '') + (error ? ' has-error' : '')} data-fid={f.id}>
       <label htmlFor={'f-' + f.id} className={'intake-label' + (wide ? ' wide' : '')}>
         <span className="intake-label-text">
-          {f.label}
-          {must ? <i className="intake-req" title={f.required ? 'Required' : 'Needed before filing'}>*</i> : <small className="intake-opt">optional</small>}
-          {auto && done && <span className="intake-auto" title="Filled in for you — edit to change"><Sparkles size={9} /> auto</span>}
-          {depLabel && <span className="intake-cond" title={`Asked because “${depLabel}” was answered`}><GitBranch size={9} /> follows {depLabel.toLowerCase()}</span>}
+          <span className="intake-label-title">{f.label}</span>
+          <span className="intake-label-badges">
+            {must ? <span className="intake-req" title={f.required ? 'Required' : 'Needed before filing'}>Required</span> : <span className="intake-opt">Optional</span>}
+            {auto && done && <span className="intake-auto" title="Filled in for you — edit to change"><Sparkles size={9} /> Auto-filled</span>}
+            {depLabel && <span className="intake-cond" title={`Asked because “${depLabel}” was answered`}><GitBranch size={9} /> Conditional</span>}
+          </span>
         </span>
         {extra}
       </label>
@@ -140,56 +142,68 @@ export function IntakeFieldRow({f, value, onChange, error, auto, studio, onLooku
   );
 }
 
-function ToggleChip({label, hint, on, onClick}: {label: string; hint?: string; on: boolean; onClick: () => void}) {
-  return <button type="button" role="switch" aria-checked={on} title={hint} className={'intake-chip intake-toggle' + (on ? ' on' : '')} onClick={onClick}><span className={'intake-toggle-dot' + (on ? ' on' : '')} />{label}</button>;
+function ContextSwitch({label, hint, on, onClick, icon}: {label: string; hint: string; on: boolean; onClick: () => void; icon: ReactNode}) {
+  return <button type="button" role="switch" aria-checked={on} title={hint} className={'intake-context-switch' + (on ? ' on' : '')} onClick={onClick}>
+    <span className="intake-context-switch-icon">{icon}</span>
+    <span className="intake-context-switch-copy"><strong>{label}</strong><small>{hint}</small></span>
+    <span className="intake-switch-track" aria-hidden="true"><i /></span>
+  </button>;
 }
 
 /** The top-of-form context card: who is reporting, where, and whether a member or class
  *  is at the centre of the ticket. The toggles surface the member/class lookups when on. */
-export function IntakeContextHeader({data, patch, studio}: {data: IntakeData; patch: Patch; studio?: string}) {
+export function IntakeContextHeader({data, patch, studio, hostedClass = false}: {data: IntakeData; patch: Patch; studio?: string; hostedClass?: boolean}) {
   const involvesMember = /yes/i.test(String(data._involves_member || ''));
   const involvesClass = /yes/i.test(String(data._involves_class || ''));
+  const requiresResolution = !/^no$/i.test(String(data._requires_resolution || 'Yes'));
   const setFlag = (id: string, yes: boolean) => patch(id, yes ? 'Yes' : 'No');
   const reporterType = String(data.reporter_type || '');
   const reporterName = String(data.reporter_name || '');
   const studioName = String(data.studio || studio || '');
   return (
     <div className="intake-context card">
-      <div className="intake-context-row">
-        <div className="intake-context-block">
-          <span className="intake-context-label"><UserRound size={12} /> Reporter</span>
-          <div className="intake-context-values">
-            {reporterName ? <span className="intake-context-pill"><LockKeyhole size={10}/>{reporterName}</span> : <span className="intake-context-placeholder">Signed-in user</span>}
-            {data.reporter_contact ? <span className="intake-context-pill">{String(data.reporter_contact)}</span> : null}
-            {reporterType ? <span className="intake-context-pill intake-context-muted">{reporterType}</span> : null}
-          </div>
+      <div className="intake-context-switches" aria-label="Ticket context">
+        <ContextSwitch label="Involves a Member/s" hint="Link the Community Member this ticket concerns" icon={<UsersRound size={17}/>} on={involvesMember} onClick={() => setFlag('_involves_member', !involvesMember)} />
+        <ContextSwitch label="Involves a session" hint="Link the relevant Momence Studio Session" icon={<CalendarDays size={17}/>} on={involvesClass} onClick={() => setFlag('_involves_class', !involvesClass)} />
+        <ContextSwitch label="Requires Resolution" hint="Create a follow-up target and resolution workflow" icon={<Wrench size={17}/>} on={requiresResolution} onClick={() => setFlag('_requires_resolution', !requiresResolution)} />
+      </div>
+      <div className="intake-identity-strip" aria-label="Read-only reporter and studio details">
+        <div className="intake-identity-head">
+          <span>Reporting context</span>
+          <small><LockKeyhole size={10}/> Read only</small>
         </div>
-        <div className="intake-context-block">
-          <span className="intake-context-label"><Building2 size={12} /> Studio</span>
-          <div className="intake-context-values">
-            {studioName ? <span className="intake-context-pill">{studioName.split(',')[0]}</span> : <span className="intake-context-placeholder">Not set</span>}
+        <div className="intake-identity-grid">
+          <div className="intake-identity-item">
+            <span className="intake-identity-icon"><UserRound size={17}/></span>
+            <div className="intake-identity-copy">
+              <small>Reporter</small>
+              <strong>{reporterName || 'Signed-in user'}</strong>
+              <span>{[String(data.reporter_contact || ''), reporterType].filter(Boolean).join(' · ') || 'Profile details unavailable'}</span>
+            </div>
           </div>
-        </div>
-        <div className="intake-context-block intake-context-toggles">
-          <span className="intake-context-label">Ticket involves</span>
-          <div className="intake-context-values">
-            <ToggleChip label="A member" hint="Toggle on when a member is directly or indirectly involved" on={involvesMember} onClick={() => setFlag('_involves_member', !involvesMember)} />
-            <ToggleChip label="A class" hint="Toggle on when a class or session is directly or indirectly involved" on={involvesClass} onClick={() => setFlag('_involves_class', !involvesClass)} />
+          <div className="intake-identity-item">
+            <span className="intake-identity-icon studio"><Building2 size={17}/></span>
+            <div className="intake-identity-copy">
+              <small>Linked studio</small>
+              <strong>{studioName ? studioName.split(',')[0] : 'Studio not set'}</strong>
+              <span>{studioName ? 'Controls the Momence account and records shown in this form' : 'Update the reporter profile to link a studio'}</span>
+            </div>
           </div>
         </div>
       </div>
-      {(involvesMember || involvesClass) && (
+      {(involvesMember || involvesClass || hostedClass) && (
         <div className="intake-context-lookups">
           {involvesMember && (
             <div className="intake-context-lookup">
-              <label htmlFor="f-member_name" className="intake-label"><span className="intake-label-text">Member this is about <i className="intake-req" title="Required when a member is involved">*</i></span></label>
-              <LookupField id="f-member_name" module="member" value={data.member_name} onChange={v => patch('member_name', v)} studio={studioName} />
+              <label htmlFor="f-member_name" className="intake-label"><span className="intake-label-text">Member(s) this is about <i className="intake-req" title="Required when a member is involved">*</i></span></label>
+              <LookupField id="f-member_name" module="member" value={data.member_name} onChange={v => patch('member_name', v)} studio={studioName} multi />
             </div>
           )}
-          {involvesClass && (
+          {(involvesClass || hostedClass) && (
             <div className="intake-context-lookup">
-              <label htmlFor="f-class_date" className="intake-label"><span className="intake-label-text">Class / session <i className="intake-req" title="Required when a class is involved">*</i></span></label>
-              <LookupField id="f-class_date" module="session" value={data.class_date} onChange={v => patch('class_date', v)} studio={studioName} />
+              <label htmlFor="f-class_date" className="intake-label"><span className="intake-label-text">{hostedClass ? 'Hosted class(es) (Momence)' : 'Class(es) / session(s)'} <i className="intake-req" title="Required when a class is involved">*</i></span></label>
+              <LookupField id="f-class_date" module="session" value={data.class_date} sessionTypes={hostedClass ? ['private'] : undefined} onChange={v => { patch('class_date', v); if (filled(v)) setFlag('_involves_class', true); }} studio={studioName} multi />
+              {hostedClass && <span className="field-hint">Private hosted classes from the Momence account linked to the reporter’s studio.</span>}
             </div>
           )}
         </div>
@@ -215,8 +229,8 @@ export function FormEngine({fields, data, patch, errors, auto, onLookupPick, col
   const studio = typeof data.studio === 'string' ? data.studio : undefined;
   const labels = useMemo(() => new Map(fields.map(f => [f.id, f.label])), [fields]);
   const sections = useMemo(() => {
-    // When the context header is shown, the member and class lookups live there — showing
-    // them again inside the regular sections is noisy and splits the desk's attention.
+    // The read-only context header is the sole reporter/studio presentation. Reporter fields
+    // and relocated lookups must never be repeated as another editable form section below it.
     const hidden = contextHeader ? new Set(['reporter_type', 'reporter_name', 'reporter_contact', 'member_name', 'member_named', 'member_id', 'member_email', 'class_date', 'session_point']) : new Set<string>();
     const m = new Map<string, IntakeField[]>();
     for (const f of fields) {

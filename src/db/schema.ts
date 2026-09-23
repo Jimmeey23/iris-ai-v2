@@ -39,6 +39,19 @@ export const appUsers = pgTable("app_users", {
 export const appSettings = pgTable("app_settings", {
   key: text("key").primaryKey(), value: jsonb("value").$type<Record<string, unknown>>().notNull(), version: integer("version").notNull().default(1), updatedBy: integer("updated_by").references(()=>appUsers.id), updatedAt: timestamp("updated_at",{withTimezone:true}).defaultNow().notNull(),
 });
+/** In-progress ticket forms. The API enforces a maximum of three rows per user;
+ *  ownership is stored explicitly so drafts never leak across workspace accounts. */
+export const ticketDrafts = pgTable("ticket_drafts", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(()=>appUsers.id,{onDelete:"cascade"}),
+  title: text("title").notNull(),
+  templateId: text("template_id"),
+  category: text("category").notNull(),
+  subcategory: text("subcategory").notNull(),
+  payload: jsonb("payload").$type<Record<string,unknown>>().notNull().default({}),
+  createdAt: timestamp("created_at",{withTimezone:true}).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at",{withTimezone:true}).defaultNow().notNull(),
+},(t)=>[index("ticket_drafts_user_updated_idx").on(t.userId,t.updatedAt)]);
 export const ticketResolutions = pgTable("ticket_resolutions", {
   ticketId: integer("ticket_id").primaryKey().references(()=>tickets.id,{onDelete:"cascade"}), authorUserId: integer("author_user_id").notNull().references(()=>appUsers.id), rootCause: text("root_cause").notNull().default(""), actionTaken: text("action_taken").notNull().default(""), preventiveAction: text("preventive_action").notNull().default(""), memberOutcome: text("member_outcome").notNull().default(""), followUpAt: text("follow_up_at"), updatedAt: timestamp("updated_at",{withTimezone:true}).defaultNow().notNull(),
 });

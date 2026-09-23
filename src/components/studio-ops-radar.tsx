@@ -25,6 +25,7 @@ import {
   Activity,
   UserCheck,
   Eye,
+  MapPin,
 } from 'lucide-react';
 import { Badge, Loading, useApp, api } from './ui';
 
@@ -317,6 +318,7 @@ export function StudioOpsRadar({ initialStudio = 'kwality' }: { initialStudio?: 
               <div className="studio-tab-top">
                 <Building2 size={13} className="studio-tab-icon" />
                 <strong>{st.shortName}</strong>
+                {isCurrent && <span className="studio-viewing-badge">Viewing</span>}
                 <span className={`health-tag ${healthTone}`}>{st.healthScore}%</span>
               </div>
               <div className={`studio-health-meter ${healthTone}`} aria-hidden>
@@ -354,6 +356,7 @@ export function StudioOpsRadar({ initialStudio = 'kwality' }: { initialStudio?: 
           </div>
 
           {/* ROOM CARDS SCHEMATIC */}
+          <div className="floorplan-stage">
           <div className="rooms-schematic-grid">
             {activeStudio?.rooms.map((room) => {
               const isSelected = selectedRoom?.id === room.id;
@@ -362,11 +365,15 @@ export function StudioOpsRadar({ initialStudio = 'kwality' }: { initialStudio?: 
               const occupancyPct = Math.round((room.currentPax / room.paxCapacity) * 100);
 
               return (
-                <div
+                <button
+                  type="button"
                   key={room.id}
                   className={`room-radar-card ${room.category} ${room.status} ${isSelected ? 'selected' : ''}`}
+                  aria-pressed={isSelected}
+                  aria-label={`${room.name}, ${room.status}${isSelected ? ', selected' : ''}`}
                   onClick={() => setSelectedRoomId(room.id)}
                 >
+                  {isSelected && <span className="room-selected-flag"><MapPin size={10}/> Selected area</span>}
                   {/* Status Indicator / Pulse */}
                   {hasCritical && <span className="room-pulse-ring" />}
 
@@ -443,9 +450,10 @@ export function StudioOpsRadar({ initialStudio = 'kwality' }: { initialStudio?: 
                       <span className="tickets-badge">{room.openTicketsCount} snag</span>
                     </div>
                   )}
-                </div>
+                </button>
               );
             })}
+          </div>
           </div>
         </div>
 
