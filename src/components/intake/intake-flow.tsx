@@ -1,7 +1,7 @@
 "use client";
 import Link from 'next/link';
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
-import {ArrowLeft, ArrowRight, ArrowUpRight, Building2, CalendarDays, Check, CheckCircle2, ChevronRight, Clock3, ListFilter, LockKeyhole, MessageSquareText, PenLine, RotateCcw, ShieldAlert, Sparkles, UserRound, Zap} from 'lucide-react';
+import {ArrowLeft, ArrowRight, ArrowUpRight, Building2, CalendarDays, Check, CheckCircle2, ChevronRight, Clock3, ListFilter, LockKeyhole, MessageSquareText, PenLine, RotateCcw, Settings2, ShieldAlert, Sparkles, UserRound, Zap} from 'lucide-react';
 import {Avatar, Badge, Priority, useApp, api} from '../ui';
 import {DraftDocument} from '../ticket-composer';
 import {TicketDialog} from '../ticket-detail';
@@ -16,6 +16,7 @@ import {ClassDesk, type ClassDeskResult} from './class-desk';
 import {ReviewSheet} from './review-sheet';
 import {LookupChip} from './lookup-field';
 import type {IntakeCategory, IntakePlan, IntakeTaxonomy} from './types';
+import {InlineFormDesigner} from '@/components/inline-form-designer';
 
 type Step = 'category' | 'subcategory' | 'form' | 'classdesk' | 'done';
 type Result = {ticket: {id: number; ticketNumber: string}; draft: AdvancedDraft};
@@ -52,6 +53,7 @@ export function IntakeFlow({presetCategory, presetSubcategory, presetDesk, onLeg
   const [detailOpen, setDetailOpen] = useState(false);
   const [submissionKey, setSubmissionKey] = useState('');
   const [aiBusy, setAiBusy] = useState(false);
+  const [designing, setDesigning] = useState(false);
   const presetDone = useRef(false);
 
   const rememberedStudio = () => { try { return localStorage.getItem(STUDIO_KEY) || ''; } catch { return ''; } };
@@ -365,6 +367,7 @@ export function IntakeFlow({presetCategory, presetSubcategory, presetDesk, onLeg
                   <p className="secondary" style={{fontSize: 12.5}}>Answer the essentials first. Relevant follow-up questions appear automatically.</p>
                 </div>
                 <div className="intake-head-controls">
+                  {user?.role === 'admin' && <button type="button" className="intake-chip intake-admin-edit" onClick={()=>setDesigning(true)} title="Edit this live form and its routing"><Settings2 size={12}/> Design form</button>}
                   <div className="intake-kind" role="radiogroup" aria-label="What kind of entry is this">
                     {KINDS.map(k => <button type="button" key={k.id} role="radio" aria-checked={kind === k.id} className={'intake-chip' + (kind === k.id ? ' on' : '')} title={k.hint} onClick={() => setKind(k.id)}>{k.label}</button>)}
                   </div>
@@ -467,6 +470,7 @@ export function IntakeFlow({presetCategory, presetSubcategory, presetDesk, onLeg
         <ReviewSheet open={review} onClose={() => setReview(false)} plan={plan} data={data} kind={kind} priority={priority} slaHours={slaHours} recordOnly={recordOnly}
           missing={summaryShort ? [...missing, ...(missing.some(f => f.id === 'summary') ? [] : fields.filter(f => f.id === 'summary'))] : missing} gating={gating} onFix={fix} onFile={file} busy={busy} error={fileError} classSnapshot={classSnapshot} />
       )}
+      {category&&sub&&<InlineFormDesigner key={`${category.name}|||${sub}`} open={designing} onClose={()=>setDesigning(false)} category={category.name} subcategory={sub} onPublished={async()=>{const params=new URLSearchParams({category:category.name,subcategory:sub});if(studio)params.set('studio',studio);const[t,p]=await Promise.all([api<IntakeTaxonomy>('/api/intake'),api<IntakePlan>(`/api/intake?${params}`)]);setTaxonomy(t);setLoaded({key:wantKey,plan:p});}}/>}
     </div>
   );
 }

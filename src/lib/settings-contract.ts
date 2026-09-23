@@ -1,6 +1,19 @@
 import {z} from "zod";
 import {DEFAULT_COLUMNS, GROUP_BY, TICKET_COLUMNS} from "./dashboard-contract";
 import { CATEGORY_DEPARTMENT, CATEGORY_MAP, CLASS_FORMATS, MEMBERSHIPS, STUDIOS, TRAINERS } from "./constants";
+export const intakeFieldOverrideSchema=z.object({
+  id:z.string().regex(/^[a-z][a-z0-9_]*$/).max(80),label:z.string().min(2).max(160),
+  type:z.enum(['text','textarea','number','url','datetime','select','multiselect','radio','lookup']),
+  section:z.string().min(2).max(80),desc:z.string().max(500).optional(),placeholder:z.string().max(240).optional(),
+  required:z.boolean().optional(),conditional:z.boolean().optional(),dependsOn:z.string().max(80).optional(),when:z.string().max(240).optional(),
+  options:z.array(z.string().min(1).max(160)).max(80).optional(),module:z.enum(['member','session','ticket']).optional(),multi:z.boolean().optional(),universal:z.boolean().optional(),
+});
+export const subcategoryRoutingSchema=z.object({departmentId:z.string().min(1),ownerId:z.number().int().positive().nullable().optional(),slaHours:z.number().int().min(1).max(720).nullable().optional()});
+const formPlanSchema=z.array(intakeFieldOverrideSchema).min(1).max(100).superRefine((fields,ctx)=>{
+  const ids=new Set<string>();
+  fields.forEach((field,index)=>{if(ids.has(field.id))ctx.addIssue({code:'custom',path:[index,'id'],message:`Duplicate field ID: ${field.id}`});ids.add(field.id);});
+  fields.forEach((field,index)=>{if(field.conditional&&field.dependsOn&&!ids.has(field.dependsOn))ctx.addIssue({code:'custom',path:[index,'dependsOn'],message:`Conditional field refers to missing field: ${field.dependsOn}`});});
+});
 export const configSchema = z.object({
   workspaceName: z.string().min(2).max(80).default("Physique 57 India"), timezone: z.string().refine(v=>{try{new Intl.DateTimeFormat("en",{timeZone:v});return true;}catch{return false;}},"Choose a valid IANA timezone").default("Asia/Kolkata"),
   defaultTheme: z.enum(["light","dark"]).default("dark"), defaultView: z.enum(["list","board","cards"]).default("list"),
@@ -10,6 +23,8 @@ export const configSchema = z.object({
   responseHours: z.object({critical:z.number().min(1).max(720).default(1),high:z.number().min(1).max(720).default(4),medium:z.number().min(1).max(720).default(24),low:z.number().min(1).max(720).default(72)}).default({critical:1,high:4,medium:24,low:72}),
   categoryDepartments: z.record(z.string(),z.string()).default(CATEGORY_DEPARTMENT), routingOwners: z.record(z.string(),z.number().int().positive()).default({}),
   taxonomy: z.record(z.string(),z.array(z.string().min(1))).default(CATEGORY_MAP), studios:z.array(z.string()).default(STUDIOS.map(s=>s.name)), trainers:z.array(z.string()).default([...TRAINERS]), formats:z.array(z.string()).default([...CLASS_FORMATS]), memberships:z.array(z.string()).default([...MEMBERSHIPS]),
+  formOverrides:z.record(z.string(),formPlanSchema).default({}),
+  subcategoryRouting:z.record(z.string(),subcategoryRoutingSchema).default({}),
   webhookOnCreate:z.boolean().default(false), assignmentEmail:z.boolean().default(false),
 
   /* ---------------------------------------------------------------- *

@@ -98,12 +98,12 @@ export type HubCategory = PlanData['categories'][number];
 export function hubCategories(): HubCategory[] { return DATA.categories; }
 export function hubSub(category: string, sub: string): IntakeSubMeta | null {
   const raw = DATA.subs[subKey(category, sub)];
-  if (!raw) return null;
   const overlay = SUB_OVERLAYS[subKey(category, sub)] || [];
-  const defs = [...DATA.universal.map(i => DATA.defs[i]), ...raw.f.map(i => DATA.defs[i]), ...overlay];
+  if (!raw && !overlay.length) return null;
+  const defs = [...DATA.universal.map(i => DATA.defs[i]), ...(raw?.f || []).map(i => DATA.defs[i]), ...overlay];
   const seen = new Set<string>(); let required = 0, total = 0;
   for (const d of defs) { if (seen.has(d.id)) continue; seen.add(d.id); total++; if (d.required) required++; }
-  return {key: subKey(category, sub), category, name: sub, hubPriority: raw.p, slaLabel: raw.sla, hours: raw.h, hist: raw.hist, fieldCount: total, requiredCount: required};
+  return {key: subKey(category, sub), category, name: sub, hubPriority: raw?.p || 'low', slaLabel: raw?.sla || 'P4 — 24 hr first response · 5 working days resolution', hours: raw?.h || [24, 120], hist: raw?.hist || 0, fieldCount: total, requiredCount: required};
 }
 export function cycleIntakeQuestions() { return DATA.cycleIntake; }
 /** The controlled list a plan field answers from, by id — the class desk shares these lists
@@ -172,6 +172,20 @@ const CLASS_LEVELS = ['Beginner', 'Intermediate', 'Advanced', 'All levels'];
 const DAYS_OF_WEEK = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
 const SUB_OVERLAYS: Record<string, RawDef[]> = {
+  'Brand Feedback|||Hosted Class Feedback': [
+    {id: 'partner_name', label: 'Partner, host or community', type: 'text', required: true, placeholder: 'Partner or creator name'},
+    {id: 'hosted_objective', label: 'Partnership objective', type: 'select', required: true, options: ['Community expansion', 'New prospect acquisition', 'Brand visibility', 'Corporate wellness', 'Partner relationship', 'Content / social amplification']},
+    {id: 'guest_count', label: 'Guests attending', type: 'number', required: true},
+    {id: 'newcomer_count', label: 'Newcomers to the Method', type: 'number'},
+    {id: 'audience_fit', label: 'Audience alignment', type: 'select', required: true, options: ['Excellent fit', 'Good fit with nurturing', 'Mixed fit', 'Low fit', 'Not enough information']},
+    {id: 'member_voice', label: 'Community member voice', type: 'textarea', required: true, desc: 'Document what attendees said in their own words.', placeholder: 'Member reported… / Guest expressed…'},
+    {id: 'continuation_intent', label: 'Interest in continuing the practice', type: 'select', required: true, options: ['Ready to purchase', 'Interested in an intro offer', 'Requested a follow-up', 'Interested but timing is unclear', 'No stated interest', 'Not captured']},
+    {id: 'commercial_outcome', label: 'Commercial outcome', type: 'select', required: true, options: ['Package sold on the day', 'Trial / intro booked', 'Qualified leads captured', 'Follow-up list created', 'No conversion signal', 'Not applicable']},
+    {id: 'partner_voice', label: 'Partner’s stated feedback', type: 'textarea', desc: 'Capture the host or partner’s words, including requested changes.'},
+    {id: 'social_opportunity', label: 'Content and amplification opportunity', type: 'textarea', desc: 'Note posts, stories, testimonials, permissions or creator content mentioned.'},
+    {id: 'repeat_recommendation', label: 'Recommended partnership next step', type: 'select', required: true, options: ['Repeat the partnership', 'Nurture and redesign', 'One-off only', 'Management review required']},
+    {id: 'agreed_follow_up', label: 'Agreed follow-up', type: 'textarea', required: true, desc: 'Record the owner, action and timing agreed.'},
+  ],
   'Scheduling|||Level Change': [
     {id: 'current_level', label: 'Current level', type: 'select', desc: 'The class level the member is currently booked into or attending.', required: true, options: CLASS_LEVELS},
     {id: 'requested_level', label: 'Requested level', type: 'select', desc: 'The level the member wants to move to.', required: true, options: CLASS_LEVELS},
@@ -196,19 +210,28 @@ const SUB_OVERLAYS: Record<string, RawDef[]> = {
 
 /** The full field list for a sub-category: the universal block first, then its own fields,
  *  then any Iris-specific overlay. Unknown sub-categories get the universal block. */
-export function planFields(category: string, sub: string, ctx: PlanContext): IntakeField[] {
+export function planFields(category: string, sub: string, ctx: PlanContext, configured?: Omit<IntakeField, 'dep'>[]): IntakeField[] {
   const raw = DATA.subs[subKey(category, sub)];
   const base = DATA.universal.map(i => materialise(DATA.defs[i], true, ctx));
   const own = (raw?.f || []).map(i => materialise(DATA.defs[i], false, ctx));
   const overlay = (SUB_OVERLAYS[subKey(category, sub)] || []).map(d => materialise(d, false, ctx));
   const seen = new Set<string>();
-  const all = [...base, ...own, ...overlay].filter(f => { if (seen.has(f.id)) return false; seen.add(f.id); return true; });
+  const generated = [...base, ...own, ...overlay].filter(f => { if (seen.has(f.id)) return false; seen.add(f.id); return true; });
+  // A published builder plan replaces the generated plan for this sub-category. It is a full
+  // snapshot on purpose: administrators can remove irrelevant inherited fields as well as add
+  // questions, while Reset can always return to the source-backed generated version.
+  const all = configured?.length ? configured.map(f => ({...f})) : generated;
   // Always offer a member lookup if the plan does not already have one.
   if (!all.some(f => f.type === 'lookup' && f.module === 'member' && MEMBER_LOOKUP_IDS.includes(f.id))) all.push(materialise(MEMBER_LOOKUP_DEF, true, ctx));
   // Prompt for the exact spot inside the chosen room/area.
   if (!all.some(f => f.id === 'specific_area')) all.push(materialise({id: 'specific_area', label: 'Specific spot / equipment', type: 'text', desc: 'Exact location within the area — e.g. bike 3, mirror wall, front desk left.', conditional: true, dependsOn: 'area', condText: 'Asked when an area is selected', placeholder: 'e.g. bike 3, front row'}, false, ctx));
   const index = new Map(all.map(f => [f.id, f]));
-  return all.map(f => ({...f, dep: dependencyOf(f, index)}));
+  return all.map(f => {
+    if (f.id === 'preferred_contact' || f.id === 'follow_up_channel') {
+      return {...f, required: false, conditional: true, dep: '_involves_member', when: 'yes|directly|indirectly'};
+    }
+    return {...f, dep: dependencyOf(f, index)};
+  });
 }
 
 /* ------------------------------------------------------------------ values */
@@ -435,6 +458,7 @@ export function toTicketInput(args: {
   const session = linkedLookup(data.class_date);
   const staff = isStaffReporter(data.reporter_type);
   const memberReporter = isMemberReporter(data.reporter_type);
+  const memberRelated = Boolean(member || memberReporter || /yes|directly|indirectly/i.test(String(args.data._involves_member || '')));
   const reporterName = String(data.reporter_name || '').trim();
   const reporterContact = String(data.reporter_contact || '').trim();
   // Who the ticket is logged for: the linked (or typed) member; a member or prospect filing
@@ -504,7 +528,7 @@ export function toTicketInput(args: {
     classFormat, trainer,
     membership: args.memberDetail?.membership || (byId.get('membership') && filled(data.membership) && !hasLookupShape(data.membership) ? String(data.membership) : undefined),
     incidentAt,
-    preferredContact: String(data.preferred_contact || 'Email'),
+    preferredContact: memberRelated ? String(data.preferred_contact || 'Email') : 'Internal log only',
     requestedResolution: filled(data.requested_outcome) ? String(data.requested_outcome) : undefined,
     sentiment,
     impact: filled(data.member_impact) ? String(data.member_impact) : undefined,

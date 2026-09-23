@@ -548,6 +548,7 @@ export const CATEGORY_MAP: Record<string, string[]> = {
     "Proactive Client Engagement",
   ],
   "Brand Feedback": [
+    "Hosted Class Feedback",
     "Brand Positioning",
     "Brand Identity Consistency",
     "Marketing Message Accuracy",

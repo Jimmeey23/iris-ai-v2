@@ -8,7 +8,7 @@ import { createCipheriv, createDecipheriv, randomBytes } from "crypto";
 import {configSchema,DEFAULT_CONFIG,type WorkspaceConfig} from "./settings-contract";
 export {configSchema,DEFAULT_CONFIG};
 export type {WorkspaceConfig};
-export async function getConfig():Promise<WorkspaceConfig>{const[row]=await db.select().from(appSettings).where(eq(appSettings.key,"workspace")); return configSchema.parse({...DEFAULT_CONFIG,aiModel:process.env.OPENAI_MODEL||DEFAULT_CONFIG.aiModel,...row?.value});}
+export async function getConfig():Promise<WorkspaceConfig>{const[row]=await db.select().from(appSettings).where(eq(appSettings.key,"workspace"));const parsed=configSchema.parse({...DEFAULT_CONFIG,aiModel:process.env.OPENAI_MODEL||DEFAULT_CONFIG.aiModel,...row?.value});const hosted='Hosted Class Feedback';return parsed.taxonomy['Brand Feedback']?.includes(hosted)?parsed:{...parsed,taxonomy:{...parsed.taxonomy,'Brand Feedback':[hosted,...(parsed.taxonomy['Brand Feedback']||[])]}};}
 export async function getSetting(key:string){const[r]=await db.select().from(appSettings).where(eq(appSettings.key,key));return r;}
 export async function setSetting(key:string,value:Record<string,unknown>,userId?:number){await db.insert(appSettings).values({key,value,updatedBy:userId}).onConflictDoUpdate({target:appSettings.key,set:{value,updatedBy:userId,updatedAt:new Date()}});}
 export async function audit(actor:{id?:number;name:string},action:string,entity:string,detail:Record<string,unknown>={}){await db.insert(auditLogs).values({actorId:actor.id,actorName:actor.name,action,entity,detail});}

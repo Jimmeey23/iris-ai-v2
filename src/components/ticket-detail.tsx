@@ -97,6 +97,14 @@ const FACT_ICONS: Record<string, LucideIcon> = {
   Email: Mail,
   Phone: Phone,
   "Preferred contact": MessageSquare,
+  "Community member": UserRound,
+  "Member email": Mail,
+  "Member phone": Phone,
+  "Member follow-up preference": MessageSquare,
+  "Studio Space": MapPin,
+  "Signature Experience": Dumbbell,
+  "Studio Instructor": UserRound,
+  "Community access package": Crown,
   Studio: MapPin,
   "When it happened": CalendarDays,
   "Class or session": Dumbbell,
@@ -265,6 +273,7 @@ export function TicketDialog({
   }
 
   const t = bundle?.ticket;
+  const memberRelated = Boolean(t && (t.momenceMemberId || t.memberEmail || t.memberPhone || (t.memberName && !/studio team observation|internal report/i.test(t.memberName))));
   return (
     <>
       <Modal
@@ -466,20 +475,20 @@ export function TicketDialog({
                           </div>
                           <dl className="td-facts td-facts-grid">
                             {[
-                              { k: "Reported by", v: t.memberName },
-                              { k: "Email", v: t.memberEmail },
-                              { k: "Phone", v: t.memberPhone },
-                              { k: "Preferred contact", v: t.preferredContact },
-                              { k: "Studio", v: t.studio },
+                              { k: "Community member", v: memberRelated ? t.memberName : null },
+                              { k: "Member email", v: memberRelated ? t.memberEmail : null },
+                              { k: "Member phone", v: memberRelated ? t.memberPhone : null },
+                              { k: "Member follow-up preference", v: memberRelated ? t.preferredContact : null },
+                              { k: "Studio Space", v: t.studio },
                               {
                                 k: "When it happened",
                                 v: t.incidentAt
                                   ? indiaDate(t.incidentAt)
                                   : null,
                               },
-                              { k: "Class or session", v: t.classFormat },
-                              { k: "Trainer", v: t.trainer },
-                              { k: "Membership", v: t.membership },
+                              { k: "Signature Experience", v: t.classFormat },
+                              { k: "Studio Instructor", v: t.trainer },
+                              { k: "Community access package", v: memberRelated ? t.membership : null },
                               { k: "Asked for", v: t.requestedResolution },
                               { k: "Impact", v: t.impact },
                             ]

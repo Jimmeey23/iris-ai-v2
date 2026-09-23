@@ -1,4 +1,37 @@
 "use client";
-import {useEffect,useMemo,useState} from 'react';import {Layers,Sparkles,ArrowUpRight,Heart,Users,Clock3,Building2,ClipboardCheck,Pause,ChevronRight,Search,ShieldAlert,Ticket,DoorOpen} from 'lucide-react';
-import {Shell} from '@/components/shell';import {SearchField,Badge,api} from '@/components/ui';import {TicketComposer} from '@/components/ticket-composer';import {guidedTemplates} from '@/lib/guided-templates';import {CATEGORIES} from '@/lib/constants';import type {GuidedTemplate} from '@/lib/ticket-contract';
-export default function TemplatesPage(){const[q,setQ]=useState(''),[category,setCategory]=useState('Featured'),[active,setActive]=useState<GuidedTemplate>();const [all,setAll]=useState(()=>guidedTemplates());useEffect(()=>{void api<{templates:GuidedTemplate[]}>('/api/templates').then(d=>setAll(d.templates)).catch(()=>{});},[]);const filtered=all.filter(t=>(category==='All templates'||category==='Featured'&&t.featured||category===t.category)&&(!q||(t.title+' '+t.description+' '+t.category).toLowerCase().includes(q.toLowerCase())));const icons:Record<string,typeof Sparkles>={heart:Heart,users:Users,clock:Clock3,building:Building2,clipboard:ClipboardCheck,pause:Pause};return <Shell title="Every situation, a ready template." eyebrow="THE TEMPLATE LIBRARY" action={<Badge tone="blue"><Layers size={12}/>{all.length} guided templates</Badge>}><div className="iris-banner"><div className="iris-orb"><Layers size={23}/></div><div className="grow"><h2>Built for exactly what you’re logging.</h2><p>Pick a template, link the member or class if there is one, and let Iris assemble the rest. Every draft is editable and reviewed before it’s filed.</p></div><Badge tone="purple">Guided assist</Badge></div><div className="between" style={{marginBottom:22}}><SearchField value={q} onChange={setQ} placeholder="Find a template for what you’re logging…"/><span className="muted" style={{fontSize:11,whiteSpace:'nowrap'}}>{filtered.length} templates</span></div><div className="template-category-nav">{['Featured','All templates',...CATEGORIES].map(c=><button key={c} onClick={()=>setCategory(c)} className={'btn btn-sm'+(category===c?' active':'')}>{c==='Featured'&&<Sparkles size={12}/>} {c}</button>)}</div><div className="template-grid rise">{filtered.map((t,i)=>{const Icon=icons[t.icon]||Sparkles;return <button key={t.id} onClick={()=>setActive(t)} className="card template-card"><div className="between" style={{margin:0}}><div className="template-icon" style={i%3===1?{background:'var(--purple-bg)',color:'var(--purple)'}:i%3===2?{background:'var(--green-bg)',color:'var(--green)'}:{}}><Icon size={20}/></div>{t.kind==='compliment'?<Badge tone="green">No SLA</Badge>:t.kind==='assessment'?<Badge tone="purple">Scorecard</Badge>:<ArrowUpRight size={16} className="muted"/>}</div><h3>{t.title}</h3><p>{t.description}</p><div className="between"><span className="muted" style={{fontSize:10}}>{t.category}</span><span className="accent flex-row" style={{gap:4}}>Use template <ChevronRight size={12}/></span></div></button>;})}</div>{!filtered.length&&<div className="empty-state"><Search size={28}/><h3>No matching templates</h3><p>Try a broader search or another category.</p></div>}{active&&<TicketComposer open onClose={()=>setActive(undefined)} template={active}/>}</Shell>;}
+import {useEffect,useMemo,useState} from 'react';
+import {Layers,Sparkles,ArrowUpRight,Heart,Users,Clock3,Building2,ClipboardCheck,Pause,Search,ShieldAlert,Ticket,DoorOpen,Timer,CheckCircle2} from 'lucide-react';
+import {Shell} from '@/components/shell';
+import {SearchField,Badge,api} from '@/components/ui';
+import {TicketComposer} from '@/components/ticket-composer';
+import {guidedTemplates} from '@/lib/guided-templates';
+import {CATEGORIES} from '@/lib/constants';
+import type {GuidedTemplate} from '@/lib/ticket-contract';
+
+const ICONS:Record<string,typeof Sparkles>={heart:Heart,users:Users,clock:Clock3,building:Building2,clipboard:ClipboardCheck,pause:Pause,shield:ShieldAlert,ticket:Ticket,door:DoorOpen};
+const estimate=(t:GuidedTemplate)=>Math.max(1,Math.ceil((t.fields.length+5)/6));
+
+export default function TemplatesPage(){
+  const[q,setQ]=useState(''),[category,setCategory]=useState('Featured'),[active,setActive]=useState<GuidedTemplate>();
+  const[all,setAll]=useState(()=>guidedTemplates());
+  useEffect(()=>{void api<{templates:GuidedTemplate[]}>('/api/templates').then(d=>setAll(d.templates)).catch(()=>{});},[]);
+  const filtered=useMemo(()=>all.filter(t=>(category==='All templates'||category==='Featured'&&t.featured||category===t.category)&&(!q||(t.title+' '+t.description+' '+t.category+' '+t.subcategory).toLowerCase().includes(q.toLowerCase()))),[all,category,q]);
+  const categories=['Featured','All templates',...CATEGORIES];
+  return <Shell title="Start with the right questions." eyebrow="IRIS TEMPLATE LIBRARY" action={<Badge tone="blue"><Layers size={12}/>{all.length} guided templates</Badge>}>
+    <section className="template-hero">
+      <div className="template-hero-mark"><Layers size={24}/></div>
+      <div className="grow"><span className="eyebrow">PURPOSE-BUILT MEMBER VOICE CAPTURE</span><h2>Fast to complete. Specific to the moment.</h2><p>Each template asks only what the receiving team needs, links live member or class context where relevant, and produces a review-ready ticket before anything is filed.</p></div>
+      <div className="template-hero-stats"><div><strong>{all.filter(t=>t.featured).length}</strong><span>featured flows</span></div><div><strong>1–{Math.max(...all.map(estimate))}</strong><span>min typical fill</span></div><div><strong>100%</strong><span>reviewed before filing</span></div></div>
+    </section>
+    <div className="template-toolbar"><SearchField value={q} onChange={setQ} placeholder="Search a member moment, issue or workflow…"/><span className="template-result-count"><strong>{filtered.length}</strong> matching templates</span></div>
+    <div className="template-category-nav" role="tablist" aria-label="Template categories">{categories.map(c=><button key={c} role="tab" aria-selected={category===c} onClick={()=>setCategory(c)} className={'btn btn-sm'+(category===c?' active':'')}>{c==='Featured'&&<Sparkles size={12}/>} {c}</button>)}</div>
+    <div className="template-grid template-grid-modern rise-stagger">{filtered.map((t,i)=>{const Icon=ICONS[t.icon]||Sparkles;const required=t.fields.filter(f=>f.required).length;return <button key={t.id} onClick={()=>setActive(t)} className="card template-card template-card-modern" data-featured={t.featured||undefined}>
+      <div className="template-card-top"><div className="template-icon" data-tone={i%3}><Icon size={19}/></div><div className="template-card-badges">{t.featured&&<Badge tone="purple"><Sparkles size={9}/>Featured</Badge>}{t.kind==='compliment'?<Badge tone="green">Record only</Badge>:t.kind==='assessment'?<Badge tone="purple">Scorecard</Badge>:<Badge>{t.kind}</Badge>}</div></div>
+      <div><span className="template-category-label">{t.category}</span><h3>{t.title}</h3><p>{t.description}</p></div>
+      <div className="template-specs"><span><Timer size={11}/>{estimate(t)} min</span><span><CheckCircle2 size={11}/>{required} essential</span><span><Layers size={11}/>{t.fields.length} guided fields</span></div>
+      <div className="template-card-action"><span>Open guided template</span><span className="template-action-icon"><ArrowUpRight size={14}/></span></div>
+    </button>;})}</div>
+    {!filtered.length&&<div className="empty-state"><Search size={28}/><h3>No matching templates</h3><p>Try a broader member moment or another category.</p></div>}
+    {active&&<TicketComposer open onClose={()=>setActive(undefined)} template={active}/>}
+  </Shell>;
+}

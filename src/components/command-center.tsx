@@ -5,6 +5,7 @@ import {useMemo, useState} from 'react';
 import {
   Plus, Sparkles, ArrowUpRight, ChevronRight, ChevronLeft, CalendarDays, LayoutGrid, List,
   Columns3, Grid2x2, Rss, Download, TriangleAlert, ArrowRight, Users, RefreshCw, Save,
+  Siren, TimerReset, History,
 } from 'lucide-react';
 import {Shell} from './shell';
 import {useTickets, Kanban, TicketCard, MatrixView, FeedView} from './tickets-board';
@@ -106,6 +107,12 @@ export function CommandCenter({directory = false}: {directory?: boolean}) {
 
   const open = useMemo(() => filtered.filter((t) => !isClosed(t)), [filtered]);
   const slaRisk = useMemo(() => open.filter((t) => slaState(t.slaDueAt, t.status) !== 'ok'), [open]);
+  const urgent = useMemo(() => open.filter((t) => ['critical', 'high'].includes(t.priority)), [open]);
+  const overdue = useMemo(() => open.filter((t) => slaState(t.slaDueAt, t.status) === 'breached'), [open]);
+  const ageing = useMemo(
+    () => applyFilters(open, {...EMPTY_FILTERS, state: 'open', ageBucket: 'stale'}, staleTicketDays),
+    [open, staleTicketDays],
+  );
 
   // Grouped views paginate by group, not by row: splitting a group across two pages would
   // show a header with a third of its rows under it.
@@ -360,7 +367,7 @@ export function CommandCenter({directory = false}: {directory?: boolean}) {
 
   return (
     <Shell
-      title={directory ? 'Every ticket, one shared log.' : 'The team’s ops log.'}
+      title={directory ? 'Every ticket, one shared log.' : `Welcome${user?.name ? `, ${user.name.trim().split(/\s+/)[0]}` : ''}`}
       eyebrow={directory ? 'TICKET DIRECTORY' : 'INTERNAL OPERATIONS'}
       action={
         <div className="flex-row">
@@ -387,6 +394,28 @@ export function CommandCenter({directory = false}: {directory?: boolean}) {
           </div>
           <BoardTelemetry tickets={filtered} total={tickets.length} staleDays={staleTicketDays}/>
           <MetricCards metrics={metrics} onApplyFilter={applyMetricFilter} onOpenTicket={setDetail}/>
+          <section className="focus-rail" aria-label="Priority work queues">
+            <div className="focus-rail-intro">
+              <span className="focus-rail-kicker"><Sparkles size={11}/>TODAY&apos;S FOCUS</span>
+              <strong>Move the work that matters most.</strong>
+              <span>Live queues, ranked for action.</span>
+            </div>
+            <button className="focus-item focus-item-critical" onClick={() => applyMetricFilter({state: 'open', priorities: ['critical', 'high']}, 'Urgent open tickets')}>
+              <span className="focus-icon"><Siren size={15}/></span>
+              <span className="focus-copy"><strong>{urgent.length}</strong><span>Urgent</span><small>Critical &amp; high priority</small></span>
+              <ArrowUpRight size={14} className="focus-arrow"/>
+            </button>
+            <button className="focus-item focus-item-overdue" onClick={() => applyMetricFilter({state: 'open', slaStates: ['breached']}, 'Overdue follow-ups')}>
+              <span className="focus-icon"><TimerReset size={15}/></span>
+              <span className="focus-copy"><strong>{overdue.length}</strong><span>Overdue</span><small>Past the follow-up target</small></span>
+              <ArrowUpRight size={14} className="focus-arrow"/>
+            </button>
+            <button className="focus-item focus-item-ageing" onClick={() => applyMetricFilter({state: 'open', ageBucket: 'stale'}, 'Ageing open tickets')}>
+              <span className="focus-icon"><History size={15}/></span>
+              <span className="focus-copy"><strong>{ageing.length}</strong><span>Ageing</span><small>Open for {staleTicketDays}+ days</small></span>
+              <ArrowUpRight size={14} className="focus-arrow"/>
+            </button>
+          </section>
         </div>
       )}
 

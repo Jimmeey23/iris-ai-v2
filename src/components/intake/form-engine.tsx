@@ -1,6 +1,6 @@
 "use client";
 import {useMemo, useState, type ReactNode} from 'react';
-import {Building2, CalendarDays, Check, ChevronDown, GitBranch, Minus, Plus, Sparkles, UserRound, X} from 'lucide-react';
+import {Building2, CalendarDays, Check, ChevronDown, GitBranch, LockKeyhole, Minus, Plus, Sparkles, UserRound, X} from 'lucide-react';
 import {studioAreasFor} from '@/lib/constants';
 import {ENRICH_SECTIONS, SECTION_ORDER, filled, isVisible, localDateTime, type IntakeData, type IntakeField, type IntakeValue, type LookupRef} from '@/lib/intake/plan';
 import {LookupField} from './lookup-field';
@@ -159,8 +159,9 @@ export function IntakeContextHeader({data, patch, studio}: {data: IntakeData; pa
         <div className="intake-context-block">
           <span className="intake-context-label"><UserRound size={12} /> Reporter</span>
           <div className="intake-context-values">
-            {reporterType ? <span className="intake-context-pill">{reporterType}</span> : <span className="intake-context-placeholder">Not set</span>}
-            {reporterName ? <span className="intake-context-pill">{reporterName}</span> : null}
+            {reporterName ? <span className="intake-context-pill"><LockKeyhole size={10}/>{reporterName}</span> : <span className="intake-context-placeholder">Signed-in user</span>}
+            {data.reporter_contact ? <span className="intake-context-pill">{String(data.reporter_contact)}</span> : null}
+            {reporterType ? <span className="intake-context-pill intake-context-muted">{reporterType}</span> : null}
           </div>
         </div>
         <div className="intake-context-block">
@@ -216,7 +217,7 @@ export function FormEngine({fields, data, patch, errors, auto, onLookupPick, col
   const sections = useMemo(() => {
     // When the context header is shown, the member and class lookups live there — showing
     // them again inside the regular sections is noisy and splits the desk's attention.
-    const hidden = contextHeader ? new Set(['member_name', 'member_named', 'member_id', 'member_email', 'class_date', 'session_point']) : new Set<string>();
+    const hidden = contextHeader ? new Set(['reporter_type', 'reporter_name', 'reporter_contact', 'member_name', 'member_named', 'member_id', 'member_email', 'class_date', 'session_point']) : new Set<string>();
     const m = new Map<string, IntakeField[]>();
     for (const f of fields) {
       if (hidden.has(f.id)) continue;

@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import {
   Settings,
   Palette,
@@ -24,6 +24,7 @@ import {
   LayoutList,
   Tags,
   Wand2,
+  ListChecks,
 } from "lucide-react";
 import { Shell } from "@/components/shell";
 import {
@@ -49,6 +50,7 @@ import {
 } from "@/lib/dashboard-contract";
 import { DEPARTMENT_RECORDS, STAFF } from "@/lib/constants";
 import { indiaDate, display } from "@/lib/display";
+import { FormRoutingBuilder } from "@/components/form-routing-builder";
 type Account = {
   id: number;
   name: string;
@@ -67,6 +69,7 @@ const TABS = [
   { id: "appearance", name: "Appearance", icon: Palette },
   { id: "ai", name: "Iris intelligence", icon: Sparkles },
   { id: "board", name: "Board & labels", icon: LayoutList },
+  { id: "forms", name: "Forms & routing", icon: ListChecks },
   { id: "routing", name: "Routing & SLAs", icon: GitBranch },
   { id: "automation", name: "Automation", icon: Zap },
   { id: "access", name: "People & access", icon: Users },
@@ -321,6 +324,7 @@ export default function SettingsPage() {
       />
     </div>
   );
+  const dirty = useMemo(() => Boolean(cfg && data && JSON.stringify(cfg) !== JSON.stringify(data.config)), [cfg, data]);
   return (
     <Shell
       title="Make Iris your own."
@@ -328,7 +332,7 @@ export default function SettingsPage() {
       action={
         <button
           className="btn btn-primary"
-          disabled={busy || !cfg || user?.role !== "admin"}
+          disabled={busy || !cfg || user?.role !== "admin" || !dirty}
           onClick={() => void save()}
         >
           {busy ? (
@@ -336,7 +340,7 @@ export default function SettingsPage() {
           ) : (
             <Save size={14} />
           )}
-          Save changes
+          {dirty ? "Publish changes" : "Settings saved"}
         </button>
       }
     >
@@ -1161,6 +1165,15 @@ export default function SettingsPage() {
                     )}
                   </section>
                 </>
+              )}
+
+              {tab === "forms" && (
+                <FormRoutingBuilder
+                  config={cfg}
+                  onChange={setCfg}
+                  staff={staff}
+                  departments={DEPARTMENT_RECORDS}
+                />
               )}
 
               {tab === "routing" && (
