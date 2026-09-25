@@ -411,8 +411,9 @@ export function TicketDialog({
                   </small>
                 </div>
               </header>
-              <div className="workspace-tabs" style={{ padding: 0 }}>
+              <div className="td-tabs-row">
                 <Tabs
+                  className="grow"
                   label="Ticket sections"
                   variant="underline"
                   value={tab}
@@ -734,7 +735,7 @@ export function TicketDialog({
                                   <PersonPhoto
                                     name={t.trainer.split(",")[0].trim()}
                                     size={34}
-                                    tone="purple"
+                                    tone="dark"
                                   />
                                 ) : null}
                                 <div>

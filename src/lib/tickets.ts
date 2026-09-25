@@ -221,7 +221,7 @@ const linkedIds=links.map(l=>l.ticketId===id?l.relatedId:l.ticketId);
 // resolve the ticket (the assigned owner or their reporting manager) — see the README.
 const[linked,workspace]=await Promise.all([
   linkedIds.length?db.select({id:tickets.id,ticketNumber:tickets.ticketNumber,title:tickets.title,status:tickets.status}).from(tickets).where(inArray(tickets.id,linkedIds)):Promise.resolve([]),
-  canResolve?getResolutionWorkspace(id):Promise.resolve(EMPTY_WORKSPACE),
+  ticket.resolutionRequired?getResolutionWorkspace(id):Promise.resolve(EMPTY_WORKSPACE),
 ]);
 return{ticket,comments,activities,similar,linked,canResolve,...workspace};}
 

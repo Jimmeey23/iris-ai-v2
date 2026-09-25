@@ -954,6 +954,17 @@ small {
     0 0 0 3px color-mix(in srgb, var(--blue) 20%, transparent),
     var(--shadow-1);
 }
+/* A neutral, deliberately unlit default for owner avatars — every owner reads
+   the same way at a glance instead of a rainbow of per-name tints, and it sits
+   flush with the "unassigned" chip so a row scans as one consistent column. */
+.avatar.dark {
+  background: linear-gradient(160deg, #14161b, #23262f);
+  color: #c7ccd6;
+  box-shadow:
+    0 0 0 2px var(--surface),
+    0 0 0 3px color-mix(in srgb, var(--white) 6%, transparent),
+    var(--shadow-1);
+}
 /* Presence ring — a green halo for "online", used on the account chip. */
 .avatar.online {
   box-shadow:
@@ -1246,6 +1257,9 @@ small {
 }
 .content {
   margin: auto;
+}
+.content.content-full-width {
+  max-width: none;
 }
 .content.content-full-height {
   padding: 10px 24px;
@@ -1662,16 +1676,13 @@ small {
 }
 .mini-owner {
   display: flex;
-  gap: 5px;
+  gap: 8px;
   align-items: center;
 }
 .mini-owner .avatar {
-  width: 23px;
-  height: 23px;
+  width: 26px;
+  height: 26px;
   font-size: var(--text-3xs);
-}
-.mini-owner span {
-  font-size: 10.5px;
 }
 .pagination-controls {
   display: flex;
@@ -13276,6 +13287,65 @@ small {
   width: fit-content;
   max-width: 100%;
 }
+/* Spacing hook for a Tabs instance that sits above a board/list, e.g. the ticket
+   workspace's tab strip — layout only, never touches the primitive's own look. */
+.tabs-toolbar {
+  margin-bottom: 14px;
+}
+/* Ticket detail: the section tabs share a row with the Resolution toggle and
+   Copy link. Layout only — Tabs (variant="underline") supplies its own look. */
+.td-tabs-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 8px;
+}
+.td-tabs-row .rail-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  height: 32px;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--accent);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  transition:
+    color var(--dur-2) var(--ease-standard),
+    background var(--dur-2) var(--ease-standard),
+    box-shadow var(--dur-2) var(--ease-standard);
+}
+.td-tabs-row .rail-toggle:hover {
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface-2));
+}
+.td-tabs-row .rail-toggle span {
+  background: color-mix(in srgb, var(--text) 10%, transparent);
+  color: var(--secondary);
+  border-radius: var(--radius-pill);
+  padding: 1px 6px;
+  font-size: var(--text-3xs);
+}
+.td-tabs-row .rail-toggle.active {
+  color: var(--accent-text);
+  background: linear-gradient(150deg, var(--accent-bright), var(--accent-deep));
+  box-shadow: 0 6px 18px -6px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+.td-tabs-row .rail-toggle.active span {
+  background: color-mix(in srgb, var(--black) 20%, transparent);
+  color: var(--accent-text);
+}
+.td-tabs-row .td-copy {
+  flex-shrink: 0;
+  margin-left: auto;
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+.td-tabs-row .td-copy:hover {
+  color: var(--accent);
+}
 .tabs-segment {
   gap: 3px;
   padding: 4px;
@@ -13592,6 +13662,14 @@ small {
    progress in a specific direction instead of a generic "busy". */
 .skeleton {
   position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  background: linear-gradient(
+    165deg,
+    var(--surface-2),
+    color-mix(in srgb, var(--surface-3) 55%, var(--surface-2))
+  );
+  box-shadow: inset 0 0 0 1px var(--hairline);
 }
 .skeleton::after {
   content: "";

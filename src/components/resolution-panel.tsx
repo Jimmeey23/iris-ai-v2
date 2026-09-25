@@ -267,10 +267,12 @@ export function ResolutionPanel({
       </aside>
     );
 
-  // The work log, follow-ups, contact log and write-up are private to whoever may
-  // resolve the ticket, so the server sends none of it to anyone else. Showing the
-  // tabs empty would read as "nothing has been done"; say who owns it instead.
-  if (!canResolve || refusal)
+  // The resolution is visible to everyone with ticket access; only writing to it is
+  // restricted to the assigned owner and their reporting manager. A `refusal` means a
+  // write slipped through client-side despite that (e.g. a stale canResolve after a
+  // reassignment) and the server said no — fall back to a locked view rather than
+  // repeat the same error on every click.
+  if (refusal)
     return (
       <aside className="rw resolution-v2" aria-label="Resolution">
         <RwHead onClose={onClose} completion={0} />
@@ -280,9 +282,8 @@ export function ResolutionPanel({
           their reporting manager.
         </p>
         <p className="rw-empty">
-          Only the assigned owner or their reporting manager can see or update
-          this ticket&apos;s work log, follow-ups, member contacts and
-          write-up. Reassign the ticket if someone else should take it on.
+          Only the assigned owner or their reporting manager can update this
+          ticket&apos;s work log, follow-ups, member contacts and write-up.
         </p>
       </aside>
     );
@@ -299,8 +300,19 @@ export function ResolutionPanel({
       <RwHead onClose={onClose} completion={completion} />
 
       <p className="rw-note">
-        <PencilLine size={12} />
-        You can edit this. It stays private to the assigned owner and their reporting manager.
+        {canResolve ? (
+          <>
+            <PencilLine size={12} />
+            You can edit this. Only you and your reporting manager can.
+          </>
+        ) : (
+          <>
+            <LockKeyhole size={12} />
+            Visible to everyone. Only{" "}
+            {ticket.assignedStaffName || "the assigned owner"} and their
+            reporting manager can edit it.
+          </>
+        )}
       </p>
 
       {canResolve && (

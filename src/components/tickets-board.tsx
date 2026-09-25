@@ -452,7 +452,7 @@ export function TicketTable({
                   >
                     <Avatar
                       name={t.assignedStaffName || "Unassigned owner"}
-                      tone="purple"
+                      tone="dark"
                       emptyDark
                     />
                     <span>
@@ -542,7 +542,7 @@ export function TicketCard({
           >
             <Avatar
               name={t.assignedStaffName || "Unassigned owner"}
-              tone="purple"
+              tone="dark"
               emptyDark
             />
             <small>{t.assignedStaffName?.split(" ")[0] || "Queue"}</small>

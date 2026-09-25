@@ -1,18 +1,24 @@
 import {z} from 'zod';
 import {db} from '@/db';
-import {ticketResolutions,ticketActivities} from '@/db/schema';
-import {errorResponse,sameOrigin} from '@/lib/auth';
-import {requireResolutionAccess,getResolutionWorkspace} from '@/lib/tickets';
+import {ticketResolutions,ticketActivities,tickets} from '@/db/schema';
+import {eq} from 'drizzle-orm';
+import {ApiError,errorResponse,requireTicketAccess,requireWorkspace,sameOrigin} from '@/lib/auth';
+import {requireResolutionAccess,getResolutionWorkspace,canResolveTicket} from '@/lib/tickets';
 
 export const dynamic='force-dynamic';
 type Ctx={params:Promise<{id:string}>};
 
-/** The resolution workspace holds private owner notes and member contact details, so
- *  reading it is gated exactly like writing it: the caller must have access to the ticket. */
+/** The resolution is visible to anyone who can open the ticket — only writing it is
+ *  restricted to the assigned owner and their reporting manager (see PUT below). */
 export async function GET(_req:Request,ctx:Ctx){try{
   const id=z.coerce.number().int().positive().parse((await ctx.params).id);
-  await requireResolutionAccess(id);
-  return Response.json(await getResolutionWorkspace(id));
+  const user=await requireWorkspace();
+  const[ticket]=await db.select().from(tickets).where(eq(tickets.id,id));
+  if(!ticket)throw new ApiError('Ticket not found',404);
+  if(!ticket.resolutionRequired)throw new ApiError('This ticket does not require a resolution.');
+  requireTicketAccess(user,ticket);
+  const canResolve=await canResolveTicket(user,ticket.assignedStaffId,ticket.resolutionRequired);
+  return Response.json({...await getResolutionWorkspace(id),canResolve});
 }catch(e){return errorResponse(e);}}
 
 export async function PUT(req:Request,ctx:Ctx){try{

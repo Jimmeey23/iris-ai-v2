@@ -238,7 +238,7 @@ export function CommandCenter({directory = false}: {directory?: boolean}) {
       </div>
 
       <Tabs
-        className="workspace-tabs"
+        className="tabs-toolbar"
         label="Ticket tabs"
         value={f.tab}
         onChange={(tab) => changeFilters({tab})}
@@ -372,6 +372,7 @@ export function CommandCenter({directory = false}: {directory?: boolean}) {
     <Shell
       title={directory ? 'Every ticket, one shared log.' : `Welcome${user?.name ? `, ${user.name.trim().split(/\s+/)[0]}` : ''}`}
       eyebrow={directory ? 'TICKET DIRECTORY' : 'INTERNAL OPERATIONS'}
+      fullWidth={directory}
       action={
         <div className="flex-row">
           <select className="btn" aria-label="Reporting date range" value={f.from || f.to ? 'custom' : f.range} onChange={(e) => changeFilters({range: e.target.value, from: '', to: ''})}>

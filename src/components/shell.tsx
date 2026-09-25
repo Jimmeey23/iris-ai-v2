@@ -114,6 +114,7 @@ export function Shell({
   hideHeading = false,
   hideFooter = false,
   fullHeight = false,
+  fullWidth = false,
   banner,
 }: {
   children: ReactNode;
@@ -123,6 +124,9 @@ export function Shell({
   hideHeading?: boolean;
   hideFooter?: boolean;
   fullHeight?: boolean;
+  /** Lifts the page's `max-width` cap — for a table or board meant to use the
+   *  whole viewport rather than the readable-measure layout most pages want. */
+  fullWidth?: boolean;
   banner?: ReactNode;
 }) {
   const path = usePathname(),
@@ -393,6 +397,7 @@ export function Shell({
           className={
             "content" +
             (fullHeight ? " content-full-height" : "") +
+            (fullWidth ? " content-full-width" : "") +
             (banner ? " has-banner" : "")
           }
         >
