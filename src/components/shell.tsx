@@ -3,29 +3,30 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
-  LayoutDashboard,
+  Gauge,
+  Bot,
   Sparkles,
-  Ticket,
-  Layers,
-  ChartNoAxesCombined,
-  Users,
-  Blocks,
-  Settings,
+  Tickets,
+  LibraryBig,
+  ChartSpline,
+  UsersRound,
+  Cable,
+  SlidersHorizontal,
   ChevronDown,
   ChevronRight,
   Search,
   Bell,
   Menu,
   PanelLeft,
-  Building2,
+  Landmark,
   ArrowUpRight,
   Command,
   LifeBuoy,
-  FileBarChart2,
-  GraduationCap,
-  ClipboardList,
-  Radio,
-  Wrench,
+  Files,
+  Dumbbell,
+  ClipboardCheck,
+  Radar,
+  Drill,
   Palette,
   Lock,
 } from "lucide-react";
@@ -48,22 +49,22 @@ type NavItem = {
   live?: boolean;
 };
 const nav: NavItem[] = [
-  { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
-  { href: "/iris", label: "IRIS assistant", icon: Sparkles, ai: true },
-  { href: "/radar", label: "Ops Radar & Heatmap", icon: Radio, live: true },
-  { href: "/tickets", label: "All tickets", icon: Ticket },
-  { href: "/equipment", label: "Equipment", icon: Wrench },
-  { href: "/templates", label: "Template library", icon: Layers },
-  { href: "/reports", label: "Reports library", icon: FileBarChart2 },
-  { href: "/analytics", label: "Trend dashboard", icon: ChartNoAxesCombined },
-  { href: "/trainers", label: "Trainer reviews", icon: GraduationCap },
-  { href: "/forms", label: "Evaluation forms", icon: ClipboardList },
+  { href: "/dashboard", label: "Overview", icon: Gauge },
+  { href: "/iris", label: "IRIS assistant", icon: Bot, ai: true },
+  { href: "/radar", label: "Ops Radar & Heatmap", icon: Radar, live: true },
+  { href: "/tickets", label: "All tickets", icon: Tickets },
+  { href: "/equipment", label: "Equipment", icon: Drill },
+  { href: "/templates", label: "Template library", icon: LibraryBig },
+  { href: "/reports", label: "Reports library", icon: Files },
+  { href: "/analytics", label: "Trend dashboard", icon: ChartSpline },
+  { href: "/trainers", label: "Trainer reviews", icon: Dumbbell },
+  { href: "/forms", label: "Evaluation forms", icon: ClipboardCheck },
 ];
 const org: NavItem[] = [
-  { href: "/momence", label: "Momence", icon: Building2 },
-  { href: "/staff", label: "People & teams", icon: Users },
-  { href: "/integrations", label: "Integrations", icon: Blocks },
-  { href: "/settings", label: "Settings", icon: Settings },
+  { href: "/momence", label: "Momence", icon: Landmark },
+  { href: "/staff", label: "People & teams", icon: UsersRound },
+  { href: "/integrations", label: "Integrations", icon: Cable },
+  { href: "/settings", label: "Settings", icon: SlidersHorizontal },
 ];
 /** Internal reference pages: administrators only, and never part of the everyday nav. */
 const developer: NavItem[] = [
@@ -133,7 +134,7 @@ export function Shell({
     router = useRouter();
   const { user, openAuth, workspaceName } = useApp();
   const [mobile, setMobile] = useState(false),
-    [collapsed, setCollapsed] = useState(() => path === "/" || path === "/dashboard"),
+    [collapsed, setCollapsed] = useState(true),
     [searchOpen, setSearchOpen] = useState(false),
     [notifications, setNotifications] = useState(false),
     [query, setQuery] = useState(""),
@@ -242,6 +243,8 @@ export function Shell({
                 aria-current={active ? "page" : undefined}
                 aria-label={collapsed ? n.label : undefined}
                 title={collapsed ? n.label : undefined}
+                data-tip={collapsed ? n.label : undefined}
+                data-tip-pos="right"
                 onClick={() => setMobile(false)}
               >
                 <Icon size={16} />
@@ -275,6 +278,8 @@ export function Shell({
                 aria-current={active ? "page" : undefined}
                 aria-label={collapsed ? n.label : undefined}
                 title={collapsed ? n.label : undefined}
+                data-tip={collapsed ? n.label : undefined}
+                data-tip-pos="right"
                 onClick={() => setMobile(false)}
               >
                 <Icon size={16} />
@@ -296,6 +301,8 @@ export function Shell({
                     aria-current={active ? "page" : undefined}
                     aria-label={collapsed ? n.label : undefined}
                     title={collapsed ? n.label : undefined}
+                    data-tip={collapsed ? n.label : undefined}
+                    data-tip-pos="right"
                     onClick={() => setMobile(false)}
                   >
                     <Icon size={16} />

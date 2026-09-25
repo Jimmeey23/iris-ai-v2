@@ -13,6 +13,11 @@ import {
   Smartphone,
   UserRound,
   X,
+  ListChecks,
+  BellRing,
+  ContactRound,
+  FileCheck2,
+  UserCheck,
 } from "lucide-react";
 import { api, useApp } from "./ui";
 import { indiaDate } from "@/lib/display";
@@ -289,74 +294,68 @@ export function ResolutionPanel({
     );
 
   const tabs = [
-    { id: "log", label: "Work log", count: workspace.steps.length },
-    { id: "chase", label: "Follow-ups", count: openFollowUps.length },
-    { id: "member", label: "Member", count: workspace.contacts.length },
-    { id: "writeup", label: "Write-up", count: hasWriteUp ? 1 : 0 },
+    { id: "log", label: "Work log", count: workspace.steps.length, icon: ListChecks },
+    { id: "chase", label: "Follow-ups", count: openFollowUps.length, icon: BellRing },
+    { id: "member", label: "Member", count: workspace.contacts.length, icon: ContactRound },
+    { id: "writeup", label: "Write-up", count: hasWriteUp ? 1 : 0, icon: FileCheck2 },
   ] as const;
 
   return (
     <aside className="rw resolution-v2" aria-label="Resolution">
       <RwHead onClose={onClose} completion={completion} />
 
-      <p className="rw-note">
-        {canResolve ? (
-          <>
-            <PencilLine size={12} />
-            You can edit this. Only you and your reporting manager can.
-          </>
-        ) : (
-          <>
-            <LockKeyhole size={12} />
-            Visible to everyone. Only{" "}
-            {ticket.assignedStaffName || "the assigned owner"} and their
-            reporting manager can edit it.
-          </>
+      <div className="rw-command-bar">
+        <p className="rw-note">
+          {canResolve ? (
+            <><PencilLine size={12} />Owner workspace · changes are privately controlled.</>
+          ) : (
+            <><LockKeyhole size={12} />Read only · owned by {ticket.assignedStaffName || "the assigned owner"}.</>
+          )}
+        </p>
+        {canResolve && (
+          <div className="rw-status">
+            <label htmlFor="rw-status">Current stage</label>
+            <select
+              id="rw-status"
+              value={status}
+              disabled={busy || saving}
+              onChange={(e) => setStatus(e.target.value)}
+            >
+              {STATUSES.map((s) => <option key={s} value={s}>{titleCase(s)}</option>)}
+            </select>
+            <button
+              className="btn btn-sm"
+              disabled={busy || saving || status === ticket.status}
+              onClick={() => void onPatch({ status })}
+            >
+              Apply
+            </button>
+          </div>
         )}
-      </p>
+      </div>
 
-      {canResolve && (
-        <div className="rw-status">
-          <label htmlFor="rw-status">Status</label>
-          <select
-            id="rw-status"
-            value={status}
-            disabled={busy || saving}
-            onChange={(e) => setStatus(e.target.value)}
-          >
-            {STATUSES.map((s) => (
-              <option key={s} value={s}>
-                {titleCase(s)}
-              </option>
-            ))}
-          </select>
-          <button
-            className="btn btn-sm"
-            disabled={busy || saving || status === ticket.status}
-            onClick={() => void onPatch({ status })}
-          >
-            Update
-          </button>
-        </div>
-      )}
+      <div className="rw-snapshot" aria-label="Resolution activity summary">
+        <div><ListChecks size={13}/><span><strong>{workspace.steps.length}</strong><small>work steps</small></span></div>
+        <div className={overdue.length ? "attention" : ""}><BellRing size={13}/><span><strong>{openFollowUps.length}</strong><small>{overdue.length ? `${overdue.length} overdue` : "open follow-ups"}</small></span></div>
+        <div><UserCheck size={13}/><span><strong>{workspace.contacts.length}</strong><small>member contacts</small></span></div>
+      </div>
 
-      <nav className="rw-tabs">
-        {tabs.map((t) => (
-          <button
-            key={t.id}
-            className={section === t.id ? "active" : ""}
-            onClick={() => setSection(t.id)}
-          >
-            {t.label}
-            {t.count > 0 && (
-              <i
-                className={t.id === "chase" && overdue.length > 0 ? "late" : ""}
-              >
-                {t.count}
-              </i>
-            )}
-          </button>
-        ))}
+      <nav className="rw-tabs" aria-label="Resolution sections">
+        {tabs.map((t) => {
+          const Icon = t.icon;
+          return (
+            <button
+              key={t.id}
+              className={section === t.id ? "active" : ""}
+              onClick={() => setSection(t.id)}
+              aria-pressed={section === t.id}
+            >
+              <Icon size={13}/>
+              <span>{t.label}</span>
+              {t.count > 0 && <i className={t.id === "chase" && overdue.length > 0 ? "late" : ""}>{t.count}</i>}
+            </button>
+          );
+        })}
       </nav>
 
       <div className="rw-body">
