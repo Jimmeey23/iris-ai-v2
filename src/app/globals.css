@@ -12257,6 +12257,201 @@ small {
 /* The Iris prompt is a call to action, not the subject of the page. On the overview it is
    compacted to a single strip so the telemetry, the cards and the top of the ticket table
    all sit above the fold on a laptop. */
+.overview-command-deck {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(330px, 0.75fr);
+  gap: 0;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
+  border-radius: var(--radius-xl);
+  background:
+    linear-gradient(112deg, color-mix(in srgb, var(--accent) 13%, var(--surface)) 0%, var(--surface) 48%, color-mix(in srgb, var(--purple) 8%, var(--surface-2)) 100%);
+  box-shadow:
+    0 30px 80px -42px color-mix(in srgb, var(--accent) 48%, transparent),
+    var(--highlight-inset);
+}
+.overview-command-deck::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--accent) 5%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--accent) 5%, transparent) 1px, transparent 1px);
+  background-size: 34px 34px;
+  mask-image: linear-gradient(90deg, black, transparent 68%);
+  pointer-events: none;
+}
+.overview-command-copy {
+  padding: 24px 26px 22px;
+  min-width: 0;
+}
+.overview-command-kicker,
+.overview-snapshot-head,
+.overview-command-snapshot > p {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: var(--text-3xs);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--accent);
+}
+.overview-command-kicker > span:last-child {
+  color: var(--muted);
+}
+.overview-live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--green) 12%, transparent), 0 0 12px var(--green);
+  flex: 0 0 auto;
+}
+.overview-command-rule {
+  width: 22px;
+  height: 1px;
+  background: var(--border-strong);
+}
+.overview-command-title-row {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  margin-top: 17px;
+}
+.overview-command-title-row .iris-orb {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-lg);
+}
+.overview-command-title-row h2 {
+  max-width: 720px;
+  font-family: var(--font-display);
+  font-size: clamp(20px, 2vw, 28px);
+  line-height: 1.08;
+  letter-spacing: -0.04em;
+}
+.overview-command-title-row p {
+  margin-top: 6px;
+  color: var(--secondary);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+.overview-command-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 18px;
+}
+.overview-queue-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  color: var(--secondary);
+  font-size: 11px;
+  font-weight: 650;
+}
+.overview-queue-link:hover {
+  color: var(--accent);
+}
+.overview-queue-link:hover svg {
+  transform: translateX(3px);
+}
+.overview-queue-link svg {
+  transition: transform var(--dur-2) var(--ease-spring);
+}
+.overview-command-snapshot {
+  align-self: stretch;
+  padding: 20px;
+  border-left: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  background: color-mix(in srgb, var(--surface-2) 76%, transparent);
+  backdrop-filter: blur(14px);
+}
+.overview-snapshot-head {
+  justify-content: space-between;
+  color: var(--muted);
+  letter-spacing: 0.1em;
+}
+.overview-snapshot-head > span:first-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.overview-snapshot-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 17px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
+}
+.overview-snapshot-grid > * {
+  display: grid;
+  justify-items: start;
+  align-content: start;
+  gap: 2px;
+  min-width: 0;
+  min-height: 95px;
+  padding: 12px 11px;
+  border: 0;
+  border-right: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  text-decoration: none;
+  transition: background var(--dur-2), box-shadow var(--dur-2);
+}
+.overview-snapshot-grid > *:last-child {
+  border-right: 0;
+}
+.overview-snapshot-grid > *:hover {
+  background: color-mix(in srgb, var(--accent) 7%, var(--surface));
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+.overview-snapshot-icon {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  margin-bottom: 5px;
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--border));
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.overview-snapshot-grid strong {
+  font-family: var(--font-display);
+  font-size: 21px;
+  line-height: 1;
+  letter-spacing: -0.04em;
+}
+.overview-snapshot-grid small {
+  overflow: hidden;
+  max-width: 100%;
+  color: var(--muted);
+  font-size: 9px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.overview-command-snapshot > p {
+  margin-top: 12px;
+  color: var(--muted);
+  font-weight: 500;
+  letter-spacing: 0;
+}
+.overview-command-snapshot > p .overview-live-dot {
+  width: 5px;
+  height: 5px;
+  box-shadow: none;
+}
 .cc-overview .iris-banner {
   box-shadow:
     0 24px 60px -30px color-mix(in srgb, var(--accent) 35%, transparent),
@@ -12444,6 +12639,13 @@ small {
 }
 
 @media (max-width: 1100px) {
+  .overview-command-deck {
+    grid-template-columns: 1fr;
+  }
+  .overview-command-snapshot {
+    border-top: 1px solid var(--border);
+    border-left: 0;
+  }
   .focus-rail {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
@@ -12459,6 +12661,35 @@ small {
   }
 }
 @media (max-width: 767px) {
+  .overview-command-copy {
+    padding: 19px 17px;
+  }
+  .overview-command-title-row {
+    align-items: flex-start;
+  }
+  .overview-command-title-row .iris-orb {
+    width: 40px;
+    height: 40px;
+  }
+  .overview-command-title-row h2 {
+    font-size: 20px;
+  }
+  .overview-command-kicker .overview-command-rule,
+  .overview-command-kicker > span:last-child {
+    display: none;
+  }
+  .overview-command-actions {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .overview-command-snapshot {
+    padding: 16px;
+  }
+  .overview-snapshot-grid > * {
+    min-height: 88px;
+    padding: 10px 8px;
+  }
   .focus-rail {
     grid-template-columns: 1fr;
     margin-top: 12px;
