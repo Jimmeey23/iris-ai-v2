@@ -43,6 +43,7 @@ type Report = {
     resolved: number;
     overdue: number;
   }[];
+  ownerLeaderboard: {name: string; assigned: number; open: number; closed: number; overdue: number; critical: number; medianHours: number | null}[];
   computedAt: string;
 };
 export default function AnalyticsPage() {
@@ -301,37 +302,35 @@ export default function AnalyticsPage() {
                 <h2>Team performance</h2>
                 <p>A shared view of ownership, workload and follow-through.</p>
               </div>
-              <Badge tone="blue">{data.owners.length} ticket owners</Badge>
+              <Badge tone="blue">All-time leaderboard · {data.ownerLeaderboard.length} owners</Badge>
             </div>
             <div className="table-wrap">
               <table className="data-table">
                 <thead>
                   <tr>
-                    <th>TEAM MEMBER</th>
-                    <th>TOTAL TICKETS</th>
-                    <th>ACTIVE</th>
-                    <th>RESOLVED</th>
-                    <th>OVERDUE</th>
-                    <th>RESOLUTION RATE</th>
+                    <th>RANK / OWNER</th><th>ASSIGNED</th><th>OPEN</th><th>CLOSED</th><th>CRITICAL</th><th>OVERDUE</th><th>MEDIAN TIME</th><th>CLOSE RATE</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {data.owners.map((o) => (
+                  {data.ownerLeaderboard.map((o, index) => (
                     <tr key={o.name}>
                       <td>
-                        <div className="flex-row">
+                        <div className="flex-row owner-rank-cell">
+                          <span className={'owner-rank rank-' + (index + 1)}>{String(index + 1).padStart(2, '0')}</span>
                           <Avatar name={o.name} tone="purple" />
                           {o.name}
                         </div>
                       </td>
-                      <td>{o.total}</td>
+                      <td>{o.assigned}</td>
                       <td>{o.open}</td>
                       <td>
-                        <Badge tone="green">{o.resolved}</Badge>
+                        <Badge tone="green">{o.closed}</Badge>
                       </td>
+                      <td><Badge tone={o.critical ? 'red' : ''}>{o.critical}</Badge></td>
                       <td>
                         <Badge tone={o.overdue ? "red" : ""}>{o.overdue}</Badge>
                       </td>
+                      <td>{o.medianHours === null ? '—' : `${o.medianHours}h`}</td>
                       <td>
                         <div className="flex-row">
                           <div
@@ -341,12 +340,12 @@ export default function AnalyticsPage() {
                             <span
                               style={{
                                 width:
-                                  Math.round((o.resolved / o.total) * 100) +
+                                  Math.round((o.closed / Math.max(o.assigned, 1)) * 100) +
                                   "%",
                               }}
                             />
                           </div>
-                          {Math.round((o.resolved / o.total) * 100)}%
+                          {Math.round((o.closed / Math.max(o.assigned, 1)) * 100)}%
                         </div>
                       </td>
                     </tr>

@@ -132,7 +132,7 @@ export function Shell({
 }) {
   const path = usePathname(),
     router = useRouter();
-  const { user, openAuth, workspaceName } = useApp();
+  const { user, openAuth } = useApp();
   const [mobile, setMobile] = useState(false),
     [collapsed, setCollapsed] = useState(true),
     [searchOpen, setSearchOpen] = useState(false),
@@ -213,19 +213,7 @@ export function Shell({
       )}
       <aside className={"sidebar" + (mobile ? " open" : "") + (collapsed ? " collapsed" : "")}>
         <Link className="brand" href="/">
-          <IrisLockup size={30} />
-        </Link>
-        <Link href="/settings" className="workspace-selector">
-          <div className="mini-spark">
-            <Sparkles size={15} />
-          </div>
-          <div className="grow">
-            <strong style={{ fontWeight: 500 }}>IRIS workspace</strong>
-            <div className="muted" style={{ fontSize: "var(--text-3xs)" }}>
-              {workspaceName}
-            </div>
-          </div>
-          <ChevronDown size={13} />
+          <IrisLockup size={30} subtitle="" />
         </Link>
         <div className="sidebar-scrollable">
           <div className="nav-heading">WORKSPACE</div>

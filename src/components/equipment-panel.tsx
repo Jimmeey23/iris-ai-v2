@@ -2,7 +2,7 @@
 
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {
-  Bike, BrickWall, ConciergeBell, Droplets, Dumbbell, FireExtinguisher, Image as ImageIcon, Laptop, LayoutGrid, Lightbulb, MapPin, Mic, Pencil,
+  Bike, BrickWall, ConciergeBell, Droplets, Dumbbell, Eye, FireExtinguisher, Image as ImageIcon, Laptop, LayoutGrid, Lightbulb, MapPin, Mic, Pencil,
   Plus, RefreshCw, Rows3, ShieldCheck, ShowerHead, Snowflake, Sparkles, Trash2, TriangleAlert, Upload, Wind, Wrench, Zap,
 } from 'lucide-react';
 import {api, Badge, Empty, Field, Loading, Modal, SearchField, TabPanel, Tabs, useApp} from '@/components/ui';
@@ -213,6 +213,7 @@ export function EquipmentPanel({initialStudio, initialAssetId}: {initialStudio?:
   const [layout, setLayout] = useState<'table' | 'cards'>('table');
 
   const [editing, setEditing] = useState<FormState | null>(null);
+  const [selectedAsset, setSelectedAsset] = useState<FleetAsset | null>(null);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
   const [importOpen, setImportOpen] = useState(false);
@@ -494,10 +495,10 @@ export function EquipmentPanel({initialStudio, initialAssetId}: {initialStudio?:
               </thead>
               <tbody>
                 {visible.map((a) => (
-                  <tr key={a.id} className={(a.available ? '' : 'eq-row-down') + (a.id === initialAssetId ? ' eq-target-row' : '')}>
+                  <tr key={a.id} className={(a.available ? '' : 'eq-row-down') + (a.id === initialAssetId ? ' eq-target-row' : '')} onClick={(e) => { if (!(e.target as HTMLElement).closest('button,select,a,input')) setSelectedAsset(a); }} tabIndex={0} onKeyDown={e => { if (e.key === 'Enter') setSelectedAsset(a); }} aria-label={`Open details for ${a.name}`}>
                     <td><AssetThumb asset={a}/></td>
                     <td>
-                      <p className="ticket-name">{a.name}</p>
+                      <button type="button" className="eq-name-button" onClick={() => setSelectedAsset(a)}>{a.name}</button>
                       <div className="ticket-meta">
                         <span>Asset #{a.id} · {a.type}</span>
                         {(a.manufacturer || a.model) && <><span>·</span><span>{[a.manufacturer, a.model].filter(Boolean).join(' ')}</span></>}
@@ -547,7 +548,7 @@ export function EquipmentPanel({initialStudio, initialAssetId}: {initialStudio?:
         ) : (
           <div className="asset-grid">
             {visible.map((a) => (
-              <div key={a.id} className={'asset-card' + (a.available ? '' : ' asset-card-down') + (a.id === initialAssetId ? ' eq-target-card' : '')}>
+              <div key={a.id} role="button" tabIndex={0} onClick={(e) => { if (!(e.target as HTMLElement).closest('button,select,a,input')) setSelectedAsset(a); }} onKeyDown={e => { if (e.key === 'Enter') setSelectedAsset(a); }} className={'asset-card' + (a.available ? '' : ' asset-card-down') + (a.id === initialAssetId ? ' eq-target-card' : '')}>
                 <div className="between">
                   <strong className="flex-row" style={{gap: 9}}>
                     <AssetThumb asset={a} size={34}/>
@@ -626,6 +627,8 @@ export function EquipmentPanel({initialStudio, initialAssetId}: {initialStudio?:
         statuses={statuses}
       />
 
+      <AssetDetail asset={selectedAsset} onClose={() => setSelectedAsset(null)} onEdit={canEdit ? () => { if (selectedAsset) setEditing(formFrom(selectedAsset)); setSelectedAsset(null); } : undefined}/>
+
       <BulkImport
         open={importOpen}
         onClose={() => setImportOpen(false)}
@@ -643,6 +646,26 @@ export function EquipmentPanel({initialStudio, initialAssetId}: {initialStudio?:
       />
     </div>
   );
+}
+
+function AssetDetail({asset, onClose, onEdit}: {asset: FleetAsset | null; onClose: () => void; onEdit?: () => void}) {
+  if (!asset) return null;
+  const facts = [
+    ['Asset ID', `#${asset.id}`], ['Asset tag', displayAssetTag(asset)], ['Serial number', asset.serial || 'Not recorded'],
+    ['Location', asset.locationName || asset.area || 'Not assigned'], ['Studio', asset.studio], ['Quantity', String(asset.quantity || 1)],
+    ['Manufacturer', asset.manufacturer || 'Not recorded'], ['Model', asset.model || 'Not recorded'], ['Vendor', asset.vendor || 'Not recorded'],
+    ['Condition', asset.condition || 'Not assessed'], ['Acquired', asset.acquiredAt ? new Date(asset.acquiredAt).toLocaleDateString('en-IN') : 'Not recorded'],
+    ['Warranty', asset.warrantyUntil ? new Date(asset.warrantyUntil).toLocaleDateString('en-IN') : 'Not recorded'],
+  ];
+  return <Modal open onClose={onClose} size="wide" title={asset.name} description={`${asset.category} · ${asset.type}`} footer={<><button className="btn" onClick={onClose}>Close</button>{onEdit && <button className="btn btn-primary" onClick={onEdit}><Pencil size={13}/>Edit equipment</button>}</>}>
+    <div className="eq-detail-hero">
+      <AssetThumb asset={asset} size={88}/>
+      <div><span className="eyebrow">Equipment intelligence</span><h3>{asset.name}</h3><div className="flex-row wrap"><Badge tone={STATUS_TONE[asset.status] || ''}>{STATUS_LABEL[asset.status] || asset.status}</Badge><span className="chip chip-quiet">{asset.category}</span><span className="mono">{displayAssetTag(asset)}</span></div></div>
+      <div className="eq-detail-health"><Eye size={15}/><strong>{asset.openFaults}</strong><span>open snags</span><small>{asset.faults} all time</small></div>
+    </div>
+    <div className="eq-detail-grid">{facts.map(([label, value]) => <div key={label}><small>{label}</small><strong>{value}</strong></div>)}</div>
+    <div className="eq-detail-notes"><strong>Operational notes</strong><p>{asset.notes || asset.statusNote || 'No operational notes have been recorded for this item.'}</p>{asset.lastFaultAt && <small>Most recent snag {relativeTime(asset.lastFaultAt)}</small>}</div>
+  </Modal>;
 }
 
 /* ----------------------------- Add / edit ----------------------------- */

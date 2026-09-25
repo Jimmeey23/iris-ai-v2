@@ -1,8 +1,8 @@
 "use client";
 import {useEffect, useMemo, useRef, useState, type ReactNode} from 'react';
-import {Activity, Building2, CalendarClock, CalendarDays, Check, ChevronDown, Clock3, ClipboardList, GitBranch, GraduationCap, HeartHandshake, IndianRupee, Layers, LockKeyhole, MapPin, Megaphone, Minus, MonitorCog, PackageSearch, Paperclip, PenLine, Plus, ShieldAlert, Sparkles, UserRound, UsersRound, Wrench, X, type LucideIcon} from 'lucide-react';
+import {Activity, Building2, CalendarClock, CalendarDays, Check, ChevronDown, Clock3, ClipboardList, EyeOff, GitBranch, GraduationCap, HeartHandshake, IndianRupee, Layers, LockKeyhole, MapPin, Megaphone, Minus, MonitorCog, PackageSearch, Paperclip, PenLine, Plus, ShieldAlert, Sparkles, UserRound, UsersRound, Wrench, X, type LucideIcon} from 'lucide-react';
 import {studioAreasFor} from '@/lib/constants';
-import {ENRICH_GROUP_LABEL, MEMBER_LOOKUP_IDS, fieldRank, filled, isVisible, localDateTime, orderSections, type IntakeData, type IntakeField, type IntakeValue, type LookupRef} from '@/lib/intake/plan';
+import {ENRICH_GROUP_LABEL, MEMBER_LOOKUP_IDS, fieldRank, filled, isSkipped, isVisible, localDateTime, orderSections, skipKey, type IntakeData, type IntakeField, type IntakeValue, type LookupRef} from '@/lib/intake/plan';
 import {LookupField} from './lookup-field';
 import {OptionSelect} from './option-select';
 
@@ -140,7 +140,7 @@ export function groupSections(fields: IntakeField[], data: IntakeData, opts: {hi
   return orderSections(m.keys()).map(name => {
     // Stable: questions the grouping does not rank keep the plan's own order.
     const list = m.get(name)!.map((f, i) => ({f, i})).sort((a, b) => fieldRank(a.f.id) - fieldRank(b.f.id) || a.i - b.i).map(x => x.f);
-    const req = list.filter(f => f.required || opts.gatingIds?.has(f.id));
+    const req = list.filter(f => (f.required || opts.gatingIds?.has(f.id)) && !isSkipped(data, f.id));
     return {
       name, slug: sectionSlug(name), fields: list, required: req.length,
       missing: req.filter(f => !filled(data[f.id])).length,
@@ -163,8 +163,9 @@ export function withInjected(sections: SectionGroup[], injected: InjectedSection
 
 /* ------------------------------------------------------------------ one question */
 
-export function IntakeFieldRow({f, value, onChange, error, auto, studio, onLookupPick, required, depLabel, extra, index = 0}: {
+export function IntakeFieldRow({f, value, onChange, onSkip, skipped = false, error, auto, studio, onLookupPick, required, depLabel, extra, index = 0}: {
   f: IntakeField; value: IntakeValue; onChange: (v: IntakeValue) => void; error?: string; auto?: boolean; studio?: string;
+  onSkip?: () => void; skipped?: boolean;
   onLookupPick?: (f: IntakeField, ref: LookupRef, raw?: Record<string, unknown>) => void; required?: boolean;
   /** The question this one followed on from, for the "conditional" badge. */
   depLabel?: string;
@@ -176,7 +177,7 @@ export function IntakeFieldRow({f, value, onChange, error, auto, studio, onLooku
   const done = filled(value);
   const must = required ?? Boolean(f.required);
   const wide = isWide(f);
-  const cls = ['ifield', wide ? 'wide' : 'half', done ? 'done' : '', error ? 'has-error' : '', depLabel ? 'cond' : '', must ? 'must' : ''].filter(Boolean).join(' ');
+  const cls = ['ifield', wide ? 'wide' : 'half', done ? 'done' : '', skipped ? 'skipped' : '', error ? 'has-error' : '', depLabel ? 'cond' : '', must ? 'must' : ''].filter(Boolean).join(' ');
   return (
     <div className={cls} data-fid={f.id} style={{'--i': index} as React.CSSProperties}>
       <div className="ifield-label">
@@ -190,10 +191,11 @@ export function IntakeFieldRow({f, value, onChange, error, auto, studio, onLooku
           {auto && done && <span className="ifield-auto" title="Filled in for you. Edit to change it."><Sparkles size={9} /> Auto-filled</span>}
           {depLabel && <span className="ifield-cond" title={`Asked because “${depLabel}” was answered`}><GitBranch size={9} /> Follows “{depLabel}”</span>}
           {extra}
+          <button type="button" className={'ifield-skip' + (skipped ? ' on' : '')} role="switch" aria-checked={skipped} onClick={onSkip} title={skipped ? 'Include this field again' : 'Skip this field, including its required rule'}><EyeOff size={10} />{skipped ? 'Skipped' : 'Skip'}</button>
         </span>
       </div>
       <div className="ifield-control">
-        <FieldControl f={f} value={value} onChange={onChange} invalid={Boolean(error)} studio={studio} onLookupPick={onLookupPick} />
+        {skipped ? <div className="ifield-skipped-note"><EyeOff size={14}/><span>Intentionally skipped. This field will not block ticket creation.</span></div> : <FieldControl f={f} value={value} onChange={onChange} invalid={Boolean(error)} studio={studio} onLookupPick={onLookupPick} />}
       </div>
       <div className="ifield-foot">{error ? <span className="intake-error">{error}</span> : f.desc ? <span className="field-hint">{f.desc}</span> : null}</div>
     </div>
@@ -249,14 +251,14 @@ export function IntakeContextHeader({data, patch, studio, hostedClass = false, f
         <div className="ictx-lookups">
           {involvesMember && (
             <div className="ictx-lookup" data-fid={memberIds[0]} data-fids={memberIds.join(' ')}>
-              <label htmlFor={'f-' + memberIds[0]} className="ictx-lookup-label">Member(s) this is about <span className="ifield-req">Required</span></label>
-              <LookupField id={'f-' + memberIds[0]} module="member" value={memberValue} onChange={setMember} studio={studioName} multi />
+              <div className="ictx-lookup-label"><label htmlFor={'f-' + memberIds[0]}>Member(s) this is about <span className="ifield-req">Required</span></label><button type="button" className={'ifield-skip' + (isSkipped(data, memberIds[0]) ? ' on' : '')} role="switch" aria-checked={isSkipped(data, memberIds[0])} onClick={() => patch(skipKey(memberIds[0]), isSkipped(data, memberIds[0]) ? 'No' : 'Yes')}><EyeOff size={10}/>{isSkipped(data, memberIds[0]) ? 'Skipped' : 'Skip'}</button></div>
+              {isSkipped(data, memberIds[0]) ? <div className="ifield-skipped-note"><EyeOff size={14}/>Member link intentionally skipped.</div> : <LookupField id={'f-' + memberIds[0]} module="member" value={memberValue} onChange={setMember} studio={studioName} multi />}
             </div>
           )}
           {showClass && (
             <div className="ictx-lookup" data-fid="class_date">
-              <label htmlFor="f-class_date" className="ictx-lookup-label">{hostedClass ? 'Hosted class(es)' : 'Class(es) / session(s)'} <span className="ifield-req">Required</span></label>
-              <LookupField id="f-class_date" module="session" value={data.class_date} sessionTypes={hostedClass ? ['private'] : undefined} onChange={v => { patch('class_date', v); if (filled(v)) setFlag('_involves_class', true); }} studio={studioName} multi />
+              <div className="ictx-lookup-label"><label htmlFor="f-class_date">{hostedClass ? 'Hosted class(es)' : 'Class(es) / session(s)'} <span className="ifield-req">Required</span></label><button type="button" className={'ifield-skip' + (isSkipped(data, 'class_date') ? ' on' : '')} role="switch" aria-checked={isSkipped(data, 'class_date')} onClick={() => patch(skipKey('class_date'), isSkipped(data, 'class_date') ? 'No' : 'Yes')}><EyeOff size={10}/>{isSkipped(data, 'class_date') ? 'Skipped' : 'Skip'}</button></div>
+              {isSkipped(data, 'class_date') ? <div className="ifield-skipped-note"><EyeOff size={14}/>Session link intentionally skipped.</div> : <LookupField id="f-class_date" module="session" value={data.class_date} sessionTypes={hostedClass ? ['private'] : undefined} onChange={v => { patch('class_date', v); if (filled(v)) setFlag('_involves_class', true); }} studio={studioName} multi />}
               {hostedClass && <span className="field-hint">Private hosted classes from the Momence account linked to your studio.</span>}
             </div>
           )}
@@ -307,7 +309,7 @@ export function FormEngine({fields, data, patch, errors, auto, onLookupPick, ope
     if (name) setTimeout(() => document.getElementById(sectionSlug(name))?.scrollIntoView({behavior: 'smooth', block: 'start'}), 60);
   };
   const [drawers, setDrawers] = useState<Record<string, boolean>>({});
-  const row = (f: IntakeField, i: number) => <IntakeFieldRow key={f.id} index={i} f={f} value={data[f.id]} onChange={v => patch(f.id, v)} error={errors[f.id]} auto={auto[f.id] !== undefined && String(auto[f.id]) === String(data[f.id])} studio={studio} onLookupPick={onLookupPick} required={f.required || gatingIds?.has(f.id) || undefined} depLabel={f.conditional && f.dep ? labels.get(f.dep) : undefined} extra={extras?.[f.id]} />;
+  const row = (f: IntakeField, i: number) => <IntakeFieldRow key={f.id} index={i} f={f} value={data[f.id]} onChange={v => patch(f.id, v)} skipped={isSkipped(data, f.id)} onSkip={() => patch(skipKey(f.id), isSkipped(data, f.id) ? 'No' : 'Yes')} error={errors[f.id]} auto={auto[f.id] !== undefined && String(auto[f.id]) === String(data[f.id])} studio={studio} onLookupPick={onLookupPick} required={f.required || gatingIds?.has(f.id) || undefined} depLabel={f.conditional && f.dep ? labels.get(f.dep) : undefined} extra={extras?.[f.id]} />;
   return (
     <div className="isections">
       {contextHeader}

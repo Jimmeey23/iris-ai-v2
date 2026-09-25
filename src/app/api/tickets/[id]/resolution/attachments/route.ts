@@ -3,20 +3,23 @@ import {and, eq} from 'drizzle-orm';
 import {z} from 'zod';
 import {db} from '@/db';
 import {ticketActivities, ticketResolutionAttachments, tickets} from '@/db/schema';
-import {ApiError, currentUser, errorResponse, requireTicketAccess, sameOrigin} from '@/lib/auth';
+import {ApiError, currentUser, errorResponse, requireTicketAccess, requireWorkspace, sameOrigin} from '@/lib/auth';
 import {getResolutionWorkspace, requireResolutionAccess} from '@/lib/tickets';
 
 export const dynamic = 'force-dynamic';
 type Ctx = {params: Promise<{id: string}>};
 const MAX_FILE_SIZE = 15 * 1024 * 1024;
-const ALLOWED = /^(audio\/|image\/|application\/(pdf|msword|vnd\.openxmlformats-officedocument|vnd\.ms-excel|vnd\.openxmlformats-officedocument\.spreadsheetml\.sheet)|text\/plain)/i;
+const ALLOWED = /^(audio\/|image\/|application\/(pdf|msword|vnd\.openxmlformats-officedocument|vnd\.ms-excel|vnd\.openxmlformats-officedocument\.spreadsheetml\.sheet)|text\/(plain|csv))/i;
 const idOf = async (ctx: Ctx) => z.coerce.number().int().positive().parse((await ctx.params).id);
 
 export async function POST(req: Request, ctx: Ctx) {
   try {
     sameOrigin(req);
     const ticketId = await idOf(ctx);
-    const {user} = await requireResolutionAccess(ticketId);
+    const user = await requireWorkspace();
+    const [ticket] = await db.select().from(tickets).where(eq(tickets.id, ticketId));
+    if (!ticket) throw new ApiError('Ticket not found', 404);
+    requireTicketAccess(user, ticket);
     const form = await req.formData();
     const files = form.getAll('files').filter((item): item is File => item instanceof File);
     if (!files.length) throw new ApiError('Choose at least one document or recording.');

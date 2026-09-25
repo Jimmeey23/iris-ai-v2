@@ -18,6 +18,8 @@ import {
   CalendarDays,
   Wrench,
   MapPin,
+  EyeOff,
+  Paperclip,
 } from "lucide-react";
 import {
   CategoryArt,
@@ -47,6 +49,7 @@ import type {
 import { CATEGORY_MAP, STUDIOS, REPORTED_BY_OPTIONS } from "@/lib/constants";
 import { display, object, indiaDate, niceKey } from "@/lib/display";
 import { scoreAssessment } from "@/lib/guided-templates";
+import { AttachmentPreviewList, FileUpload, type UploadedFile } from "./file-upload";
 
 type HostedAttendee = {
   key: string;
@@ -98,6 +101,14 @@ export function DraftDocument({
     (draft.memberName &&
       !/studio team observation|internal report/i.test(draft.memberName)),
   );
+  const answeredSignals = Object.entries(cf).filter(([key, value]) => !key.startsWith('_') && display(value) !== '—').length;
+  const prioritySignal = {low: 28, medium: 52, high: 76, critical: 100}[draft.priority] || 50;
+  const intelligenceSignals = [
+    {label: 'Context captured', value: Math.min(100, 34 + answeredSignals * 7)},
+    {label: 'Operational urgency', value: prioritySignal},
+    {label: 'Action readiness', value: Math.min(100, 40 + checklist.length * 12)},
+    {label: 'Linked evidence', value: draft.momenceMemberId || draft.momenceSessionId ? 88 : memberRelated ? 62 : 38},
+  ];
   return (
     <div className="draft-document" data-tone={tone}>
       <div className="draft-cover">
@@ -151,6 +162,10 @@ export function DraftDocument({
         </div>
       </div>
       <div className="draft-body">
+        <section className="draft-signal-panel" aria-label="IRIS decision signals">
+          <div className="draft-signal-head"><div><span className="eyebrow"><Sparkles size={11}/> IRIS analysis</span><h3>Decision signals</h3></div><small>Grounded in the submitted answers and linked records</small></div>
+          <div className="draft-signal-grid">{intelligenceSignals.map(signal => <div key={signal.label}><span><b>{signal.label}</b><em>{signal.value}%</em></span><i><u style={{width: `${signal.value}%`}}/></i></div>)}</div>
+        </section>
         <section className="draft-block">
           <h3>01 / Reporter &amp; operational context</h3>
           <div className="draft-grid">
@@ -358,6 +373,8 @@ export function TicketComposer({
     [hostedAttendees, setHostedAttendees] = useState<HostedAttendee[]>([]),
     [hostedBusy, setHostedBusy] = useState(false);
   const [key, setKey] = useState("");
+  const [skippedFields, setSkippedFields] = useState<Set<string>>(new Set());
+  const [attachments, setAttachments] = useState<UploadedFile[]>([]);
   const [config, setConfig] = useState({
     taxonomy: CATEGORY_MAP,
     studios: STUDIOS.map((s) => s.name) as string[],
@@ -402,6 +419,8 @@ export function TicketComposer({
         reporterEmail: user?.email || "",
       });
       setStep("details");
+      setSkippedFields(new Set());
+      setAttachments([]);
       setDraft(undefined);
       setError("");
       setInvolvesMember(savedMember);
@@ -469,7 +488,8 @@ export function TicketComposer({
   }
   // Hosted attendees live in their own state while editing and join customFields
   // only when the ticket is previewed or saved.
-  const customFields = hostedTemplate ? { ...custom, hostedAttendees } : custom;
+  const unskippedCustom = Object.fromEntries(Object.entries(custom).filter(([id]) => !skippedFields.has(id)));
+  const customFields = hostedTemplate ? { ...unskippedCustom, hostedAttendees } : unskippedCustom;
   async function selectMember(opts: PickerOption[]) {
     const o = opts[0];
     if (!o) return;
@@ -613,7 +633,7 @@ export function TicketComposer({
       template?.fields.filter((f) => {
         const v = customFields[f.id];
         return Boolean(
-          f.required &&
+          f.required && !skippedFields.has(f.id) &&
           (v === undefined ||
             v === null ||
             v === "" ||
@@ -713,6 +733,12 @@ export function TicketComposer({
           body: JSON.stringify({ ...draft, submissionKey: key }),
         },
       );
+      if (attachments.some(a => a.file)) {
+        const uploadBody = new FormData();
+        attachments.forEach(a => { if (a.file) uploadBody.append('files', a.file); });
+        const upload = await fetch(`/api/tickets/${d.ticket.id}/resolution/attachments`, {method: 'POST', body: uploadBody});
+        if (!upload.ok) notify('Ticket created, but one or more supporting files could not be attached.', 'error');
+      }
       if (draftId)
         await api(`/api/drafts?id=${draftId}`, { method: "DELETE" }).catch(
           () => {},
@@ -1428,17 +1454,22 @@ export function TicketComposer({
                   {score !== null && <Badge tone="blue">Score {score}%</Badge>}
                 </h3>
                 <div className="form-grid">
-                  {template.fields.map((f) => (
-                    <StructuredInput
-                      key={f.id}
-                      field={f}
-                      value={custom[f.id]}
-                      onChange={(v) => setCustom((c) => ({ ...c, [f.id]: v }))}
-                    />
-                  ))}
+                  {template.fields.map((f) => {
+                    const skipped = skippedFields.has(f.id);
+                    return <div className={'template-field-wrap' + (skipped ? ' skipped' : '')} key={f.id}>
+                      <button type="button" className={'ifield-skip' + (skipped ? ' on' : '')} role="switch" aria-checked={skipped} onClick={() => setSkippedFields(current => { const next = new Set(current); if (skipped) next.delete(f.id); else next.add(f.id); return next; })}><EyeOff size={10}/>{skipped ? 'Skipped' : 'Skip field'}</button>
+                      {skipped ? <div className="ifield-skipped-note"><EyeOff size={14}/>This template field will not block ticket creation.</div> : <StructuredInput field={f} value={custom[f.id]} onChange={(v) => setCustom((c) => ({ ...c, [f.id]: v }))}/>}
+                    </div>;
+                  })}
                 </div>
               </section>
             ) : null}
+            <section className="form-section">
+              <h3><Paperclip size={15}/> Attachments &amp; voice notes</h3>
+              <p className="muted" style={{fontSize: 11, marginBottom: 10}}>Add supporting documents, images, spreadsheets, audio, or voice recordings.</p>
+              <div className="flex-row"><FileUpload files={attachments} onFilesSelected={setAttachments} maxFiles={8}/><span className="muted" style={{fontSize: 10}}>{attachments.length ? `${attachments.length} attached` : 'Up to 8 files'}</span></div>
+              <AttachmentPreviewList files={attachments} onRemove={id => setAttachments(current => current.filter(file => file.id !== id))}/>
+            </section>
           </div>
           <aside className="stack">
             <div className="form-aside">

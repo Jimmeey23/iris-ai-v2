@@ -36,6 +36,10 @@ export async function GET(req: NextRequest) {
     if (studio) clauses.push(eq(tickets.studio, studio));
     if (department) clauses.push(eq(tickets.departmentName, department));
     const where = and(...clauses.filter((c): c is SQL => Boolean(c)));
+    const allTimeClauses: (SQL | undefined)[] = [ticketScope(user)];
+    if (studio) allTimeClauses.push(eq(tickets.studio, studio));
+    if (department) allTimeClauses.push(eq(tickets.departmentName, department));
+    const allTimeWhere = and(...allTimeClauses.filter((c): c is SQL => Boolean(c)));
 
     const days = dayBuckets(range === "7" ? 7 : 14, to, tz);
     const trendFrom = new Date(Math.max(from, zonedDayStart(days[0].date, tz) ?? from));
@@ -48,7 +52,7 @@ export async function GET(req: NextRequest) {
     const dimNames = Object.keys(dims) as (keyof typeof dims)[];
     const dimCols = Object.values(dims);
 
-    const [[t], groups, createdTrend, resolvedTrend] = await Promise.all([
+    const [[t], groups, createdTrend, resolvedTrend, ownerLifetime] = await Promise.all([
       db.select({
         all: sql<number>`count(*)::int`,
         open: n("open", metricSql.open),
@@ -77,6 +81,15 @@ export async function GET(req: NextRequest) {
         .where(and(where, gte(tickets.createdAt, trendFrom))).groupBy(sql`1`),
       db.select({ day: resolvedDay, count: sql<number>`count(*)::int` }).from(tickets)
         .where(and(where, gte(tickets.resolvedAt, trendFrom))).groupBy(sql`1`),
+      db.select({
+        name: tickets.assignedStaffName,
+        assigned: sql<number>`count(*)::int`,
+        open: n('open', metricSql.open),
+        closed: n('closed', metricSql.resolved),
+        overdue: n('overdue', metricSql.breachedOpen(now)),
+        critical: n('critical', and(metricSql.open, eq(tickets.priority, 'critical')) as SQL),
+        medianHours: sql<number | null>`percentile_cont(0.5) within group (order by ${metricSql.resolutionHours}) filter (where ${metricSql.durationEligible})`,
+      }).from(tickets).where(allTimeWhere).groupBy(tickets.assignedStaffName),
     ]);
 
     const by: Record<string, Record<string, number>> = Object.fromEntries(dimNames.map((k) => [k, {}]));
@@ -114,6 +127,7 @@ export async function GET(req: NextRequest) {
       byAssignee: by.assignedStaffName,
       bySource: by.source,
       owners: owners.sort((a, b) => b.total - a.total),
+      ownerLeaderboard: ownerLifetime.map(o => ({...o, name: o.name || 'Unassigned', medianHours: round1(o.medianHours === null ? null : Number(o.medianHours))})).sort((a, b) => b.closed - a.closed || b.assigned - a.assigned),
       scope: {
         from: from ? new Date(from).toISOString() : null,
         to: new Date(to).toISOString(),

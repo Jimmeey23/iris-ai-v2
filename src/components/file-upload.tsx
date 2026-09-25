@@ -6,7 +6,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Plus, FileText, Image as ImageIcon, X, AlertCircle } from "lucide-react";
+import { Plus, FileText, Image as ImageIcon, Mic, X, AlertCircle } from "lucide-react";
 
 export interface UploadedFile {
   id: string;
@@ -37,6 +37,11 @@ const ALLOWED_TYPES = [
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   "text/plain",
   "text/csv",
+  "audio/mpeg",
+  "audio/mp4",
+  "audio/wav",
+  "audio/webm",
+  "audio/ogg",
 ];
 
 export function FileUpload({
@@ -132,7 +137,7 @@ export function FileUpload({
         onClick={() => inputRef.current?.click()}
         className="icon-btn compose-action-btn attach-btn"
         type="button"
-        title="Attach photo, document, or PDF (+)"
+        title="Attach a document, image, or voice note"
         aria-label="Attach file"
       >
         <Plus size={15} />
@@ -167,6 +172,8 @@ export function AttachmentPreviewList({
             <img src={file.preview} alt={file.fileName} className="attachment-thumb" />
           ) : file.fileType?.includes("pdf") ? (
             <FileText size={12} className="attachment-type-icon pdf" />
+          ) : file.fileType?.startsWith("audio/") ? (
+            <Mic size={12} className="attachment-type-icon" />
           ) : (
             <ImageIcon size={12} className="attachment-type-icon" />
           )}

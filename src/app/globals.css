@@ -12970,6 +12970,82 @@ small {
 .workspace-main {
   transition: width var(--dur-3) var(--ease-out-expo), margin-left var(--dur-3) var(--ease-out-expo);
 }
+
+/* Intake intelligence and intentional field controls */
+.ifield-skip {
+  display: inline-flex; align-items: center; gap: 5px; min-height: 28px; padding: 4px 8px;
+  border: 1px solid var(--hairline); border-radius: 999px; background: var(--surface-2);
+  color: var(--muted); font: inherit; font-size: 10px; cursor: pointer;
+}
+.ifield-skip:hover, .ifield-skip.on { color: var(--text); border-color: var(--hairline-strong); background: var(--surface-3); }
+.ifield.skipped { opacity: .78; }
+.ifield.skipped .ifield-title { text-decoration: line-through; text-decoration-color: var(--muted); }
+.ifield-skipped-note { min-height: 44px; display: flex; align-items: center; gap: 9px; padding: 0 13px; border: 1px dashed var(--hairline-strong); border-radius: var(--radius-md); color: var(--muted); background: var(--surface-2); font-size: 11px; }
+.template-field-wrap { position: relative; min-width: 0; }
+.template-field-wrap > .ifield-skip { position: absolute; top: 0; right: 0; z-index: 2; }
+.template-field-wrap.skipped { min-height: 72px; padding-top: 34px; }
+.momence-enrichment { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 1px; margin-bottom: 14px; border: 1px solid var(--hairline); border-radius: var(--radius-lg); overflow: hidden; background: var(--hairline); }
+.momence-enrichment > div { padding: 14px 16px; background: linear-gradient(135deg, var(--surface), color-mix(in srgb, var(--surface-2) 88%, var(--accent) 12%)); }
+.momence-enrichment span { display: flex; align-items: center; gap: 6px; color: var(--accent); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; }
+.momence-enrichment strong { display: block; margin-top: 7px; font-size: 13px; }
+.momence-enrichment p, .momence-enrichment small { display: block; margin-top: 4px; color: var(--muted); font-size: 10.5px; line-height: 1.5; }
+.intake-evidence-panel { margin-top: 14px; padding: 15px 16px; border: 1px solid var(--hairline); border-radius: var(--radius-lg); background: linear-gradient(125deg, var(--surface), color-mix(in srgb, var(--surface-2) 90%, var(--purple) 10%)); }
+.intake-evidence-panel > div:first-child { display: flex; align-items: flex-start; gap: 10px; }
+.intake-evidence-panel strong { display: block; font-size: 12px; }
+.intake-evidence-panel p { margin: 3px 0 0; color: var(--muted); font-size: 10.5px; }
+.intake-evidence-icon { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 9px; color: var(--purple); background: color-mix(in srgb, var(--purple) 12%, transparent); }
+.intake-evidence-actions { display: flex; align-items: center; gap: 10px; margin-top: 11px; color: var(--muted); font-size: 10px; }
+.intake-evidence-actions > span { display: inline-flex; align-items: center; gap: 5px; }
+
+/* Equipment intelligence modal and clearly clickable register rows */
+.equipment-table tbody tr, .asset-card { cursor: pointer; }
+.equipment-table tbody tr:focus-visible, .asset-card:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.eq-name-button { padding: 0; border: 0; background: none; color: var(--text); font: inherit; font-weight: 650; cursor: pointer; text-align: left; }
+.eq-name-button:hover { color: var(--accent); }
+.eq-detail-hero { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 18px; padding: 18px; border: 1px solid var(--hairline); border-radius: var(--radius-lg); background: linear-gradient(125deg, var(--surface-2), color-mix(in srgb, var(--surface) 80%, var(--accent) 20%)); }
+.eq-detail-hero h3 { margin: 5px 0 10px; font-size: 22px; }
+.eq-detail-health { min-width: 110px; padding-left: 18px; border-left: 1px solid var(--hairline); text-align: right; }
+.eq-detail-health strong, .eq-detail-health span, .eq-detail-health small { display: block; }
+.eq-detail-health strong { font-size: 28px; line-height: 1; }
+.eq-detail-health span, .eq-detail-health small { margin-top: 4px; color: var(--muted); font-size: 10px; }
+.eq-detail-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); margin-top: 14px; border: 1px solid var(--hairline); border-radius: var(--radius-lg); overflow: hidden; }
+.eq-detail-grid > div { min-height: 68px; padding: 12px 14px; border-right: 1px solid var(--hairline); border-bottom: 1px solid var(--hairline); }
+.eq-detail-grid small, .eq-detail-grid strong { display: block; }
+.eq-detail-grid small { color: var(--muted); font-size: 9px; text-transform: uppercase; letter-spacing: .07em; }
+.eq-detail-grid strong { margin-top: 6px; font-size: 11px; }
+.eq-detail-notes { margin-top: 14px; padding: 14px 16px; border-left: 3px solid var(--accent); background: var(--surface-2); }
+.eq-detail-notes p { margin: 5px 0; color: var(--secondary); font-size: 11px; line-height: 1.55; }
+
+/* Owner leaderboard */
+.owner-rank-cell { min-width: 210px; font-weight: 600; }
+.owner-rank { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 8px; background: var(--surface-3); color: var(--muted); font: 700 10px/1 var(--font-mono); }
+.owner-rank.rank-1 { color: #7a5200; background: #f4d878; box-shadow: inset 0 0 0 1px #d6b544; }
+.owner-rank.rank-2 { color: #4c5866; background: #dce3ea; }
+.owner-rank.rank-3 { color: #704626; background: #e7c09f; }
+
+.draft-signal-panel { margin-bottom: 14px; padding: 16px 18px; border: 1px solid var(--hairline); border-radius: var(--radius-lg); background: linear-gradient(130deg, color-mix(in srgb, var(--surface-2) 90%, var(--accent) 10%), var(--surface)); }
+.draft-signal-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 14px; }
+.draft-signal-head h3 { margin: 4px 0 0; font-size: 15px; }
+.draft-signal-head > small { max-width: 260px; color: var(--muted); font-size: 9.5px; text-align: right; }
+.draft-signal-grid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 12px; }
+.draft-signal-grid > div > span { display: flex; justify-content: space-between; gap: 8px; font-size: 9.5px; }
+.draft-signal-grid b { font-weight: 600; }
+.draft-signal-grid em { color: var(--muted); font-style: normal; font-variant-numeric: tabular-nums; }
+.draft-signal-grid i { display: block; height: 5px; margin-top: 7px; overflow: hidden; border-radius: 999px; background: var(--surface-3); }
+.draft-signal-grid u { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg,var(--accent),var(--purple)); text-decoration: none; }
+
+/* A contiguous architectural plan: rooms share walls and a central circulation spine. */
+.floorplan-stage { padding: 30px; border: 1px solid var(--hairline-strong); background-color: var(--surface-2); }
+.rooms-schematic-grid { position: relative; gap: 3px; padding: 3px; border: 2px solid color-mix(in srgb, var(--text) 28%, transparent); border-radius: 10px; background: color-mix(in srgb, var(--text) 22%, transparent); }
+.rooms-schematic-grid:after { content: 'CENTRAL CIRCULATION'; position: absolute; left: 18%; right: 18%; top: 50%; z-index: 0; height: 24px; transform: translateY(-50%); display: grid; place-items: center; border-block: 1px dashed color-mix(in srgb, var(--text) 18%, transparent); background: color-mix(in srgb, var(--surface) 92%, transparent); color: var(--muted); font-size: 8px; letter-spacing: .16em; pointer-events: none; }
+.room-radar-card { z-index: 1; border-radius: 5px; min-height: 142px; box-shadow: none; }
+
+@media (max-width: 760px) {
+  .momence-enrichment, .eq-detail-grid { grid-template-columns: 1fr; }
+  .eq-detail-hero { grid-template-columns: auto 1fr; }
+  .eq-detail-health { grid-column: 1 / -1; padding: 12px 0 0; border-left: 0; border-top: 1px solid var(--hairline); text-align: left; }
+  .draft-signal-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+}
 .sidebar.collapsed {
   width: 72px;
   padding-inline: 10px;

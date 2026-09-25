@@ -1,7 +1,7 @@
 "use client";
 import Link from 'next/link';
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
-import {ArrowLeft, ArrowRight, ArrowUpRight, Building2, CalendarClock, CalendarDays, Camera, Check, CheckCircle2, ChevronRight, ClipboardList, Clock3, IndianRupee, ListFilter, LockKeyhole, Megaphone, MessageSquareText, MonitorCog, PenLine, Quote, RotateCcw, Search, Settings2, ShieldAlert, Sparkles, UserRound, Wrench, Zap, type LucideIcon} from 'lucide-react';
+import {ArrowLeft, ArrowRight, ArrowUpRight, Building2, CalendarClock, CalendarDays, Camera, Check, CheckCircle2, ChevronRight, ClipboardList, Clock3, FileAudio, IndianRupee, ListFilter, LockKeyhole, Megaphone, MessageSquareText, MonitorCog, Paperclip, PenLine, Quote, RotateCcw, Search, Settings2, ShieldAlert, Sparkles, UserRound, Wrench, Zap, type LucideIcon} from 'lucide-react';
 import {Avatar, Badge, Priority, useApp, api} from '../ui';
 import {PasscodeDialog} from '../passcode-dialog';
 import {DraftDocument} from '../ticket-composer';
@@ -9,7 +9,7 @@ import {TicketDialog} from '../ticket-detail';
 import {inferPriority} from '@/lib/routing';
 import {object} from '@/lib/display';
 import type {AdvancedDraft} from '@/lib/ticket-contract';
-import {MEMBER_LOOKUP_IDS, autoTitle, composeWriteup, encodeLookup, filled, gatingFor, linkedLookup, localDateTime, missingFields, priorityInputs, relativeFor, seedData, toTicketInput, visibleFields, type ClassSnapshot, type IntakeData, type IntakeValue, type TicketKind} from '@/lib/intake/plan';
+import {MEMBER_LOOKUP_IDS, autoTitle, composeWriteup, encodeLookup, filled, gatingFor, isSkipped, linkedLookup, localDateTime, missingFields, priorityInputs, seedData, toTicketInput, visibleFields, type ClassSnapshot, type IntakeData, type IntakeValue, type TicketKind} from '@/lib/intake/plan';
 import {matchStudio, sessionFacts, sessionSnapshot, type RosterEntry, type SessionDetail} from '@/lib/intake/class-desk';
 import {FormEngine, IntakeContextHeader, SECTION_META, SectionNav, groupSections, headerIds, sectionSlug, withInjected, type InjectedSection} from './form-engine';
 import {HOSTED_FLAGS, HostedRoster, type HostedRow} from './hosted-roster';
@@ -21,6 +21,7 @@ import {ReviewSheet} from './review-sheet';
 import {LookupChip} from './lookup-field';
 import type {IntakeCategory, IntakePlan, IntakeTaxonomy} from './types';
 import {InlineFormDesigner} from '@/components/inline-form-designer';
+import {AttachmentPreviewList, FileUpload, type UploadedFile} from '@/components/file-upload';
 
 type Step = 'category' | 'subcategory' | 'form' | 'classdesk' | 'done';
 type Result = {ticket: {id: number; ticketNumber: string}; draft: AdvancedDraft};
@@ -54,6 +55,13 @@ function ProgressDial({value}: {value: number}) {
   </div>;
 }
 const PRAISE_OPTIONAL = new Set(['is_repeat', 'member_impact', 'immediate_danger']);
+const KIND_HIDDEN: Record<TicketKind, Set<string>> = {
+  issue: new Set(),
+  request: new Set(['is_repeat', 'linked_ticket', 'immediate_danger', 'injury_occurred', 'injury_risk', 'medical_response']),
+  feedback: new Set(['is_repeat', 'linked_ticket', 'immediate_danger', 'requested_outcome', 'injury_occurred', 'medical_response']),
+  compliment: new Set(['is_repeat', 'linked_ticket', 'immediate_danger', 'class_impacted', 'member_impact', 'churn_risk', 'requested_outcome', 'incident_type', 'injury_occurred', 'injury_risk', 'medical_response', 'police_escalation']),
+  assessment: new Set(),
+};
 
 export function IntakeFlow({presetCategory, presetSubcategory, presetDesk, onLegacy}: {presetCategory?: string; presetSubcategory?: string; presetDesk?: boolean; onLegacy?: () => void}) {
   const {notify, user, openAuth} = useApp();
@@ -84,6 +92,7 @@ export function IntakeFlow({presetCategory, presetSubcategory, presetDesk, onLeg
   const [designing, setDesigning] = useState(false);
   const [askPass, setAskPass] = useState(false);
   const [designUnlocked, setDesignUnlocked] = useState(false);
+  const [attachments, setAttachments] = useState<UploadedFile[]>([]);
   const presetDone = useRef(false);
 
   const rememberedStudio = () => { try { return localStorage.getItem(STUDIO_KEY) || ''; } catch { return ''; } };
@@ -100,11 +109,11 @@ export function IntakeFlow({presetCategory, presetSubcategory, presetDesk, onLeg
     if (reporter?.name) nextAuto.reporter_name = reporter.name;
     if (reporter?.email) nextAuto.reporter_contact = reporter.email;
     // "Now" is an assumption until the desk touches it — a linked class may replace it.
-    for (const id of ['occurred_at', 'occurred_relative']) if (!filled(prefill[id]) && filled(seed[id])) nextAuto[id] = seed[id];
+    if (!filled(prefill.occurred_at) && filled(seed.occurred_at)) nextAuto.occurred_at = seed.occurred_at;
     const title = autoTitle(s, seed);
     seed.title = title; nextAuto.title = title;
     setCategory(c); setSub(s); setData(seed); setAuto(nextAuto); setErrors({}); setOpenSec(undefined); setHostedRows([]); setKind('issue');
-    setClassDetail(detail); setClassEntries(entries); setMemberDetail(undefined); setResult(undefined); setFileError('');
+    setClassDetail(detail); setClassEntries(entries); setMemberDetail(undefined); setResult(undefined); setFileError(''); setAttachments([]);
     setSubmissionKey(crypto.randomUUID()); setStep('form');
     window.scrollTo({top: 0, behavior: 'smooth'});
   }, [taxonomy, user]);
@@ -153,19 +162,16 @@ export function IntakeFlow({presetCategory, presetSubcategory, presetDesk, onLeg
       if ((id === 'studio' || id === 'area') && sub && (!filled(d.title) || String(d.title) === String(auto.title))) {
         const t = autoTitle(sub, next); next.title = t; setAuto(a => ({...a, title: t}));
       }
-      // "How recent?" follows the timestamp until the desk answers it in its own words.
-      if (id === 'occurred_at' && (!filled(d.occurred_relative) || d.occurred_relative === 'Just now' || String(d.occurred_relative) === String(auto.occurred_relative))) {
-        const rel = relativeFor(String(v || ''));
-        if (rel) { next.occurred_relative = rel; setAuto(a => ({...a, occurred_relative: rel})); }
-      }
       return next;
     });
-    setErrors(e => { if (!e[id]) return e; const n = {...e}; delete n[id]; return n; });
-  }, [sub, auto.title, auto.occurred_relative]);
+    setErrors(e => { const fieldId = id.startsWith('_skip_') ? id.slice(6) : id; if (!e[fieldId]) return e; const n = {...e}; delete n[fieldId]; return n; });
+  }, [sub, auto.title]);
 
   // Praise is recorded, not triaged: the three triage questions stop being mandatory for it.
   const praise = kind === 'compliment';
-  const fields = useMemo(() => (plan?.fields || []).map(f => praise && PRAISE_OPTIONAL.has(f.id) ? {...f, required: false} : f), [plan, praise]);
+  const fields = useMemo(() => (plan?.fields || [])
+    .filter(f => !KIND_HIDDEN[kind].has(f.id))
+    .map(f => praise && PRAISE_OPTIONAL.has(f.id) ? {...f, required: false} : f), [plan, praise, kind]);
   // A linked member fills the contact block from Momence — never over an answer already typed.
   // Runs for a member picked in the form and for one the class desk flagged alike.
   const memberRef = MEMBER_LOOKUP_IDS.map(id => linkedLookup(data[id])).find(Boolean) || null;
@@ -224,7 +230,7 @@ export function IntakeFlow({presetCategory, presetSubcategory, presetDesk, onLeg
           };
           take('class_format', facts.name);
           take('trainer', facts.coach);
-          if (facts.when) { take('occurred_at', localDateTime(facts.when)); take('occurred_relative', relativeFor(facts.startsAt)); }
+          if (facts.when) take('occurred_at', localDateTime(facts.when));
           if (studio && !filled(prev.studio)) take('studio', studio);
           if (Object.keys(add).length) setAuto(a => ({...a, ...add}));
           return next;
@@ -247,7 +253,7 @@ export function IntakeFlow({presetCategory, presetSubcategory, presetDesk, onLeg
     return new Set(gatingFor(fields, bare, {name: sub, category: category.name}).map(g => g.id));
   }, [fields, data, category, sub]);
   const summaryShort = filled(data.summary) && String(data.summary).trim().length < 12;
-  const requiredVisible = visible.filter(f => f.required);
+  const requiredVisible = visible.filter(f => f.required && !isSkipped(data, f.id));
   const completedRequired = Math.max(0, requiredVisible.length - missing.length);
   const completion = requiredVisible.length ? Math.round(100 * completedRequired / requiredVisible.length) : 100;
   const baseline = category && sub ? inferPriority({category: category.name, subcategory: sub}) : 'medium';
@@ -324,6 +330,12 @@ export function IntakeFlow({presetCategory, presetSubcategory, presetDesk, onLeg
       const input = toTicketInput({category: category.name, sub, fields, data, kind, submissionKey, classSnapshot, hostedAttendees: hostedClass ? hostedRows.filter(r => r.name.trim()).map(r => ({name: r.name, memberId: r.memberId, email: r.email, session: r.session, booking: r.booking, attendance: r.attendance, outcome: r.outcome, followUp: r.followUp, flags: r.flags.map(f => HOSTED_FLAGS.find(x => x.id === f)?.label || f), note: r.note})) : undefined, memberDetail: memberDetail ? {email: memberDetail.email, phone: memberDetail.phone, membership: memberDetail.membership} : undefined, momenceContext: memberDetail?.context});
       const {draft} = await api<{draft: AdvancedDraft}>('/api/tickets?preview=true', {method: 'POST', body: JSON.stringify(input)});
       const {ticket} = await api<{ticket: {id: number; ticketNumber: string}}>('/api/tickets?channel=form', {method: 'POST', body: JSON.stringify({...draft, submissionKey})});
+      if (attachments.some(a => a.file)) {
+        const form = new FormData();
+        attachments.forEach(a => { if (a.file) form.append('files', a.file); });
+        const upload = await fetch(`/api/tickets/${ticket.id}/resolution/attachments`, {method: 'POST', body: form});
+        if (!upload.ok) notify('Ticket created, but one or more supporting files could not be attached.', 'error');
+      }
       window.dispatchEvent(new Event('iris:tickets-updated'));
       setResult({ticket, draft}); setReview(false); setStep('done');
       notify(`${ticket.ticketNumber} filed · ${draft.assignedStaffName}`);
@@ -341,7 +353,7 @@ export function IntakeFlow({presetCategory, presetSubcategory, presetDesk, onLeg
     window.addEventListener('beforeunload', warn);
     return () => window.removeEventListener('beforeunload', warn);
   }, [dirty]);
-  const reset = () => { setStep('category'); setCategory(undefined); setSub(''); setLoaded(undefined); setData({}); setAuto({}); setErrors({}); setResult(undefined); setClassDetail(null); setClassEntries({}); setMemberDetail(undefined); setHostedRows([]); window.scrollTo({top: 0}); };
+  const reset = () => { setStep('category'); setCategory(undefined); setSub(''); setLoaded(undefined); setData({}); setAuto({}); setErrors({}); setResult(undefined); setClassDetail(null); setClassEntries({}); setMemberDetail(undefined); setHostedRows([]); setAttachments([]); window.scrollTo({top: 0}); };
   const cancel = () => { if (dirty && !window.confirm('Discard this ticket? The answers on the form will be lost.')) return; reset(); };
   const onClassBuild = (r: ClassDeskResult) => {
     const c = taxonomy?.categories.find(x => x.name === r.category);
@@ -459,6 +471,12 @@ export function IntakeFlow({presetCategory, presetSubcategory, presetDesk, onLeg
               {classSnapshot && (
                 <div className="isheet-note"><CalendarDays size={14} /><span><strong>{classSnapshot.name}</strong> · {classSnapshot.booked ?? 0} booked, {classSnapshot.attended ?? 0} attended of {classSnapshot.capacity ?? '—'} places{classSnapshot.attendees?.length ? ` · ${classSnapshot.attendees.length} attendee note${classSnapshot.attendees.length > 1 ? 's' : ''} attached` : ''}. Read from Momence; the answers below were filled from it and stay editable.</span></div>
               )}
+              {(memberDetail || classSnapshot) && (
+                <div className="momence-enrichment" aria-label="Linked Momence details">
+                  {memberDetail && <div><span><UserRound size={13}/> Member profile</span><strong>{memberRef?.label || 'Linked member'}</strong><p>{[memberDetail.email, memberDetail.phone, memberDetail.membership].filter(Boolean).join(' · ') || 'Profile linked; no contact or membership details returned.'}</p></div>}
+                  {classSnapshot && <div><span><CalendarDays size={13}/> Session intelligence</span><strong>{classSnapshot.name}</strong><p>{[classSnapshot.trainer, classSnapshot.startsAt ? new Date(classSnapshot.startsAt).toLocaleString('en-IN') : '', classSnapshot.studio].filter(Boolean).join(' · ')}</p><small>{classSnapshot.booked ?? 0} booked · {classSnapshot.attended ?? 0} attended · {classSnapshot.waitlist ?? 0} waitlisted · {classSnapshot.fillPct ?? 0}% fill</small></div>}
+                </div>
+              )}
               {planBusy && !plan && <div className="isheet-skeleton"><div className="skeleton" style={{height: 180}} /><div className="skeleton" style={{height: 240}} /></div>}
               {plan && <FormEngine fields={fields} data={data} patch={patch} errors={errors} auto={auto} open={openSec} onOpen={setOpenSec} injected={injected} onFinish={reviewThenFile} gatingIds={gatingIds} requiredOnly={requiredOnly}
                 contextHeader={<IntakeContextHeader data={data} patch={patch} studio={studio} fields={fields} gatingIds={gatingIds} hostedClass={hostedClass} />}
@@ -469,6 +487,11 @@ export function IntakeFlow({presetCategory, presetSubcategory, presetDesk, onLeg
                     <button type="button" className="text-btn intake-writeup" onClick={() => aiDraft('both')} disabled={aiBusy} title="Ask the connected model to rewrite the title and summary from the answers"><Sparkles size={11} />{aiBusy ? 'Drafting…' : 'AI draft'}</button>
                   </span>,
                 }} />}
+              <section className="intake-evidence-panel" aria-label="Supporting evidence">
+                <div><span className="intake-evidence-icon"><Paperclip size={15}/></span><div><strong>Supporting files &amp; voice notes</strong><p>Attach images, PDFs, documents, spreadsheets, audio recordings, or voice notes. They stay linked to the ticket.</p></div></div>
+                <div className="intake-evidence-actions"><FileUpload files={attachments} onFilesSelected={setAttachments} maxFiles={8}/><span><FileAudio size={13}/>{attachments.length ? `${attachments.length} attached` : 'Up to 8 files · 10 MB each'}</span></div>
+                <AttachmentPreviewList files={attachments} onRemove={id => setAttachments(current => current.filter(file => file.id !== id))}/>
+              </section>
             </div>
 
             <aside className="isheet-aside" aria-label="Progress and routing">

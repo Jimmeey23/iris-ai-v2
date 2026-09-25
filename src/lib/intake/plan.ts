@@ -333,6 +333,16 @@ const WHEN: Record<string, string> = {
   eng_site_ref: '^yes', vendor_name: '^yes', vendor_visit_log: '^(yes|no - one-off)', quote_ref: '^no',
 };
 
+const TIME_SLOT_OPTIONS = [
+  'Early morning · 6:00–8:00 AM',
+  'Morning · 8:00–11:00 AM',
+  'Midday · 11:00 AM–2:00 PM',
+  'Afternoon · 2:00–5:00 PM',
+  'Evening · 5:00–8:00 PM',
+  'Late evening · after 8:00 PM',
+];
+const TIME_SLOT_IDS = new Set(['current_slot', 'requested_slot', 'requested_time', 'change_time', 'service_time', 'time_of_day']);
+
 /** The full field list for a sub-category: the universal block first, then its own fields,
  *  then any Iris-specific overlay. Unknown sub-categories get the universal block. */
 export function planFields(category: string, sub: string, ctx: PlanContext, configured?: Omit<IntakeField, 'dep'>[]): IntakeField[] {
@@ -350,7 +360,16 @@ export function planFields(category: string, sub: string, ctx: PlanContext, conf
   // A published builder plan replaces the generated plan for this sub-category. It is a full
   // snapshot on purpose: administrators can remove irrelevant inherited fields as well as add
   // questions, while Reset can always return to the source-backed generated version.
-  const all = configured?.length ? configured.map(f => ({...f, section: !f.section || LEGACY_SECTIONS.has(f.section) ? sectionOf(f.id, f.enrich, category) : f.section})) : generated;
+  let all = configured?.length ? configured.map(f => ({...f, section: !f.section || LEGACY_SECTIONS.has(f.section) ? sectionOf(f.id, f.enrich, category) : f.section})) : generated;
+  // A precise occurrence timestamp already answers recency. Showing both creates two competing
+  // answers to the same question and was one of the largest sources of repetitive forms.
+  if (all.some(f => f.id === 'occurred_at')) all = all.filter(f => f.id !== 'occurred_relative');
+  // Scheduling preferences are sets, not prose. A shared option bank makes them filterable and
+  // lets a member legitimately choose more than one usable window.
+  all = all.map(f => TIME_SLOT_IDS.has(f.id) ? {...f, type: 'multiselect' as const, options: TIME_SLOT_OPTIONS, placeholder: undefined} : f);
+  // These two counts are semantically identical on scheduling requests. Retain the more specific
+  // request count and drop the generic impact count wherever both were inherited.
+  if (all.some(f => f.id === 'members_requesting_change')) all = all.filter(f => f.id !== 'affected_count');
   // Always offer a member lookup if the plan does not already have one.
   if (!all.some(f => f.type === 'lookup' && f.module === 'member' && MEMBER_LOOKUP_IDS.includes(f.id))) all.push(materialise(MEMBER_LOOKUP_DEF, true, ctx, category));
   // Prompt for the exact spot inside the chosen room/area.
@@ -369,13 +388,15 @@ export type IntakeValue = string | number | string[] | undefined | null;
 export type IntakeData = Record<string, IntakeValue>;
 
 export const filled = (v: unknown) => v !== '' && v != null && !(Array.isArray(v) && !v.length);
+export const skipKey = (id: string) => `_skip_${id}`;
+export const isSkipped = (data: IntakeData, id: string) => /^yes$/i.test(String(data[skipKey(id)] || ''));
 export function isVisible(f: IntakeField, data: IntakeData) {
   if (!f.conditional || !f.dep) return true;
   if (!filled(data[f.dep])) return false;
   return f.when ? new RegExp(f.when, 'i').test(String(data[f.dep])) : true;
 }
 export const visibleFields = (fields: IntakeField[], data: IntakeData) => fields.filter(f => isVisible(f, data));
-export const missingFields = (fields: IntakeField[], data: IntakeData) => visibleFields(fields, data).filter(f => f.required && !filled(data[f.id]));
+export const missingFields = (fields: IntakeField[], data: IntakeData) => visibleFields(fields, data).filter(f => f.required && !isSkipped(data, f.id) && !filled(data[f.id]));
 
 /* ------------------------------------------------------------------ lookups */
 /** A lookup answer stays a plain string — "Priya Mehta [#481102] · priya@…" — so it reads in a
@@ -423,11 +444,11 @@ export function gatingFor(fields: IntakeField[], data: IntakeData, sub: {name: s
   const memberField = fields.find(f => f.type === 'lookup' && f.module === 'member' && MEMBER_LOOKUP_IDS.includes(f.id) && isVisible(f, data));
   const involvesMember = /yes|directly|indirectly|behalf|told me/i.test(String(data._involves_member || ''));
   const staffOnBehalf = involvesMember || /member told me|on behalf/i.test(String(data.reporter_type || ''));
-  if (memberField && staffOnBehalf && !hasLookup(data[memberField.id])) out.push({id: memberField.id, label: memberField.label, reason: 'pick the member this is about'});
+  if (memberField && staffOnBehalf && !isSkipped(data, memberField.id) && !hasLookup(data[memberField.id])) out.push({id: memberField.id, label: memberField.label, reason: 'pick the member this is about'});
   const involvesClass = /yes|directly|indirectly/i.test(String(data._involves_class || ''));
   const impacted = involvesClass || /^\s*(yes|not yet)/i.test(String(data.class_impacted || ''));
   const classTouched = impacted || filled(data.class_format) || CLASS_BOUND_SUB.test(sub.name);
-  if (classTouched && !hasLookup(data.class_date)) out.push({id: 'class_date', label: 'Class', reason: 'link the affected class'});
+  if (classTouched && !isSkipped(data, 'class_date') && !hasLookup(data.class_date)) out.push({id: 'class_date', label: 'Class', reason: 'link the affected class'});
   return out;
 }
 
