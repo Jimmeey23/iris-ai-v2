@@ -79,6 +79,9 @@ export function assetName(type: AssetType, label: string): string {
   return /^\d+$/.test(label) ? `${type} #${label}` : `${type} ${label}`;
 }
 
+/** Stable, human-readable register tag derived from the canonical database id. */
+export const canonicalAssetTag = (id: number) => `P57-EQ-${String(id).padStart(5, '0')}`;
+
 /** Finds the asset, creating it the first time the floor names one.
  *
  *  It is created rather than rejected because the register will never be complete: a bike
@@ -122,7 +125,10 @@ export async function resolveAsset(input: {
       })
       .onConflictDoNothing()
       .returning();
-    if (created) return created;
+    if (created) {
+      const [tagged] = await db.update(assets).set({assetTag: canonicalAssetTag(created.id)}).where(eq(assets.id, created.id)).returning();
+      return tagged ?? created;
+    }
   } catch {
     // A concurrent insert won the race; read it back rather than failing the turn.
   }
@@ -270,7 +276,7 @@ export function plannedAssetCounts(): {studio: string; area: string; type: Asset
 /** Idempotent: an existing register is only topped up, never rewritten — a bike retired on
  *  purpose must not be quietly brought back by a re-seed. Runs against `db` by default; pass
  *  a transaction (`tx`) to seed as part of a caller's own transaction. */
-export async function seedAssets(exec: Pick<typeof db, 'select' | 'insert'> = db): Promise<number> {
+export async function seedAssets(exec: Pick<typeof db, 'select' | 'insert' | 'update'> = db): Promise<number> {
   await seedLocations(exec);
   const plans = plannedAssetCounts();
   if (!plans.length) return 0;
@@ -299,6 +305,7 @@ export async function seedAssets(exec: Pick<typeof db, 'select' | 'insert'> = db
   }
   if (!missing.length) return 0;
   const rows = await exec.insert(assets).values(missing).onConflictDoNothing().returning({id: assets.id});
+  await Promise.all(rows.map((row) => exec.update(assets).set({assetTag: canonicalAssetTag(row.id)}).where(eq(assets.id, row.id))));
   return rows.length;
 }
 
@@ -395,7 +402,9 @@ export async function createAsset(input: AssetInput): Promise<AssetRow> {
     .onConflictDoNothing()
     .returning();
   if (!row) throw new AssetConflict(`${assetName(fields.type, fields.label)} already exists at ${fields.studio}.`);
-  return row;
+  if (row.assetTag) return row;
+  const [tagged] = await db.update(assets).set({assetTag: canonicalAssetTag(row.id)}).where(eq(assets.id, row.id)).returning();
+  return tagged ?? row;
 }
 
 /** A partial edit. Only the keys present are written, so a form that renders six fields

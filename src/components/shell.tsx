@@ -51,7 +51,7 @@ type NavItem = {
 const nav: NavItem[] = [
   { href: "/dashboard", label: "Overview", icon: Gauge },
   { href: "/iris", label: "IRIS assistant", icon: Bot, ai: true },
-  { href: "/radar", label: "Ops Radar & Heatmap", icon: Radar, live: true },
+  { href: "/radar", label: "Radar", icon: Radar, live: true },
   { href: "/tickets", label: "All tickets", icon: Tickets },
   { href: "/equipment", label: "Equipment", icon: Drill },
   { href: "/templates", label: "Template library", icon: LibraryBig },
@@ -314,21 +314,6 @@ export function Shell({
           )}
         </div>
         <div className="sidebar-bottom">
-          <div className="help-card">
-            <div className="flex-row">
-              <Sparkles size={14} className="accent" />
-              <strong style={{ fontSize: 11, fontWeight: 500 }}>
-                Log it with IRIS
-              </strong>
-            </div>
-            <p>
-              Turn what you saw — or what a member told you — into a clean
-              ticket.
-            </p>
-            <Link href="/iris" className="text-btn">
-              Start logging <ArrowUpRight size={13} />
-            </Link>
-          </div>
           <button
             className="user-button"
             onClick={() => (user ? router.push("/profile") : openAuth())}

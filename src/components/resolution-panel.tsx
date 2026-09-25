@@ -18,6 +18,11 @@ import {
   ContactRound,
   FileCheck2,
   UserCheck,
+  Paperclip,
+  UploadCloud,
+  FileAudio,
+  File,
+  Download,
 } from "lucide-react";
 import { api, useApp } from "./ui";
 import { indiaDate } from "@/lib/display";
@@ -52,11 +57,20 @@ export type ContactEntry = {
   contactedAt: string;
   authorName: string;
 };
+export type ResolutionAttachment = {
+  id: string;
+  fileName: string;
+  fileType: string;
+  fileSize: number;
+  uploadedByName: string;
+  createdAt: string;
+};
 export type ResolutionWorkspace = {
   resolution: Resolution | null;
   steps: ResolutionStep[];
   followUps: FollowUp[];
   contacts: ContactEntry[];
+  attachments: ResolutionAttachment[];
 };
 
 const STATUSES = [
@@ -181,7 +195,7 @@ export function ResolutionPanel({
 }) {
   const { notify } = useApp();
   const [section, setSection] = useState<
-    "log" | "chase" | "member" | "writeup"
+    "log" | "chase" | "member" | "files" | "writeup"
   >("log");
   const [saving, setSaving] = useState(false);
   const [step, setStep] = useState("");
@@ -199,6 +213,7 @@ export function ResolutionPanel({
   }));
   const [status, setStatus] = useState(ticket.status);
   const [refusal, setRefusal] = useState("");
+  const [files, setFiles] = useState<File[]>([]);
 
   const now = useNow();
   const defaultDue = useMemo(
@@ -297,6 +312,7 @@ export function ResolutionPanel({
     { id: "log", label: "Work log", count: workspace.steps.length, icon: ListChecks },
     { id: "chase", label: "Follow-ups", count: openFollowUps.length, icon: BellRing },
     { id: "member", label: "Member", count: workspace.contacts.length, icon: ContactRound },
+    { id: "files", label: "Files", count: workspace.attachments.length, icon: Paperclip },
     { id: "writeup", label: "Write-up", count: hasWriteUp ? 1 : 0, icon: FileCheck2 },
   ] as const;
 
@@ -338,6 +354,7 @@ export function ResolutionPanel({
         <div><ListChecks size={13}/><span><strong>{workspace.steps.length}</strong><small>work steps</small></span></div>
         <div className={overdue.length ? "attention" : ""}><BellRing size={13}/><span><strong>{openFollowUps.length}</strong><small>{overdue.length ? `${overdue.length} overdue` : "open follow-ups"}</small></span></div>
         <div><UserCheck size={13}/><span><strong>{workspace.contacts.length}</strong><small>member contacts</small></span></div>
+        <div><Paperclip size={13}/><span><strong>{workspace.attachments.length}</strong><small>supporting files</small></span></div>
       </div>
 
       <nav className="rw-tabs" aria-label="Resolution sections">
@@ -641,6 +658,60 @@ export function ResolutionPanel({
                     )}
                   </li>
                 ))}
+              </ul>
+            )}
+          </>
+        )}
+
+        {section === "files" && (
+          <>
+            {canResolve && (
+              <div className="rw-upload">
+                <label>
+                  <UploadCloud size={20}/>
+                  <span><strong>Add evidence</strong><small>Documents, images or voice recordings · up to 15 MB each</small></span>
+                  <input
+                    type="file"
+                    multiple
+                    accept="audio/*,image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
+                    onChange={(e) => setFiles(Array.from(e.target.files || []))}
+                  />
+                </label>
+                {files.length > 0 && (
+                  <div className="rw-upload-ready">
+                    <span>{files.length} file{files.length === 1 ? "" : "s"} ready</span>
+                    <button
+                      className="btn btn-sm btn-primary"
+                      disabled={saving}
+                      onClick={() => {
+                        const body = new FormData();
+                        files.forEach((file) => body.append("files", file));
+                        void call("/attachments", {method: "POST", body}).then(() => setFiles([]));
+                      }}
+                    >
+                      {saving ? <Loader2 size={12} className="animate-spin"/> : <UploadCloud size={12}/>}
+                      Upload
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+            {workspace.attachments.length === 0 ? (
+              <p className="rw-empty">No supporting documents or recordings yet.</p>
+            ) : (
+              <ul className="rw-files">
+                {workspace.attachments.map((attachment) => {
+                  const AudioIcon = attachment.fileType.startsWith("audio/") ? FileAudio : File;
+                  const href = `/api/tickets/${ticket.id}/resolution/attachments?attachmentId=${attachment.id}`;
+                  return (
+                    <li key={attachment.id}>
+                      <AudioIcon size={16}/>
+                      <div><p>{attachment.fileName}</p><small>{(attachment.fileSize / 1024).toFixed(attachment.fileSize > 1024 * 1024 ? 0 : 1)} KB · {attachment.uploadedByName} · {dayOnly(attachment.createdAt)}</small></div>
+                      <a href={href} target="_blank" rel="noreferrer" aria-label={`Open ${attachment.fileName}`}><Download size={12}/></a>
+                      {canResolve && <button aria-label={`Remove ${attachment.fileName}`} onClick={() => void call(`/attachments?attachmentId=${attachment.id}`, {method: "DELETE"})}><Trash2 size={11}/></button>}
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </>

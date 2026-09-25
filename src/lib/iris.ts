@@ -1055,8 +1055,11 @@ const hasMemberName = c.memberName && String(c.memberName).trim() && String(c.me
 // Which piece of equipment this is about, and what the register already knows about it.
 // "bike 6" was a string typed fresh onto every ticket, so nothing could tell a first fault
 // from a fifth: resolving it to an asset is what turns "this keeps happening" into a count.
-if(isFacilityCat&&!c.assetId&&c.bikeNumber&&typeof c.studio==='string'&&c.studio!=='—'){
-  const ref=parseAssetReference(`bike ${c.bikeNumber}`);
+if(isFacilityCat&&!c.assetId&&typeof c.studio==='string'&&c.studio!=='—'){
+  // Prefer the explicit numbered-equipment answer, then inspect the reporter's own
+  // description. Either path resolves to the same assets.id used by the register,
+  // ticket detail and Radar rather than copying a display label between surfaces.
+  const ref=parseAssetReference(c.bikeNumber ? `bike ${c.bikeNumber}` : String(c.description||''));
   if(ref){
     const asset=await resolveAsset({studio:String(c.studio),type:ref.type,label:ref.label,area:typeof c.area==='string'?c.area:null});
     if(asset){

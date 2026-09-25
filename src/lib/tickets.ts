@@ -2,7 +2,7 @@ import {and,desc,eq,or,sql,ne,inArray,lt,ilike,type SQL} from 'drizzle-orm';
 import {describeTicket} from './ticket-label';
 import {randomUUID} from 'crypto';
 import {db} from '@/db';
-import {tickets,staff,departments,assets,appSettings,ticketActivities,ticketComments,ticketLinks,ticketResolutions,ticketResolutionSteps,ticketFollowUps,ticketContactLog,deliveryLogs} from '@/db/schema';
+import {tickets,staff,departments,assets,appSettings,ticketActivities,ticketComments,ticketLinks,ticketResolutions,ticketResolutionSteps,ticketFollowUps,ticketContactLog,ticketResolutionAttachments,deliveryLogs} from '@/db/schema';
 import {ticketInputSchema,publicTicketInputSchema,type TicketInput,type AdvancedDraft} from './ticket-contract';
 import {getConfig,type WorkspaceConfig} from './config';
 import {ApiError,canAccessTicket,currentUser,requireTicketAccess,type Identity} from './auth';
@@ -196,25 +196,27 @@ export async function canResolveTicket(user:{staffId:number|null;role:string}|nu
  *  ticket so callers do not re-read either. */
 export async function requireResolutionAccess(ticketId:number):Promise<{user:Identity;ticket:typeof tickets.$inferSelect}>{const user=await currentUser();const[ticket]=await db.select().from(tickets).where(eq(tickets.id,ticketId));if(!ticket)throw new ApiError('Ticket not found',404);if(!ticket.resolutionRequired)throw new ApiError('This ticket does not require a resolution.');if(!user)throw new ApiError('Sign in to open the resolution workspace.',401);if(!canAccessTicket(user,ticket))throw new ApiError('You do not have access to this ticket resolution.',403);if(!(await canResolveTicket(user,ticket.assignedStaffId,ticket.resolutionRequired)))throw new ApiError('Only the assigned owner or their reporting manager can open this resolution.',403);return{user,ticket};}
 /** The full private workspace payload. Only ever called once access is proven. */
-export async function getResolutionWorkspace(ticketId:number){const[[resolution],steps,followUps,contacts]=await Promise.all([
+export async function getResolutionWorkspace(ticketId:number){const[[resolution],steps,followUps,contacts,attachments]=await Promise.all([
   db.select().from(ticketResolutions).where(eq(ticketResolutions.ticketId,ticketId)),
   db.select().from(ticketResolutionSteps).where(eq(ticketResolutionSteps.ticketId,ticketId)).orderBy(ticketResolutionSteps.createdAt),
   db.select().from(ticketFollowUps).where(eq(ticketFollowUps.ticketId,ticketId)).orderBy(ticketFollowUps.dueAt),
   db.select().from(ticketContactLog).where(eq(ticketContactLog.ticketId,ticketId)).orderBy(desc(ticketContactLog.contactedAt)),
-]);return{resolution:resolution||null,steps,followUps,contacts};}
-const EMPTY_WORKSPACE={resolution:null,steps:[],followUps:[],contacts:[]};
+  db.select({id:ticketResolutionAttachments.id,fileName:ticketResolutionAttachments.fileName,fileType:ticketResolutionAttachments.fileType,fileSize:ticketResolutionAttachments.fileSize,uploadedByName:ticketResolutionAttachments.uploadedByName,createdAt:ticketResolutionAttachments.createdAt}).from(ticketResolutionAttachments).where(eq(ticketResolutionAttachments.ticketId,ticketId)).orderBy(desc(ticketResolutionAttachments.createdAt)),
+]);return{resolution:resolution||null,steps,followUps,contacts,attachments};}
+const EMPTY_WORKSPACE={resolution:null,steps:[],followUps:[],contacts:[],attachments:[]};
 /** Everything the ticket page renders. Returns null when the ticket does not exist and throws
  *  403 when the caller may not open it. */
 export async function getTicketBundle(id:number,viewer?:Identity|null){const[[ticket],user]=await Promise.all([db.select().from(tickets).where(eq(tickets.id,id)),viewer===undefined?currentUser():Promise.resolve(viewer)]);if(!ticket)return null;
 if(!user)throw new ApiError('Sign in to your workspace account to view this.',401);requireTicketAccess(user,ticket);
 // These reads are independent of each other. Issued sequentially they cost a database
 // round-trip each before anything renders; in parallel they cost one.
-const[canResolve,comments,activities,similar,links]=await Promise.all([
+const[canResolve,comments,activities,similar,links,asset]=await Promise.all([
   canResolveTicket(user,ticket.assignedStaffId,ticket.resolutionRequired),
   db.select().from(ticketComments).where(eq(ticketComments.ticketId,id)).orderBy(ticketComments.createdAt),
   db.select().from(ticketActivities).where(eq(ticketActivities.ticketId,id)).orderBy(ticketActivities.createdAt),
   db.select({id:tickets.id,ticketNumber:tickets.ticketNumber,title:tickets.title,status:tickets.status,priority:tickets.priority}).from(tickets).where(and(eq(tickets.category,ticket.category),eq(tickets.subcategory,ticket.subcategory),ne(tickets.id,id),ticketScope(user))).orderBy(desc(tickets.createdAt)).limit(8),
   db.select().from(ticketLinks).where(or(eq(ticketLinks.ticketId,id),eq(ticketLinks.relatedId,id))),
+  ticket.assetId?db.select({id:assets.id,name:assets.name,assetTag:assets.assetTag,status:assets.status,type:assets.type,studio:assets.studio}).from(assets).where(eq(assets.id,ticket.assetId)).then(rows=>rows[0]||null):Promise.resolve(null),
 ]);
 const linkedIds=links.map(l=>l.ticketId===id?l.relatedId:l.ticketId);
 // The resolution record, its steps, follow-ups and contact log are private to whoever may
@@ -223,7 +225,7 @@ const[linked,workspace]=await Promise.all([
   linkedIds.length?db.select({id:tickets.id,ticketNumber:tickets.ticketNumber,title:tickets.title,status:tickets.status}).from(tickets).where(inArray(tickets.id,linkedIds)):Promise.resolve([]),
   ticket.resolutionRequired?getResolutionWorkspace(id):Promise.resolve(EMPTY_WORKSPACE),
 ]);
-return{ticket,comments,activities,similar,linked,canResolve,...workspace};}
+return{ticket,comments,activities,similar,linked,asset,canResolve,...workspace};}
 
 const TERMINAL=['resolved','closed'];
 /** Guards every status change: record-only use of Recorded, the resolver and the private

@@ -875,7 +875,7 @@ export function Avatar({
     : undefined;
   return (
     <span className={cn("avatar", tone, owner && "avatar-owner", large && "lg")} data-palette={palette} aria-label={owner ? `${name}, ticket owner` : undefined}>
-      {initials(name || "IRIS")}
+      {owner ? <UserRound size={large ? 17 : 13} aria-hidden="true" /> : initials(name || "IRIS")}
       {owner && <i className="avatar-presence" aria-hidden="true"/>}
     </span>
   );

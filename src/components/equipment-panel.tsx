@@ -152,6 +152,7 @@ const emptyForm = (studio: string, type = ''): FormState => ({
 });
 
 const dateInput = (v: string | null) => (v ? new Date(v).toISOString().slice(0, 10) : '');
+const displayAssetTag = (a: Pick<FleetAsset, 'id' | 'assetTag'>) => a.assetTag || `P57-EQ-${String(a.id).padStart(5, '0')}`;
 
 const formFrom = (a: FleetAsset): FormState => ({
   id: a.id, studio: a.studio, type: a.type, label: a.label, name: a.name,
@@ -190,7 +191,7 @@ const payloadFrom = (f: FormState) => ({
   notes: f.notes.trim() || null,
 });
 
-export function EquipmentPanel({initialStudio}: {initialStudio?: string}) {
+export function EquipmentPanel({initialStudio, initialAssetId}: {initialStudio?: string; initialAssetId?: number}) {
   const {notify, user} = useApp();
   const [studio, setStudio] = useState(initialStudio || STUDIOS[0]?.name || '');
   const [assets, setAssets] = useState<FleetAsset[]>([]);
@@ -493,12 +494,12 @@ export function EquipmentPanel({initialStudio}: {initialStudio?: string}) {
               </thead>
               <tbody>
                 {visible.map((a) => (
-                  <tr key={a.id} className={a.available ? '' : 'eq-row-down'}>
+                  <tr key={a.id} className={(a.available ? '' : 'eq-row-down') + (a.id === initialAssetId ? ' eq-target-row' : '')}>
                     <td><AssetThumb asset={a}/></td>
                     <td>
                       <p className="ticket-name">{a.name}</p>
                       <div className="ticket-meta">
-                        <span>{a.type}</span>
+                        <span>Asset #{a.id} · {a.type}</span>
                         {(a.manufacturer || a.model) && <><span>·</span><span>{[a.manufacturer, a.model].filter(Boolean).join(' ')}</span></>}
                       </div>
                     </td>
@@ -513,7 +514,7 @@ export function EquipmentPanel({initialStudio}: {initialStudio?: string}) {
                     </td>
                     <td>
                       {a.serial ? <span className="mono" style={{fontSize: 10.5}}>{a.serial}</span> : <span className="muted">—</span>}
-                      {a.assetTag ? <span className="category-sub">Tag {a.assetTag}</span> : null}
+                      <span className="category-sub">Tag {displayAssetTag(a)}</span>
                     </td>
                     <td className="mono">{a.quantity > 1 ? `×${a.quantity}` : '1'}</td>
                     <td>
@@ -546,7 +547,7 @@ export function EquipmentPanel({initialStudio}: {initialStudio?: string}) {
         ) : (
           <div className="asset-grid">
             {visible.map((a) => (
-              <div key={a.id} className={'asset-card' + (a.available ? '' : ' asset-card-down')}>
+              <div key={a.id} className={'asset-card' + (a.available ? '' : ' asset-card-down') + (a.id === initialAssetId ? ' eq-target-card' : '')}>
                 <div className="between">
                   <strong className="flex-row" style={{gap: 9}}>
                     <AssetThumb asset={a} size={34}/>
@@ -555,12 +556,12 @@ export function EquipmentPanel({initialStudio}: {initialStudio?: string}) {
                   </strong>
                   <Badge tone={STATUS_TONE[a.status] || ''}>{STATUS_LABEL[a.status] || a.status}</Badge>
                 </div>
-                <small className="muted">{[a.locationName || a.area, a.studio].filter(Boolean).join(' · ')}</small>
+                <small className="muted">Asset #{a.id} · {[a.locationName || a.area, a.studio].filter(Boolean).join(' · ')}</small>
                 {a.serial || a.assetTag || a.model ? (
                   <small className="muted">
                     {[a.manufacturer, a.model].filter(Boolean).join(' ')}
                     {a.serial ? ` · S/N ${a.serial}` : ''}
-                    {a.assetTag ? ` · Tag ${a.assetTag}` : ''}
+                    {` · Tag ${displayAssetTag(a)}`}
                   </small>
                 ) : null}
                 <div className="asset-card-stats">

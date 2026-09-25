@@ -87,10 +87,12 @@ type Bundle = {
   }[];
   linked: { id: number; ticketNumber: string; title: string; status: string }[];
   canResolve: boolean;
+  asset: {id: number; name: string; assetTag: string | null; status: string; type: string; studio: string} | null;
   resolution: Resolution | null;
   steps: import("./resolution-panel").ResolutionStep[];
   followUps: import("./resolution-panel").FollowUp[];
   contacts: import("./resolution-panel").ContactEntry[];
+  attachments: import("./resolution-panel").ResolutionAttachment[];
 };
 
 const FACT_ICONS: Record<string, LucideIcon> = {
@@ -326,10 +328,10 @@ export function TicketDialog({
       <Modal
         open={open}
         onClose={onClose}
-        title={t ? t.ticketNumber : "Ticket details"}
+        title={t ? t.title : "Ticket details"}
         description={
           t
-            ? `Logged ${indiaDate(t.createdAt)} by ${t.memberName}`
+            ? `${t.ticketNumber} · Logged ${indiaDate(t.createdAt)} by ${t.memberName}`
             : "Loading the latest ticket details"
         }
         size="wide"
@@ -557,16 +559,13 @@ export function TicketDialog({
                           </dl>
                         </section>
 
-                        <section className="td-block">
-                          <div className="between td-section-head">
-                            <div className="td-section-head">
-                              <div className="td-section-icon td-section-icon-purple">
-                                <Repeat size={18} />
-                              </div>
-                              <h3>Similar tickets</h3>
-                            </div>
+                        <details className="td-block td-similar-details">
+                          <summary>
+                            <span className="td-section-icon td-section-icon-purple"><Repeat size={18} /></span>
+                            <span><strong>Similar tickets</strong><small>Same category and subcategory</small></span>
                             <Badge>{bundle.similar.length}</Badge>
-                          </div>
+                            <ChevronRight size={15} className="td-details-chevron"/>
+                          </summary>
                           <p className="td-block-note">
                             Same category and subcategory.
                           </p>
@@ -605,7 +604,7 @@ export function TicketDialog({
                               </p>
                             )}
                           </div>
-                        </section>
+                        </details>
                       </div>
                       <aside className="td-aside">
                         <div className="td-panel">
@@ -752,20 +751,19 @@ export function TicketDialog({
                             <a
                               className="related-ticket"
                               href={
-                                "/equipment?studio=" + encodeURIComponent(t.studio || "")
+                                "/equipment?studio=" + encodeURIComponent(t.studio || "") + "&asset=" + t.assetId
                               }
                             >
                               <div className="flex-row">
                                 <Wrench size={15} />
                                 <div>
                                   <p>
-                                    {String(
-                                      object(t.customFields).assetName || "Equipment",
-                                    )}
+                                    {bundle.asset?.name || String(object(t.customFields).assetName || "Equipment")}
                                   </p>
                                   <small>
+                                    Asset #{t.assetId} · {bundle.asset?.assetTag || `P57-EQ-${String(t.assetId).padStart(5, "0")}`} ·{" "}
                                     {String(
-                                      object(t.customFields).assetStatus ||
+                                      bundle.asset?.status || object(t.customFields).assetStatus ||
                                         "in-service",
                                     ).replace(/-/g, " ")}
                                   </small>
@@ -911,6 +909,7 @@ export function TicketDialog({
                       steps: bundle.steps,
                       followUps: bundle.followUps,
                       contacts: bundle.contacts,
+                      attachments: bundle.attachments,
                     }}
                     busy={busy}
                     onClose={() => setRailOpen(false)}

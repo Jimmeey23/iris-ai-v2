@@ -13313,6 +13313,130 @@ small {
     linear-gradient(145deg, #ffffff, #f5f9ff 64%, #faf7ff);
   box-shadow: 0 42px 110px -42px rgb(26 60 120 / 0.42), inset 0 1px 0 #fff;
 }
+
+/* Cockpit + ticket detail refinement: denser navigation, a single overview console,
+   and a resolution workspace that occupies the contextual rail instead of competing
+   with routing/people/sentiment cards. */
+.sidebar .nav-link {
+  margin-bottom: 5px;
+}
+.sidebar.collapsed .nav-link {
+  margin-block: 3px;
+}
+.overview-loading {
+  min-height: calc(100dvh - 190px);
+  padding: 22px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  background: var(--surface);
+  box-shadow: var(--shadow-2);
+}
+.cc-overview.cockpit-canvas {
+  padding: 10px;
+  border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--border));
+  border-radius: var(--radius-xl);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  box-shadow: var(--shadow-3), var(--highlight-inset);
+}
+.cc-overview .overview-command-deck,
+.cc-overview .cockpit-signal-deck,
+.cc-overview .metric-grid-8 {
+  margin: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+.cc-overview .overview-command-deck {
+  border: 0;
+  border-bottom: 1px solid var(--border);
+}
+.cc-overview .cockpit-signal-deck {
+  border: 0;
+  border-bottom: 1px solid var(--border);
+}
+.cc-overview .metric-grid-8 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border: 0;
+}
+
+.ticket-workspace-split.rail-open {
+  grid-template-columns: minmax(0, 1fr) minmax(440px, 500px);
+  gap: 18px;
+}
+.ticket-workspace-split.rail-open .td-overview {
+  grid-template-columns: minmax(0, 1fr);
+}
+.ticket-workspace-split.rail-open .td-aside {
+  display: none;
+}
+.ticket-workspace-split.rail-open .resolution-v2.rw {
+  min-height: min(720px, calc(97dvh - 170px));
+  max-height: calc(97dvh - 150px);
+}
+.resolution-v2 .rw-head {
+  padding: 20px 20px 16px;
+}
+.resolution-v2 .rw-command-bar {
+  padding: 15px 18px;
+}
+.resolution-v2 .rw-snapshot {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.resolution-v2 .rw-body {
+  padding: 18px;
+  gap: 16px;
+}
+.resolution-v2 .rw-tabs button {
+  min-width: 0;
+  font-size: 10px;
+}
+.rw-upload {
+  padding: 14px;
+  border: 1px dashed color-mix(in srgb, var(--accent) 40%, var(--border));
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--accent-soft) 55%, var(--surface));
+}
+.rw-upload > label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 54px;
+  color: var(--accent);
+  cursor: pointer;
+}
+.rw-upload > label span {
+  display: grid;
+  gap: 3px;
+  color: var(--text);
+}
+.rw-upload > label small { color: var(--muted); font-size: 10px; }
+.rw-upload input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.rw-upload-ready { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-top: 10px; border-top: 1px solid var(--border); font-size: 11px; }
+.rw-files { display: grid; gap: 7px; margin: 0; padding: 0; list-style: none; }
+.rw-files li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 10px; padding: 11px 12px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); }
+.rw-files li > svg { color: var(--accent); }
+.rw-files p { overflow: hidden; margin: 0; font-size: 11.5px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.rw-files small { color: var(--muted); font-size: 9.5px; }
+.rw-files a, .rw-files button { display: grid; place-items: center; width: 30px; height: 30px; border: 0; border-radius: var(--radius-sm); background: var(--surface-2); color: var(--secondary); }
+.td-similar-details > summary { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 10px; cursor: pointer; list-style: none; }
+.td-similar-details > summary::-webkit-details-marker { display: none; }
+.td-similar-details > summary > span:nth-child(2) { display: grid; gap: 2px; }
+.td-similar-details > summary strong { font-size: 13px; }
+.td-similar-details > summary small { color: var(--muted); font-size: 10px; }
+.td-similar-details .td-details-chevron { transition: transform var(--dur-2); }
+.td-similar-details[open] .td-details-chevron { transform: rotate(90deg); }
+.td-similar-details:not([open]) > :not(summary) { display: none; }
+.eq-target-row > td { background: color-mix(in srgb, var(--accent-soft) 72%, var(--surface)) !important; }
+.eq-target-card { outline: 2px solid var(--accent); outline-offset: 2px; }
+.dialog-content:has(.ticket-detail-shell) {
+  width: min(1460px, calc(100vw - 18px));
+  max-height: 97dvh;
+}
+
+@media (max-width: 1100px) {
+  .ticket-workspace-split.rail-open { grid-template-columns: minmax(0, 1fr); }
+  .ticket-workspace-split.rail-open .resolution-v2.rw { min-height: 660px; max-height: none; }
+  .cc-overview .metric-grid-8 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 @media (max-width: 440px) {
   .topbar {
     padding-right: 10px;

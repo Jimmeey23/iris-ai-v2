@@ -68,6 +68,19 @@ export const ticketFollowUps = pgTable("ticket_follow_ups", {
 export const ticketContactLog = pgTable("ticket_contact_log", {
   id: serial("id").primaryKey(), ticketId: integer("ticket_id").notNull().references(()=>tickets.id,{onDelete:"cascade"}), channel: text("channel").notNull(), outcome: text("outcome").notNull(), note: text("note").notNull().default(""), contactedAt: timestamp("contacted_at",{withTimezone:true}).defaultNow().notNull(), authorUserId: integer("author_user_id").notNull().references(()=>appUsers.id,{onDelete:"no action"}), authorName: text("author_name").notNull(),
 },(t)=>[index("ticket_contact_log_ticket_idx").on(t.ticketId,t.contactedAt)]);
+/** Documents, images and voice notes supporting the private resolution record. */
+export const ticketResolutionAttachments = pgTable("ticket_resolution_attachments", {
+  id: text("id").primaryKey(),
+  ticketId: integer("ticket_id").notNull().references(()=>tickets.id,{onDelete:"cascade"}),
+  fileName: text("file_name").notNull(),
+  fileType: text("file_type").notNull(),
+  fileSize: integer("file_size").notNull(),
+  data: bytea("data").notNull(),
+  checksum: text("checksum").notNull(),
+  uploadedByUserId: integer("uploaded_by_user_id").notNull().references((): AnyPgColumn => appUsers.id,{onDelete:"no action"}),
+  uploadedByName: text("uploaded_by_name").notNull(),
+  createdAt: timestamp("created_at",{withTimezone:true}).defaultNow().notNull(),
+},(t)=>[index("ticket_resolution_attachments_ticket_idx").on(t.ticketId,t.createdAt)]);
 export const ticketLinks = pgTable("ticket_links", {
   ticketId: integer("ticket_id").notNull().references(()=>tickets.id,{onDelete:"cascade"}), relatedId: integer("related_id").notNull().references(()=>tickets.id,{onDelete:"cascade"}), relation: text("relation").notNull().default("related"), createdAt: timestamp("created_at",{withTimezone:true}).defaultNow().notNull(),
 },(t)=>[primaryKey({columns:[t.ticketId,t.relatedId]}),index("ticket_links_related_idx").on(t.relatedId)]);

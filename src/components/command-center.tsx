@@ -1,7 +1,7 @@
 "use client";
 
 import Link from 'next/link';
-import {useMemo, useState} from 'react';
+import {useEffect, useMemo, useState} from 'react';
 import {
   Plus, Sparkles, ArrowUpRight, ChevronRight, ChevronLeft, CalendarDays, LayoutGrid, List,
   Columns3, Grid2x2, Rss, Download, TriangleAlert, ArrowRight, Users, RefreshCw, Save,
@@ -76,6 +76,7 @@ export function CommandCenter({directory = false}: {directory?: boolean}) {
   const [saveOpen, setSaveOpen] = useState(false);
   const [saveName, setSaveName] = useState('');
   const [page, setPage] = useState(0);
+  const [uiReady, setUiReady] = useState(false);
 
   const f = prefs.filters;
   // Captured once on mount rather than read inline, so render stays pure; the interval-driven
@@ -107,6 +108,14 @@ export function CommandCenter({directory = false}: {directory?: boolean}) {
   }), [filtered, user]);
 
   const metrics = useMemo(() => boardMetrics(filtered, now), [filtered, now]);
+  const keyMetrics = metrics.filter((metric) => ['open', 'urgent', 'overdue', 'compliance'].includes(metric.id));
+
+  useEffect(() => {
+    if (loading || !loaded) return;
+    let second = 0;
+    const first = requestAnimationFrame(() => { second = requestAnimationFrame(() => setUiReady(true)); });
+    return () => { cancelAnimationFrame(first); if (second) cancelAnimationFrame(second); };
+  }, [loading, loaded, tickets.length]);
 
   const open = useMemo(() => filtered.filter((t) => !isClosed(t)), [filtered]);
   const slaRisk = useMemo(() => open.filter((t) => slaState(t.slaDueAt, t.status, t.createdAt) !== 'ok'), [open]);
@@ -370,22 +379,29 @@ export function CommandCenter({directory = false}: {directory?: boolean}) {
     </section>
   );
 
+  const shellTitle = directory ? 'Every ticket, one shared log.' : `Welcome${user?.name ? `, ${user.name.trim().split(/\s+/)[0]}` : ''}`;
+  const shellEyebrow = directory ? 'TICKET DIRECTORY' : 'INTERNAL OPERATIONS';
+  const shellAction = (
+    <div className="flex-row">
+      <select className="btn" aria-label="Reporting date range" value={f.from || f.to ? 'custom' : f.range} onChange={(e) => changeFilters({range: e.target.value, from: '', to: ''})}>
+        <option value="all">All time</option><option value="7">Last 7 days</option><option value="30">Last 30 days</option><option value="90">Last 90 days</option>
+      </select>
+      <button className="btn btn-primary" onClick={() => setCreate(true)}><Plus size={14}/>Log a ticket</button>
+    </div>
+  );
+
+  if (loading || !loaded || !uiReady) return (
+    <Shell title={shellTitle} eyebrow={shellEyebrow} fullWidth action={shellAction}>
+      <section className="overview-loading" aria-label="Loading the complete workspace"><Loading rows={8} variant="list"/></section>
+    </Shell>
+  );
+
   return (
     <Shell
-      title={directory ? 'Every ticket, one shared log.' : `Welcome${user?.name ? `, ${user.name.trim().split(/\s+/)[0]}` : ''}`}
-      eyebrow={directory ? 'TICKET DIRECTORY' : 'INTERNAL OPERATIONS'}
+      title={shellTitle}
+      eyebrow={shellEyebrow}
       fullWidth
-      action={
-        <div className="flex-row">
-          <select className="btn" aria-label="Reporting date range" value={f.from || f.to ? 'custom' : f.range} onChange={(e) => changeFilters({range: e.target.value, from: '', to: ''})}>
-            <option value="all">All time</option>
-            <option value="7">Last 7 days</option>
-            <option value="30">Last 30 days</option>
-            <option value="90">Last 90 days</option>
-          </select>
-          <button className="btn btn-primary" onClick={() => setCreate(true)}><Plus size={14}/>Log a ticket</button>
-        </div>
-      }
+      action={shellAction}
     >
       {!directory && (
         <div className="cc-overview cockpit-canvas">
@@ -465,7 +481,7 @@ export function CommandCenter({directory = false}: {directory?: boolean}) {
               </button>
             </section>
           </section>
-          <MetricCards metrics={metrics} onApplyFilter={applyMetricFilter} onOpenTicket={setDetail}/>
+          <MetricCards metrics={keyMetrics} onApplyFilter={applyMetricFilter} onOpenTicket={setDetail}/>
         </div>
       )}
 
