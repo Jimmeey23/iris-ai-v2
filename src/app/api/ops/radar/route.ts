@@ -4,7 +4,7 @@ import { tickets, ticketActivities, ticketResolutions } from '@/db/schema';
 import { eq, and, sql, notInArray, desc } from 'drizzle-orm';
 import { z } from 'zod';
 import { requireWorkspace, errorResponse, requireAgent, sameOrigin, ApiError } from '@/lib/auth';
-import { canResolveTicket } from '@/lib/tickets';
+import { canResolveTicket, maybeCreateRecurrenceChecks } from '@/lib/tickets';
 
 export const dynamic = 'force-dynamic';
 
@@ -637,6 +637,9 @@ export async function POST(req: NextRequest) {
         detail: note || 'Resolved directly from Live Studio Operations Radar & Heatmap.',
         createdAt: now,
       });
+      // Resolving here is the same act as resolving on the ticket, so the bike and mic
+      // recurrence checks are raised here too.
+      await maybeCreateRecurrenceChecks(updated);
 
       return NextResponse.json({ success: true, message: `Ticket #${ticketId} marked resolved.` });
     }

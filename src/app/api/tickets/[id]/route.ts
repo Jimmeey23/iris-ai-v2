@@ -22,7 +22,7 @@ import {
   makeDraft,
   createTicketFromDraft,
   canResolveTicket,
-  maybeCreateBikeFollowUp,
+  maybeCreateRecurrenceChecks,
 } from "@/lib/tickets";
 import { getConfig } from "@/lib/config";
 import { inferSeverity } from "@/lib/routing";
@@ -196,14 +196,11 @@ export async function PATCH(req: Request, ctx: Ctx) {
       });
       return t;
     });
-    let followUp = null;
-    if (b.status === "resolved")
-      followUp = await maybeCreateBikeFollowUp(result);
+    const followUps =
+      b.status === "resolved" ? await maybeCreateRecurrenceChecks(result) : [];
     return Response.json({
       ticket: result,
-      followUpTicket: followUp
-        ? { id: followUp.id, ticketNumber: followUp.ticketNumber }
-        : null,
+      followUpTickets: followUps.map((f) => ({ id: f.id, ticketNumber: f.ticketNumber })),
     });
   } catch (e) {
     return errorResponse(e);

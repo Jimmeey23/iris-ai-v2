@@ -146,23 +146,60 @@ const[linked,workspace]=await Promise.all([
 return{ticket,comments,activities,similar,linked,canResolve,...workspace};}
 const BIKE_PATTERN=/\b(bike|bikes|cycle|cycling|powercycle|power cycle|spin bike|pedal|flywheel|resistance knob)\b/i;
 export function isPowerCycleBikeTicket(t:{title:string;description:string;subcategory:string;classFormat:string|null;category:string}):boolean{const haystack=`${t.title} ${t.description} ${t.subcategory} ${t.classFormat||''}`;if(!BIKE_PATTERN.test(haystack))return false;return['Repair and Maintenance','Tech Issues','Studio Amenities and Facilities'].includes(t.category)||/powercycle/i.test(t.classFormat||'');}
-/** When a PowerCycle bike malfunction ticket is resolved, auto-raise a 1-week (168h) post-service audit follow-up for the same owner. */
-export async function maybeCreateBikeFollowUp(resolved:{id:number;ticketNumber:string;title:string;description:string;subcategory:string;category:string;classFormat:string|null;studio:string|null;assignedStaffId:number|null;assignedStaffName:string|null;assignedStaffEmail:string|null;departmentId:string|null;departmentName:string|null;memberName:string;trainer:string|null}){
-  if(!isPowerCycleBikeTicket(resolved))return null;
-  const[existing]=await db.select({id:tickets.id}).from(tickets).where(eq(tickets.submissionKey,'bike-followup:'+resolved.id));
-  if(existing)return null;
-  const slaHours=168;const now=new Date();
-  // Extract bike number from title or description for child ticket naming
-  const bikeMatch=(resolved.title+' '+resolved.description).match(/bike\s*#?\s*(\d+)/i);
-  const bikeLabel=bikeMatch?`Bike #${bikeMatch[1]}`:`Ticket ${resolved.ticketNumber}`;
-  const draft:AdvancedDraft={source:'system',title:`[Post-Service Audit] ${bikeLabel} — 1-Week Quality & Tightness Check`,summary:`Automatic 1-week post-service audit following resolution of ${resolved.ticketNumber} (${resolved.subcategory}). Confirm the bike/equipment is still functioning correctly after the repair.`,description:`This is an automatically generated 1-week (168-hour) post-service audit ticket linked to ${resolved.ticketNumber} — "${resolved.title}".\n\nOriginal issue: ${resolved.description}\n\nAction required:\n1. Physically inspect ${bikeLabel} — check all bolts, connections, and moving parts\n2. Verify the original fault has not recurred\n3. Check pedal tightness (42 N·m), crank arm torque (52–57 N·m), saddle clamp (13mm)\n4. Test resistance knob, SprintShift lever, and power meter pairing\n5. Confirm bike is safe for member use\n6. Mark this ticket resolved only after a full ride test confirms all-clear`,category:resolved.category,subcategory:resolved.subcategory,kind:'issue',studio:resolved.studio||'Studio to confirm',classFormat:resolved.classFormat||undefined,trainer:resolved.trainer||undefined,membership:undefined,incidentAt:'Scheduled 1 week after resolution',memberName:'Automated follow-up · Studio Ops',memberEmail:undefined,memberPhone:undefined,momenceMemberId:undefined,momenceSessionId:undefined,preferredContact:'Internal log only',requestedResolution:'Confirm no relapse of the original bike fault after 1 week; full tightness and safety check required.',priority:'medium',severity:inferSeverity('medium'),sentiment:'neutral',tags:['auto-follow-up','powercycle-post-service-audit','1-week-check','stages-sc3'],customFields:{parentTicketId:resolved.id,parentTicketNumber:resolved.ticketNumber,autoFollowUp:true,followUpReason:'PowerCycle bike 1-week post-service audit',followUpType:'post-service-audit'},assignedStaffId:resolved.assignedStaffId,assignedStaffName:resolved.assignedStaffName||'Unassigned',assignedStaffEmail:resolved.assignedStaffEmail||'',assignedStaffRole:'Follow-up owner',departmentId:resolved.departmentId||'operations',departmentName:resolved.departmentName||'Operations',slaHours,slaLabel:slaHours+' hours (1 week)',resolutionRequired:true,opsChecklist:['Physically inspect the bike — check all bolts, connections, and moving parts','Verify pedal tightness (42 N·m) and crank arm torque (52–57 N·m)','Test resistance knob full range, SprintShift lever engagement','Verify power meter pairing and zero reset (ADC 790–990)','Confirm no repeat of the original fault','Complete a full ride test — minimum 5 minutes','Log findings in the resolution notes','Escalate to maintenance vendor if any issue has recurred'],memberFacingUpdate:'',internalBrief:`1-week post-service audit for ${resolved.ticketNumber} — ${bikeLabel}.`,routingReason:'Auto-raised 1-week (168h) post-service audit, same owner as the original bike ticket.'};
-  const child=await createTicketFromDraft(draft,'system','automation',{sourceRef:'bike-followup:'+resolved.id});
-  await db.update(tickets).set({slaDueAt:new Date(now.getTime()+slaHours*3600000),submissionKey:'bike-followup:'+resolved.id}).where(eq(tickets.id,child.id));
-  await db.insert(ticketLinks).values({ticketId:Math.min(resolved.id,child.id),relatedId:Math.max(resolved.id,child.id),relation:'child'}).onConflictDoNothing();
-  await db.insert(ticketActivities).values({ticketId:resolved.id,actorName:'IRIS Automation',action:'follow_up.created',detail:`Auto-raised ${child.ticketNumber} as a 1-week post-service audit (168h SLA).`});
-  await db.insert(ticketActivities).values({ticketId:child.id,actorName:'IRIS Automation',action:'created',detail:`Auto-raised from ${resolved.ticketNumber} · 1-week post-service audit due ${new Date(now.getTime()+slaHours*3600000).toLocaleDateString('en-IN',{timeZone:'Asia/Kolkata',day:'numeric',month:'short',year:'numeric'})}.`});
-  return child;
+const MIC_PATTERN=/\b(mic|mics|microphone|microphones|headset mic|lapel mic|mic pack)\b/i;
+const EQUIPMENT_CATEGORIES_FOR_CHECKS=['Repair and Maintenance','Tech Issues','Studio Amenities and Facilities','Class Experience','Miscellaneous','Operating Systems'];
+/** A studio microphone fault: the headset, handheld or its receiver. */
+export function isMicTicket(t:{title:string;description:string;subcategory:string;category:string}):boolean{return MIC_PATTERN.test(`${t.title} ${t.description} ${t.subcategory}`)&&EQUIPMENT_CATEGORIES_FOR_CHECKS.includes(t.category);}
+/** The two re-checks raised when a bike or mic fault is resolved: days after resolution. */
+export const RECURRENCE_CHECK_DAYS=[5,10] as const;
+type ResolvedTicket={id:number;ticketNumber:string;title:string;description:string;subcategory:string;category:string;classFormat:string|null;studio:string|null;assignedStaffId:number|null;assignedStaffName:string|null;assignedStaffEmail:string|null;departmentId:string|null;departmentName:string|null;memberName:string;trainer:string|null;resolvedAt?:Date|string|null;source?:string;customFields?:Record<string,unknown>|null};
+const shortDate=(d:Date)=>d.toLocaleDateString('en-IN',{timeZone:'Asia/Kolkata',day:'numeric',month:'short',year:'numeric'});
+/** When a PowerCycle bike or a microphone fault is resolved, raise two child tickets for the
+ *  same owner — due 5 and 10 days after the resolution — asking the studio to confirm the
+ *  fault has not come back. A check is itself never re-checked, and each is raised once:
+ *  resolving, re-opening and resolving again does not duplicate them. */
+export async function maybeCreateRecurrenceChecks(resolved:ResolvedTicket){
+  if(resolved.customFields?.autoFollowUp)return [];
+  const bike=isPowerCycleBikeTicket(resolved);const mic=!bike&&isMicTicket(resolved);
+  if(!bike&&!mic)return [];
+  const text=resolved.title+' '+resolved.description;
+  const num=bike?text.match(/bike\s*(?:no\.?|number|#)?\s*(\d{1,3})\b/i):text.match(/\bmic(?:rophone)?\s*(?:no\.?|number|#)?\s*(\d{1,2})\b/i);
+  const label=bike?(num?`Bike #${num[1]}`:'PowerCycle bike'):(num?`Mic #${num[1]}`:'Studio microphone');
+  const kind=bike?'bike':'mic';
+  const base=resolved.resolvedAt?new Date(resolved.resolvedAt):new Date();
+  const checklist=bike
+    ?['Ride-test the bike for at least 5 minutes','Confirm the original fault has not come back','Check pedal tightness (42 N·m), crank arm torque (52–57 N·m) and the saddle clamp','Test the resistance knob, SprintShift lever and power meter pairing','Ask the trainers who taught on it whether anything felt off','Resolve only once you have confirmed there is no recurrence; if it has returned, say so and escalate to the vendor']
+    :['Power the mic on and do a full sound check through the studio system','Confirm the original fault (drop-outs, crackle, no signal) has not come back','Check the battery, the pack connector and the headset cable','Ask the trainers who used it whether it cut out in class','Resolve only once you have confirmed there is no recurrence; if it has returned, say so and escalate to the vendor'];
+  const created=[];
+  for(const [i,days] of RECURRENCE_CHECK_DAYS.entries()){
+    const key=`recheck:${resolved.id}:d${days}`;
+    const[existing]=await db.select({id:tickets.id}).from(tickets).where(eq(tickets.submissionKey,key));
+    if(existing)continue;
+    const due=new Date(base.getTime()+days*864e5);const slaHours=days*24;
+    const draft:AdvancedDraft={source:'system',
+      title:`[Recurrence check ${i+1} of ${RECURRENCE_CHECK_DAYS.length} · day ${days}] ${label} — confirm the fault has not returned`,
+      summary:`Day-${days} re-check after ${resolved.ticketNumber} (${resolved.subcategory}) was resolved on ${shortDate(base)}. Confirm ${label.toLowerCase()} has worked without the original fault since then.`,
+      description:`Automatically raised when ${resolved.ticketNumber} — "${resolved.title}" — was resolved on ${shortDate(base)}.\n\nThis is re-check ${i+1} of ${RECURRENCE_CHECK_DAYS.length}, due ${shortDate(due)} (${days} days after the resolution). Reconfirm that the issue has not happened again in that time.\n\nOriginal issue: ${resolved.description}\n\nWhat to do:\n${checklist.map((c,n)=>`${n+1}. ${c}`).join('\n')}`,
+      category:resolved.category,subcategory:resolved.subcategory,kind:'issue',studio:resolved.studio||'Studio to confirm',classFormat:resolved.classFormat||undefined,trainer:resolved.trainer||undefined,membership:undefined,
+      incidentAt:`Re-check due ${shortDate(due)}`,memberName:'Automated follow-up · Studio Ops',memberEmail:undefined,memberPhone:undefined,momenceMemberId:undefined,momenceSessionId:undefined,
+      preferredContact:'Internal log only',requestedResolution:`Confirm ${label.toLowerCase()} has had no recurrence of the original fault since ${shortDate(base)}.`,
+      priority:'medium',severity:inferSeverity('medium'),sentiment:'neutral',
+      tags:['auto-follow-up','recurrence-check',`${kind}-recheck`,`day-${days}-check`],
+      customFields:{parentTicketId:resolved.id,parentTicketNumber:resolved.ticketNumber,autoFollowUp:true,followUpType:'recurrence-check',recheckEquipment:kind,recheckDay:days,recheckOf:RECURRENCE_CHECK_DAYS.length,recheckDueAt:due.toISOString(),firstResolvedAt:base.toISOString(),followUpReason:`Confirm no recurrence ${days} days after resolution`},
+      assignedStaffId:resolved.assignedStaffId,assignedStaffName:resolved.assignedStaffName||'Unassigned',assignedStaffEmail:resolved.assignedStaffEmail||'',assignedStaffRole:'Follow-up owner',
+      departmentId:resolved.departmentId||'operations',departmentName:resolved.departmentName||'Operations',slaHours,slaLabel:`${days} days from the first resolution`,resolutionRequired:true,
+      opsChecklist:checklist,memberFacingUpdate:'',internalBrief:`Day-${days} recurrence check for ${resolved.ticketNumber} — ${label}.`,routingReason:`Auto-raised ${days}-day recurrence check, same owner as ${resolved.ticketNumber}.`};
+    const child=await createTicketFromDraft(draft,'system','automation',{sourceRef:key});
+    await db.update(tickets).set({slaDueAt:due,submissionKey:key}).where(eq(tickets.id,child.id));
+    await db.insert(ticketLinks).values({ticketId:Math.min(resolved.id,child.id),relatedId:Math.max(resolved.id,child.id),relation:'child'}).onConflictDoNothing();
+    await db.insert(ticketActivities).values({ticketId:child.id,actorName:'IRIS Automation',action:'created',detail:`Auto-raised from ${resolved.ticketNumber} · day-${days} recurrence check due ${shortDate(due)}.`});
+    created.push(child);
+  }
+  if(created.length)await db.insert(ticketActivities).values({ticketId:resolved.id,actorName:'IRIS Automation',action:'follow_up.created',detail:`Auto-raised ${created.map(c=>c.ticketNumber).join(' and ')} to confirm the ${kind} fault has not returned (${RECURRENCE_CHECK_DAYS.map(d=>d+' days').join(' and ')} after resolution).`});
+  return created;
 }
+/** @deprecated Kept for callers of the old name; raises the recurrence checks. */
+export const maybeCreateBikeFollowUp=maybeCreateRecurrenceChecks;
 
 const EXAMPLE_COLUMNS={title:tickets.title,description:tickets.description,category:tickets.category,subcategory:tickets.subcategory,memberName:tickets.memberName};
 /** Most imported history is a subject line and a thread count. Without ordering, the

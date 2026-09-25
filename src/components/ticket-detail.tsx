@@ -200,7 +200,7 @@ export function TicketDialog({
     setBusy(true);
     try {
       const d = await api<{
-        followUpTicket?: { id: number; ticketNumber: string } | null;
+        followUpTickets?: { id: number; ticketNumber: string }[];
       }>("/api/tickets/" + id, {
         method: "PATCH",
         body: JSON.stringify({ ...p, version: bundle.ticket.version }),
@@ -208,9 +208,9 @@ export function TicketDialog({
       await load();
       onUpdated?.();
       window.dispatchEvent(new Event("iris:tickets-updated"));
-      if (d.followUpTicket)
+      if (d.followUpTickets?.length)
         notify(
-          `Bike relapse check ${d.followUpTicket.ticketNumber} auto-raised, due in 48 hours.`,
+          `Recurrence checks ${d.followUpTickets.map((f) => f.ticketNumber).join(" and ")} raised, due 5 and 10 days from today.`,
         );
       else notify("Ticket updated.");
     } catch (e) {
