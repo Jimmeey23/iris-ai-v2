@@ -12,8 +12,8 @@ export default async function RadarPage({
   const p = await searchParams;
   return (
     <Shell
-      title="Live Studio Ops Heatmap & SLA Countdown Radar"
-      eyebrow="EXECUTIVE COMMAND CENTER"
+      title="Studio ops radar"
+      eyebrow="OPERATIONS"
       banner={<IrisMarquee />}
     >
       <StudioOpsRadar initialStudio={p.studio || 'kwality'} />

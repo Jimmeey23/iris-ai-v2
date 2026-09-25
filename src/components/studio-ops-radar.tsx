@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef, useSyncExternalStore } from 'react';
 import Link from 'next/link';
 import {
   Radio,
@@ -11,23 +11,21 @@ import {
   CheckCircle2,
   Building2,
   Users,
-  Thermometer,
   Wind,
   Volume2,
   Lightbulb,
   ArrowRight,
-  ExternalLink,
   Sparkles,
   RefreshCw,
-  Wrench,
   ChevronRight,
-  Zap,
   Activity,
   UserCheck,
   Eye,
   MapPin,
 } from 'lucide-react';
 import { Badge, Loading, useApp, api } from './ui';
+import { indiaDate } from '@/lib/display';
+import { isBreachedOpen } from '@/lib/metrics';
 
 interface RoomTicket {
   id: number;
@@ -39,29 +37,33 @@ interface RoomTicket {
   priority: string;
   severity: string;
   status: string;
-  assignedStaffName?: string;
-  departmentName?: string;
+  assignedStaffName?: string | null;
+  departmentName?: string | null;
   slaHours: number;
-  slaDueAt?: string;
+  slaDueAt?: string | null;
   createdAt: string;
-  impact?: string;
+  impact?: string | null;
+  /** The revision quick_resolve is checked against. */
+  version: number;
+  resolutionRequired: boolean;
 }
-const RADAR_BOOT_TIME = Date.now();
+
+interface EquipmentReports {
+  ac: number;
+  sound: number;
+  lighting: number;
+}
 
 interface RoomData {
   id: string;
   name: string;
   category: 'workout' | 'wellness' | 'amenity' | 'admin';
-  paxCapacity: number;
-  currentPax: number;
-  activeTrainer?: string;
-  activeClass?: string;
-  ambientTemp: number;
-  acStatus: 'optimal' | 'calibrating' | 'service_required';
-  soundStatus: 'optimal' | 'glitch' | 'offline';
-  lightingStatus: 'optimal' | 'dimmed' | 'fault';
+  description: string;
+  paxCapacity: number | null;
   status: 'optimal' | 'warning' | 'critical';
   openTicketsCount: number;
+  /** Open tickets in this room that mention each equipment family — reports, not readings. */
+  openEquipmentReports: EquipmentReports;
   minRemainingMinutes: number | null;
   isBreached: boolean;
   slaLabel: string;
@@ -79,12 +81,11 @@ interface StudioSummary {
   tightestSlaMinutes: number | null;
 }
 
-interface ActiveStudio extends StudioSummary {
+interface ActiveStudio extends Omit<StudioSummary, 'criticalCount' | 'warningCount'> {
   address: string;
-  leadManager: string;
-  contactNumber: string;
   studioCriticalCount: number;
   studioWarningCount: number;
+  unplacedTicketsCount: number;
   rooms: RoomData[];
 }
 
@@ -100,6 +101,8 @@ interface RadarApiResponse {
   };
 }
 
+const POLL_MS = 12000;
+
 // Humanise an SLA delta given in minutes. Long-overdue tickets are common in
 // seeded data, so anything past a day collapses to whole days — "-1272130m" is
 // not a number anyone can read at a glance.
@@ -111,7 +114,60 @@ function formatSlaDelta(mins: number): string {
   else if (abs < 1440) body = `${Math.floor(abs / 60)}h ${abs % 60}m`;
   else if (abs < 43200) body = `${Math.floor(abs / 1440)}d ${Math.floor((abs % 1440) / 60)}h`;
   else body = `${Math.floor(abs / 1440)}d`;
-  return overdue ? `OVERDUE ${body}` : `${body} left`;
+  return overdue ? `Overdue by ${body}` : `${body} left`;
+}
+
+/* One shared 1s clock for every ticking label. Only the components that subscribe re-render
+ * each second — the radar itself re-renders on data, never on the clock. */
+const clock = {
+  now: Date.now(),
+  listeners: new Set<() => void>(),
+  timer: undefined as ReturnType<typeof setInterval> | undefined,
+  subscribe(fn: () => void) {
+    clock.listeners.add(fn);
+    if (!clock.timer) clock.timer = setInterval(() => { clock.now = Date.now(); clock.listeners.forEach((l) => l()); }, 1000);
+    return () => {
+      clock.listeners.delete(fn);
+      if (!clock.listeners.size && clock.timer) { clearInterval(clock.timer); clock.timer = undefined; }
+    };
+  },
+};
+const useNow = () => useSyncExternalStore(clock.subscribe, () => clock.now, () => clock.now);
+
+/** The studio's tightest target, counted down from the snapshot the server sent. */
+function TightestSla({ minutes, asOf }: { minutes: number | null; asOf: string }) {
+  const now = useNow();
+  if (minutes === null) return <div className="countdown-clock all-clear"><ShieldCheck size={14} /><span>No targets due</span></div>;
+  const live = minutes - Math.max(0, Math.floor((now - Date.parse(asOf)) / 60000));
+  return <div className={`countdown-clock ${live < 0 ? 'breached' : 'active'}`}><Clock size={14} className="clock-icon" /><span>{formatSlaDelta(live)}</span></div>;
+}
+
+/** A ticket's target line; flips to overdue on the second it passes. */
+function TicketSla({ ticket }: { ticket: RoomTicket }) {
+  const now = useNow();
+  const overdue = isBreachedOpen(ticket, now);
+  return (
+    <div className="sla-progress-box">
+      <div className="sla-labels">
+        <span className="sla-clock"><Clock size={10} />{overdue ? 'Overdue' : 'Follow-up due'}</span>
+        <span className={`sla-time ${overdue ? 'red-text' : 'accent-text'}`}>{indiaDate(ticket.slaDueAt)}</span>
+      </div>
+    </div>
+  );
+}
+
+const EQUIPMENT_LABELS: { key: keyof EquipmentReports; label: string; short: string; icon: typeof Wind }[] = [
+  { key: 'ac', label: 'Air conditioning', short: 'AC', icon: Wind },
+  { key: 'sound', label: 'Sound', short: 'Sound', icon: Volume2 },
+  { key: 'lighting', label: 'Lighting', short: 'Lights', icon: Lightbulb },
+];
+const reportsText = (n: number) => (n ? `${n} open ${n === 1 ? 'report' : 'reports'}` : 'No open reports');
+
+async function postRadar(body: Record<string, unknown>) {
+  // Raw fetch (not api()) so a 409 revision conflict can be told apart from other failures.
+  const res = await fetch('/api/ops/radar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), cache: 'no-store' });
+  const data = (await res.json().catch(() => ({}))) as { message?: string; error?: string };
+  return { status: res.status, ok: res.ok, message: data.message || data.error || '' };
 }
 
 export function StudioOpsRadar({ initialStudio = 'kwality' }: { initialStudio?: string }) {
@@ -124,73 +180,87 @@ export function StudioOpsRadar({ initialStudio = 'kwality' }: { initialStudio?: 
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
   const [resolvingId, setResolvingId] = useState<number | null>(null);
-  const [now, setNow] = useState(RADAR_BOOT_TIME);
+  const seq = useRef(0);
 
-  // Keep live SLA ticking every second
-  useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(timer);
+  // Only the latest request may write state, so a slow poll never overwrites a newer studio.
+  // State is written in the promise callbacks, never synchronously from the effect.
+  const load = useCallback((studioId: string) => {
+    const id = ++seq.current;
+    return api<RadarApiResponse>(`/api/ops/radar?studio=${encodeURIComponent(studioId)}`).then(
+      (res) => {
+        if (id !== seq.current) return;
+        setData(res);
+        setError('');
+        setLoading(false);
+        setLastUpdated(new Date());
+        // Keep the selected room if it is still on the plan; otherwise the first room with open work.
+        setSelectedRoomId((cur) => {
+          const rooms = res.activeStudio.rooms;
+          if (cur && rooms.some((r) => r.id === cur)) return cur;
+          return (rooms.find((r) => r.status !== 'optimal') || rooms[0])?.id ?? null;
+        });
+      },
+      (e: unknown) => {
+        if (id !== seq.current) return;
+        setError(e instanceof Error ? e.message : 'The radar could not be loaded.');
+        setLoading(false);
+      },
+    );
   }, []);
 
-  // Fetch Radar data
-  const fetchData = async (isManual = false) => {
-    if (isManual) setRefreshing(true);
-    setError('');
-    try {
-      const res = await api<RadarApiResponse>(`/api/ops/radar?studio=${encodeURIComponent(selectedStudioId)}`);
-      setData(res);
-      setLastUpdated(new Date());
-      // Auto-select first room with incident or first room
-      if (!selectedRoomId && res.activeStudio.rooms.length > 0) {
-        const incidentRoom = res.activeStudio.rooms.find((r) => r.status !== 'optimal');
-        setSelectedRoomId(incidentRoom ? incidentRoom.id : res.activeStudio.rooms[0].id);
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'The live operations feed could not be loaded.');
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
+  const refresh = useCallback(async () => {
+    setRefreshing(true);
+    await load(selectedStudioId);
+    setRefreshing(false);
+  }, [load, selectedStudioId]);
 
+  // Poll while the tab is visible; catch up the moment it becomes visible again.
   useEffect(() => {
-    void fetchData();
-    const interval = setInterval(() => void fetchData(), 12000);
-    return () => clearInterval(interval);
-  }, [selectedStudioId]);
+    let timer: ReturnType<typeof setInterval> | undefined;
+    const start = () => { if (!timer) timer = setInterval(() => void load(selectedStudioId), POLL_MS); };
+    const stop = () => { if (timer) { clearInterval(timer); timer = undefined; } };
+    const onVisibility = () => {
+      if (document.hidden) stop();
+      else { void load(selectedStudioId); start(); }
+    };
+    void load(selectedStudioId);
+    if (!document.hidden) start();
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => { stop(); document.removeEventListener('visibilitychange', onVisibility); };
+  }, [selectedStudioId, load]);
 
-  // Selected room details
   const selectedRoom = useMemo(() => {
     if (!data || !selectedRoomId) return null;
-    return data.activeStudio.rooms.find((r) => r.id === selectedRoomId) || data.activeStudio.rooms[0];
+    return data.activeStudio.rooms.find((r) => r.id === selectedRoomId) || data.activeStudio.rooms[0] || null;
   }, [data, selectedRoomId]);
 
-  // 1-Click Fast Resolution from Radar
-  async function handleQuickResolve(ticketId: number) {
-    setResolvingId(ticketId);
+  async function handleQuickResolve(t: RoomTicket) {
+    setResolvingId(t.id);
     try {
-      const res = await api<{ success: boolean; message: string }>('/api/ops/radar', {
-        method: 'POST',
-        body: JSON.stringify({ action: 'quick_resolve', ticketId }),
-      });
-      notify(res.message || 'Ticket marked resolved!');
-      await fetchData(true);
-    } catch (e) {
-      notify((e as Error).message, 'error');
+      const res = await postRadar({ action: 'quick_resolve', ticketId: t.id, version: t.version });
+      if (res.status === 409) {
+        notify(`${t.ticketNumber} changed since the radar loaded. The radar has been refreshed — check it and try again.`, 'error');
+      } else if (!res.ok) {
+        notify(res.message || 'The ticket could not be resolved.', 'error');
+      } else {
+        notify(res.message || `${t.ticketNumber} marked resolved.`);
+      }
+      await refresh();
+    } catch {
+      notify('The ticket could not be resolved. Check your connection and try again.', 'error');
     } finally {
       setResolvingId(null);
     }
   }
 
-  // 1-Click Dispatch Duty Lead
   async function handleDispatch(ticketId: number) {
     try {
       const res = await api<{ success: boolean; message: string }>('/api/ops/radar', {
         method: 'POST',
         body: JSON.stringify({ action: 'dispatch_staff', ticketId }),
       });
-      notify(res.message || 'Dispatched on-site lead!');
-      await fetchData(true);
+      notify(res.message || 'Studio team asked to inspect the room.');
+      await refresh();
     } catch (e) {
       notify((e as Error).message, 'error');
     }
@@ -201,7 +271,7 @@ export function StudioOpsRadar({ initialStudio = 'kwality' }: { initialStudio?: 
       <div className="radar-loading-skeleton">
         <div className="radar-spinner-wrap">
           <Activity size={32} className="animate-pulse accent" />
-          <p>Connecting to Studio Floor Sensors &amp; Live SLA Radar…</p>
+          <p>Loading the studio ops radar…</p>
         </div>
         <Loading rows={4} variant="card" />
       </div>
@@ -209,15 +279,15 @@ export function StudioOpsRadar({ initialStudio = 'kwality' }: { initialStudio?: 
   }
 
   if (!data) {
-    return <div className="empty-state radar-error-state"><AlertTriangle size={28} /><h3>Operations Radar is unavailable</h3><p>{error || 'The live studio feed could not be reached.'}</p><button type="button" className="btn btn-primary" onClick={() => void fetchData(true)} disabled={refreshing}><RefreshCw size={13} className={refreshing ? 'animate-spin' : ''}/>Retry connection</button></div>;
+    return <div className="empty-state radar-error-state"><AlertTriangle size={28} /><h3>The radar is unavailable</h3><p>{error || 'The studio feed could not be reached.'}</p><button type="button" className="btn btn-primary" onClick={() => void refresh()} disabled={refreshing}><RefreshCw size={13} className={refreshing ? 'animate-spin' : ''}/>Retry</button></div>;
   }
 
-  const activeStudio = data?.activeStudio;
-  const globalRadar = data?.globalRadar;
+  const activeStudio = data.activeStudio;
+  const globalRadar = data.globalRadar;
 
   return (
     <div className="studio-ops-radar-container">
-      {/* 1. TOP EXECUTIVE TELEMETRY & GLOBAL SLA RADAR BAR */}
+      {/* 1. Network summary */}
       <section className="radar-telemetry-banner">
         <div className="telemetry-brand">
           <div className="radar-ping-icon">
@@ -226,76 +296,62 @@ export function StudioOpsRadar({ initialStudio = 'kwality' }: { initialStudio?: 
           </div>
           <div>
             <div className="telemetry-title-row">
-              <h2>Studio Floor Operations Radar &amp; SLA Heatmap</h2>
+              <h2>Studio ops radar</h2>
               <span className="live-pill">
                 <span className="pulse-dot" />
-                LIVE RADAR
+                Live
               </span>
             </div>
             <p className="telemetry-subtitle">
-              Real-time architectural layout, environmental sensors, room occupancy &amp; SLA breach countdown
+              Every room on the plan, coloured by its open tickets and their follow-up targets
             </p>
           </div>
         </div>
 
         <div className="telemetry-stats-row">
-          {/* Global Network Health */}
           <div className="telemetry-metric-box">
-            <span className="t-label">NETWORK HEALTH</span>
+            <span className="t-label">Network health</span>
             <div className="t-val-row">
-              <span className="t-val accent-text">{globalRadar?.networkHealthScore || 100}%</span>
-              <span className="t-sub">Across {globalRadar?.totalStudiosMonitored ?? 0} Sites</span>
+              <span className="t-val accent-text">{globalRadar.networkHealthScore}%</span>
+              <span className="t-sub">Across {globalRadar.totalStudiosMonitored} sites</span>
             </div>
           </div>
 
-          {/* Active Incidents */}
           <div className="telemetry-metric-box">
-            <span className="t-label">ACTIVE SNAGS</span>
+            <span className="t-label">Open tickets</span>
             <div className="t-val-row">
-              <span className={`t-val ${(globalRadar?.criticalIncidents || 0) > 0 ? 'red-text' : 'amber-text'}`}>
-                {globalRadar?.totalActiveIncidents || 0}
+              <span className={`t-val ${globalRadar.criticalIncidents > 0 ? 'red-text' : 'amber-text'}`}>
+                {globalRadar.totalActiveIncidents}
               </span>
-              <span className="t-sub">{globalRadar?.criticalIncidents || 0} Critical</span>
+              <span className="t-sub">{globalRadar.criticalIncidents} critical</span>
             </div>
           </div>
 
-          {/* Tightest SLA Countdown Clock */}
           <div className="telemetry-metric-box countdown-box">
-            <span className="t-label">TIGHTEST SLA DEADLINE</span>
+            <span className="t-label">Tightest target</span>
             <div className="t-val-row">
-              {activeStudio?.tightestSlaMinutes !== null && activeStudio?.tightestSlaMinutes !== undefined ? (
-                <div className={`countdown-clock ${activeStudio.tightestSlaMinutes < 0 ? 'breached' : 'active'}`}>
-                  <Clock size={14} className="clock-icon" />
-                  <span>{formatSlaDelta(activeStudio.tightestSlaMinutes)}</span>
-                </div>
-              ) : (
-                <div className="countdown-clock all-clear">
-                  <ShieldCheck size={14} />
-                  <span>All SLAs Clear</span>
-                </div>
-              )}
+              <TightestSla minutes={activeStudio.tightestSlaMinutes} asOf={data.timestamp} />
             </div>
           </div>
 
-          {/* Sync Button */}
           <button
             type="button"
             className="radar-sync-btn"
-            onClick={() => void fetchData(true)}
+            onClick={() => void refresh()}
             disabled={refreshing}
-            title={lastUpdated ? `Last updated ${lastUpdated.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}` : 'Poll latest telemetry and tickets'}
+            title={lastUpdated ? `Last updated ${indiaDate(lastUpdated)}` : 'Load the latest tickets'}
           >
             <RefreshCw size={13} className={refreshing ? 'animate-spin' : ''} />
-            <span>{refreshing ? 'Syncing…' : 'Refresh'}</span>
+            <span>{refreshing ? 'Refreshing…' : 'Refresh'}</span>
           </button>
         </div>
       </section>
 
-      {error && <div className="error-box radar-refresh-error" role="alert">Live refresh failed. Showing the last successful snapshot. <button type="button" className="text-btn" onClick={() => void fetchData(true)}>Retry</button></div>}
+      {error && <div className="error-box radar-refresh-error" role="alert">Refresh failed. Showing the last successful snapshot. <button type="button" className="text-btn" onClick={() => void refresh()}>Retry</button></div>}
 
-      {/* 2. STUDIO LOCATION SELECTOR TABS */}
-      <nav className="studio-tabs-nav">
-        {data?.allStudiosSummary.map((st) => {
+      {/* 2. Studio selector */}
+      <nav className="studio-tabs-nav" aria-label="Studios">
+        {data.allStudiosSummary.map((st) => {
           const isCurrent = st.id === selectedStudioId;
           const hasCritical = st.criticalCount > 0;
           const hasWarning = st.warningCount > 0;
@@ -327,11 +383,11 @@ export function StudioOpsRadar({ initialStudio = 'kwality' }: { initialStudio?: 
               <div className="studio-tab-sub">
                 <span className="studio-tab-city">{st.city}</span>
                 {hasCritical ? (
-                  <span className="badge-critical-pill"><Flame size={9} /> {st.criticalCount} Critical</span>
+                  <span className="badge-critical-pill"><Flame size={9} /> {st.criticalCount} critical</span>
                 ) : hasWarning ? (
-                  <span className="badge-warning-pill"><AlertTriangle size={9} /> {st.warningCount} Snag</span>
+                  <span className="badge-warning-pill"><AlertTriangle size={9} /> {st.warningCount} open</span>
                 ) : (
-                  <span className="badge-optimal-pill"><CheckCircle2 size={9} /> All Clear</span>
+                  <span className="badge-optimal-pill"><CheckCircle2 size={9} /> All clear</span>
                 )}
               </div>
             </button>
@@ -339,30 +395,30 @@ export function StudioOpsRadar({ initialStudio = 'kwality' }: { initialStudio?: 
         })}
       </nav>
 
-      {/* 3. MAIN DUAL VIEW: ARCHITECTURAL FLOORPLAN GRID + DEEP ROOM INSPECTOR */}
+      {/* 3. Room plan heatmap + room inspector */}
       <div className="radar-layout-grid">
-        {/* LEFT/CENTER: ARCHITECTURAL FLOORPLAN HEATMAP */}
         <div className="floorplan-heatmap-container">
           <div className="floorplan-head">
             <div className="head-left">
-              <h3>{activeStudio?.name} — Floorplan Radar</h3>
-              <span className="manager-tag">Duty Lead: {activeStudio?.leadManager}</span>
+              <h3>{activeStudio.name} — room plan</h3>
+              {activeStudio.unplacedTicketsCount > 0 && (
+                <span className="manager-tag">{activeStudio.unplacedTicketsCount} open {activeStudio.unplacedTicketsCount === 1 ? 'ticket names' : 'tickets name'} no room</span>
+              )}
             </div>
             <div className="legend-pills">
-              <span className="legend-item optimal"><i /> Optimal</span>
-              <span className="legend-item warning"><i /> Active Snag</span>
-              <span className="legend-item critical"><i /> SLA Alert</span>
+              <span className="legend-item optimal"><i /> No open tickets</span>
+              <span className="legend-item warning"><i /> Open tickets</span>
+              <span className="legend-item critical"><i /> Needs attention</span>
             </div>
           </div>
 
-          {/* ROOM CARDS SCHEMATIC */}
           <div className="floorplan-stage">
           <div className="rooms-schematic-grid">
-            {activeStudio?.rooms.map((room) => {
+            {activeStudio.rooms.map((room) => {
               const isSelected = selectedRoom?.id === room.id;
               const hasCritical = room.status === 'critical';
               const hasWarning = room.status === 'warning';
-              const occupancyPct = Math.round((room.currentPax / room.paxCapacity) * 100);
+              const statusText = hasCritical ? 'needs attention' : hasWarning ? `${room.openTicketsCount} open` : 'no open tickets';
 
               return (
                 <button
@@ -370,11 +426,10 @@ export function StudioOpsRadar({ initialStudio = 'kwality' }: { initialStudio?: 
                   key={room.id}
                   className={`room-radar-card ${room.category} ${room.status} ${isSelected ? 'selected' : ''}`}
                   aria-pressed={isSelected}
-                  aria-label={`${room.name}, ${room.status}${isSelected ? ', selected' : ''}`}
+                  aria-label={`${room.name}, ${statusText}${isSelected ? ', selected' : ''}`}
                   onClick={() => setSelectedRoomId(room.id)}
                 >
-                  {isSelected && <span className="room-selected-flag"><MapPin size={10}/> Selected area</span>}
-                  {/* Status Indicator / Pulse */}
+                  {isSelected && <span className="room-selected-flag"><MapPin size={10}/> Selected</span>}
                   {hasCritical && <span className="room-pulse-ring" />}
 
                   <div className="room-card-head">
@@ -383,71 +438,36 @@ export function StudioOpsRadar({ initialStudio = 'kwality' }: { initialStudio?: 
                       <span className={`room-category-badge ${room.category}`}>{room.category}</span>
                     </div>
                     {hasCritical ? (
-                      <span className="room-alert-badge critical">
-                        <Flame size={11} />
-                        SLA ALERT
-                      </span>
+                      <span className="room-alert-badge critical"><Flame size={11} />Attention</span>
                     ) : hasWarning ? (
-                      <span className="room-alert-badge warning">
-                        <AlertTriangle size={11} />
-                        SNAG
-                      </span>
+                      <span className="room-alert-badge warning"><AlertTriangle size={11} />Open</span>
                     ) : (
-                      <span className="room-alert-badge optimal">
-                        <CheckCircle2 size={11} />
-                        OPTIMAL
-                      </span>
+                      <span className="room-alert-badge optimal"><CheckCircle2 size={11} />Clear</span>
                     )}
                   </div>
 
-                  {/* Class / Trainer Info if Workout Studio */}
-                  {room.category === 'workout' && (
-                    <div className="room-class-info">
-                      <span className="class-name">{room.activeClass || 'Open Studio Floor'}</span>
-                      <span className="trainer-name">{room.activeTrainer ? `w/ ${room.activeTrainer}` : 'Floor Staff'}</span>
-                    </div>
-                  )}
-
-                  {/* Pax Capacity Bar */}
-                  <div className="occupancy-section">
-                    <div className="occupancy-labels">
-                      <span className="occ-label"><Users size={10} /> Occupancy</span>
-                      <span className="occ-count">{room.currentPax} / {room.paxCapacity} pax</span>
-                    </div>
-                    <div className="occupancy-bar-track">
-                      <div
-                        className={`occupancy-bar-fill ${occupancyPct > 85 ? 'high' : ''}`}
-                        style={{ width: `${Math.min(occupancyPct, 100)}%` }}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Environmental Sensors Row */}
+                  {/* Planned capacity and open equipment reports — counts of tickets, not sensor readings. */}
                   <div className="environmental-sensors-row">
-                    <div className={`sensor-item ${room.ambientTemp > 24.5 ? 'alert' : ''}`} title="Ambient Room Temperature">
-                      <Thermometer size={11} />
-                      <span>{room.ambientTemp}°C</span>
+                    <div className="sensor-item" title={room.paxCapacity ? `Planned capacity: ${room.paxCapacity}` : 'No planned capacity on the room plan'}>
+                      <Users size={11} />
+                      <span>{room.paxCapacity ?? '—'}</span>
                     </div>
-                    <div className={`sensor-item ${room.acStatus !== 'optimal' ? 'alert' : ''}`} title={`AC Status: ${room.acStatus}`}>
-                      <Wind size={11} />
-                      <span>AC {room.acStatus === 'optimal' ? 'OK' : 'ERR'}</span>
-                    </div>
-                    <div className={`sensor-item ${room.soundStatus !== 'optimal' ? 'alert' : ''}`} title={`Sound/Mic: ${room.soundStatus}`}>
-                      <Volume2 size={11} />
-                      <span>Audio</span>
-                    </div>
-                    <div className={`sensor-item ${room.lightingStatus !== 'optimal' ? 'alert' : ''}`} title={`Lighting: ${room.lightingStatus}`}>
-                      <Lightbulb size={11} />
-                      <span>Lights</span>
-                    </div>
+                    {EQUIPMENT_LABELS.map(({ key, label, short, icon: Icon }) => {
+                      const n = room.openEquipmentReports[key];
+                      return (
+                        <div key={key} className={`sensor-item ${n ? 'alert' : ''}`} title={`${label}: ${reportsText(n)}`}>
+                          <Icon size={11} />
+                          <span>{n ? `${short} ${n}` : short}</span>
+                        </div>
+                      );
+                    })}
                   </div>
 
-                  {/* SLA Countdown Badge (if incident active) */}
                   {room.openTicketsCount > 0 && (
                     <div className={`room-sla-countdown-footer ${hasCritical ? 'critical' : 'warning'}`}>
                       <Clock size={11} />
                       <span>{room.slaLabel}</span>
-                      <span className="tickets-badge">{room.openTicketsCount} snag</span>
+                      <span className="tickets-badge">{room.openTicketsCount} open</span>
                     </div>
                   )}
                 </button>
@@ -457,64 +477,49 @@ export function StudioOpsRadar({ initialStudio = 'kwality' }: { initialStudio?: 
           </div>
         </div>
 
-        {/* RIGHT: ROOM INSPECTOR DRAWER */}
-        <aside className="room-inspector-drawer">
+        <aside className="room-inspector-drawer" aria-label="Room details">
           {selectedRoom ? (
             <div className="inspector-content">
-              {/* Drawer Header */}
               <div className="inspector-header">
                 <div className="header-top">
                   <div>
-                    <span className="room-super-tag">{activeStudio?.shortName}</span>
+                    <span className="room-super-tag">{activeStudio.shortName}</span>
                     <h3 className="inspector-room-name">{selectedRoom.name}</h3>
                   </div>
                   <Badge tone={selectedRoom.status === 'critical' ? 'red' : selectedRoom.status === 'warning' ? 'amber' : 'green'}>
-                    {selectedRoom.status.toUpperCase()}
+                    {selectedRoom.status === 'critical' ? 'Needs attention' : selectedRoom.status === 'warning' ? 'Open tickets' : 'Clear'}
                   </Badge>
                 </div>
 
                 <p className="inspector-room-specs">
-                  Capacity: <strong>{selectedRoom.paxCapacity} pax</strong> · Type: <strong>{selectedRoom.category}</strong>
-                  {selectedRoom.activeTrainer && ` · Instructor: ${selectedRoom.activeTrainer}`}
+                  {selectedRoom.paxCapacity ? <>Capacity: <strong>{selectedRoom.paxCapacity}</strong> · </> : null}Type: <strong>{selectedRoom.category}</strong>
+                  {selectedRoom.description && <><br />{selectedRoom.description}</>}
                 </p>
               </div>
 
-              {/* Environmental Diagnostics Grid */}
               <div className="diagnostics-panel">
                 <div className="diag-cell">
-                  <span className="d-label">TEMPERATURE</span>
-                  <strong className="d-val">{selectedRoom.ambientTemp}°C</strong>
-                  <span className="d-sub">{selectedRoom.ambientTemp <= 22 ? 'Chilled / Optimal' : 'Needs Cooling'}</span>
+                  <span className="d-label">Open tickets</span>
+                  <strong className="d-val">{selectedRoom.openTicketsCount}</strong>
+                  <span className="d-sub">{selectedRoom.slaLabel}</span>
                 </div>
-                <div className="diag-cell">
-                  <span className="d-label">HVAC / AC SYSTEM</span>
-                  <strong className={`d-val ${selectedRoom.acStatus !== 'optimal' ? 'red-text' : 'green-text'}`}>
-                    {selectedRoom.acStatus === 'optimal' ? 'Functional' : 'Check Service'}
-                  </strong>
-                  <span className="d-sub">Carrier Inverter V3</span>
-                </div>
-                <div className="diag-cell">
-                  <span className="d-label">SOUND &amp; MIC</span>
-                  <strong className={`d-val ${selectedRoom.soundStatus !== 'optimal' ? 'amber-text' : 'green-text'}`}>
-                    {selectedRoom.soundStatus === 'optimal' ? 'Calibrated' : 'Check Headset'}
-                  </strong>
-                  <span className="d-sub">Bose Pro Audio</span>
-                </div>
-                <div className="diag-cell">
-                  <span className="d-label">LIGHTING FIXTURES</span>
-                  <strong className={`d-val ${selectedRoom.lightingStatus !== 'optimal' ? 'red-text' : 'green-text'}`}>
-                    {selectedRoom.lightingStatus === 'optimal' ? 'Functional' : 'Check Fixtures'}
-                  </strong>
-                  <span className="d-sub">Dimmable LED Panels</span>
-                </div>
+                {EQUIPMENT_LABELS.map(({ key, label }) => {
+                  const n = selectedRoom.openEquipmentReports[key];
+                  return (
+                    <div key={key} className="diag-cell">
+                      <span className="d-label">{label}</span>
+                      <strong className={`d-val ${n ? 'red-text' : 'green-text'}`}>{n}</strong>
+                      <span className="d-sub">{reportsText(n)}</span>
+                    </div>
+                  );
+                })}
               </div>
 
-              {/* Active Tickets / Snag List */}
               <div className="inspector-incidents-section">
                 <div className="incidents-section-head">
                   <div className="left">
                     <Activity size={13} className="accent" />
-                    <h4>Active Incidents in this Space ({selectedRoom.tickets.length})</h4>
+                    <h4>Open tickets in this room ({selectedRoom.tickets.length})</h4>
                   </div>
                   {selectedRoom.tickets.length > 0 && (
                     <span className="sla-urgent-pill">{selectedRoom.slaLabel}</span>
@@ -524,98 +529,77 @@ export function StudioOpsRadar({ initialStudio = 'kwality' }: { initialStudio?: 
                 {selectedRoom.tickets.length === 0 ? (
                   <div className="empty-room-state">
                     <CheckCircle2 size={24} className="green-text mb-2" />
-                    <strong>All Systems Clear in {selectedRoom.name}</strong>
-                    <p>No active facility disruptions or open complaints recorded for this space.</p>
-                    <Link
-                      href={`/iris`}
-                      className="btn-create-snag"
-                    >
+                    <strong>Nothing open in {selectedRoom.name}</strong>
+                    <p>No open tickets are filed against this room.</p>
+                    <Link href="/iris" className="btn btn-primary btn-sm">
                       <Sparkles size={12} />
-                      <span>Log Observation with IRIS</span>
+                      <span>Log it with IRIS</span>
                     </Link>
                   </div>
                 ) : (
                   <div className="active-tickets-stack">
-                    {selectedRoom.tickets.map((t) => {
-                      const isOverdue = t.slaDueAt ? new Date(t.slaDueAt).getTime() < now : false;
-
-                      return (
-                        <div key={t.id} className={`incident-ticket-card ${t.priority}`}>
-                          <div className="ticket-top-row">
-                            <span className="ticket-number-tag">{t.ticketNumber}</span>
-                            <span className={`priority-badge ${t.priority}`}>{t.priority.toUpperCase()}</span>
-                          </div>
-
-                          <strong className="ticket-title-text">{t.title}</strong>
-                          <p className="ticket-category-sub">{t.category} → {t.subcategory}</p>
-
-                          {/* SLA Urgency Countdown Meter */}
-                          {t.slaDueAt && (
-                            <div className="sla-progress-box">
-                              <div className="sla-labels">
-                                <span className="sla-clock">
-                                  <Clock size={10} />
-                                  {isOverdue ? 'SLA BREACHED' : 'Target SLA Due'}
-                                </span>
-                                <span className={`sla-time ${isOverdue ? 'red-text' : 'accent-text'}`}>
-                                  {new Date(t.slaDueAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                </span>
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Action Buttons for this Ticket */}
-                          <div className="incident-actions-row">
-                            <button
-                              type="button"
-                              className="btn-quick-resolve"
-                              disabled={resolvingId === t.id}
-                              onClick={() => void handleQuickResolve(t.id)}
-                            >
-                              <CheckCircle2 size={12} />
-                              <span>{resolvingId === t.id ? 'Resolving…' : 'Resolve Snag (1-Click)'}</span>
-                            </button>
-
-                            <button
-                              type="button"
-                              className="btn-dispatch-lead"
-                              onClick={() => void handleDispatch(t.id)}
-                            >
-                              <UserCheck size={12} />
-                              <span>Dispatch Duty Lead</span>
-                            </button>
-
-                            <Link href={`/tickets/${t.id}`} className="btn-view-ticket">
-                              <Eye size={12} />
-                              <span>Full Ticket</span>
-                              <ChevronRight size={10} />
-                            </Link>
-                          </div>
+                    {selectedRoom.tickets.map((t) => (
+                      <div key={t.id} className={`incident-ticket-card ${t.priority}`}>
+                        <div className="ticket-top-row">
+                          <span className="ticket-number-tag">{t.ticketNumber}</span>
+                          <span className={`priority-badge ${t.priority}`}>{t.priority}</span>
                         </div>
-                      );
-                    })}
+
+                        <strong className="ticket-title-text">{t.title}</strong>
+                        <p className="ticket-category-sub">{t.category} → {t.subcategory}</p>
+
+                        {t.slaDueAt && <TicketSla ticket={t} />}
+
+                        <div className="incident-actions-row">
+                          <button
+                            type="button"
+                            className="btn btn-success btn-xs"
+                            disabled={resolvingId === t.id}
+                            aria-busy={resolvingId === t.id || undefined}
+                            onClick={() => void handleQuickResolve(t)}
+                          >
+                            <CheckCircle2 size={12} />
+                            <span>{resolvingId === t.id ? 'Resolving…' : 'Resolve ticket'}</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            className="btn btn-outline btn-xs"
+                            onClick={() => void handleDispatch(t.id)}
+                          >
+                            <UserCheck size={12} />
+                            <span>Ask studio team</span>
+                          </button>
+
+                          <Link href={`/tickets/${t.id}`} className="btn btn-ghost btn-xs">
+                            <Eye size={12} />
+                            <span>Open ticket</span>
+                            <ChevronRight size={10} />
+                          </Link>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
 
-              {/* Quick Launch IRIS Assistant Pre-Filled */}
               <div className="drawer-iris-shortcut-card">
                 <div className="shortcut-text">
                   <Sparkles size={14} className="accent" />
                   <div>
                     <strong>Need to log something in {selectedRoom.name}?</strong>
-                    <span>IRIS automatically links {selectedRoom.name} and {activeStudio?.shortName}</span>
+                    <span>Tell IRIS the room and studio and it files the ticket against them.</span>
                   </div>
                 </div>
-                <Link href={`/iris`} className="btn-open-iris-link">
-                  <span>Chat with Iris</span>
+                <Link href="/iris" className="btn btn-soft btn-sm">
+                  <span>Chat with IRIS</span>
                   <ArrowRight size={12} />
                 </Link>
               </div>
             </div>
           ) : (
             <div className="no-room-selected">
-              <p>Click any room on the floorplan to inspect diagnostics and live SLAs.</p>
+              <p>Select a room on the plan to see its open tickets.</p>
             </div>
           )}
         </aside>

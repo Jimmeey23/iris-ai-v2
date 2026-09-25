@@ -6,6 +6,8 @@ import { z } from 'zod';
 import { requireWorkspace, errorResponse, requireAgent, requireTicketAccess, sameOrigin, ApiError } from '@/lib/auth';
 import { resolveTicket, ticketScope } from '@/lib/tickets';
 import { STUDIOS, STUDIO_LAYOUTS, AREA_ALIASES, type StudioRoom } from '@/lib/constants';
+import { getConfig } from '@/lib/config';
+import { CLOSED_STATUSES, isBreachedOpen, isDueSoon, isSlaTracked } from '@/lib/metrics';
 
 export const dynamic = 'force-dynamic';
 
@@ -115,6 +117,7 @@ type RadarTicket = {
   createdAt: Date;
   impact: string | null;
   version: number;
+  resolutionRequired: boolean;
   area: string | null;
   isClassImpacted: string | null;
 };
@@ -183,14 +186,16 @@ export async function GET(req: NextRequest) {
         createdAt: tickets.createdAt,
         impact: tickets.impact,
         version: tickets.version,
+        resolutionRequired: tickets.resolutionRequired,
         area: sql<string | null>`${tickets.customFields}->>'area'`,
         isClassImpacted: sql<string | null>`${tickets.customFields}->>'isClassImpacted'`,
       })
       .from(tickets)
-      .where(and(notInArray(tickets.status, ['resolved', 'closed', 'recorded']), ticketScope(user)))
+      .where(and(notInArray(tickets.status, [...CLOSED_STATUSES]), ticketScope(user)))
       .orderBy(desc(tickets.createdAt));
 
     const now = Date.now();
+    const { slaWarningPercent } = await getConfig();
     const placed = new Map<string, RadarTicket[]>();
     const unplaced = new Map<string, number>();
     for (const t of activeTickets) {
@@ -219,13 +224,17 @@ export async function GET(req: NextRequest) {
           const hasClassImpact = roomTickets.some(
             (t) => /\b(blocking|interrupted)\b/i.test(t.impact || '') || /^yes, blocking/i.test(t.isClassImpacted || '')
           );
+          // SLA state follows lib/metrics: only tracked tickets (resolution required, a target,
+          // not record-only) count toward "overdue" and "due soon".
+          let isDueSoonAny = false;
           for (const t of roomTickets) {
-            if (!t.slaDueAt) continue;
-            const mins = Math.floor((new Date(t.slaDueAt).getTime() - now) / 60000);
+            if (!isSlaTracked(t)) continue;
+            const mins = Math.floor((new Date(t.slaDueAt as Date).getTime() - now) / 60000);
             if (minRemainingMinutes === null || mins < minRemainingMinutes) minRemainingMinutes = mins;
-            if (mins < 0) isBreached = true;
+            if (isBreachedOpen(t, now)) isBreached = true;
+            else if (isDueSoon(t, now, slaWarningPercent)) isDueSoonAny = true;
           }
-          if (isBreached || hasCriticalPriority || hasClassImpact || (minRemainingMinutes !== null && minRemainingMinutes < 60)) {
+          if (isBreached || hasCriticalPriority || hasClassImpact || isDueSoonAny) {
             status = 'critical';
             studioCriticalCount++;
           } else {
@@ -266,6 +275,7 @@ export async function GET(req: NextRequest) {
             impact: t.impact,
             // Sent back with quick_resolve so the resolve is checked against this revision.
             version: t.version,
+            resolutionRequired: t.resolutionRequired,
           })),
         };
       });

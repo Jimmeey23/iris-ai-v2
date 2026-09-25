@@ -11,7 +11,7 @@ export type LookupStatus = 'idle' | 'live' | 'demo' | 'workspace' | 'auth' | 'er
 const META: Record<LookupModule, {title: string; placeholder: string; icon: typeof UserRound}> = {
   member: {title: 'Find the member', placeholder: 'Search by name, email, phone or Momence ID…', icon: UserRound},
   session: {title: 'Find the class', placeholder: 'Search a class by name, coach or studio…', icon: CalendarDays},
-  ticket: {title: 'Link a ticket', placeholder: 'Search by ticket number, title or member…', icon: Link2},
+  ticket: {title: 'Link a ticket', placeholder: 'Search by ticket number or title…', icon: Link2},
 };
 
 /** Debounced text → the rows the desk can pick from, plus where they came from. Momence rows
@@ -31,13 +31,14 @@ function useLookupRows(module: LookupModule, q: string, open: boolean, opts: {st
       setBusy(true);
       try {
         if (module === 'ticket') {
-          const res = await fetch('/api/tickets', {cache: 'no-store', signal: controller.signal});
+          // Search server-side (`?q=` matches number, id or title) instead of downloading the
+          // board; with nothing typed, the newest page stands in for "what's open right now".
+          const s = q.trim();
+          const res = await fetch(s ? `/api/tickets?q=${encodeURIComponent(s)}&limit=40` : '/api/tickets?limit=60', {cache: 'no-store', signal: controller.signal});
           if (res.status === 401 || res.status === 403) { setStatus('auth'); setRows([]); return; }
           if (!res.ok) throw new Error('lookup failed');
-          const d = await res.json() as {tickets: {id: number; ticketNumber: string; title: string; subcategory: string; studio: string; status: string; memberName: string}[]};
-          const s = q.trim().toLowerCase();
-          const live = d.tickets.filter(t => !['resolved', 'closed', 'recorded'].includes(t.status));
-          const pool = (s ? d.tickets.filter(t => `${t.ticketNumber} ${t.title} ${t.memberName} ${t.subcategory} ${t.studio}`.toLowerCase().includes(s)) : live).slice(0, 40);
+          const d = await res.json() as {tickets: {id: number; ticketNumber: string; title: string; subcategory: string; studio: string; status: string}[]};
+          const pool = (s ? d.tickets : d.tickets.filter(t => !['resolved', 'closed', 'recorded'].includes(t.status))).slice(0, 40);
           setRows(pool.map(t => ({id: t.ticketNumber, label: `${t.ticketNumber} · ${t.title}`, sublabel: `${t.subcategory} · ${String(t.studio || '').split(',')[0]} · ${t.status.replaceAll('_', ' ')}`})));
           setStatus('board');
           return;

@@ -5,7 +5,7 @@ import {
   Bike, BrickWall, ConciergeBell, Droplets, Dumbbell, FireExtinguisher, Image as ImageIcon, Laptop, LayoutGrid, Lightbulb, MapPin, Mic, Pencil,
   Plus, RefreshCw, Rows3, ShieldCheck, ShowerHead, Snowflake, Sparkles, Trash2, TriangleAlert, Upload, Wind, Wrench, Zap,
 } from 'lucide-react';
-import {api, Badge, Empty, Field, Loading, Modal, SearchField, useApp} from '@/components/ui';
+import {api, Badge, Empty, Field, Loading, Modal, SearchField, TabPanel, Tabs, useApp} from '@/components/ui';
 import {STUDIOS} from '@/lib/constants';
 import {relativeTime} from '@/lib/utils';
 
@@ -220,30 +220,46 @@ export function EquipmentPanel({initialStudio}: {initialStudio?: string}) {
   const isAdmin = user?.role === 'admin';
   const canEdit = user?.role === 'admin' || user?.role === 'agent';
 
-  const load = useCallback(async () => {
-    try {
-      const d = await api<FleetResponse>(`/api/assets?view=fleet&studio=${encodeURIComponent(studio)}`);
-      setAssets(d.assets || []);
-      setLocations(d.locations || []);
-      setCatalogue(d.catalogue || []);
-      setCategories(d.categories || []);
-      setConditions(d.conditions || []);
-      setStatuses(d.statuses || []);
-      setTypeRows(d.summary || []);
-      setError('');
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
+  // State is written in the promise callbacks, so the polling effect below never sets state
+  // synchronously; a response for a studio no longer selected is dropped.
+  const seq = useRef(0);
+  const load = useCallback(() => {
+    const id = ++seq.current;
+    return api<FleetResponse>(`/api/assets?view=fleet&studio=${encodeURIComponent(studio)}`).then(
+      (d) => {
+        if (id !== seq.current) return;
+        setAssets(d.assets || []);
+        setLocations(d.locations || []);
+        setCatalogue(d.catalogue || []);
+        setCategories(d.categories || []);
+        setConditions(d.conditions || []);
+        setStatuses(d.statuses || []);
+        setTypeRows(d.summary || []);
+        setError('');
+        setBusy(false);
+      },
+      (e: unknown) => {
+        if (id !== seq.current) return;
+        setError((e as Error).message);
+        setBusy(false);
+      },
+    );
   }, [studio]);
 
   // Re-reads on an interval so equipment taken out of rotation on the floor shows up here
-  // without a refresh — the whole reason the status exists.
+  // without a refresh — the whole reason the status exists. Paused while the tab is hidden.
   useEffect(() => {
+    let timer: ReturnType<typeof setInterval> | undefined;
+    const start = () => { if (!timer) timer = setInterval(() => void load(), 30000); };
+    const stop = () => { if (timer) { clearInterval(timer); timer = undefined; } };
+    const onVisibility = () => {
+      if (document.hidden) stop();
+      else { void load(); start(); }
+    };
     void load();
-    const t = setInterval(() => void load(), 30000);
-    return () => clearInterval(t);
+    if (!document.hidden) start();
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => { stop(); document.removeEventListener('visibilitychange', onVisibility); };
   }, [load]);
 
   const typeGroups = useMemo(() => {
@@ -315,7 +331,7 @@ export function EquipmentPanel({initialStudio}: {initialStudio?: string}) {
     // Equipment with a fault history is retired rather than deleted, because the faults
     // happened whether or not the studio still owns the thing. Say so up front.
     const warning = asset.faults > 0
-      ? `${asset.name} has ${asset.faults} ticket${asset.faults === 1 ? '' : 's'} against it. It will be retired rather than deleted, so its fault history survives. Continue?`
+      ? `${asset.name} has ${asset.faults} snag${asset.faults === 1 ? '' : 's'} logged against it. It will be retired rather than deleted, so its snag history survives. Continue?`
       : `Remove ${asset.name} from the register? This cannot be undone.`;
     if (!window.confirm(warning)) return;
     try {
@@ -334,7 +350,7 @@ export function EquipmentPanel({initialStudio}: {initialStudio?: string}) {
           <div>
             <h3 style={{marginBottom: 4}}>Equipment register</h3>
             <p className="muted" style={{fontSize: 12}}>
-              Every logged fault, against the item it happened to.
+              Every logged snag, against the item it happened to.
             </p>
           </div>
           <div className="flex-row wrap">
@@ -372,7 +388,7 @@ export function EquipmentPanel({initialStudio}: {initialStudio?: string}) {
             <strong>{summary.units}</strong>
           </div>
           <div className="between">
-            <span className="muted">Open faults</span>
+            <span className="muted">Open snags</span>
             <strong>{summary.openFaults}</strong>
           </div>
           <div className="between">
@@ -386,7 +402,7 @@ export function EquipmentPanel({initialStudio}: {initialStudio?: string}) {
             <TriangleAlert size={16} />
             <span>
               {summary.total - summary.available} off the floor
-              {summary.repeat.length ? ` · ${summary.repeat.slice(0, 3).map((a) => `${a.name} (${a.faults})`).join(', ')} are repeat faults` : ''}
+              {summary.repeat.length ? ` · ${summary.repeat.slice(0, 3).map((a) => `${a.name} (${a.faults})`).join(', ')} have repeat snags` : ''}
             </span>
           </div>
         ) : null}
@@ -396,14 +412,16 @@ export function EquipmentPanel({initialStudio}: {initialStudio?: string}) {
 
       <div className="card card-pad">
         <div className="between wrap" style={{gap: 10, marginBottom: 14}}>
-          <div className="module-tabs">
-            <button className={'context-tab' + (tab === 'items' ? ' active' : '')} onClick={() => setTab('items')}>
-              Items ({assets.length})
-            </button>
-            <button className={'context-tab' + (tab === 'types' ? ' active' : '')} onClick={() => setTab('types')}>
-              By type ({catalogue.length || typeRows.length})
-            </button>
-          </div>
+          <Tabs
+            label="Register view"
+            variant="underline"
+            value={tab}
+            onChange={setTab}
+            items={[
+              {id: 'items', label: 'Items', count: assets.length},
+              {id: 'types', label: 'By type', count: catalogue.length || typeRows.length},
+            ]}
+          />
           {tab === 'items' ? (
             <div className="flex-row wrap" style={{gap: 8}}>
               <SearchField value={query} onChange={setQuery} placeholder="Serial, model, location…" />
@@ -415,14 +433,15 @@ export function EquipmentPanel({initialStudio}: {initialStudio?: string}) {
                 <option value="">Any status</option>
                 {statuses.map((s) => <option key={s} value={s}>{STATUS_LABEL[s] || s}</option>)}
               </select>
-              <div className="view-switch">
-                <button aria-label="Table view" title="Table view" className={layout === 'table' ? 'active' : ''} onClick={() => setLayout('table')}><Rows3 size={14}/></button>
-                <button aria-label="Card view" title="Card view" className={layout === 'cards' ? 'active' : ''} onClick={() => setLayout('cards')}><LayoutGrid size={14}/></button>
+              <div className="view-switch" role="group" aria-label="Layout">
+                <button type="button" aria-label="Table view" title="Table view" aria-pressed={layout === 'table'} className={layout === 'table' ? 'active' : ''} onClick={() => setLayout('table')}><Rows3 size={14}/></button>
+                <button type="button" aria-label="Card view" title="Card view" aria-pressed={layout === 'cards'} className={layout === 'cards' ? 'active' : ''} onClick={() => setLayout('cards')}><LayoutGrid size={14}/></button>
               </div>
             </div>
           ) : null}
         </div>
 
+        <TabPanel id={tab}>
         {busy && !assets.length ? (
           <Loading rows={3} variant="card" />
         ) : tab === 'types' ? (
@@ -433,7 +452,7 @@ export function EquipmentPanel({initialStudio}: {initialStudio?: string}) {
               <thead>
                 <tr>
                   <th>Type</th><th>Items</th><th>Units</th>
-                  <th>Off the floor</th><th>Tickets</th><th>Open</th><th><span className="sr-only">Add</span></th>
+                  <th>Off the floor</th><th>Snags</th><th>Open</th><th><span className="sr-only">Add</span></th>
                 </tr>
               </thead>
               {typeGroups.map((g) => (
@@ -466,9 +485,9 @@ export function EquipmentPanel({initialStudio}: {initialStudio?: string}) {
             <table className="data-table data-table-rich equipment-table">
               <thead>
                 <tr>
-                  <th className="eq-th-img"><ImageIcon size={11}/></th>
-                  <th>ITEM</th><th>CATEGORY</th><th>LOCATION</th><th>SERIAL / TAG</th>
-                  <th>QTY</th><th>STATUS</th><th style={{textAlign: 'right'}}>TICKETS</th>
+                  <th className="eq-th-img"><ImageIcon size={11} aria-hidden/><span className="sr-only">Photo</span></th>
+                  <th>Item</th><th>Category</th><th>Location</th><th>Serial / tag</th>
+                  <th>Qty</th><th>Status</th><th style={{textAlign: 'right'}}>Snags</th>
                   {canEdit ? <th/> : null}
                 </tr>
               </thead>
@@ -545,9 +564,9 @@ export function EquipmentPanel({initialStudio}: {initialStudio?: string}) {
                   </small>
                 ) : null}
                 <div className="asset-card-stats">
-                  <span><strong>{a.faults || 0}</strong> tickets</span>
+                  <span><strong>{a.faults || 0}</strong> snags</span>
                   <span><strong>{a.openFaults || 0}</strong> open</span>
-                  <span>{a.lastFaultAt ? `last ${relativeTime(a.lastFaultAt)}` : 'no faults logged'}</span>
+                  <span>{a.lastFaultAt ? `last ${relativeTime(a.lastFaultAt)}` : 'no snags logged'}</span>
                 </div>
                 {a.statusNote ? <small className="muted">{a.statusNote}</small> : null}
                 {!a.available && a.statusChangedAt ? (
@@ -579,14 +598,15 @@ export function EquipmentPanel({initialStudio}: {initialStudio?: string}) {
             ))}
           </div>
         )}
+        </TabPanel>
 
         {tab === 'items' && assets.length ? (
           <div className="info-box" style={{marginTop: 16}}>
             <ShieldCheck size={16} />
             <span>
               {summary.repeat.length
-                ? `${summary.repeat.length} item${summary.repeat.length === 1 ? '' : 's'} with repeat faults — worth a service decision rather than another repair.`
-                : 'No repeat faults recorded at this studio.'}
+                ? `${summary.repeat.length} item${summary.repeat.length === 1 ? '' : 's'} with repeat snags — worth a service decision rather than another repair.`
+                : 'No repeat snags recorded at this studio.'}
             </span>
           </div>
         ) : null}
@@ -655,7 +675,7 @@ function AssetForm({
       onClose={onClose}
       size="wide"
       title={form.id ? `Edit ${form.name || form.label}` : 'Add equipment'}
-      description={form.id ? 'Everything here is editable; the fault history stays attached.' : 'Only studio, type and label are required — fill in the rest as you find it.'}
+      description={form.id ? 'Everything here is editable; the snag history stays attached.' : 'Only studio, type and label are required — fill in the rest as you find it.'}
       footer={
         <>
           <button className="btn" onClick={onClose} disabled={saving}>Cancel</button>

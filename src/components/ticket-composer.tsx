@@ -366,7 +366,15 @@ export function TicketComposer({
   const recordOnly = !requiresResolution;
   const memberInvolved = involvesMember;
   const hostedTemplate = template?.id === "hosted-class-feedback";
-  useEffect(() => {
+  // Every open (or a different template/draft) starts from the prefill. Applied while
+  // rendering rather than in an effect, so the previous ticket's state never paints
+  // and nothing downstream sees an intermediate empty form.
+  const prefillKey = open
+    ? [template?.id, draftId, user?.name, user?.email].join("|")
+    : "";
+  const [prefilledFor, setPrefilledFor] = useState("");
+  if (prefilledFor !== prefillKey) {
+    setPrefilledFor(prefillKey);
     if (open) {
       const savedMember = Boolean(
         initial?.involvesMember || initial?.momenceMemberId,
@@ -383,7 +391,7 @@ export function TicketComposer({
         incidentAt: "Today",
         preferredContact: "No follow-up needed",
         sentiment: template?.kind === "compliment" ? "positive" : "neutral",
-        memberName: "Studio team observation",
+        memberName: savedMember ? "" : "Studio team observation",
         memberEmail: "",
         resolutionRequired: savedResolution,
         ...initial,
@@ -415,27 +423,53 @@ export function TicketComposer({
           ? [{ id: initial.momenceSessionId, label: initial.classFormat }]
           : undefined,
       );
-      setTrainers([]);
-      setFormats([]);
+      // Seed the pickers from what was saved, so reopening a draft (or a prefilled
+      // template) shows its trainers and formats instead of silently dropping them.
+      const asOptions = (v: unknown, sep: string) =>
+        String(v || "")
+          .split(sep)
+          .map((x) => x.trim())
+          .filter(Boolean)
+          .map((x) => ({ id: x, label: x }));
+      setTrainers(asOptions(initial?.trainer, ","));
+      setFormats(
+        initial?.momenceSessionId ? [] : asOptions(initial?.classFormat, " + "),
+      );
+      const savedAttendees = initial?.customFields?.hostedAttendees;
+      setHostedAttendees(
+        Array.isArray(savedAttendees) ? (savedAttendees as HostedAttendee[]) : [],
+      );
       setReportedBy(
         initial?.reportedBy ||
           String(initial?.customFields?.reportedBy || REPORTED_BY_OPTIONS[0]),
       );
       setKey(crypto.randomUUID());
-      void api<typeof config>("/api/settings?scope=public")
-        .then((d) => setConfig(d))
-        .catch(() => {});
     }
-  }, [open, template?.id, user?.name, user?.email, draftId]);
-  const set = (k: string, v: unknown) => setForm((f) => ({ ...f, [k]: v }));
+  }
   useEffect(() => {
-    if (!memberInvolved) {
-      set("memberName", "Studio team observation");
-      set("memberEmail", "");
-      setMember(undefined);
-    } else if (form.memberName === "Studio team observation")
-      set("memberName", "");
-  }, [memberInvolved]);
+    if (!open) return;
+    void api<typeof config>("/api/settings?scope=public")
+      .then((d) => setConfig(d))
+      .catch(() => {});
+  }, [open]);
+  const set = (k: string, v: unknown) => setForm((f) => ({ ...f, [k]: v }));
+  /** Trainers feed two fields: the display string on the ticket and the list in
+   *  customFields. Written together when the user picks, never on mount. */
+  function pickTrainers(opts: PickerOption[]) {
+    setTrainers(opts);
+    set("trainer", opts.map((t) => t.label).join(", ") || undefined);
+    setCustom((c) => ({ ...c, trainersInvolved: opts.map((t) => t.label) }));
+  }
+  /** A linked Momence session names the class itself; the format picker only fills
+   *  in the class format when there isn't one. */
+  function pickFormats(opts: PickerOption[]) {
+    setFormats(opts);
+    if (!sessions?.length)
+      set("classFormat", opts.map((f) => f.label).join(" + ") || undefined);
+  }
+  // Hosted attendees live in their own state while editing and join customFields
+  // only when the ticket is previewed or saved.
+  const customFields = hostedTemplate ? { ...custom, hostedAttendees } : custom;
   async function selectMember(opts: PickerOption[]) {
     const o = opts[0];
     if (!o) return;
@@ -526,7 +560,7 @@ export function TicketComposer({
     setSessions(opts);
     const first = opts[0];
     if (!first) {
-      set("classFormat", undefined);
+      set("classFormat", formats.map((f) => f.label).join(" + ") || undefined);
       set("momenceSessionId", undefined);
       setSessionDetail(undefined);
       setHostedAttendees([]);
@@ -558,7 +592,7 @@ export function TicketComposer({
       }));
       const trainerNames = [display(raw.teacher)].filter((t) => t && t !== "—");
       if (trainerNames.length)
-        setTrainers(trainerNames.map((t) => ({ id: t, label: t })));
+        pickTrainers(trainerNames.map((t) => ({ id: t, label: t })));
       void hydrateHostedAttendees(opts);
     } catch (e) {
       setError((e as Error).message);
@@ -566,21 +600,6 @@ export function TicketComposer({
       setLookupBusy(false);
     }
   }
-  useEffect(() => {
-    set("trainer", trainers.map((t) => t.label).join(", ") || undefined);
-    setCustom((c) => ({
-      ...c,
-      trainersInvolved: trainers.map((t) => t.label),
-    }));
-  }, [trainers]);
-  useEffect(() => {
-    if (!sessions?.length && formats.length)
-      set("classFormat", formats.map((f) => f.label).join(" + "));
-  }, [formats]);
-  useEffect(() => {
-    if (!hostedTemplate) return;
-    setCustom((c) => ({ ...c, hostedAttendees }));
-  }, [hostedAttendees, hostedTemplate]);
   async function review() {
     if (memberInvolved && !String(form.momenceMemberId || "")) {
       setError("Link the community member from Momence before continuing.");
@@ -592,7 +611,7 @@ export function TicketComposer({
     }
     const missingTemplate =
       template?.fields.filter((f) => {
-        const v = custom[f.id];
+        const v = customFields[f.id];
         return Boolean(
           f.required &&
           (v === undefined ||
@@ -617,7 +636,7 @@ export function TicketComposer({
           body: JSON.stringify({
             ...form,
             resolutionRequired: requiresResolution,
-            customFields: { ...custom, reportedBy },
+            customFields: { ...customFields, reportedBy },
             templateId: template?.id,
             source: template ? "template" : "manual",
             submissionKey: key,
@@ -639,7 +658,7 @@ export function TicketComposer({
       const payload = {
         ...form,
         resolutionRequired: requiresResolution,
-        customFields: { ...custom, reportedBy },
+        customFields: { ...customFields, reportedBy },
         reportedBy,
         involvesMember,
         involvesSession,
@@ -830,7 +849,10 @@ export function TicketComposer({
                     checked={involvesMember}
                     onChange={(v) => {
                       setInvolvesMember(v);
-                      if (!v) {
+                      if (v) {
+                        if (form.memberName === "Studio team observation")
+                          set("memberName", "");
+                      } else {
                         setMember(undefined);
                         setMemberDetail(undefined);
                         set("memberName", "Studio team observation");
@@ -866,8 +888,11 @@ export function TicketComposer({
                         setSessions(undefined);
                         setSessionDetail(undefined);
                         set("momenceSessionId", undefined);
+                        setTrainers([]);
+                        setFormats([]);
                         set("classFormat", undefined);
                         set("trainer", undefined);
+                        setCustom((c) => ({ ...c, trainersInvolved: [] }));
                       }
                     }}
                     label="Involves a session"
@@ -1127,7 +1152,7 @@ export function TicketComposer({
                     <MultiSelect
                       module="formats"
                       value={formats}
-                      onChange={setFormats}
+                      onChange={pickFormats}
                       placeholder="e.g. Studio Hosted Class, Studio Barre 57…"
                     />
                   </Field>
@@ -1138,7 +1163,7 @@ export function TicketComposer({
                     <MultiSelect
                       module="trainers"
                       value={trainers}
-                      onChange={setTrainers}
+                      onChange={pickTrainers}
                       multi
                       placeholder="Search trainers…"
                     />

@@ -135,6 +135,8 @@ function FactTile({
   );
 }
 
+const TABS = ["overview", "activity", "related"] as const;
+
 export function TicketDialog({
   id,
   open,
@@ -149,13 +151,16 @@ export function TicketDialog({
   const { notify, user, openAuth } = useApp();
   const [bundle, setBundle] = useState<Bundle>(),
     [error, setError] = useState(""),
-    [tab, setTab] = useState("overview"),
+    [tab, setTab] = useState<(typeof TABS)[number]>("overview"),
     [busy, setBusy] = useState(false),
     [note, setNote] = useState("");
   const [railOpen, setRailOpen] = useState(false);
   const [linkOpen, setLinkOpen] = useState(false),
     [linkQuery, setLinkQuery] = useState(""),
-    [choices, setChoices] = useState<TicketListRecord[]>([]),
+    [found, setFound] = useState<{ q: string; tickets: TicketListRecord[] }>({
+      q: "",
+      tickets: [],
+    }),
     [childId, setChildId] = useState<number>(),
     [entity, setEntity] = useState<{
       module: "members" | "sessions";
@@ -166,19 +171,30 @@ export function TicketDialog({
       data: unknown;
     }>(),
     [staff, setStaff] = useState<StaffRecord[]>([]);
-  const load = useCallback(async () => {
-    try {
-      const d = await api<Bundle>("/api/tickets/" + id);
-      setBundle(d);
-      setError("");
-    } catch (e) {
-      setError((e as Error).message);
-    }
-  }, [id]);
-  useEffect(() => {
+  const load = useCallback(
+    () =>
+      api<Bundle>("/api/tickets/" + id).then(
+        (d) => {
+          setBundle(d);
+          setError("");
+        },
+        (e: Error) => setError(e.message),
+      ),
+    [id],
+  );
+  // Reopening (or switching ticket) starts from a clean slate. Done while rendering,
+  // not in an effect, so the stale bundle never paints for a frame.
+  const shownKey = open ? String(id) : "";
+  const [shownFor, setShownFor] = useState(shownKey);
+  if (shownFor !== shownKey) {
+    setShownFor(shownKey);
     if (open) {
       setBundle(undefined);
       setTab("overview");
+    }
+  }
+  useEffect(() => {
+    if (open) {
       void load();
       void api<{ staff: StaffRecord[] }>("/api/staff")
         .then((d) => setStaff(d.staff))
@@ -189,12 +205,33 @@ export function TicketDialog({
       return () => clearInterval(timer);
     }
   }, [open, load]);
+  // The picker searches server-side (`?q=` returns up to 20 matches) rather than
+  // downloading the whole ticket list, debounced so typing doesn't fire a request a key.
+  const linkTerm = linkQuery.trim();
   useEffect(() => {
-    if (linkOpen)
-      void api<{ tickets: TicketListRecord[] }>("/api/tickets")
-        .then((d) => setChoices(d.tickets))
-        .catch((e) => notify(e.message, "error"));
-  }, [linkOpen, notify]);
+    if (!linkOpen || !linkTerm) return;
+    const ctl = new AbortController();
+    const timer = setTimeout(() => {
+      void api<{ tickets: TicketListRecord[] }>(
+        "/api/tickets?q=" + encodeURIComponent(linkTerm),
+        { signal: ctl.signal },
+      )
+        .then((d) => setFound({ q: linkTerm, tickets: d.tickets }))
+        .catch((e: Error) => {
+          if (e.name === "AbortError") return;
+          setFound({ q: linkTerm, tickets: [] });
+          notify(e.message, "error");
+        });
+    }, 250);
+    return () => {
+      clearTimeout(timer);
+      ctl.abort();
+    };
+  }, [linkOpen, linkTerm, notify]);
+  const searching = Boolean(linkTerm) && found.q !== linkTerm;
+  const choices = (found.q === linkTerm ? found.tickets : []).filter(
+    (s) => s.id !== id && !bundle?.linked.some((l) => l.id === s.id),
+  );
   async function patch(p: Record<string, unknown>) {
     if (!bundle) return;
     setBusy(true);
@@ -290,7 +327,7 @@ export function TicketDialog({
           <>
             <span className="muted flex-row" style={{ fontSize: 10 }}>
               <ShieldCheck size={13} />
-              Saved to your workspace · updates every 15s
+              Saved to your workspace · updates every 30s
             </span>
             <div className="flex-row">
               <button className="btn" onClick={() => void load()}>
@@ -365,24 +402,62 @@ export function TicketDialog({
                 </div>
               </header>
               <div className="workspace-tabs" style={{ padding: 0 }}>
-                {["overview", "activity", "related"].map((s) => (
-                  <button
-                    key={s}
-                    className={tab === s ? "active" : ""}
-                    onClick={() => setTab(s)}
-                  >
-                    {s[0].toUpperCase() + s.slice(1)}
-                    {s === "related" && (
-                      <span>
-                        {bundle.linked.length + bundle.similar.length}
-                      </span>
-                    )}
-                  </button>
-                ))}
+                {/* `contents` keeps the buttons laid out (and styled) as direct
+                    children of the strip while the tablist owns only the tabs. */}
+                <div
+                  className="contents"
+                  role="tablist"
+                  aria-label="Ticket sections"
+                  onKeyDown={(e) => {
+                    const at = TABS.indexOf(tab);
+                    const next =
+                      e.key === "ArrowRight"
+                        ? (at + 1) % TABS.length
+                        : e.key === "ArrowLeft"
+                          ? (at + TABS.length - 1) % TABS.length
+                          : e.key === "Home"
+                            ? 0
+                            : e.key === "End"
+                              ? TABS.length - 1
+                              : -1;
+                    if (next < 0) return;
+                    e.preventDefault();
+                    setTab(TABS[next]);
+                    e.currentTarget
+                      .querySelector<HTMLElement>(`[data-tab="${TABS[next]}"]`)
+                      ?.focus();
+                  }}
+                >
+                  {TABS.map((s) => (
+                    <button
+                      key={s}
+                      type="button"
+                      role="tab"
+                      data-tab={s}
+                      aria-selected={tab === s}
+                      tabIndex={tab === s ? 0 : -1}
+                      className={tab === s ? "active" : ""}
+                      onClick={() => setTab(s)}
+                    >
+                      {s[0].toUpperCase() + s.slice(1)}
+                      {s === "related" && (
+                        <span>
+                          {bundle.linked.length + bundle.similar.length}
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
                 <button
+                  type="button"
                   className={"rail-toggle" + (railOpen ? " active" : "")}
                   onClick={() => setRailOpen((v) => !v)}
                   aria-expanded={railOpen}
+                  title={
+                    bundle.canResolve
+                      ? undefined
+                      : "Private to the assigned owner and their reporting manager"
+                  }
                 >
                   <LockKeyhole size={12} />
                   Resolution
@@ -602,7 +677,11 @@ export function TicketDialog({
                             </button>
                           </div>
                           <p className="td-panel-note">
-                            Status changes live in the resolution panel.
+                            {bundle.canResolve
+                              ? "Status changes live in the resolution panel."
+                              : t.resolutionRequired
+                                ? "Only the assigned owner or their reporting manager can change status or resolve this ticket."
+                                : "This ticket is a record only. There is nothing to resolve."}
                           </p>
                         </div>
                         <div className="td-panel">
@@ -799,8 +878,8 @@ export function TicketDialog({
                       {bundle.linked.map((s) => (
                         <div className="related-ticket" key={s.id}>
                           <button
-                            className="text-btn grow"
                             onClick={() => setChildId(s.id)}
+                            className="text-btn grow"
                             style={{ textAlign: "left", display: "block" }}
                           >
                             <small className="muted">{s.ticketNumber}</small>
@@ -872,8 +951,8 @@ export function TicketDialog({
       <Modal
         open={linkOpen}
         onClose={() => setLinkOpen(false)}
-        title="Connect the dots"
-        description="Search and link another ticket."
+        title="Link a ticket"
+        description="Search for another ticket to link to this one."
         size="narrow"
       >
         <div className="stack">
@@ -882,17 +961,21 @@ export function TicketDialog({
             onChange={setLinkQuery}
             placeholder="Search ticket number or title…"
           />
-          {choices
-            .filter(
-              (s) =>
-                s.id !== id &&
-                (s.title + " " + s.ticketNumber)
-                  .toLowerCase()
-                  .includes(linkQuery.toLowerCase()) &&
-                !bundle?.linked.some((l) => l.id === s.id),
-            )
-            .slice(0, 20)
-            .map((s) => (
+          {!linkTerm ? (
+            <p className="secondary">
+              Type a ticket number, ID or title to search.
+            </p>
+          ) : searching ? (
+            <Loading rows={2} variant="list" />
+          ) : !choices.length ? (
+            <Empty
+              art="search"
+              title="No matching tickets"
+              detail="Try the ticket number, or a different word from the title."
+            />
+          ) : null}
+          {!searching &&
+            choices.map((s) => (
               <button
                 className="related-ticket"
                 key={s.id}

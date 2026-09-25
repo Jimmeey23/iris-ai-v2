@@ -15,6 +15,7 @@ import {
   X,
 } from "lucide-react";
 import { api, useApp } from "./ui";
+import { indiaDate } from "@/lib/display";
 
 export type Resolution = {
   rootCause: string;
@@ -113,10 +114,17 @@ const SUMMARY_FIELDS = [
 
 /** Reading the clock during render is impure, so the current time arrives as an
  *  external store instead. Bucketing to the minute keeps the snapshot stable
- *  between ticks, which is what useSyncExternalStore requires. */
+ *  between ticks, which is what useSyncExternalStore requires. The tick pauses
+ *  while the tab is hidden and catches up the moment it is visible again. */
 const subscribeToClock = (cb: () => void) => {
-  const id = setInterval(cb, 30000);
-  return () => clearInterval(id);
+  const id = setInterval(() => {
+    if (!document.hidden) cb();
+  }, 30000);
+  document.addEventListener("visibilitychange", cb);
+  return () => {
+    clearInterval(id);
+    document.removeEventListener("visibilitychange", cb);
+  };
 };
 const clockSnapshot = () => Math.floor(Date.now() / 60000) * 60000;
 const useNow = () =>
@@ -124,19 +132,13 @@ const useNow = () =>
 
 const titleCase = (s: string) =>
   s.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
-const when = (iso: string) =>
-  new Date(iso).toLocaleString("en-IN", {
-    day: "2-digit",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-const dayOnly = (iso: string) =>
-  new Date(iso).toLocaleDateString("en-IN", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
+const when = (iso: string) => indiaDate(iso);
+const dayOnly = (iso: string) => indiaDate(iso, true);
+/** The resolution endpoints answer 400 for record-only tickets and 403 for anyone
+ *  who is not the assigned owner or their reporting manager. Both mean "this
+ *  workspace is not yours to edit", not a failure worth a toast per click. */
+const ACCESS_REFUSAL =
+  /does not require a resolution|only the assigned owner|do not have access|sign in/i;
 /** `datetime-local` needs a local-clock string, not the UTC one toISOString gives. */
 const toLocalInput = (d: Date) =>
   new Date(d.getTime() - d.getTimezoneOffset() * 60000)
@@ -191,6 +193,7 @@ export function ResolutionPanel({
     ...(workspace.resolution || {}),
   }));
   const [status, setStatus] = useState(ticket.status);
+  const [refusal, setRefusal] = useState("");
 
   const now = useNow();
   const defaultDue = useMemo(
@@ -241,7 +244,12 @@ export function ResolutionPanel({
         ),
       );
     } catch (e) {
-      notify((e as Error).message, "error");
+      const message = (e as Error).message;
+      if (ACCESS_REFUSAL.test(message)) {
+        // Say it once, then fall back to the locked view instead of repeating it.
+        if (!refusal) notify(message, "error");
+        setRefusal(message);
+      } else notify(message, "error");
       throw e;
     } finally {
       setSaving(false);
@@ -259,6 +267,26 @@ export function ResolutionPanel({
       </aside>
     );
 
+  // The work log, follow-ups, contact log and write-up are private to whoever may
+  // resolve the ticket, so the server sends none of it to anyone else. Showing the
+  // tabs empty would read as "nothing has been done"; say who owns it instead.
+  if (!canResolve || refusal)
+    return (
+      <aside className="rw resolution-v2" aria-label="Resolution">
+        <RwHead onClose={onClose} completion={0} />
+        <p className="rw-note locked">
+          <LockKeyhole size={12} />
+          Private to {ticket.assignedStaffName || "the assigned owner"} and
+          their reporting manager.
+        </p>
+        <p className="rw-empty">
+          Only the assigned owner or their reporting manager can see or update
+          this ticket&apos;s work log, follow-ups, member contacts and
+          write-up. Reassign the ticket if someone else should take it on.
+        </p>
+      </aside>
+    );
+
   const tabs = [
     { id: "log", label: "Work log", count: workspace.steps.length },
     { id: "chase", label: "Follow-ups", count: openFollowUps.length },
@@ -270,18 +298,10 @@ export function ResolutionPanel({
     <aside className="rw resolution-v2" aria-label="Resolution">
       <RwHead onClose={onClose} completion={completion} />
 
-      {canResolve ? (
-        <p className="rw-note">
-          <PencilLine size={12} />
-          You can edit this. Anyone who opens the ticket can read it.
-        </p>
-      ) : (
-        <p className="rw-note locked">
-          <LockKeyhole size={12} />
-          Read-only. {ticket.assignedStaffName || "The assigned owner"}, their
-          manager and admins can edit.
-        </p>
-      )}
+      <p className="rw-note">
+        <PencilLine size={12} />
+        You can edit this. It stays private to the assigned owner and their reporting manager.
+      </p>
 
       {canResolve && (
         <div className="rw-status">

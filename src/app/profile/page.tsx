@@ -1,2 +1,79 @@
-'use client';import {useEffect,useState} from 'react';import {Shell} from '@/components/shell';import {api,useApp} from '@/components/ui';import {ShieldCheck} from 'lucide-react';
-export default function ProfilePage(){const{user,refreshUser,notify}=useApp();const[name,setName]=useState(''),[password,setPassword]=useState(''),[busy,setBusy]=useState(false);useEffect(()=>setName(user?.name||''),[user]);async function save(e:React.FormEvent){e.preventDefault();setBusy(true);try{await api('/api/profile',{method:'PATCH',body:JSON.stringify({name,password:password||undefined})});await refreshUser();setPassword('');notify('Profile updated','success');}catch(e){notify(e instanceof Error?e.message:'Could not update profile','error')}finally{setBusy(false)}}return <Shell title="Your account" eyebrow="PROFILE & SECURITY"><div className="card" style={{maxWidth:620,padding:28}}><div className="flex-row" style={{marginBottom:24}}><ShieldCheck size={20}/><div><h3>Personal settings</h3><p className="secondary">These changes affect only your account.</p></div></div><form className="stack" onSubmit={save}><label className="field"><span>Name</span><input value={name} onChange={e=>setName(e.target.value)} required minLength={2}/></label><label className="field"><span>Email</span><input value={user?.email||''} disabled/></label><label className="field"><span>Access level</span><input value={user?.role||''} disabled/></label><label className="field"><span>New password <small>(optional)</small></span><input type="password" minLength={12} value={password} onChange={e=>setPassword(e.target.value)} placeholder="At least 12 characters"/></label><button className="btn btn-primary" disabled={busy}>{busy?'Saving…':'Save profile'}</button></form></div></Shell>}
+"use client";
+import { useEffect, useState } from "react";
+import { Shell } from "@/components/shell";
+import { api, useApp } from "@/components/ui";
+import { ShieldCheck } from "lucide-react";
+export default function ProfilePage() {
+  const { user, refreshUser, notify } = useApp();
+  const [name, setName] = useState(""),
+    [password, setPassword] = useState(""),
+    [busy, setBusy] = useState(false);
+  useEffect(() => setName(user?.name || ""), [user]);
+  async function save(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      await api("/api/profile", {
+        method: "PATCH",
+        body: JSON.stringify({ name, password: password || undefined }),
+      });
+      await refreshUser();
+      setPassword("");
+      notify("Profile updated", "success");
+    } catch (e) {
+      notify(
+        e instanceof Error ? e.message : "Could not update profile",
+        "error",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <Shell title="Your account" eyebrow="PROFILE & SECURITY">
+      <div className="card" style={{ maxWidth: 620, padding: 28 }}>
+        <div className="flex-row" style={{ marginBottom: 24 }}>
+          <ShieldCheck size={20} />
+          <div>
+            <h3>Personal settings</h3>
+            <p className="secondary">These changes affect only your account.</p>
+          </div>
+        </div>
+        <form className="stack" onSubmit={save}>
+          <label className="field">
+            <span>Name</span>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+              minLength={2}
+            />
+          </label>
+          <label className="field">
+            <span>Email</span>
+            <input value={user?.email || ""} disabled />
+          </label>
+          <label className="field">
+            <span>Access level</span>
+            <input value={user?.role || ""} disabled />
+          </label>
+          <label className="field">
+            <span>
+              New password <small>(optional)</small>
+            </span>
+            <input
+              type="password"
+              minLength={12}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="At least 12 characters"
+            />
+          </label>
+          <button className="btn btn-primary" disabled={busy}>
+            {busy ? "Saving…" : "Save profile"}
+          </button>
+        </form>
+      </div>
+    </Shell>
+  );
+}
