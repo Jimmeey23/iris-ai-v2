@@ -16197,3 +16197,28 @@ small {
   .dialog-content .ticket-detail-shell .ticket-detail-grid { grid-template-columns: 1fr; }
   .dialog-content .ticket-detail-shell .ticket-detail-grid > * + * { border-left: 0; border-top: 1px solid var(--hairline); }
 }
+
+/* Final sidebar layout contract: these rules intentionally live after the legacy
+   navigation cascade so hover expansion and row sizing cannot be overridden. */
+@media (min-width: 768px) {
+  .sidebar .nav-link {
+    min-height: 48px;
+    padding-inline: 14px;
+    margin-block: 3px;
+  }
+  .sidebar.collapsed .nav-link {
+    width: 48px;
+    height: 48px;
+    min-height: 48px;
+    margin-block: 3px;
+  }
+  .sidebar.collapsed:hover + .workspace-main.sidebar-collapsed,
+  .sidebar.collapsed:focus-within + .workspace-main.sidebar-collapsed {
+    margin-left: 230px;
+  }
+  .sidebar.collapsed:hover .nav-link,
+  .sidebar.collapsed:focus-within .nav-link {
+    min-height: 48px;
+    padding-inline: 14px;
+  }
+}
