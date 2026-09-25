@@ -3,7 +3,7 @@
 import {useCallback, useEffect, useRef, useState} from 'react';
 import {api} from './ui';
 import {
-  DEFAULT_DASHBOARD, EMPTY_FILTERS,
+  DEFAULT_COLUMNS, DEFAULT_DASHBOARD, EMPTY_FILTERS, LEGACY_DEFAULT_COLUMNS,
   type DashboardPrefs, type FilterState, type SavedView,
 } from '@/lib/dashboard-contract';
 
@@ -42,7 +42,17 @@ export function useDashboardPrefs(): DashboardPrefsApi {
     void api<{dashboard?: DashboardPrefs; views?: SavedView[]}>('/api/preferences')
       .then((d) => {
         if (cancelled) return;
-        if (d.dashboard) setPrefs({...DEFAULT_DASHBOARD, ...d.dashboard, filters: {...EMPTY_FILTERS, ...(d.dashboard.filters || {})}});
+        if (d.dashboard) {
+          const savedColumns = d.dashboard.columns || [];
+          const isLegacyDefault = savedColumns.length === LEGACY_DEFAULT_COLUMNS.length
+            && savedColumns.every((column, index) => column === LEGACY_DEFAULT_COLUMNS[index]);
+          setPrefs({
+            ...DEFAULT_DASHBOARD,
+            ...d.dashboard,
+            columns: isLegacyDefault ? DEFAULT_COLUMNS : d.dashboard.columns,
+            filters: {...EMPTY_FILTERS, ...(d.dashboard.filters || {})},
+          });
+        }
         if (Array.isArray(d.views)) setViews(d.views);
       })
       .catch(() => {})

@@ -99,7 +99,7 @@ function LockedNavItem({ item }: { item: NavItem }) {
       onClick={(e) => e.preventDefault()}
     >
       <Icon size={16} />
-      {item.label}
+      <span className="nav-label">{item.label}</span>
       <span className="sr-only"> — {LOCKED_HINT.toLowerCase()}</span>
       <Lock size={12} className="nav-lock" aria-hidden="true" />
     </button>
@@ -133,6 +133,7 @@ export function Shell({
     router = useRouter();
   const { user, openAuth, workspaceName } = useApp();
   const [mobile, setMobile] = useState(false),
+    [collapsed, setCollapsed] = useState(() => path === "/" || path === "/dashboard"),
     [searchOpen, setSearchOpen] = useState(false),
     [notifications, setNotifications] = useState(false),
     [query, setQuery] = useState(""),
@@ -209,7 +210,7 @@ export function Shell({
           onClick={() => setMobile(false)}
         />
       )}
-      <aside className={"sidebar" + (mobile ? " open" : "")}>
+      <aside className={"sidebar" + (mobile ? " open" : "") + (collapsed ? " collapsed" : "")}>
         <Link className="brand" href="/">
           <IrisLockup size={30} />
         </Link>
@@ -239,10 +240,12 @@ export function Shell({
                 href={n.href}
                 className={"nav-link" + (active ? " active" : "")}
                 aria-current={active ? "page" : undefined}
+                aria-label={collapsed ? n.label : undefined}
+                title={collapsed ? n.label : undefined}
                 onClick={() => setMobile(false)}
               >
                 <Icon size={16} />
-                {n.label}
+                <span className="nav-label">{n.label}</span>
                 {n.ai && <span className="nav-ai">AI</span>}
                 {n.href === "/radar" && (
                   <span className="nav-radar-pill">LIVE</span>
@@ -270,10 +273,12 @@ export function Shell({
                 href={n.href}
                 className={"nav-link" + (active ? " active" : "")}
                 aria-current={active ? "page" : undefined}
+                aria-label={collapsed ? n.label : undefined}
+                title={collapsed ? n.label : undefined}
                 onClick={() => setMobile(false)}
               >
                 <Icon size={16} />
-                {n.label}
+                <span className="nav-label">{n.label}</span>
               </Link>
             );
           })}
@@ -289,10 +294,12 @@ export function Shell({
                     href={n.href}
                     className={"nav-link" + (active ? " active" : "")}
                     aria-current={active ? "page" : undefined}
+                    aria-label={collapsed ? n.label : undefined}
+                    title={collapsed ? n.label : undefined}
                     onClick={() => setMobile(false)}
                   >
                     <Icon size={16} />
-                    {n.label}
+                    <span className="nav-label">{n.label}</span>
                   </Link>
                 );
               })}
@@ -330,7 +337,7 @@ export function Shell({
           </button>
         </div>
       </aside>
-      <div className="workspace-main">
+      <div className={"workspace-main" + (collapsed ? " sidebar-collapsed" : "")}>
         <header className="topbar" ref={topbarRef}>
           <div className="flex-row">
             <button
@@ -339,6 +346,14 @@ export function Shell({
               aria-label="Open navigation"
             >
               <Menu size={19} />
+            </button>
+            <button
+              className="icon-btn desktop-sidebar-toggle"
+              onClick={() => setCollapsed((value) => !value)}
+              aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
+              aria-pressed={collapsed}
+            >
+              <PanelLeft size={17} />
             </button>
             <div className="breadcrumb">
               <PanelLeft size={15} />

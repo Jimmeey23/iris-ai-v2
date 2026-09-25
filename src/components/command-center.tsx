@@ -374,7 +374,7 @@ export function CommandCenter({directory = false}: {directory?: boolean}) {
     <Shell
       title={directory ? 'Every ticket, one shared log.' : `Welcome${user?.name ? `, ${user.name.trim().split(/\s+/)[0]}` : ''}`}
       eyebrow={directory ? 'TICKET DIRECTORY' : 'INTERNAL OPERATIONS'}
-      fullWidth={directory}
+      fullWidth
       action={
         <div className="flex-row">
           <select className="btn" aria-label="Reporting date range" value={f.from || f.to ? 'custom' : f.range} onChange={(e) => changeFilters({range: e.target.value, from: '', to: ''})}>
@@ -472,7 +472,7 @@ export function CommandCenter({directory = false}: {directory?: boolean}) {
       <div className={!directory ? 'cc-overview cockpit-workspace-stage' : ''} style={{marginTop: !directory ? 14 : 0}}>
         {workspace}
         {!directory && view === 'list' && (
-          <aside className="cockpit-lower-deck" aria-label="Supporting operational intelligence">
+          <aside className="cockpit-right-sidebar" aria-label="Supporting operational intelligence">
             <section className="insights-widget">
               <h3><Sparkles size={15} className="accent"/>IRIS intelligence <Badge tone="purple">LIVE</Badge></h3>
               <p className="sub">Small signals. Meaningful action.</p>

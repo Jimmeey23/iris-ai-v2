@@ -39,7 +39,11 @@ export const COLUMN_META: Record<TicketColumn, {label: string; align?: 'right' |
   timeToResolve: {label: 'Time to resolve', align: 'right', numeric: true},
 };
 
-export const DEFAULT_COLUMNS: TicketColumn[] = ['label', 'kind', 'category', 'status', 'priority', 'owner', 'created', 'sla'];
+export const LEGACY_DEFAULT_COLUMNS: TicketColumn[] = ['label', 'kind', 'category', 'status', 'priority', 'owner', 'created', 'sla'];
+export const DEFAULT_COLUMNS: TicketColumn[] = [
+  'label', 'member', 'kind', 'category', 'studio', 'status', 'priority', 'owner',
+  'department', 'source', 'age', 'sla',
+];
 
 export const GROUP_BY = [
   'none', 'status', 'priority', 'category', 'subcategory', 'studio', 'owner',
