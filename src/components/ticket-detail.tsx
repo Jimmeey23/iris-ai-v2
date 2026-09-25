@@ -46,6 +46,7 @@ import {
   Priority,
   Field,
   SearchField,
+  Tabs,
 } from "./ui";
 import { ResolutionPanel, type ResolutionWorkspace } from "./resolution-panel";
 import { SlaCountdown } from "./tickets-board";
@@ -202,7 +203,16 @@ export function TicketDialog({
       const timer = setInterval(() => {
         if (!document.hidden) void load();
       }, 30000);
-      return () => clearInterval(timer);
+      // Skip the tick while the tab is hidden, then catch up with one fetch
+      // the moment it becomes visible again rather than waiting out the interval.
+      const onVisible = () => {
+        if (!document.hidden) void load();
+      };
+      document.addEventListener("visibilitychange", onVisible);
+      return () => {
+        clearInterval(timer);
+        document.removeEventListener("visibilitychange", onVisible);
+      };
     }
   }, [open, load]);
   // The picker searches server-side (`?q=` returns up to 20 matches) rather than
@@ -402,52 +412,20 @@ export function TicketDialog({
                 </div>
               </header>
               <div className="workspace-tabs" style={{ padding: 0 }}>
-                {/* `contents` keeps the buttons laid out (and styled) as direct
-                    children of the strip while the tablist owns only the tabs. */}
-                <div
-                  className="contents"
-                  role="tablist"
-                  aria-label="Ticket sections"
-                  onKeyDown={(e) => {
-                    const at = TABS.indexOf(tab);
-                    const next =
-                      e.key === "ArrowRight"
-                        ? (at + 1) % TABS.length
-                        : e.key === "ArrowLeft"
-                          ? (at + TABS.length - 1) % TABS.length
-                          : e.key === "Home"
-                            ? 0
-                            : e.key === "End"
-                              ? TABS.length - 1
-                              : -1;
-                    if (next < 0) return;
-                    e.preventDefault();
-                    setTab(TABS[next]);
-                    e.currentTarget
-                      .querySelector<HTMLElement>(`[data-tab="${TABS[next]}"]`)
-                      ?.focus();
-                  }}
-                >
-                  {TABS.map((s) => (
-                    <button
-                      key={s}
-                      type="button"
-                      role="tab"
-                      data-tab={s}
-                      aria-selected={tab === s}
-                      tabIndex={tab === s ? 0 : -1}
-                      className={tab === s ? "active" : ""}
-                      onClick={() => setTab(s)}
-                    >
-                      {s[0].toUpperCase() + s.slice(1)}
-                      {s === "related" && (
-                        <span>
-                          {bundle.linked.length + bundle.similar.length}
-                        </span>
-                      )}
-                    </button>
-                  ))}
-                </div>
+                <Tabs
+                  label="Ticket sections"
+                  variant="underline"
+                  value={tab}
+                  onChange={setTab}
+                  items={TABS.map((s) => ({
+                    id: s,
+                    label: s[0].toUpperCase() + s.slice(1),
+                    count:
+                      s === "related"
+                        ? bundle.linked.length + bundle.similar.length
+                        : undefined,
+                  }))}
+                />
                 <button
                   type="button"
                   className={"rail-toggle" + (railOpen ? " active" : "")}

@@ -16,7 +16,7 @@ import {BoardTelemetry} from './board-telemetry';
 import {useDashboardPrefs} from './use-dashboard-prefs';
 import {TicketDialog} from './ticket-detail';
 import {TicketComposer} from './ticket-composer';
-import {api, useApp, Badge, Loading, Empty, Modal, Field} from './ui';
+import {api, useApp, Badge, Loading, Empty, Modal, Field, Tabs} from './ui';
 import {STUDIOS, CATEGORY_MAP, STATUS_LABELS} from '@/lib/constants';
 import {SPECIAL_TEMPLATES} from '@/lib/guided-templates';
 import type {GuidedTemplate} from '@/lib/ticket-contract';
@@ -78,6 +78,9 @@ export function CommandCenter({directory = false}: {directory?: boolean}) {
   const [page, setPage] = useState(0);
 
   const f = prefs.filters;
+  // Captured once on mount rather than read inline, so render stays pure; the interval-driven
+  // ticket reload (see useTickets) is what keeps this screen from ever going stale for long.
+  const [now] = useState(() => Date.now());
 
   const changeFilters = (patch: Partial<FilterState>) => { setFilters(patch); setPage(0); };
   const clearFilters = () => { resetFilters(); setPage(0); };
@@ -90,7 +93,7 @@ export function CommandCenter({directory = false}: {directory?: boolean}) {
       case 'attention': return filtered.filter((t) => !isClosed(t) && ['critical', 'high'].includes(t.priority));
       case 'mine': return filtered.filter((t) => Boolean(user?.staffId) && t.assignedStaffId === user?.staffId);
       case 'feedback': return filtered.filter((t) => ['compliment', 'feedback', 'assessment'].includes(t.kind));
-      case 'sla': return filtered.filter((t) => !isClosed(t) && slaState(t.slaDueAt, t.status) !== 'ok');
+      case 'sla': return filtered.filter((t) => !isClosed(t) && slaState(t.slaDueAt, t.status, t.createdAt) !== 'ok');
       default: return filtered;
     }
   }, [filtered, f.tab, user]);
@@ -100,15 +103,15 @@ export function CommandCenter({directory = false}: {directory?: boolean}) {
     attention: filtered.filter((t) => !isClosed(t) && ['critical', 'high'].includes(t.priority)).length,
     mine: filtered.filter((t) => Boolean(user?.staffId) && t.assignedStaffId === user?.staffId).length,
     feedback: filtered.filter((t) => ['compliment', 'feedback', 'assessment'].includes(t.kind)).length,
-    sla: filtered.filter((t) => !isClosed(t) && slaState(t.slaDueAt, t.status) !== 'ok').length,
+    sla: filtered.filter((t) => !isClosed(t) && slaState(t.slaDueAt, t.status, t.createdAt) !== 'ok').length,
   }), [filtered, user]);
 
-  const metrics = useMemo(() => boardMetrics(filtered), [filtered]);
+  const metrics = useMemo(() => boardMetrics(filtered, now), [filtered, now]);
 
   const open = useMemo(() => filtered.filter((t) => !isClosed(t)), [filtered]);
-  const slaRisk = useMemo(() => open.filter((t) => slaState(t.slaDueAt, t.status) !== 'ok'), [open]);
+  const slaRisk = useMemo(() => open.filter((t) => slaState(t.slaDueAt, t.status, t.createdAt) !== 'ok'), [open]);
   const urgent = useMemo(() => open.filter((t) => ['critical', 'high'].includes(t.priority)), [open]);
-  const overdue = useMemo(() => open.filter((t) => slaState(t.slaDueAt, t.status) === 'breached'), [open]);
+  const overdue = useMemo(() => open.filter((t) => slaState(t.slaDueAt, t.status, t.createdAt) === 'breached'), [open]);
   const ageing = useMemo(
     () => applyFilters(open, {...EMPTY_FILTERS, state: 'open', ageBucket: 'stale'}, staleTicketDays),
     [open, staleTicketDays],
@@ -169,7 +172,7 @@ export function CommandCenter({directory = false}: {directory?: boolean}) {
         case 'updated': return t.updatedAt ? indiaDate(t.updatedAt) : '';
         case 'age': return String(Math.round((Date.now() - new Date(t.createdAt).getTime()) / 86400000)) + 'd';
         case 'slaDue': return t.slaDueAt ? indiaDate(t.slaDueAt) : '';
-        case 'sla': return t.slaDueAt ? slaState(t.slaDueAt, t.status) : 'none';
+        case 'sla': return t.slaDueAt ? slaState(t.slaDueAt, t.status, t.createdAt) : 'none';
         case 'resolved': return t.resolvedAt ? indiaDate(t.resolvedAt) : '';
         case 'timeToResolve': return t.resolvedAt ? String(Math.round((new Date(t.resolvedAt).getTime() - new Date(t.createdAt).getTime()) / 3600000)) + 'h' : '';
         default: return '';
@@ -224,23 +227,23 @@ export function CommandCenter({directory = false}: {directory?: boolean}) {
         </div>
         <div className="flex-row">
           <button className="icon-btn" aria-label="Export tickets" title="Export what is on screen" onClick={exportTickets}><Download size={13}/></button>
-          <div className="view-switch">
-            <button aria-label="List view" title="List view" className={view === 'list' ? 'active' : ''} onClick={() => setView('list')}><List size={14}/></button>
-            <button aria-label="Board view" title="Board view" className={view === 'board' ? 'active' : ''} onClick={() => setView('board')}><Columns3 size={14}/></button>
-            <button aria-label="Card view" title="Card view" className={view === 'cards' ? 'active' : ''} onClick={() => setView('cards')}><LayoutGrid size={14}/></button>
-            <button aria-label="Matrix view" title="Category × status matrix" className={view === 'matrix' ? 'active' : ''} onClick={() => setView('matrix')}><Grid2x2 size={14}/></button>
-            <button aria-label="Feed view" title="Chronological feed" className={view === 'feed' ? 'active' : ''} onClick={() => setView('feed')}><Rss size={14}/></button>
+          <div className="view-switch" role="group" aria-label="Workspace view">
+            <button aria-label="List view" aria-pressed={view === 'list'} title="List view" className={view === 'list' ? 'active' : ''} onClick={() => setView('list')}><List size={14}/></button>
+            <button aria-label="Board view" aria-pressed={view === 'board'} title="Board view" className={view === 'board' ? 'active' : ''} onClick={() => setView('board')}><Columns3 size={14}/></button>
+            <button aria-label="Card view" aria-pressed={view === 'cards'} title="Card view" className={view === 'cards' ? 'active' : ''} onClick={() => setView('cards')}><LayoutGrid size={14}/></button>
+            <button aria-label="Matrix view" aria-pressed={view === 'matrix'} title="Category × status matrix" className={view === 'matrix' ? 'active' : ''} onClick={() => setView('matrix')}><Grid2x2 size={14}/></button>
+            <button aria-label="Feed view" aria-pressed={view === 'feed'} title="Chronological feed" className={view === 'feed' ? 'active' : ''} onClick={() => setView('feed')}><Rss size={14}/></button>
           </div>
         </div>
       </div>
 
-      <div className="workspace-tabs">
-        {TABS.map((t) => (
-          <button key={t.id} className={f.tab === t.id ? 'active' : ''} onClick={() => changeFilters({tab: t.id})}>
-            {t.name}<span>{tabCounts[t.id as keyof typeof tabCounts]}</span>
-          </button>
-        ))}
-      </div>
+      <Tabs
+        className="workspace-tabs"
+        label="Ticket tabs"
+        value={f.tab}
+        onChange={(tab) => changeFilters({tab})}
+        items={TABS.map((t) => ({id: t.id, label: t.name, count: tabCounts[t.id as keyof typeof tabCounts]}))}
+      />
 
       <TicketFilters
         open={prefs.filtersOpen}
@@ -387,7 +390,7 @@ export function CommandCenter({directory = false}: {directory?: boolean}) {
             <span className="iris-banner-shine" aria-hidden="true"/>
             <div className="iris-orb"><Sparkles size={24}/></div>
             <div className="grow">
-              <div className="flex-row"><h2>Saw something? Heard something? Raise it with Iris.</h2><Badge tone="blue">TICKET GENERATOR</Badge></div>
+              <div className="flex-row"><h2>Saw something? Heard something? Raise it with IRIS.</h2><Badge tone="blue">TICKET GENERATOR</Badge></div>
               <p>Pick the category and sub-category, answer the questions that desk needs, link the member or class from Momence — and it routes itself to the right owner with a follow-up target.</p>
             </div>
             <Link className="btn btn-primary" href="/iris">Raise a ticket <ArrowUpRight size={14}/></Link>
@@ -424,7 +427,7 @@ export function CommandCenter({directory = false}: {directory?: boolean}) {
         {!directory && view === 'list' && (
           <aside className="sidebar-widgets">
             <section className="card insights-widget">
-              <h3><Sparkles size={15} className="accent"/>Iris intelligence <Badge tone="purple">LIVE</Badge></h3>
+              <h3><Sparkles size={15} className="accent"/>IRIS intelligence <Badge tone="purple">LIVE</Badge></h3>
               <p className="sub">Small signals. Meaningful action.</p>
               <div className="insight-line">
                 <div className="insight-icon"><TriangleAlert size={13}/></div>

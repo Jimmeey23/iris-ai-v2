@@ -118,36 +118,30 @@ export default function SettingsPage() {
   }>();
   const [relabelBusy, setRelabelBusy] = useState(false);
   const [relabelForce, setRelabelForce] = useState(false);
-  const load = useCallback(async () => {
-    if (user?.role !== "admin") return;
-    setError("");
-    try {
-      const d = await api<SettingsData>("/api/settings");
-      setData(d);
-      setCfg(d.config);
-      setRaw(JSON.stringify(d.config, null, 2));
-      const people = await api<{ staff: StaffRecord[] }>("/api/staff");
-      setStaff(people.staff);
-    } catch (e) {
-      setError((e as Error).message);
-    }
+  const load = useCallback(() => {
+    if (user?.role !== "admin") return Promise.resolve();
+    return api<SettingsData>("/api/settings")
+      .then(async (d) => {
+        setData(d);
+        setCfg(d.config);
+        setRaw(JSON.stringify(d.config, null, 2));
+        setError("");
+        const people = await api<{ staff: StaffRecord[] }>("/api/staff");
+        setStaff(people.staff);
+      })
+      .catch((e) => setError((e as Error).message));
   }, [user]);
   useEffect(() => {
     void load();
   }, [load]);
-  const loadTable = useCallback(async () => {
-    if (user?.role !== "admin") return;
-    setTableBusy(true);
-    try {
-      const d = await api<{ rows: Record<string, unknown>[] }>(
-        "/api/settings?table=" + table,
-      );
-      setRows(d.rows);
-    } catch (e) {
-      notify((e as Error).message, "error");
-    } finally {
-      setTableBusy(false);
-    }
+  const loadTable = useCallback(() => {
+    if (user?.role !== "admin") return Promise.resolve();
+    return api<{ rows: Record<string, unknown>[] }>(
+      "/api/settings?table=" + table,
+    )
+      .then((d) => setRows(d.rows))
+      .catch((e) => notify((e as Error).message, "error"))
+      .finally(() => setTableBusy(false));
   }, [table, user, notify]);
   useEffect(() => {
     if (tab === "database") void loadTable();
@@ -352,7 +346,7 @@ export default function SettingsPage() {
               <button
                 key={t.id}
                 className={tab === t.id ? "active" : ""}
-                onClick={() => setTab(t.id)}
+                onClick={() => { if (t.id === "database") setTableBusy(true); setTab(t.id); }}
               >
                 <Icon size={15} />
                 {t.name}
@@ -379,19 +373,20 @@ export default function SettingsPage() {
               <div className="form-grid" style={{ marginTop: 23 }}>
                 <button
                   className="card card-pad"
+                  data-theme="dark"
                   style={{
-                    background: "#131318",
-                    color: "#f4f2ec",
+                    background: "var(--surface)",
+                    color: "var(--text)",
                     textAlign: "left",
-                    borderColor: theme === "dark" ? "#f4bb3d" : "#2c2d38",
+                    borderColor: theme === "dark" ? "var(--accent)" : "var(--border)",
                   }}
                   onClick={() => theme !== "dark" && toggleTheme()}
                 >
                   <div
                     style={{
                       height: 65,
-                      borderRadius: 8,
-                      background: "#0a0a0d",
+                      borderRadius: "var(--radius-sm)",
+                      background: "var(--bg)",
                       display: "flex",
                       gap: 7,
                       padding: 10,
@@ -401,42 +396,43 @@ export default function SettingsPage() {
                     <div
                       style={{
                         width: 20,
-                        background: "#22232b",
-                        borderRadius: 4,
+                        background: "var(--surface-3)",
+                        borderRadius: "var(--radius-2xs)",
                       }}
                     />
                     <div style={{ flex: 1, display: "grid", gap: 5 }}>
                       <div
                         style={{
                           height: 10,
-                          background: "linear-gradient(100deg,#c9902a,#ffd166)",
-                          borderRadius: 3,
+                          background: "linear-gradient(100deg,var(--accent-deep),var(--accent-bright))",
+                          borderRadius: "var(--radius-2xs)",
                           width: "60%",
                         }}
                       />
-                      <div style={{ background: "#191a20", borderRadius: 4 }} />
+                      <div style={{ background: "var(--surface-2)", borderRadius: "var(--radius-2xs)" }} />
                     </div>
                   </div>
                   <strong style={{ fontSize: 13 }}>Dark · default</strong>
-                  <p style={{ fontSize: 11, color: "#8d8a9a", marginTop: 5 }}>
+                  <p style={{ fontSize: 11, color: "var(--muted)", marginTop: 5 }}>
                     Matte black with a brighter, glossier gold.
                   </p>
                 </button>
                 <button
                   className="card card-pad"
+                  data-theme="light"
                   style={{
-                    background: "#fff",
-                    color: "#0c1220",
+                    background: "var(--surface)",
+                    color: "var(--text)",
                     textAlign: "left",
-                    borderColor: theme === "light" ? "#1554d6" : "#dde2ec",
+                    borderColor: theme === "light" ? "var(--accent)" : "var(--border)",
                   }}
                   onClick={() => theme !== "light" && toggleTheme()}
                 >
                   <div
                     style={{
                       height: 65,
-                      borderRadius: 8,
-                      background: "#f7f9fc",
+                      borderRadius: "var(--radius-sm)",
+                      background: "var(--surface-2)",
                       display: "flex",
                       gap: 7,
                       padding: 10,
@@ -446,24 +442,24 @@ export default function SettingsPage() {
                     <div
                       style={{
                         width: 20,
-                        background: "#edf0f6",
-                        borderRadius: 4,
+                        background: "var(--surface-3)",
+                        borderRadius: "var(--radius-2xs)",
                       }}
                     />
                     <div style={{ flex: 1, display: "grid", gap: 5 }}>
                       <div
                         style={{
                           height: 10,
-                          background: "#1554d6",
-                          borderRadius: 3,
+                          background: "var(--accent)",
+                          borderRadius: "var(--radius-2xs)",
                           width: "60%",
                         }}
                       />
                       <div
                         style={{
-                          background: "#fff",
-                          border: "1px solid #dde2ec",
-                          borderRadius: 4,
+                          background: "var(--surface)",
+                          border: "1px solid var(--border)",
+                          borderRadius: "var(--radius-2xs)",
                         }}
                       />
                     </div>
@@ -471,7 +467,7 @@ export default function SettingsPage() {
                   <strong style={{ fontSize: 13 }}>
                     Light · crisp & high-contrast
                   </strong>
-                  <p style={{ fontSize: 11, color: "#6b7280", marginTop: 5 }}>
+                  <p style={{ fontSize: 11, color: "var(--muted)", marginTop: 5 }}>
                     Bright white with confident blue accents.
                   </p>
                 </button>
@@ -1446,7 +1442,7 @@ export default function SettingsPage() {
                   <div className="flex-row" style={{ margin: "20px 0" }}>
                     <select
                       value={table}
-                      onChange={(e) => setTable(e.target.value)}
+                      onChange={(e) => { setTableBusy(true); setTable(e.target.value); }}
                     >
                       {[
                         "staff",

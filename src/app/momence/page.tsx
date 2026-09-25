@@ -75,7 +75,7 @@ export default function MomencePage() {
     [reloads, setReloads] = useState(0),
     [doneKey, setDoneKey] = useState("");
   const [configured, setConfigured] = useState(false);
-  const module: ModuleName = picked ?? linked ?? "members";
+  const activeModule: ModuleName = picked ?? linked ?? "members";
   useEffect(() => {
     const m = urlModule();
     void api<{ moduleViews?: Record<string, string> }>("/api/preferences")
@@ -88,14 +88,14 @@ export default function MomencePage() {
   // One request per (module, search, page, date, reload). `busy` is derived: the list is
   // loading until the response for exactly this key has landed, so a slow reply for an
   // older key can never overwrite a newer one.
-  const key = `${module}|${q}|${page}|${date}|${reloads}`;
+  const key = `${activeModule}|${q}|${page}|${date}|${reloads}`;
   const busy = doneKey !== key;
   useEffect(() => {
     let ignore = false;
     const ctrl = new AbortController();
     const t = setTimeout(() => {
-      const p = new URLSearchParams({ module, q, page: String(page) });
-      if (module === "sessions" && date)
+      const p = new URLSearchParams({ module: activeModule, q, page: String(page) });
+      if (activeModule === "sessions" && date)
         p.set("startAfter", new Date(date + "T00:00:00+05:30").toISOString());
       api<ListResponse>("/api/momence?" + p, { signal: ctrl.signal }).then(
         (d) => {
@@ -127,7 +127,7 @@ export default function MomencePage() {
       clearTimeout(t);
       ctrl.abort();
     };
-  }, [key, module, q, page, date]);
+  }, [key, activeModule, q, page, date]);
   const reload = () => setReloads((n) => n + 1);
   function changeModule(m: ModuleName) {
     setPicked(m);
@@ -138,7 +138,7 @@ export default function MomencePage() {
   }
   function changeView(v: string) {
     setView(v);
-    const updated = { ...views, [module]: v };
+    const updated = { ...views, [activeModule]: v };
     setViews(updated);
     void api("/api/preferences", {
       method: "PATCH",
@@ -148,7 +148,7 @@ export default function MomencePage() {
   const createOp = catalogue.find(
     (o) => o.method === "POST" && o.path === "/api/v2/host/members",
   );
-  const Icon = modules.find((m) => m.id === module)!.icon;
+  const Icon = modules.find((m) => m.id === activeModule)!.icon;
   return (
     <Shell
       title="Your studio, connected."
@@ -159,7 +159,7 @@ export default function MomencePage() {
             <Code2 size={14} />
             API catalogue
           </button>
-          {module === "members" && (
+          {activeModule === "members" && (
             <button className="btn btn-primary" onClick={() => setCreate(true)}>
               <Plus size={14} />
               Create member
@@ -195,7 +195,7 @@ export default function MomencePage() {
         label="Momence modules"
         variant="underline"
         className="module-tabs"
-        value={module}
+        value={activeModule}
         onChange={changeModule}
         items={modules.map((m) => {
           const I = m.icon;
@@ -219,9 +219,9 @@ export default function MomencePage() {
                 setQ(v);
                 setPage(0);
               }}
-              placeholder={`Search ${module}…`}
+              placeholder={`Search ${activeModule}…`}
             />
-            {module === "sessions" && (
+            {activeModule === "sessions" && (
               <input
                 type="date"
                 aria-label="Sessions from date"
@@ -267,7 +267,7 @@ export default function MomencePage() {
               >
                 <List size={14} />
               </button>
-              {module === "sessions" && (
+              {activeModule === "sessions" && (
                 <button
                   aria-label="Agenda view"
                   title="Agenda"
@@ -293,8 +293,8 @@ export default function MomencePage() {
       )}
       <div
         className="module-scroll"
-        key={module}
-        aria-label={`${module} scrollable results`}
+        key={activeModule}
+        aria-label={`${activeModule} scrollable results`}
       >
         {busy ? (
           <Loading />
@@ -302,12 +302,12 @@ export default function MomencePage() {
           <Empty
             art="chart"
             title={
-              source === "demo" && module === "sales"
+              source === "demo" && activeModule === "sales"
                 ? "Sales need a live connection"
-                : "No " + module + " found"
+                : "No " + activeModule + " found"
             }
             detail={
-              source === "demo" && module === "sales"
+              source === "demo" && activeModule === "sales"
                 ? "We do not invent payment or sales transactions. Connect Momence to load your actual sales."
                 : "Try another search, date or page."
             }
@@ -317,12 +317,12 @@ export default function MomencePage() {
             <table className="data-table">
               <thead>
                 <tr>
-                  <th>{module === "sales" ? "Transaction" : "Name"}</th>
+                  <th>{activeModule === "sales" ? "Transaction" : "Name"}</th>
                   <th>
-                    {module === "sessions" ? "Instructor / studio" : "Details"}
+                    {activeModule === "sessions" ? "Instructor / studio" : "Details"}
                   </th>
-                  <th>{module === "sessions" ? "Class time" : "Identifier"}</th>
-                  <th>{module === "sessions" ? "Capacity" : "View"}</th>
+                  <th>{activeModule === "sessions" ? "Class time" : "Identifier"}</th>
+                  <th>{activeModule === "sessions" ? "Capacity" : "View"}</th>
                 </tr>
               </thead>
               <tbody>
@@ -345,12 +345,12 @@ export default function MomencePage() {
                       {i.subtitle || display(i.raw.description)}
                     </td>
                     <td>
-                      {module === "sessions"
+                      {activeModule === "sessions"
                         ? indiaDate(i.raw.startsAt)
                         : "#" + i.id}
                     </td>
                     <td>
-                      {module === "sessions" ? (
+                      {activeModule === "sessions" ? (
                         `${display(i.raw.bookingCount)} / ${display(i.raw.capacity)}`
                       ) : (
                         <ArrowUpRight size={13} aria-hidden />
@@ -402,7 +402,7 @@ export default function MomencePage() {
                 onClick={() => setSelected(i)}
               >
                 <div className="between">
-                  {module === "members" ? (
+                  {activeModule === "members" ? (
                     <Avatar
                       name={i.name}
                       large
@@ -415,19 +415,19 @@ export default function MomencePage() {
                   )}
                   <Badge
                     tone={
-                      module === "sessions" && i.raw.isCancelled
+                      activeModule === "sessions" && i.raw.isCancelled
                         ? "red"
                         : "blue"
                     }
                   >
-                    {module === "sessions"
+                    {activeModule === "sessions"
                       ? i.raw.isCancelled
                         ? "Cancelled"
                         : display(i.raw.bookingCount) +
                           " / " +
                           display(i.raw.capacity) +
                           " booked"
-                      : module === "members"
+                      : activeModule === "members"
                         ? display(object(i.raw.visits).totalVisits) + " visits"
                         : "#" + i.id}
                   </Badge>
@@ -436,13 +436,13 @@ export default function MomencePage() {
                 <p>{i.subtitle}</p>
                 <div className="entity-foot">
                   <span>
-                    {module === "sessions"
+                    {activeModule === "sessions"
                       ? indiaDate(i.raw.startsAt)
-                      : module === "members"
+                      : activeModule === "members"
                         ? "Member profile"
-                        : module === "studios"
+                        : activeModule === "studios"
                           ? "Studio overview"
-                          : module === "sales"
+                          : activeModule === "sales"
                             ? indiaDate(i.raw.saleDate)
                             : display(i.raw.type)}
                   </span>
@@ -460,7 +460,7 @@ export default function MomencePage() {
             : source === "workspace"
               ? "Studio constants · not Momence location IDs"
               : "Live data fetched securely from Momence"}
-          {q && module !== "members"
+          {q && activeModule !== "members"
             ? " · Search applies to the loaded page"
             : ""}
         </p>
@@ -488,7 +488,7 @@ export default function MomencePage() {
         <EntityDialog
           open
           onClose={() => setSelected(undefined)}
-          module={module}
+          module={activeModule}
           id={selected.id}
           record={selected}
           source={source}

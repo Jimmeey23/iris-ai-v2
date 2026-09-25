@@ -37,7 +37,7 @@ export default function StaffPage() {
   );
   return (
     <Shell
-      title="Good people. Great experiences."
+      title="People & teams"
       eyebrow="PEOPLE & TEAMS"
       action={
         <Link className="btn btn-primary" href="/settings">

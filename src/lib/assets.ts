@@ -268,14 +268,15 @@ export function plannedAssetCounts(): {studio: string; area: string; type: Asset
 }
 
 /** Idempotent: an existing register is only topped up, never rewritten — a bike retired on
- *  purpose must not be quietly brought back by a re-seed. */
-export async function seedAssets(): Promise<number> {
-  await seedLocations();
+ *  purpose must not be quietly brought back by a re-seed. Runs against `db` by default; pass
+ *  a transaction (`tx`) to seed as part of a caller's own transaction. */
+export async function seedAssets(exec: Pick<typeof db, 'select' | 'insert'> = db): Promise<number> {
+  await seedLocations(exec);
   const plans = plannedAssetCounts();
   if (!plans.length) return 0;
   // Read once, then insert only what is missing: this runs on every cold start, and one
   // query beats a query per bike.
-  const existing = await db
+  const existing = await exec
     .select({studio: assets.studio, label: assets.label})
     .from(assets)
     .where(inArray(assets.studio, [...new Set(plans.map((p) => p.studio))]));
@@ -297,7 +298,7 @@ export async function seedAssets(): Promise<number> {
     }
   }
   if (!missing.length) return 0;
-  const rows = await db.insert(assets).values(missing).onConflictDoNothing().returning({id: assets.id});
+  const rows = await exec.insert(assets).values(missing).onConflictDoNothing().returning({id: assets.id});
   return rows.length;
 }
 
@@ -571,7 +572,7 @@ export async function deleteLocation(id: number): Promise<{deleted: boolean; rea
 
 /** The rooms already described in the studio plans, so an administrator starts with the
  *  real rooms rather than an empty list. Idempotent. */
-export async function seedLocations(): Promise<number> {
+export async function seedLocations(exec: Pick<typeof db, 'insert'> = db): Promise<number> {
   const wanted: {studio: string; name: string; description: string | null}[] = [];
   for (const layout of Object.values(STUDIO_LAYOUTS)) {
     for (const room of layout.rooms) {
@@ -579,7 +580,7 @@ export async function seedLocations(): Promise<number> {
     }
   }
   if (!wanted.length) return 0;
-  const rows = await db.insert(assetLocations).values(wanted).onConflictDoNothing().returning({id: assetLocations.id});
+  const rows = await exec.insert(assetLocations).values(wanted).onConflictDoNothing().returning({id: assetLocations.id});
   return rows.length;
 }
 

@@ -56,20 +56,27 @@ export default function IntegrationsPage() {
     [q, setQ] = useState(""),
     [selected, setSelected] = useState<IntegrationDefinition>(),
     [retryId, setRetryId] = useState<number>();
-  const load = useCallback(async () => {
-    try {
-      const d = await api<{ connections: Connection[]; logs: Log[] }>(
-        "/api/integrations",
-      );
+  const fetchData = useCallback(
+    () => api<{ connections: Connection[]; logs: Log[] }>("/api/integrations"),
+    [],
+  );
+  const applyData = useCallback(
+    (d: { connections: Connection[]; logs: Log[] }) => {
       setConnections(d.connections);
       setLogs(d.logs);
+    },
+    [],
+  );
+  const load = useCallback(async () => {
+    try {
+      applyData(await fetchData());
     } catch (e) {
       notify((e as Error).message, "error");
     }
-  }, [notify]);
+  }, [fetchData, applyData, notify]);
   useEffect(() => {
-    void load();
-  }, [load, user]);
+    fetchData().then(applyData).catch((e) => notify((e as Error).message, "error"));
+  }, [fetchData, applyData, notify, user]);
   async function retry() {
     try {
       await api("/api/integrations", {
@@ -106,7 +113,7 @@ export default function IntegrationsPage() {
         <div className="grow">
           <h2>A connected workspace. A seamless member experience.</h2>
           <p>
-            Bring your studio data, communications and automations into Iris.
+            Bring your studio data, communications and automations into IRIS.
             Every connection is secure, every action is traceable.
           </p>
         </div>

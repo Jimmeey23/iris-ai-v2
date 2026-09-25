@@ -1,3 +1,5 @@
+import Image from 'next/image';
+
 /**
  * IRIS Ai brand mark — the split-eye artwork: organic iris (left) meeting
  * circuitry (right) around an "Ai" core. Two palettes match the brand artwork:
@@ -47,7 +49,7 @@ export function IrisEyeMark({
   };
 
   const img = (p: IrisPalette, themeClass?: string) => (
-    <img
+    <Image
       src={SRC[p]}
       alt={title ?? ''}
       width={size}

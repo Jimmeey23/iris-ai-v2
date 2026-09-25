@@ -5,6 +5,7 @@ import {Shell} from '../shell';
 import {IrisMarquee} from '../iris-marquee';
 import {IrisChat} from '../iris-chat';
 import {IntakeFlow} from './intake-flow';
+import {useApp} from '../ui';
 
 const MODE_KEY = 'iris-intake-mode';
 type Mode = 'form' | 'chat';
@@ -21,10 +22,13 @@ const writeMode = (m: Mode) => { try { localStorage.setItem(MODE_KEY, m); } catc
  * the choice is remembered per browser.
  */
 export function IrisIntakePage({presetCategory, presetSubcategory, presetMode, presetDesk}: {presetCategory?: string; presetSubcategory?: string; presetMode?: 'form' | 'chat'; presetDesk?: boolean}) {
+  const {user} = useApp();
+  const isAdmin = user?.role === 'admin';
   const remembered = useSyncExternalStore(subscribe, readMode, () => 'form' as Mode);
   // A ?mode= in the URL wins for this visit only; the remembered choice is what the desk set.
   const [override, setOverride] = useState<Mode | undefined>(presetMode);
-  const mode = override || remembered;
+  // Legacy chat is admin-only: a non-admin's remembered choice or URL override is ignored.
+  const mode = isAdmin ? override || remembered : 'form';
   const choose = (m: Mode) => { setOverride(undefined); writeMode(m); };
 
   if (mode === 'chat') {
@@ -41,7 +45,7 @@ export function IrisIntakePage({presetCategory, presetSubcategory, presetMode, p
   }
   return (
     <Shell hideHeading hideFooter banner={<IrisMarquee />}>
-      <IntakeFlow presetCategory={presetCategory} presetSubcategory={presetSubcategory} presetDesk={presetDesk} onLegacy={() => choose('chat')} />
+      <IntakeFlow presetCategory={presetCategory} presetSubcategory={presetSubcategory} presetDesk={presetDesk} onLegacy={isAdmin ? () => choose('chat') : undefined} />
     </Shell>
   );
 }

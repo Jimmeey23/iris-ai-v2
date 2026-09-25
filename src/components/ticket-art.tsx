@@ -175,7 +175,7 @@ export function PersonPhoto({name,size=44,tone='',caption}:{name:string;size?:nu
   const[failed,setFailed]=useState<string|null>(null);
   if(!src||failed===src)return <span className="person-photo person-photo-fallback" style={{width:size,height:size}}><Avatar name={name} tone={tone} large={size>40}/></span>;
   return <span className="person-photo" style={{width:size,height:size}} title={caption||name}>
-    <Image src={src} alt={name} width={size} height={size} className="person-photo-img" unoptimized onError={()=>setFailed(src)}/>
+    <Image src={src} alt={name} width={size} height={size} className="person-photo-img" onError={()=>setFailed(src)}/>
   </span>;
 }
 

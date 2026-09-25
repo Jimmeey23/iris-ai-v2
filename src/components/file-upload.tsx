@@ -163,6 +163,7 @@ export function AttachmentPreviewList({
       {files.map((file) => (
         <div key={file.id} className="attachment-chip">
           {file.preview ? (
+            // eslint-disable-next-line @next/next/no-img-element -- data: URL preview from FileReader, next/image unsuitable
             <img src={file.preview} alt={file.fileName} className="attachment-thumb" />
           ) : file.fileType?.includes("pdf") ? (
             <FileText size={12} className="attachment-type-icon pdf" />

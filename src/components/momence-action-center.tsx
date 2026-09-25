@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { Avatar, Badge, api, useApp } from './ui';
 import { TRAINERS, STUDIOS } from '@/lib/constants';
+import { indiaDate } from '@/lib/display';
 
 interface ActionCenterProps {
   memberId?: string;
@@ -99,14 +100,14 @@ export function MomenceActionCenter({
   const [lastReceipt, setLastReceipt] = useState<ActionReceipt | null>(null);
   const [copied, setCopied] = useState(false);
 
-  useEffect(() => {
-    if (memberName && memberName !== selectedMemberName) {
-      setSelectedMemberName(memberName);
-    }
-    if (memberId && memberId !== selectedMemberId) {
-      setSelectedMemberId(memberId);
-    }
-  }, [memberName, memberId]);
+  // Adopt a newly linked member during render (not in an effect), so no stale selection paints first.
+  const linkKey = `${memberName || ''}|${memberId || ''}`;
+  const [seenLink, setSeenLink] = useState(linkKey);
+  if (linkKey !== seenLink) {
+    setSeenLink(linkKey);
+    if (memberName) setSelectedMemberName(memberName);
+    if (memberId) setSelectedMemberId(memberId);
+  }
 
   // Load existing action history
   useEffect(() => {
@@ -342,7 +343,7 @@ export function MomenceActionCenter({
           <div className="metric-cell">
             <span className="m-label">EXPIRY DATE</span>
             <div className="credits-display">
-              <span className="m-val">{profile?.expiresAt ? new Date(profile.expiresAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</span>
+              <span className="m-val">{profile?.expiresAt ? indiaDate(profile.expiresAt, true) : '—'}</span>
               {bonusDays > 0 && <span className="m-bonus">+{bonusDays}d</span>}
             </div>
           </div>
@@ -548,7 +549,7 @@ export function MomenceActionCenter({
               <div className="wa-buttons-row">
                 <button type="button" className="wa-btn-copy" onClick={copyWhatsApp}>
                   <Copy size={12} />
-                  <span>{copied ? 'Copied!' : 'Copy Text'}</span>
+                  <span>{copied ? 'Copied!' : 'Copy text'}</span>
                 </button>
                 {cleanPhone ? (
                   <a
@@ -666,7 +667,7 @@ export function MomenceActionCenter({
                 <p className="timeline-summary">{rcpt.summary}</p>
                 <div className="timeline-footer">
                   <span>By {rcpt.performedBy}</span>
-                  <span>{new Date(rcpt.performedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                  <span>{indiaDate(rcpt.performedAt)}</span>
                 </div>
               </div>
             ))}

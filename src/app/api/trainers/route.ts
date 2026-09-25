@@ -3,7 +3,7 @@ import {desc,isNotNull} from 'drizzle-orm';
 import {db} from '@/db';
 import {tickets} from '@/db/schema';
 import {TRAINERS} from '@/lib/constants';
-import {requireWorkspace,errorResponse} from '@/lib/auth';
+import {requireAdmin,errorResponse} from '@/lib/auth';
 import {syncTrainerReviewsThrottled,reviewSourceBreakdown,lastSyncAt} from '@/lib/trainer-reviews';
 export const dynamic='force-dynamic';
 
@@ -53,7 +53,8 @@ function readScorecard(raw:unknown){
 
 export async function GET(){
   try{
-    await requireWorkspace();
+    // The Trainers nav is admin-only (see ADMIN_ONLY in components/shell.tsx); the API matches.
+    await requireAdmin();
     // Pull new external submissions from the Fillout form and the two Zite apps after the
     // response is sent, so three upstream round-trips never sit in front of the page. The
     // throttle is shared through app_settings; the next poll picks up whatever this imported.

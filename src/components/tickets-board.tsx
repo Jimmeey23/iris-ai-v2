@@ -24,6 +24,7 @@ import {
   CountUp,
 } from "./ui";
 import { relativeTime, slaState } from "@/lib/utils";
+import { summarize, isOpen, isDone } from "@/lib/metrics";
 import type { TicketListRecord } from "@/lib/ticket-contract";
 /** Slowest acceptable refresh. The board also reloads on `iris:tickets-updated` and on tab focus. */
 const POLL_FLOOR = 60000;
@@ -33,19 +34,38 @@ export function useTickets(poll = true) {
     [loading, setLoading] = useState(true),
     [error, setError] = useState("");
   const { user, pollSeconds } = useApp();
-  const load = useCallback(async () => {
-    try {
-      const d = await api<{ tickets: TicketListRecord[] }>("/api/tickets");
-      setTickets(d.tickets);
-      setError("");
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setLoading(false);
-    }
+  // /api/tickets pages at 500 by default; the board wants every ticket, so follow
+  // nextCursor until the server says there is nothing left. No setState here — this
+  // only fetches; `applyTickets` below is the callback that updates state.
+  const fetchAll = useCallback(async () => {
+    let all: TicketListRecord[] = [];
+    let cursor: string | null = null;
+    do {
+      const d: { tickets: TicketListRecord[]; nextCursor: string | null } =
+        await api(
+          "/api/tickets" +
+            (cursor ? "?cursor=" + encodeURIComponent(cursor) : ""),
+        );
+      all = all.concat(d.tickets);
+      cursor = d.nextCursor;
+    } while (cursor);
+    return all;
   }, []);
+  const applyTickets = useCallback((all: TicketListRecord[]) => {
+    setTickets(all);
+    setError("");
+    setLoading(false);
+  }, []);
+  const handleError = useCallback((e: unknown) => {
+    setError((e as Error).message);
+    setLoading(false);
+  }, []);
+  const load = useCallback(
+    async () => fetchAll().then(applyTickets).catch(handleError),
+    [fetchAll, applyTickets, handleError],
+  );
   useEffect(() => {
-    void load();
+    fetchAll().then(applyTickets).catch(handleError);
     // Refresh is event-driven (`iris:tickets-updated`); the interval is only a safety net for
     // changes made in another tab or by a teammate. Polling a hidden tab, or polling faster than
     // POLL_FLOOR, buys nothing and is what drove the dev server into its memory-restart loop.
@@ -66,7 +86,7 @@ export function useTickets(poll = true) {
       window.removeEventListener("iris:tickets-updated", handler);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [load, poll, user, pollSeconds]);
+  }, [load, poll, user, pollSeconds, fetchAll, applyTickets, handleError]);
   return { tickets, loading, error, reload: load };
 }
 function Sparkline({
@@ -108,12 +128,8 @@ function Sparkline({
   );
 }
 export function Stats({ tickets }: { tickets: TicketListRecord[] }) {
-  const open = tickets.filter(
-    (t) => !["resolved", "closed", "recorded"].includes(t.status),
-  );
-  const closed = tickets.filter((t) =>
-    ["resolved", "closed"].includes(t.status),
-  );
+  const open = tickets.filter(isOpen);
+  const closed = tickets.filter(isDone);
   const urgent = open.filter((t) => ["high", "critical"].includes(t.priority));
   const cards = [
     {
@@ -232,7 +248,7 @@ export function SlaCountdown({
   }
   const due = new Date(ticket.slaDueAt).getTime();
   const ms = due - now;
-  const state = slaState(ticket.slaDueAt, ticket.status);
+  const state = slaState(ticket.slaDueAt, ticket.status, ticket.createdAt);
   const display = formatCountdown(ms);
 
   return (
@@ -253,7 +269,7 @@ export function SlaCountdown({
 
 /** Where a ticket came from, as a one-glance chip. */
 const SOURCE_LABEL: Record<string, string> = {
-  iris: "Iris",
+  iris: "IRIS",
   template: "Template",
   manual: "Manual",
   voice: "Voice",
@@ -543,6 +559,21 @@ export function TicketCard({
     </button>
   );
 }
+const KANBAN_STATUS_COLUMNS = [
+  { id: "new", label: "Incoming", states: ["new", "triaged"] },
+  { id: "assigned", label: "Assigned", states: ["assigned"] },
+  { id: "in_progress", label: "In progress", states: ["in_progress"] },
+  {
+    id: "waiting",
+    label: "Awaiting response",
+    states: ["waiting_on_member", "waiting_on_vendor"],
+  },
+  {
+    id: "done",
+    label: "Completed",
+    states: ["resolved", "closed", "recorded"],
+  },
+];
 export function Kanban({
   tickets,
   onSelect,
@@ -554,24 +585,9 @@ export function Kanban({
   groupBy?: KanbanGroupBy;
   fields?: KanbanField[];
 }) {
-  const statusColumns = [
-    { id: "new", label: "Incoming", states: ["new", "triaged"] },
-    { id: "assigned", label: "Assigned", states: ["assigned"] },
-    { id: "in_progress", label: "In progress", states: ["in_progress"] },
-    {
-      id: "waiting",
-      label: "Awaiting response",
-      states: ["waiting_on_member", "waiting_on_vendor"],
-    },
-    {
-      id: "done",
-      label: "Completed",
-      states: ["resolved", "closed", "recorded"],
-    },
-  ];
   const grouped = useMemo(() => {
     if (groupBy === "status")
-      return statusColumns.map((c) => ({
+      return KANBAN_STATUS_COLUMNS.map((c) => ({
         id: c.id,
         label: c.label,
         rows: tickets.filter((t) => c.states.includes(t.status)),
@@ -619,7 +635,7 @@ export function Kanban({
                     rows.filter(
                       (t) =>
                         t.slaDueAt &&
-                        slaState(t.slaDueAt, t.status) === "breached",
+                        slaState(t.slaDueAt, t.status, t.createdAt) === "breached",
                     ).length
                   }{" "}
                   overdue
@@ -871,27 +887,11 @@ export function FeedView({
 }
 
 export function PulseStats({ tickets }: { tickets: TicketListRecord[] }) {
-  const timed = tickets.filter((t) => t.resolutionRequired && t.slaDueAt);
-  const breached = timed.filter(
-    (t) =>
-      new Date(t.slaDueAt as string).getTime() <
-      (t.resolvedAt ? new Date(t.resolvedAt).getTime() : Date.now()),
-  );
-  const compliance = timed.length
-    ? Math.round(((timed.length - breached.length) / timed.length) * 100)
-    : 100;
-  const resolved = tickets.filter((t) => t.resolvedAt);
-  const durations = resolved.map((t) =>
-    Math.max(
-      0,
-      (new Date(t.resolvedAt as string).getTime() -
-        new Date(t.createdAt).getTime()) /
-        3600000,
-    ),
-  );
-  const median = durations.length
-    ? [...durations].sort((a, b) => a - b)[Math.floor(durations.length / 2)]
-    : 0;
+  // `now` is captured once per render rather than read inline, so this stays a pure render.
+  const [now] = useState(() => Date.now());
+  const { slaCompliance, medianResolutionHours } = summarize(tickets, now);
+  const compliance = slaCompliance ?? 100;
+  const median = medianResolutionHours ?? 0;
   const byCategory: Record<string, number> = {};
   for (const t of tickets)
     byCategory[t.category] = (byCategory[t.category] || 0) + 1;
@@ -930,7 +930,7 @@ export function PulseStats({ tickets }: { tickets: TicketListRecord[] }) {
           small: true,
         },
         {
-          label: "Logged via Iris",
+          label: "Logged via IRIS",
           value: (
             <CountUp value={irisShare} format={(n) => Math.round(n) + "%"} />
           ),

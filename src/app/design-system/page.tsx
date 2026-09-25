@@ -159,7 +159,7 @@ function Foundations() {
             ["--text-xs", "11.5px"], ["--text-2xs", "10.5px"], ["--text-3xs", "10px"]].map(([t, v]) => (
             <div className="ds-type-row" key={t}>
               <span style={{ fontSize: `var(${t})`, fontFamily: "var(--font-display)", fontWeight: 600, letterSpacing: "var(--tracking-tight)" }}>
-                Every snag tracked
+                Every ticket tracked
               </span>
               <code>{t}</code><small>{v}</small>
             </div>
@@ -203,7 +203,7 @@ function Buttons() {
         <div className="eyebrow">INTENT</div>
         <h3 style={{ margin: "6px 0 16px" }}>Variants</h3>
         <Row label="Primary">
-          <Button variant="primary" icon={Sparkles}>Log with Iris</Button>
+          <Button variant="primary" icon={Sparkles}>Log with IRIS</Button>
           <Button variant="primary" icon={Plus}>New ticket</Button>
           <Button variant="primary" icon={Download}>Export</Button>
         </Row>
@@ -401,7 +401,7 @@ function Forms() {
           <Field label="Member name" hint="Matched against the Momence directory."><input placeholder="e.g. Ananya Sharma" /></Field>
           <Field label="Studio"><select defaultValue="Kemps"><option>Kemps</option><option>Bandra</option><option>Powai</option></select></Field>
           <Field label="Category" wide><input defaultValue="Equipment · Cardio" /></Field>
-          <Field label="What happened?" wide hint="Iris reads this and drafts the ticket.">
+          <Field label="What happened?" wide hint="IRIS reads this and drafts the ticket.">
             <textarea placeholder="Bike 14 in the PowerCycle room is making a grinding noise at high resistance…" />
           </Field>
           <Field label="Invalid state" wide>
@@ -431,7 +431,7 @@ function Forms() {
             <input type="checkbox" defaultChecked /> I approve this external action.
           </label>
           <label className="flex-row" style={{ gap: 8, fontSize: "var(--text-xs)" }}>
-            <input type="checkbox" /> Set a 48-hour relapse check
+            <input type="checkbox" /> Set 5- and 10-day recurrence checks
           </label>
         </Row>
         <Row label="Search">
@@ -571,7 +571,7 @@ function Overlays() {
           <Button variant="danger" icon={Trash2} onClick={() => setBasic(false)}>Discard draft</Button></>}>
         <div className="stack">
           <p className="secondary" style={{ fontSize: "var(--text-xs)", lineHeight: 1.7 }}>
-            Iris assembled eight fields from what you said. Discarding loses them — nothing has been
+            IRIS assembled eight fields from what you said. Discarding loses them — nothing has been
             written to the ticket log.
           </p>
           <div className="draft-quote">
@@ -591,10 +591,10 @@ function Overlays() {
         </div>
       </Modal>
 
-      <Modal open={form} onClose={() => setForm(false)} title="Log an equipment snag"
+      <Modal open={form} onClose={() => setForm(false)} title="Log an equipment ticket"
         description="Routed to Ops · 48h SLA"
         footer={<><Button variant="ghost" onClick={() => setForm(false)}>Cancel</Button>
-          <div className="flex-row"><Button icon={Sparkles} variant="soft">Ask Iris</Button>
+          <div className="flex-row"><Button icon={Sparkles} variant="soft">Ask IRIS</Button>
             <Button variant="primary" icon={Check} onClick={() => setForm(false)}>File ticket</Button></div></>}>
         <div className="stack">
           <div className="info-box"><ShieldCheck size={15} /><span>Resolutions stay private to the owner and their manager.</span></div>
@@ -671,8 +671,8 @@ function Feedback() {
       </section>
 
       <section className="card">
-        <Empty title="Nothing needs you right now" detail="Every ticket is resolved and no studio has reported a snag in the last 48 hours."
-          action={<Button variant="primary" icon={Sparkles}>Log something with Iris</Button>} />
+        <Empty title="Nothing needs you right now" detail="Every ticket is resolved and no studio has reported a ticket in the last 48 hours."
+          action={<Button variant="primary" icon={Sparkles}>Log something with IRIS</Button>} />
       </section>
 
       <section className="card card-pad">
@@ -752,7 +752,16 @@ function Motion() {
 
 export default function DesignSystemPage() {
   const [section, setSection] = useState("foundations");
-  const { theme } = useApp();
+  const { theme, user } = useApp();
+  if (user?.role !== "admin")
+    return (
+      <Shell title="Design system" eyebrow="IRIS · VISUAL LANGUAGE" hideFooter>
+        <Empty
+          title="Admins only"
+          detail="The design system reference is an internal developer page. Ask an administrator if you need something changed here."
+        />
+      </Shell>
+    );
   return (
     <Shell title="Design system" eyebrow="IRIS · VISUAL LANGUAGE" hideFooter
       action={<div className="flex-row">

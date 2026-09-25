@@ -189,7 +189,7 @@ export async function syncTrainerReviews():Promise<SyncResult>{
             coachingPlan:review.coachingPlan,scorecard:review.scorecard,
           },
           submissionKey:review.sourceRef,
-        });
+        },{trusted:true});
         await createTicketFromDraft(draft,'fillout','form',{sourceRef:review.sourceRef});
         entry.imported++;
       }catch(e){

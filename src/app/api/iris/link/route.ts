@@ -46,7 +46,6 @@ export async function POST(req: Request) {
       description: String(c.description || ''),
       reporterName,
       collected: c,
-      recurrence: Number(obj(c._duplicate).recurrence || 2),
     });
 
     // "Took it out of rotation" has to change the floor, not just the ticket.

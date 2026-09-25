@@ -225,7 +225,18 @@ export function MetricCards({metrics, onApplyFilter, onOpenTicket}: {
                 <thead><tr><th>Ticket</th><th>Status</th><th>Priority</th><th>Owner</th><th>Logged</th></tr></thead>
                 <tbody>
                   {drill.rows.slice(0, 100).map((t) => (
-                    <tr key={t.id} onClick={() => { if (onOpenTicket) { onOpenTicket(t.id); setDrill(null); } }} className={onOpenTicket ? 'mc-row-clickable' : ''}>
+                    <tr
+                      key={t.id}
+                      role={onOpenTicket ? 'button' : undefined}
+                      tabIndex={onOpenTicket ? 0 : undefined}
+                      aria-label={onOpenTicket ? 'Open ticket ' + t.ticketNumber : undefined}
+                      onClick={() => { if (onOpenTicket) { onOpenTicket(t.id); setDrill(null); } }}
+                      onKeyDown={(e) => {
+                        if (!onOpenTicket) return;
+                        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenTicket(t.id); setDrill(null); }
+                      }}
+                      className={onOpenTicket ? 'mc-row-clickable' : ''}
+                    >
                       <td>
                         <p className="ticket-name">{t.title}</p>
                         <div className="ticket-meta"><span className="ticket-id">{t.ticketNumber}</span><span>·</span><span>{t.memberName}</span></div>
@@ -342,7 +353,7 @@ export function boardMetrics(tickets: TicketListRecord[], now = Date.now()): Met
       filter: {state: 'closed'},
     },
     {
-      id: 'iris', label: 'Logged via Iris', value: irisShare, gauge: irisShare, format: (n) => Math.round(n) + '%',
+      id: 'iris', label: 'Logged via IRIS', value: irisShare, gauge: irisShare, format: (n) => Math.round(n) + '%',
       note: 'Share of tickets raised in chat', rows: viaIris, tone: 'amber', color: 'var(--amber)',
       icon: Sparkles, chart: 'gauge', delta: weekDelta(viaIris), breakdown: byStudio, breakdownLabel: 'Chat intake by studio',
       filter: {sources: ['iris']},

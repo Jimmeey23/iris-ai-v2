@@ -1,9 +1,19 @@
 "use client";
-import {useRef,useState,useEffect} from 'react';
+import {useRef,useState,useEffect,useSyncExternalStore} from 'react';
 import {Mic,Square,Loader2} from 'lucide-react';
 import {useApp} from './ui';
 
 type Recognition={lang:string;continuous:boolean;interimResults:boolean;onresult:((event:{results:ArrayLike<{isFinal:boolean;0:{transcript:string}}>;resultIndex:number})=>void)|null;onerror:((event:{error:string})=>void)|null;onend:(()=>void)|null;start:()=>void;stop:()=>void};
+
+// Speech-recognition/mic support never changes after mount, so there is nothing to subscribe
+// to — this store exists only to give `useSyncExternalStore` a real client snapshot while
+// keeping the server snapshot `false`, avoiding a hydration mismatch without setState-in-effect.
+const noopSubscribe = () => () => {};
+const getVoiceSupportSnapshot = () => {
+  const w = window as unknown as { SpeechRecognition?: unknown; webkitSpeechRecognition?: unknown };
+  return Boolean(w.SpeechRecognition || w.webkitSpeechRecognition || (navigator.mediaDevices && window.MediaRecorder));
+};
+const getVoiceSupportServerSnapshot = () => false;
 
 export type VoiceCommand = 'approve' | 'review' | 'reset' | 'discard' | 'send';
 
@@ -37,7 +47,9 @@ export function VoiceInput({
   const { notify } = useApp();
   const [recording, setRecording] = useState(false);
   const [processing, setProcessing] = useState(false);
-  const [supported, setSupported] = useState(true);
+  // Speech-recognition support can only be known in the browser; the server snapshot is
+  // `false` so hydration always matches, and the real value is read on the client render.
+  const supported = useSyncExternalStore(noopSubscribe, getVoiceSupportSnapshot, getVoiceSupportServerSnapshot);
   const recognizer = useRef<Recognition | null>(null);
   const recorder = useRef<MediaRecorder | null>(null);
   const stream = useRef<MediaStream | null>(null);
@@ -45,8 +57,6 @@ export function VoiceInput({
   const fellBack = useRef(false);
 
   useEffect(() => {
-    const w = window as unknown as { SpeechRecognition?: unknown; webkitSpeechRecognition?: unknown };
-    setSupported(Boolean(w.SpeechRecognition || w.webkitSpeechRecognition || (navigator.mediaDevices && window.MediaRecorder)));
     return () => {
       mounted.current = false;
       recognizer.current?.stop();

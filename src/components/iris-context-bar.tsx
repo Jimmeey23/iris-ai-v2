@@ -183,7 +183,10 @@ export function IrisContextBar({
           {/* 1. Momence Member Selector Tab */}
           <div
             className={`context-tab ${currentMember ? "active" : ""}`}
+            role="button"
+            tabIndex={0}
             onClick={() => setMemberModalOpen(true)}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setMemberModalOpen(true); } }}
             title="Search and select Momence member"
           >
             <Users size={11} className="tab-icon" />
@@ -208,7 +211,10 @@ export function IrisContextBar({
           {/* 2. Momence Class Selector Tab */}
           <div
             className={`context-tab ${currentClass ? "active" : ""}`}
+            role="button"
+            tabIndex={0}
             onClick={() => setClassModalOpen(true)}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setClassModalOpen(true); } }}
             title="Search live classes and private sessions from Momence"
           >
             <Calendar size={11} className="tab-icon" />
@@ -534,6 +540,8 @@ export function IrisContextBar({
                 return (
                   <div
                     key={String(item.id)}
+                    role="button"
+                    tabIndex={0}
                     onClick={() => {
                       onContextChange({
                         classFormat: item.name,
@@ -544,6 +552,20 @@ export function IrisContextBar({
                           : {}),
                       });
                       setClassModalOpen(false);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        onContextChange({
+                          classFormat: item.name,
+                          className: item.name,
+                          sessionId: String(item.id),
+                          ...(item.subtitle.includes("·")
+                            ? { trainer: item.subtitle.split("·")[0]?.trim() }
+                            : {}),
+                        });
+                        setClassModalOpen(false);
+                      }
                     }}
                     className={`flex items-center justify-between p-2.5 rounded-lg border cursor-pointer transition-colors ${
                       isCurrent
@@ -606,6 +628,8 @@ export function IrisContextBar({
                 return (
                   <div
                     key={String(item.id)}
+                    role="button"
+                    tabIndex={0}
                     onClick={() => {
                       onContextChange({
                         memberName: item.name,
@@ -613,6 +637,17 @@ export function IrisContextBar({
                         memberId: String(item.id),
                       });
                       setMemberModalOpen(false);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        onContextChange({
+                          memberName: item.name,
+                          memberEmail: email || undefined,
+                          memberId: String(item.id),
+                        });
+                        setMemberModalOpen(false);
+                      }
                     }}
                     className={`flex items-center justify-between p-2.5 rounded-lg border cursor-pointer transition-colors ${
                       isCurrent

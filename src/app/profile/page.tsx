@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Shell } from "@/components/shell";
 import { api, useApp } from "@/components/ui";
 import { ShieldCheck } from "lucide-react";
@@ -8,7 +8,14 @@ export default function ProfilePage() {
   const [name, setName] = useState(""),
     [password, setPassword] = useState(""),
     [busy, setBusy] = useState(false);
-  useEffect(() => setName(user?.name || ""), [user]);
+  // Adjust state during render rather than in an effect: the identity loads asynchronously
+  // (see AppStateProvider), so the field must pick up the name the first time it arrives —
+  // without this it would keep re-rendering with the empty initial value forever.
+  const [syncedName, setSyncedName] = useState(user?.name);
+  if (user?.name !== syncedName) {
+    setSyncedName(user?.name);
+    setName(user?.name || "");
+  }
   async function save(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);

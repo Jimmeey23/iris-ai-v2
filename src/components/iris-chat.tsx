@@ -1,5 +1,6 @@
 "use client";
 import Link from 'next/link';
+import Image from 'next/image';
 import { useEffect, useState, useRef, useMemo } from 'react';
 import {
   Sparkles,
@@ -43,7 +44,7 @@ import type { UploadedFile } from './file-upload';
 import { MomenceActionCenter } from './momence-action-center';
 import type { IrisTurn, IrisMessage } from '@/lib/iris-contract';
 import type { PickerOption } from '@/lib/ticket-contract';
-import { display } from '@/lib/display';
+import { display, indiaDate } from '@/lib/display';
 import { STUDIOS } from '@/lib/constants';
 import { toPlainText, toMarkdown, toJson, downloadText } from '@/lib/chat-export';
 import { extractContext } from '@/lib/context-extractor';
@@ -149,7 +150,7 @@ export function IrisChat({ presetCategory, presetSubcategory }: { presetCategory
   const [pendingContext, setPendingContext] = useState<Record<string, string>>({});
   const [edits, setEdits] = useState<Record<string, string>>({});
   const [ticketId, setTicketId] = useState<number>();
-  const [voiceMode, setVoiceMode] = useState(false);
+  const [voiceMode, setVoiceMode] = useState(() => typeof window !== 'undefined' && localStorage.getItem('iris-voice-replies') === '1');
   const [speaking, setSpeaking] = useState(false);
   const [attachments, setAttachments] = useState<UploadedFile[]>([]);
   const [uploadingFiles, setUploadingFiles] = useState(false);
@@ -162,11 +163,6 @@ export function IrisChat({ presetCategory, presetSubcategory }: { presetCategory
   const startedAt = useRef(new Date().toISOString());
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const messageTimestamps = useRef(new WeakMap<IrisMessage, string>());
-
-  useEffect(() => {
-    const v = localStorage.getItem('iris-voice-replies');
-    if (v) setVoiceMode(v === '1');
-  }, []);
 
   // Auto-resize chat textarea: compact initially, expands only as text grows
   useEffect(() => {
@@ -239,7 +235,14 @@ export function IrisChat({ presetCategory, presetSubcategory }: { presetCategory
   }
 
   useEffect(() => {
-    void start();
+    // Deferred to a microtask so the fetch-and-setState in `start` does not run synchronously
+    // during the effect's commit phase (react-hooks/set-state-in-effect).
+    queueMicrotask(() => {
+      void start();
+    });
+    // `start` closes over state that changes every render; only the preset actually
+    // identifies when this should re-run.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [presetCategory, presetSubcategory]);
 
   useEffect(() => {
@@ -550,7 +553,7 @@ export function IrisChat({ presetCategory, presetSubcategory }: { presetCategory
     const next = !voiceMode;
     setVoiceMode(next);
     localStorage.setItem('iris-voice-replies', next ? '1' : '0');
-    notify(next ? 'Iris voice replies turned ON.' : 'Voice replies turned OFF.');
+    notify(next ? 'IRIS voice replies turned ON.' : 'Voice replies turned OFF.');
   }
 
   async function loadHistory() {
@@ -713,12 +716,12 @@ export function IrisChat({ presetCategory, presetSubcategory }: { presetCategory
           <div className="chat-head">
             <div className="chat-identity">
               <div className={'avatar-ring' + (speaking ? ' speaking' : '')}>
-                <img src={theme === 'dark' ? '/images/iris-avatar-dark.webp' : '/images/iris-avatar-light.webp'} alt="Iris" />
+                <Image src={theme === 'dark' ? '/images/iris-avatar-dark.webp' : '/images/iris-avatar-light.webp'} alt="IRIS" fill sizes="44px" />
                 <span className="live-avatar-pulse" />
               </div>
               <div className="chat-identity-meta">
                 <div className="chat-identity-title">
-                  <strong>Iris</strong>
+                  <strong>IRIS</strong>
                   <span className="chat-agent-pill">Ops Assistant</span>
                 </div>
                 <div className="chat-identity-sub">
@@ -816,7 +819,7 @@ export function IrisChat({ presetCategory, presetSubcategory }: { presetCategory
                 <div className={'chat-message ' + (m.role === 'user' ? 'user' : '')} key={i}>
                   {m.role === 'assistant' && (
                     <span className="msg-avatar">
-                      <img src={theme === 'dark' ? '/images/iris-avatar-dark.webp' : '/images/iris-avatar-light.webp'} alt="" />
+                      <Image src={theme === 'dark' ? '/images/iris-avatar-dark.webp' : '/images/iris-avatar-light.webp'} alt="" fill sizes="30px" />
                     </span>
                   )}
                   <div className="bubble-wrap">
@@ -838,7 +841,7 @@ export function IrisChat({ presetCategory, presetSubcategory }: { presetCategory
             {busy && turn && (
               <div className="chat-message">
                 <span className="msg-avatar">
-                  <img src={theme === 'dark' ? '/images/iris-avatar-dark.webp' : '/images/iris-avatar-light.webp'} alt="" />
+                  <Image src={theme === 'dark' ? '/images/iris-avatar-dark.webp' : '/images/iris-avatar-light.webp'} alt="" fill sizes="30px" />
                 </span>
                 <div className="bubble-wrap">
                   <div className="bubble">
@@ -896,7 +899,7 @@ export function IrisChat({ presetCategory, presetSubcategory }: { presetCategory
                 <FileCheck2 size={21} />
                 <div className="grow">
                   <strong style={{ fontSize: 12 }}>Ticket draft ready to review</strong>
-                  <p style={{ fontSize: 11 }}>Say "approve ticket" or click review to verify the assignment and resolution plan.</p>
+                  <p style={{ fontSize: 11 }}>Say &quot;approve ticket&quot; or click review to verify the assignment and resolution plan.</p>
                 </div>
                 <button className="btn" onClick={() => setDiscardOpen(true)}>
                   <Trash2 size={12} />
@@ -986,7 +989,7 @@ export function IrisChat({ presetCategory, presetSubcategory }: { presetCategory
                 <textarea
                   ref={textareaRef}
                   rows={1}
-                  aria-label="Message Iris"
+                  aria-label="Message IRIS"
                   value={text}
                   onChange={(e) => setText(e.target.value)}
                   onKeyDown={(e) => {
@@ -999,7 +1002,7 @@ export function IrisChat({ presetCategory, presetSubcategory }: { presetCategory
                     turn?.lookup
                       ? 'Search above, or add more detail…'
                       : turn?.phase === 'draft'
-                      ? 'Say "approve ticket" or tell Iris what to adjust…'
+                      ? 'Say "approve ticket" or tell IRIS what to adjust…'
                       : 'Speak or type what you noticed (e.g. "Water leak in locker room at kemps during Rohan\'s class")…'
                   }
                 />
@@ -1199,54 +1202,65 @@ export function IrisChat({ presetCategory, presetSubcategory }: { presetCategory
       >
         <div className="space-y-2 max-h-[420px] overflow-y-auto pr-1">
           {historyLoading ? (
-            <div className="py-8 text-center text-sm text-stone-500">
+            <div className="py-8 text-center text-sm text-muted">
               <Loader2 size={20} className="animate-spin inline mr-2" />
               Loading history…
             </div>
           ) : historySessions.length === 0 ? (
-            <div className="py-8 text-center text-sm text-stone-500">
+            <div className="py-8 text-center text-sm text-muted">
               No conversations in the last 7 days. Start logging an issue to begin.
             </div>
           ) : (
             historySessions.map((s) => (
               <div
                 key={s.id}
+                role="button"
+                tabIndex={0}
                 onClick={() => void resumeSession(s.id)}
-                className="group flex items-start justify-between p-3 rounded-lg border border-stone-200 dark:border-stone-800 hover:border-stone-400 dark:hover:border-stone-600 bg-white dark:bg-stone-900/50 cursor-pointer transition-all"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    void resumeSession(s.id);
+                  }
+                }}
+                className="group flex items-start justify-between p-3 rounded-lg border border-border hover:border-border-strong bg-surface cursor-pointer transition-all"
               >
                 <div className="grow min-w-0 pr-3">
                   <div className="flex items-center gap-2 mb-1">
-                    <strong className="text-xs font-semibold text-stone-800 dark:text-stone-200 truncate">
+                    <strong className="text-xs font-semibold text-text truncate">
                       {s.title}
                     </strong>
                     {s.ticketNumber ? (
                       <Badge tone="green">{s.ticketNumber}</Badge>
                     ) : s.phase === 'draft' ? (
-                      <Badge tone="purple">Draft Ready</Badge>
+                      <Badge tone="purple">Draft ready</Badge>
                     ) : (
-                      <Badge tone="blue">In Progress</Badge>
+                      <Badge tone="blue">In progress</Badge>
                     )}
                   </div>
                   {s.lastMessage && (
-                    <p className="text-xs text-stone-500 dark:text-stone-400 truncate max-w-[500px]">
+                    <p className="text-xs text-muted truncate max-w-[500px]">
                       {s.lastMessage}
                     </p>
                   )}
-                  <div className="flex items-center gap-3 mt-2 text-[10px] text-stone-400">
+                  <div className="flex items-center gap-3 mt-2 text-[10px] text-muted">
                     <span className="flex items-center gap-1">
                       <Clock size={10} />
-                      {new Date(s.createdAt).toLocaleDateString('en-IN', {
-                        month: 'short',
-                        day: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
+                      {indiaDate(s.createdAt)}
                     </span>
                     <span>{s.messageCount} messages</span>
                     {s.collected?.studio ? <span>· {String(s.collected.studio)}</span> : null}
                   </div>
                 </div>
-                <button className="text-stone-400 group-hover:text-stone-700 dark:group-hover:text-stone-200 p-1">
+                <button
+                  type="button"
+                  aria-label={'Open conversation ' + s.title}
+                  className="text-muted group-hover:text-text p-1"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void resumeSession(s.id);
+                  }}
+                >
                   <ExternalLink size={14} />
                 </button>
               </div>
@@ -1353,7 +1367,7 @@ export function IrisChat({ presetCategory, presetSubcategory }: { presetCategory
         }
       >
         <p className="secondary">
-          Any ticket you’ve already approved won’t change. The unapproved draft is deleted and Iris starts from a clean slate.
+          Any ticket you’ve already approved won’t change. The unapproved draft is deleted and IRIS starts from a clean slate.
         </p>
       </Modal>
 
@@ -1401,7 +1415,7 @@ export function IrisChat({ presetCategory, presetSubcategory }: { presetCategory
               className="btn btn-primary"
               onClick={() => {
                 setDiscardOpen(false);
-                void discard('Draft discarded. Iris is ready for a new ticket.');
+                void discard('Draft discarded. IRIS is ready for a new ticket.');
               }}
             >
               <Trash2 size={13} />
@@ -1411,7 +1425,7 @@ export function IrisChat({ presetCategory, presetSubcategory }: { presetCategory
         }
       >
         <p className="secondary">
-          If you only need a few corrections, close this and use <strong>Edit details</strong> instead — that keeps everything Iris already captured.
+          If you only need a few corrections, close this and use <strong>Edit details</strong> instead — that keeps everything IRIS already captured.
         </p>
       </Modal>
 

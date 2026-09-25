@@ -26,7 +26,7 @@ import type {TicketListRecord} from '@/lib/ticket-contract';
  */
 
 const SOURCE_LABEL: Record<string, string> = {
-  iris: 'Iris', template: 'Template', manual: 'Manual', voice: 'Voice',
+  iris: 'IRIS', template: 'Template', manual: 'Manual', voice: 'Voice',
   fillout: 'Form', history: 'Imported', system: 'System',
 };
 
@@ -137,9 +137,8 @@ export function TicketGrid({
 
   // A slow clock so the ageing flag keeps up with a board left open, without reading the
   // wall clock during render.
-  const [nowMs, setNowMs] = useState(0);
+  const [nowMs, setNowMs] = useState(() => Date.now());
   useEffect(() => {
-    setNowMs(Date.now());
     const id = setInterval(() => setNowMs(Date.now()), 60000);
     return () => clearInterval(id);
   }, []);
@@ -217,7 +216,17 @@ export function TicketGrid({
               const stats = groupStats(rows);
               return (
                 <tbody key={name} className={'tg-group' + (open ? ' tg-group-open' : '')}>
-                  <tr className="tg-group-row" onClick={() => onToggleGroup(name)}>
+                  <tr
+                    className="tg-group-row"
+                    role="button"
+                    tabIndex={0}
+                    aria-expanded={open}
+                    aria-label={(open ? 'Collapse ' : 'Expand ') + name}
+                    onClick={() => onToggleGroup(name)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggleGroup(name); }
+                    }}
+                  >
                     <td colSpan={span}>
                       <div className="tg-group-head">
                         <span className="tg-group-chevron">{open ? <ChevronDown size={14}/> : <ChevronRight size={14}/>}</span>

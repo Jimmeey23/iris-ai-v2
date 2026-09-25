@@ -80,7 +80,7 @@ function useLookupRows(module: LookupModule, q: string, open: boolean, opts: {st
       } catch (e) {
         if ((e as Error).name !== 'AbortError') { setRows([]); setStatus('error'); }
       } finally { setBusy(false); }
-    }, 200);
+    }, 250);
     return () => { clearTimeout(t); controller.abort(); };
   }, [module, q, open, opts.studio, opts.when, sessionTypesKey]);
   return {rows, status, busy, widened};

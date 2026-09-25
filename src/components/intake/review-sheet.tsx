@@ -5,11 +5,12 @@ import {Avatar, Badge, Modal, Priority} from '../ui';
 import {decodeLookups, orderSections, filled, visibleFields, type ClassSnapshot, type Gate, type IntakeData, type IntakeField} from '@/lib/intake/plan';
 import {LookupChip} from './lookup-field';
 import type {IntakePlan} from './types';
+import {indiaDate} from '@/lib/display';
 
 const display = (f: IntakeField, v: unknown) => {
   if (f.type === 'lookup') return decodeLookups(v).map(r => r.label).join(', ') || '—';
   if (Array.isArray(v)) return v.join(' · ');
-  if (f.type === 'datetime' && typeof v === 'string' && v) { const d = new Date(v); return Number.isFinite(d.getTime()) ? d.toLocaleString('en-IN', {dateStyle: 'medium', timeStyle: 'short'}) : v; }
+  if (f.type === 'datetime' && typeof v === 'string' && v) { const d = new Date(v); return Number.isFinite(d.getTime()) ? indiaDate(v) : v; }
   return v == null || v === '' ? '—' : String(v);
 };
 

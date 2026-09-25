@@ -827,38 +827,37 @@ export const CYCLE_INTAKE_QUESTIONS = [
 /* Trainer Image Mapping                                               */
 /* ------------------------------------------------------------------ */
 
-/** Maps trainer names to their image file paths in /public/Trainer Images/ */
+/** Maps trainer names to their image file paths in /public/trainer-images/ */
 export const TRAINER_IMAGES: Record<string, string> = {
-  "Anisha Shah": "/Trainer Images/001-1_Anisha-1-e1590837044475.jpg",
-  "Anmol Sharma": "/Trainer Images/Anmol.jpeg",
-  "Atulan Purohit": "/Trainer Images/002-Atulan-Image-1.jpg",
-  "Bret Saldanha": "/Trainer Images/Bret.jpeg",
-  "Cauveri Vikrant": "/Trainer Images/Cauveri-Vikrant.jpg",
-  "Chaitanya Nahar": "/Trainer Images/Chaitanya-Nahar.jpg",
-  "Kajol Kanchan": "/Trainer Images/Kajol-Kanchan.jpg",
-  "Karan Bhatia": "/Trainer Images/Karan-Bhatia.jpg",
-  "Mrigakshi Jaiswal": "/Trainer Images/007-Mrigakshi-Image-2.jpg",
-  "Pranjali Jain": "/Trainer Images/008-Pranjali-Image-1.jpg",
-  "Pushyank Nahar": "/Trainer Images/009-Pushyank-Nahar-1.jpeg",
-  "Raunak Khemuka": "/Trainer Images/Raunak.jpeg",
-  "Reshma Sharma": "/Trainer Images/010-Reshma-Image-3.jpg",
-  "Richard D'Costa": "/Trainer Images/011-Richard-Image-3.jpg",
-  "Rohan Dahima": "/Trainer Images/012-Rohan-Image-3.jpg",
-  "Shruti Kulkarni": "/Trainer Images/Shruti-Kulkarni.jpeg",
-  "Simonelle De Vitre": "/Trainer Images/Simonelle.jpeg",
-  "Vivaran Dhasmana": "/Trainer Images/015-Vivaran-Image-4.jpg",
+  "Anisha Shah": "/trainer-images/001-1_Anisha-1-e1590837044475.jpg",
+  "Anmol Sharma": "/trainer-images/Anmol.jpeg",
+  "Atulan Purohit": "/trainer-images/002-Atulan-Image-1.jpg",
+  "Bret Saldanha": "/trainer-images/Bret.jpeg",
+  "Cauveri Vikrant": "/trainer-images/Cauveri-Vikrant.jpg",
+  "Chaitanya Nahar": "/trainer-images/Chaitanya-Nahar.jpg",
+  "Kajol Kanchan": "/trainer-images/Kajol-Kanchan.jpg",
+  "Karan Bhatia": "/trainer-images/Karan-Bhatia.jpg",
+  "Mrigakshi Jaiswal": "/trainer-images/007-Mrigakshi-Image-2.jpg",
+  "Pranjali Jain": "/trainer-images/008-Pranjali-Image-1.jpg",
+  "Pushyank Nahar": "/trainer-images/009-Pushyank-Nahar-1.jpeg",
+  "Raunak Khemuka": "/trainer-images/Raunak.jpeg",
+  "Reshma Sharma": "/trainer-images/010-Reshma-Image-3.jpg",
+  "Richard D'Costa": "/trainer-images/011-Richard-Image-3.jpg",
+  "Rohan Dahima": "/trainer-images/012-Rohan-Image-3.jpg",
+  "Shruti Kulkarni": "/trainer-images/Shruti-Kulkarni.jpeg",
+  "Simonelle De Vitre": "/trainer-images/Simonelle.jpeg",
+  "Vivaran Dhasmana": "/trainer-images/015-Vivaran-Image-4.jpg",
 };
 
-/** A trainer's headshot, URL-encoded (the folder name has a space), or null. Matches the full
- *  name first, then a first name on its own ("Anisha") — never a different person who happens
- *  to share a first name ("Rohan Mehta" is not "Rohan Dahima"), and never "Karanvir" for
- *  "Karan". A co-taught "Anisha, Atulan" reads as its first trainer. */
+/** A trainer's headshot, or null. Matches the full name first, then a first name on its own
+ *  ("Anisha") — never a different person who happens to share a first name ("Rohan Mehta" is
+ *  not "Rohan Dahima"), and never "Karanvir" for "Karan". A co-taught "Anisha, Atulan" reads as
+ *  its first trainer. */
 export function getTrainerImage(name: string): string | null {
   if (!name) return null;
   const first = name.split(/\s*(?:,|\+|&|\band\b)\s*/i)[0].trim().toLowerCase().replace(/\s+/g, ' ');
   if (!first) return null;
-  const hit = (url: string) => encodeURI(url);
-  for (const [key, url] of Object.entries(TRAINER_IMAGES)) if (key.toLowerCase() === first) return hit(url);
+  for (const [key, url] of Object.entries(TRAINER_IMAGES)) if (key.toLowerCase() === first) return url;
   const words = first.split(' ');
   const matches = Object.entries(TRAINER_IMAGES).filter(([key]) => {
     const k = key.toLowerCase().split(' ');
@@ -866,7 +865,7 @@ export function getTrainerImage(name: string): string | null {
     // A second word has to agree too, at least by its first letter ("Simonelle D.").
     return words.length === 1 || (k[1] || '').startsWith(words[1].replace(/\.$/, ''));
   });
-  return matches.length === 1 ? hit(matches[0][1]) : null;
+  return matches.length === 1 ? matches[0][1] : null;
 }
 
 /* ------------------------------------------------------------------------ *

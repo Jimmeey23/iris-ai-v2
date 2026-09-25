@@ -74,7 +74,7 @@ function TrendChart({points,selectedId,onSelect}:{points:{id:number;at:string;sc
       {[100,80,65,50].map(g=>(
         <g key={g}>
           <line x1={pad} x2={w-pad} y1={y(g)} y2={y(g)} stroke="var(--border)" strokeDasharray="3 5"/>
-          <text x={2} y={y(g)+3} style={{fontSize:8,fill:'var(--muted)'}}>{g}</text>
+          <text x={2} y={y(g)+3} style={{fontSize:10,fill:'var(--muted)'}}>{g}</text>
         </g>
       ))}
       <line x1={pad} x2={w-pad} y1={y(65)} y2={y(65)} stroke="var(--red)" strokeOpacity=".45" strokeDasharray="4 3"/>
@@ -85,8 +85,8 @@ function TrendChart({points,selectedId,onSelect}:{points:{id:number;at:string;sc
         return (
           <g key={p.id} onClick={()=>onSelect?.(p.id)} style={{cursor:onSelect?'pointer':undefined}}>
             <circle cx={pad+i*step} cy={y(p.score)} r={active?5:3.5} fill={active?'var(--accent)':'var(--surface)'} stroke="var(--accent)" strokeWidth="2"/>
-            <text x={pad+i*step} y={y(p.score)-9} textAnchor="middle" style={{fontSize:9,fontWeight:600,fill:active?'var(--accent)':'var(--text)'}}>{p.score}</text>
-            <text x={pad+i*step} y={h-5} textAnchor="middle" style={{fontSize:8,fill:'var(--muted)'}}>
+            <text x={pad+i*step} y={y(p.score)-9} textAnchor="middle" style={{fontSize:10,fontWeight:600,fill:active?'var(--accent)':'var(--text)'}}>{p.score}</text>
+            <text x={pad+i*step} y={h-5} textAnchor="middle" style={{fontSize:10,fill:'var(--muted)'}}>
               {indiaDate(p.at,true)}
             </text>
           </g>
@@ -127,7 +127,7 @@ function RadarChart({rows,benchmark,size=280}:{rows:RubricRow[];benchmark:number
       <polygon points={poly(i=>rows[i].pct/100)} fill="var(--accent)" fillOpacity=".16" stroke="var(--accent)" strokeWidth="2"/>
       {rows.map((row,i)=>{const[x,y]=pt(i,row.pct/100);return <circle key={row.category} cx={x} cy={y} r="3.5" fill={scoreColor(row.pct)} stroke="var(--surface)" strokeWidth="1.5"/>;})}
       {rows.map((row,i)=>{const[x,y]=pt(i,1.3);return (
-        <text key={row.category} x={x} y={y} textAnchor="middle" dominantBaseline="middle" style={{fontSize:8.5,fontWeight:600,fill:'var(--muted)'}}>{short(row.category)}</text>
+        <text key={row.category} x={x} y={y} textAnchor="middle" dominantBaseline="middle" style={{fontSize:10,fontWeight:600,fill:'var(--muted)'}}>{short(row.category)}</text>
       );})}
     </svg>
   );

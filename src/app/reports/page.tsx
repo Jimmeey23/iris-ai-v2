@@ -2,7 +2,7 @@
 import {useCallback,useDeferredValue,useEffect,useMemo,useRef,useState} from 'react';
 import {FileBarChart2,Download,ChevronLeft,ChevronRight,RefreshCw,ChevronDown,FileSpreadsheet,FileJson,FileText,FileType,Code2,Columns3,ShieldCheck,Clock3,TriangleAlert,CheckCircle2,TrendingUp,TrendingDown,Loader2} from 'lucide-react';
 import {Shell} from '@/components/shell';
-import {api,SearchField,Badge,Loading,Empty,Avatar,useApp} from '@/components/ui';
+import {api,SearchField,Badge,Loading,Empty,Avatar,useApp,Tabs} from '@/components/ui';
 import {STUDIOS,STATUS_LABELS} from '@/lib/constants';
 import {exportReport,type ExportFormat,type ExportReport} from '@/lib/report-export';
 
@@ -35,10 +35,14 @@ export default function ReportsPage(){
   useEffect(()=>{const onDoc=(e:MouseEvent)=>{if(menuRef.current&&!menuRef.current.contains(e.target as Node))setExportOpen(false);if(colRef.current&&!colRef.current.contains(e.target as Node))setColsOpen(false);};document.addEventListener('mousedown',onDoc);return()=>document.removeEventListener('mousedown',onDoc);},[]);
 
   const params=useCallback((all=false)=>{const p=new URLSearchParams({type:active,page:String(page),pageSize:String(pageSize),search:deferredSearch,studio,priority,status});if(from)p.set('from',from);if(to)p.set('to',to);if(all)p.set('all','true');return p;},[active,page,pageSize,deferredSearch,studio,priority,status,from,to]);
-  const load=useCallback(async()=>{if(!active)return;setBusy(true);setError('');try{setData(await api<ReportData>('/api/reports?'+params()));}catch(e){setError((e as Error).message);}finally{setBusy(false);}},[active,params]);
-  useEffect(()=>{void load();},[load]);
-  const changeReport=(id:string)=>{setActive(id);setPage(0);setHidden(new Set());};
-  const changeFilter=(apply:()=>void)=>{apply();setPage(0);};
+  const load=useCallback((signal:AbortSignal)=>{if(!active)return Promise.resolve();return api<ReportData>('/api/reports?'+params(),{signal}).then(
+    (d)=>{if(!signal.aborted){setData(d);setError('');setBusy(false);}},
+    (e:unknown)=>{if(!signal.aborted){setError((e as Error).message);setBusy(false);}},
+  );},[active,params]);
+  useEffect(()=>{const ctrl=new AbortController();void load(ctrl.signal);return()=>ctrl.abort();},[load]);
+  const refresh=useCallback(()=>{setBusy(true);const ctrl=new AbortController();void load(ctrl.signal);},[load]);
+  const changeReport=(id:string)=>{setBusy(true);setActive(id);setPage(0);setHidden(new Set());};
+  const changeFilter=(apply:()=>void)=>{setBusy(true);apply();setPage(0);};
 
   const groups=useMemo(()=>{const g:Record<string,ReportMeta[]>={};for(const r of list)(g[r.group]=g[r.group]||[]).push(r);return g;},[list]);
   const filteredGroups=useMemo(()=>{if(!q)return groups;const o:Record<string,ReportMeta[]>={};for(const[k,v]of Object.entries(groups)){const m=v.filter(r=>r.name.toLowerCase().includes(q.toLowerCase()));if(m.length)o[k]=m;}return o;},[groups,q]);
@@ -78,7 +82,7 @@ export default function ReportsPage(){
                   <p className="secondary" style={{fontSize:12,marginTop:5}}>{data.description}</p>
                 </div>
                 <div className="flex-row">
-                  <button className="btn" onClick={()=>void load()}><RefreshCw size={13}/>Refresh</button>
+                  <button className="btn" onClick={refresh}><RefreshCw size={13}/>Refresh</button>
                   <div style={{position:'relative'}} ref={menuRef}>
                     <button className="btn btn-primary" disabled={!!exporting||!data.total} onClick={()=>setExportOpen(v=>!v)}>{exporting?<Loader2 size={13} className="animate-spin"/>:<Download size={13}/>}{exporting?`Building ${exporting.toUpperCase()}…`:'Export'}<ChevronDown size={12}/></button>
                     {exportOpen&&<div className="card rp-export-menu">
@@ -104,9 +108,8 @@ export default function ReportsPage(){
             </div>
 
             <div className="card">
-              <div className="workspace-tabs" style={{padding:'0 20px'}}>
-                <button className={tab==='insights'?'active':''} onClick={()=>setTab('insights')}>Insights</button>
-                <button className={tab==='data'?'active':''} onClick={()=>setTab('data')}>Data <span>{data.total}</span></button>
+              <div style={{padding:'0 20px'}}>
+                <Tabs label="Report view" value={tab} onChange={setTab} items={[{id:'insights',label:'Insights'},{id:'data',label:'Data',count:data.total}]}/>
               </div>
 
               {tab==='insights'&&<div className="rp-insights">
@@ -140,7 +143,7 @@ export default function ReportsPage(){
                     <tbody>{data.rows.map((r,i)=><tr key={i}>{visibleCols.map(c=><td key={c.key}>{cell(c.key,r[c.key])}</td>)}</tr>)}</tbody></table></div>)}
                 <div className="table-pagination">
                   <div className="flex-row"><span>{data.total?page*pageSize+1:0}–{Math.min((page+1)*pageSize,data.total)} of {data.total}</span><select className="filter-select" style={{height:28,padding:'2px 22px 2px 8px'}} value={pageSize} onChange={e=>changeFilter(()=>setPageSize(Number(e.target.value)))}>{[10,25,50,100,200].map(n=><option key={n} value={n}>{n} / page</option>)}</select></div>
-                  <div className="pagination-controls"><button disabled={!page} aria-label="Previous page" onClick={()=>setPage(p=>Math.max(0,p-1))}><ChevronLeft size={12}/></button><span style={{padding:'0 8px',fontSize:11}}>Page {page+1}</span><button disabled={!data.hasMore} aria-label="Next page" onClick={()=>setPage(p=>p+1)}><ChevronRight size={12}/></button></div>
+                  <div className="pagination-controls"><button disabled={!page} aria-label="Previous page" onClick={()=>{setBusy(true);setPage(p=>Math.max(0,p-1));}}><ChevronLeft size={12}/></button><span style={{padding:'0 8px',fontSize:11}}>Page {page+1}</span><button disabled={!data.hasMore} aria-label="Next page" onClick={()=>{setBusy(true);setPage(p=>p+1);}}><ChevronRight size={12}/></button></div>
                 </div>
               </>}
             </div>
