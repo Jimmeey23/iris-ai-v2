@@ -388,7 +388,7 @@ export function CommandCenter({directory = false}: {directory?: boolean}) {
       }
     >
       {!directory && (
-        <div className="cc-overview">
+        <div className="cc-overview cockpit-canvas">
           <section className="overview-command-deck" aria-labelledby="overview-command-title">
             <span className="iris-banner-shine" aria-hidden="true"/>
             <div className="overview-command-copy">
@@ -440,38 +440,40 @@ export function CommandCenter({directory = false}: {directory?: boolean}) {
               <p><span className="overview-live-dot" aria-hidden="true"/> Derived from the tickets in your current reporting scope.</p>
             </div>
           </section>
-          <BoardTelemetry tickets={filtered} total={tickets.length} staleDays={staleTicketDays}/>
-          <MetricCards metrics={metrics} onApplyFilter={applyMetricFilter} onOpenTicket={setDetail}/>
-          <section className="focus-rail" aria-label="Priority work queues">
-            <div className="focus-rail-intro">
-              <span className="focus-rail-kicker"><Sparkles size={11}/>TODAY&apos;S FOCUS</span>
-              <strong>Move the work that matters most.</strong>
-              <span>Live queues, ranked for action.</span>
-            </div>
-            <button className="focus-item focus-item-critical" onClick={() => applyMetricFilter({state: 'open', priorities: ['critical', 'high']}, 'Urgent open tickets')}>
-              <span className="focus-icon"><Siren size={15}/></span>
-              <span className="focus-copy"><strong>{urgent.length}</strong><span>Urgent</span><small>Critical &amp; high priority</small></span>
-              <ArrowUpRight size={14} className="focus-arrow"/>
-            </button>
-            <button className="focus-item focus-item-overdue" onClick={() => applyMetricFilter({state: 'open', slaStates: ['breached']}, 'Overdue follow-ups')}>
-              <span className="focus-icon"><TimerReset size={15}/></span>
-              <span className="focus-copy"><strong>{overdue.length}</strong><span>Overdue</span><small>Past the follow-up target</small></span>
-              <ArrowUpRight size={14} className="focus-arrow"/>
-            </button>
-            <button className="focus-item focus-item-ageing" onClick={() => applyMetricFilter({state: 'open', ageBucket: 'stale'}, 'Ageing open tickets')}>
-              <span className="focus-icon"><History size={15}/></span>
-              <span className="focus-copy"><strong>{ageing.length}</strong><span>Ageing</span><small>Open for {staleTicketDays}+ days</small></span>
-              <ArrowUpRight size={14} className="focus-arrow"/>
-            </button>
+          <section className="cockpit-signal-deck" aria-label="Live scope and priority work">
+            <BoardTelemetry tickets={filtered} total={tickets.length} staleDays={staleTicketDays}/>
+            <section className="focus-rail" aria-label="Priority work queues">
+              <div className="focus-rail-intro">
+                <span className="focus-rail-kicker"><Sparkles size={11}/>TODAY&apos;S FOCUS</span>
+                <strong>Move the work that matters most.</strong>
+                <span>Live queues, ranked for action.</span>
+              </div>
+              <button className="focus-item focus-item-critical" onClick={() => applyMetricFilter({state: 'open', priorities: ['critical', 'high']}, 'Urgent open tickets')}>
+                <span className="focus-icon"><Siren size={15}/></span>
+                <span className="focus-copy"><strong>{urgent.length}</strong><span>Urgent</span><small>Critical &amp; high priority</small></span>
+                <ArrowUpRight size={14} className="focus-arrow"/>
+              </button>
+              <button className="focus-item focus-item-overdue" onClick={() => applyMetricFilter({state: 'open', slaStates: ['breached']}, 'Overdue follow-ups')}>
+                <span className="focus-icon"><TimerReset size={15}/></span>
+                <span className="focus-copy"><strong>{overdue.length}</strong><span>Overdue</span><small>Past the follow-up target</small></span>
+                <ArrowUpRight size={14} className="focus-arrow"/>
+              </button>
+              <button className="focus-item focus-item-ageing" onClick={() => applyMetricFilter({state: 'open', ageBucket: 'stale'}, 'Ageing open tickets')}>
+                <span className="focus-icon"><History size={15}/></span>
+                <span className="focus-copy"><strong>{ageing.length}</strong><span>Ageing</span><small>Open for {staleTicketDays}+ days</small></span>
+                <ArrowUpRight size={14} className="focus-arrow"/>
+              </button>
+            </section>
           </section>
+          <MetricCards metrics={metrics} onApplyFilter={applyMetricFilter} onOpenTicket={setDetail}/>
         </div>
       )}
 
-      <div className={(!directory && view === 'list' ? 'overview-grid' : '') + (!directory ? ' cc-overview' : '')} style={{marginTop: !directory ? 22 : 0}}>
+      <div className={!directory ? 'cc-overview cockpit-workspace-stage' : ''} style={{marginTop: !directory ? 14 : 0}}>
         {workspace}
         {!directory && view === 'list' && (
-          <aside className="sidebar-widgets">
-            <section className="card insights-widget">
+          <aside className="cockpit-lower-deck" aria-label="Supporting operational intelligence">
+            <section className="insights-widget">
               <h3><Sparkles size={15} className="accent"/>IRIS intelligence <Badge tone="purple">LIVE</Badge></h3>
               <p className="sub">Small signals. Meaningful action.</p>
               <div className="insight-line">
@@ -491,7 +493,7 @@ export function CommandCenter({directory = false}: {directory?: boolean}) {
               </div>
               <div className="insight-footer"><span>Based on your live ticket data</span><RefreshCw size={11}/></div>
             </section>
-            <section className="card studio-pulse">
+            <section className="studio-pulse">
               <div className="between"><h3>Studio pulse</h3><Link className="text-btn" href="/radar">Ops Radar <ArrowUpRight size={14}/></Link></div>
               <p className="muted" style={{fontSize: 10, marginTop: 5}}>Active tickets across your studios · Live Radar</p>
               {STUDIOS.map((s, i) => {
@@ -504,7 +506,7 @@ export function CommandCenter({directory = false}: {directory?: boolean}) {
                 );
               })}
             </section>
-            <section className="card quick-templates">
+            <section className="quick-templates">
               <div className="between"><h3>A head start</h3><Link href="/templates" className="text-btn" style={{fontSize: 10}}>View all <ChevronRight size={11}/></Link></div>
               {QUICK_TEMPLATES.map((t) => (
                 <button className="quick-template" key={t.id} onClick={() => setTemplate(t)}>

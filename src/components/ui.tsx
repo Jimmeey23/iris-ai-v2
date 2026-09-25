@@ -853,11 +853,13 @@ export function Avatar({
   tone = "",
   large = false,
   emptyDark = false,
+  owner = false,
 }: {
   name: string;
   tone?: string;
   large?: boolean;
   emptyDark?: boolean;
+  owner?: boolean;
 }) {
   if (emptyDark)
     return (
@@ -868,9 +870,13 @@ export function Avatar({
         <UserRound size={large ? 17 : 13} />
       </span>
     );
+  const palette = owner
+    ? String([...name].reduce((sum, char) => sum + char.charCodeAt(0), 0) % 6)
+    : undefined;
   return (
-    <span className={cn("avatar", tone, large && "lg")}>
+    <span className={cn("avatar", tone, owner && "avatar-owner", large && "lg")} data-palette={palette} aria-label={owner ? `${name}, ticket owner` : undefined}>
       {initials(name || "IRIS")}
+      {owner && <i className="avatar-presence" aria-hidden="true"/>}
     </span>
   );
 }

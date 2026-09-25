@@ -12709,6 +12709,282 @@ small {
   }
 }
 
+/* Overview cockpit v3 — one continuous operational surface rather than a stack of cards. */
+.cockpit-canvas {
+  position: relative;
+  isolation: isolate;
+  overflow: clip;
+}
+.cockpit-canvas::before,
+.cockpit-canvas::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  pointer-events: none;
+}
+.cockpit-canvas::before {
+  top: -72px;
+  right: -46px;
+  width: min(42vw, 560px);
+  height: 360px;
+  opacity: 0.5;
+  background:
+    radial-gradient(circle at 72% 35%, color-mix(in srgb, var(--accent) 19%, transparent), transparent 34%),
+    repeating-radial-gradient(circle at 72% 35%, color-mix(in srgb, var(--accent) 13%, transparent) 0 1px, transparent 1px 28px);
+  mask-image: linear-gradient(135deg, black, transparent 78%);
+}
+.cockpit-canvas::after {
+  left: -25px;
+  top: 198px;
+  width: 180px;
+  height: 180px;
+  border-left: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 12%, transparent);
+  background-image: radial-gradient(color-mix(in srgb, var(--accent) 38%, transparent) 1px, transparent 1px);
+  background-size: 14px 14px;
+  mask-image: linear-gradient(135deg, black, transparent 72%);
+}
+.cockpit-signal-deck {
+  position: relative;
+  margin-top: 10px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(112deg, color-mix(in srgb, var(--surface-2) 94%, var(--accent) 6%), var(--surface));
+  box-shadow: var(--shadow-2), var(--highlight-inset);
+}
+.cockpit-signal-deck::after {
+  content: "";
+  position: absolute;
+  right: 14px;
+  top: 9px;
+  width: 54px;
+  height: 7px;
+  opacity: 0.7;
+  background: repeating-linear-gradient(90deg, var(--accent) 0 2px, transparent 2px 6px);
+  mask-image: linear-gradient(90deg, transparent, black);
+  pointer-events: none;
+}
+.cockpit-signal-deck .board-telemetry {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.cockpit-signal-deck .bt-readouts {
+  padding-top: 11px;
+  padding-bottom: 11px;
+}
+.cockpit-signal-deck .focus-rail {
+  margin: 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+  border-radius: 0;
+  background: color-mix(in srgb, var(--surface-2) 72%, transparent);
+  box-shadow: none;
+}
+.cc-overview .metric-grid-8 {
+  gap: 1px;
+  margin-top: 10px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--border);
+  box-shadow: var(--shadow-2), var(--highlight-inset);
+}
+.cc-overview .mc-card {
+  height: 104px;
+}
+.cc-overview .mc-face {
+  gap: 3px;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: var(--surface);
+}
+.cc-overview .mc-label {
+  letter-spacing: 0.1em;
+  line-height: 1.25;
+}
+.cc-overview .mc-value {
+  font-size: 25px;
+}
+.cc-overview .mc-icon {
+  width: 21px;
+  height: 21px;
+}
+.cc-overview .metric-spark {
+  width: 62px;
+  height: 23px;
+}
+.cc-overview .metric-gauge {
+  width: 30px;
+  height: 30px;
+}
+.cc-overview .metric-delta {
+  max-width: 126px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cockpit-workspace-stage {
+  width: 100%;
+}
+.cockpit-workspace-stage .tickets-panel {
+  width: 100%;
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+}
+.cockpit-lower-deck {
+  display: grid;
+  grid-template-columns: 1.12fr 1fr 1fr;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-top: 0;
+  border-radius: 0 0 var(--radius-xl) var(--radius-xl);
+  background: var(--surface);
+  box-shadow: 0 24px 58px -34px rgba(0, 0, 0, 0.42), var(--highlight-inset);
+}
+.cockpit-lower-deck > section {
+  min-width: 0;
+  padding: 18px 20px;
+  border-right: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.cockpit-lower-deck > section:last-child {
+  border-right: 0;
+}
+.cockpit-lower-deck .insights-widget::before {
+  width: 130px;
+  height: 130px;
+}
+.cockpit-lower-deck .insight-line {
+  margin-bottom: 4px;
+}
+.cockpit-lower-deck .studio-row {
+  margin-top: 11px;
+}
+.cockpit-lower-deck .quick-template {
+  padding-top: 9px;
+  padding-bottom: 9px;
+}
+.ticket-grid .avatar-owner {
+  overflow: visible;
+  isolation: isolate;
+  border: 1px solid color-mix(in srgb, var(--white) 30%, transparent);
+  color: var(--white);
+  text-shadow: 0 1px 5px rgba(0, 0, 0, 0.35);
+  box-shadow:
+    0 0 0 2px var(--surface),
+    0 0 0 3px color-mix(in srgb, var(--accent) 24%, var(--border)),
+    0 5px 12px -5px rgba(0, 0, 0, 0.48);
+}
+.ticket-grid .avatar-owner::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  border-radius: inherit;
+  opacity: 0.92;
+  background:
+    radial-gradient(circle at 75% 18%, color-mix(in srgb, var(--white) 45%, transparent), transparent 24%),
+    linear-gradient(145deg, var(--accent-bright), var(--purple));
+}
+.ticket-grid .avatar-owner[data-palette="1"]::before { background: radial-gradient(circle at 75% 18%, #ffffff70, transparent 24%), linear-gradient(145deg, #0f9f87, #2563eb); }
+.ticket-grid .avatar-owner[data-palette="2"]::before { background: radial-gradient(circle at 75% 18%, #ffffff70, transparent 24%), linear-gradient(145deg, #7c3aed, #db2777); }
+.ticket-grid .avatar-owner[data-palette="3"]::before { background: radial-gradient(circle at 75% 18%, #ffffff70, transparent 24%), linear-gradient(145deg, #c56a18, #b42355); }
+.ticket-grid .avatar-owner[data-palette="4"]::before { background: radial-gradient(circle at 75% 18%, #ffffff70, transparent 24%), linear-gradient(145deg, #2563eb, #4f46e5); }
+.ticket-grid .avatar-owner[data-palette="5"]::before { background: radial-gradient(circle at 75% 18%, #ffffff70, transparent 24%), linear-gradient(145deg, #198754, #0f766e); }
+.ticket-grid .avatar-presence {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 8px;
+  height: 8px;
+  border: 2px solid var(--surface);
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--green) 65%, transparent);
+}
+.ticket-grid tbody tr:hover .mini-owner .avatar-owner {
+  transform: translateY(-1px) scale(1.04);
+  box-shadow:
+    0 0 0 2px var(--surface),
+    0 0 0 3px color-mix(in srgb, var(--accent) 48%, transparent),
+    0 7px 14px -6px rgba(0, 0, 0, 0.5);
+}
+
+@media (min-width: 1500px) {
+  .cc-overview .metric-grid-8 {
+    grid-template-columns: repeat(8, minmax(0, 1fr));
+  }
+}
+@media (max-width: 1100px) {
+  .cockpit-lower-deck {
+    grid-template-columns: 1fr 1fr;
+  }
+  .cockpit-lower-deck > section:nth-child(2) {
+    border-right: 0;
+  }
+  .cockpit-lower-deck > section:last-child {
+    grid-column: 1 / -1;
+    border-top: 1px solid var(--border);
+  }
+}
+@media (max-width: 767px) {
+  .cc-overview .mc-card {
+    height: 96px;
+  }
+  .cc-overview .mc-face {
+    padding: 9px 10px;
+  }
+  .cc-overview .mc-value {
+    font-size: 22px;
+  }
+  .cockpit-lower-deck {
+    grid-template-columns: 1fr;
+  }
+  .cockpit-lower-deck > section,
+  .cockpit-lower-deck > section:nth-child(2) {
+    grid-column: auto;
+    border-right: 0;
+    border-top: 1px solid var(--border);
+  }
+  .cockpit-lower-deck > section:first-child {
+    border-top: 0;
+  }
+  .cockpit-workspace-stage .tabs-toolbar {
+    display: flex;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow: hidden;
+  }
+  .cockpit-workspace-stage .tabs-toolbar .tabs-list {
+    min-width: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+  }
+  .cockpit-workspace-stage .tabs-toolbar .tabs-list::-webkit-scrollbar {
+    display: none;
+  }
+}
+@media (max-width: 440px) {
+  .topbar {
+    padding-right: 10px;
+  }
+  .topbar-actions {
+    min-width: 0;
+    gap: 7px;
+  }
+  .topbar-avatar {
+    display: none;
+  }
+}
+
 /* Intake command surface — the form header stays in normal flow so it cannot cover the
    mandatory context switches immediately below it. The workspace topbar is the sole sticky
    header on this route. */
