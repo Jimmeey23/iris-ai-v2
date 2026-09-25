@@ -380,14 +380,14 @@ export function TicketDialog({
                   className="td-masthead-art"
                 />
                 <div className="td-masthead-body">
-                  <p className="td-trail">
-                    {t.category} › {t.subcategory}
+                  <div className="td-identity-line">
+                    <span className="td-ticket-key">{t.ticketNumber}</span>
+                    <span>{t.category} / {t.subcategory}</span>
                     <span className="td-rev">
                       Revision {t.version} · updated {indiaDate(t.updatedAt)}
                     </span>
-                  </p>
-                  <h2 className="td-title">{t.title}</h2>
-                  <p className="td-summary">{t.summary}</p>
+                  </div>
+                  <p className="td-summary td-summary-primary">{t.summary}</p>
                   <div className="td-chips">
                     <Status status={t.status} />
                     <Priority priority={t.priority} />
@@ -479,55 +479,32 @@ export function TicketDialog({
                   {tab === "overview" && (
                     <div className="td-overview">
                       <div className="td-column">
-                        {t.description.trim() !== t.summary.trim() && (
-                          <section className="td-block td-block-raised">
-                            <div className="td-section-head">
-                              <div className="td-section-icon">
-                                <FileText size={18} />
-                              </div>
-                              <h3>What happened</h3>
-                            </div>
-                            <p className="td-narrative">{t.description}</p>
-                            <div className="td-narrative-tags">
-                              <span className="td-tag">{t.category}</span>
-                              <span className="td-tag td-tag-sub">
-                                {t.subcategory}
-                              </span>
-                              {t.impact && (
-                                <span className="td-tag td-tag-impact">
-                                  <Zap size={11} />
-                                  {t.impact}
-                                </span>
-                              )}
-                            </div>
-                          </section>
-                        )}
-
-                        {(t.requestedResolution || t.impact) && (
-                          <section className="td-block td-block-highlight">
-                            <div className="td-highlight-inner">
-                              <div className="td-highlight-orb">
-                                <Sparkles size={20} />
-                              </div>
+                        <section className="td-case-file">
+                          <header>
+                            <span className="td-section-icon"><FileText size={17}/></span>
+                            <div><span className="eyebrow">CASE BRIEF</span><h3>What happened</h3></div>
+                          </header>
+                          <p className="td-narrative">{t.description || t.summary}</p>
+                          {(t.requestedResolution || t.impact) && (
+                            <div className="td-request-strip">
+                              <Sparkles size={15}/>
                               <div>
-                                <h4>Member request</h4>
-                                {t.requestedResolution && (
-                                  <p>{t.requestedResolution}</p>
-                                )}
-                                {t.impact && !t.requestedResolution && (
-                                  <p>Impact: {t.impact}</p>
-                                )}
+                                <strong>{t.requestedResolution ? "Requested outcome" : "Reported impact"}</strong>
+                                <p>{t.requestedResolution || t.impact}</p>
                               </div>
                             </div>
-                          </section>
-                        )}
+                          )}
+                          <div className="td-narrative-tags">
+                            <span className="td-tag">{t.category}</span>
+                            <span className="td-tag td-tag-sub">{t.subcategory}</span>
+                            {t.impact && t.requestedResolution && <span className="td-tag td-tag-impact"><Zap size={11}/>{t.impact}</span>}
+                          </div>
+                        </section>
 
-                        <section className="td-block">
+                        <section className="td-context-sheet">
                           <div className="td-section-head">
-                            <div className="td-section-icon td-section-icon-alt">
-                              <Layers size={18} />
-                            </div>
-                            <h3>Context</h3>
+                            <div><span className="eyebrow">KNOWN CONTEXT</span><h3>People, place and moment</h3></div>
+                            <Layers size={17}/>
                           </div>
                           <dl className="td-facts td-facts-grid">
                             {[
@@ -606,7 +583,7 @@ export function TicketDialog({
                           </div>
                         </details>
                       </div>
-                      <aside className="td-aside">
+                      <aside className="td-aside" aria-label="Ticket controls and linked context">
                         <div className="td-panel">
                           <h3>Routing</h3>
                           <div className="detail-fields">
