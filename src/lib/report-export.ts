@@ -1,4 +1,5 @@
 "use client";
+import {indiaDate} from './display';
 /** Multi-format report exporters. Each is lazily imported so the heavy libraries
  *  (xlsx / jspdf / docx) only load when a user actually exports. */
 export type ExportReport={
@@ -11,7 +12,8 @@ export type ExportReport={
 export type ExportFormat='csv'|'xlsx'|'json'|'pdf'|'docx'|'md'|'html';
 
 const nice=(k:string)=>k.replace(/([a-z])([A-Z])/g,'$1 $2').replace(/^./,c=>c.toUpperCase());
-const stamp=(iso:string)=>new Date(iso).toLocaleString('en-IN',{timeZone:'Asia/Kolkata',dateStyle:'medium',timeStyle:'short'});
+// Workspace timezone and house date format, the same as every other date on screen.
+const stamp=(iso:string)=>indiaDate(iso);
 function download(name:string,blob:Blob){const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1500);}
 const csvSafe=(v:unknown)=>{let s=String(v??'');if(/^[=+\-@\t\r]/.test(s))s="'"+s;return '"'+s.replaceAll('"','""')+'"';};
 const metricRows=(r:ExportReport)=>Object.entries(r.metrics).map(([k,v])=>[nice(k),v===null?'—':String(v)]);

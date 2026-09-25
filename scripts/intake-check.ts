@@ -9,11 +9,11 @@
  *
  * Run: npm run check:intake
  */
-import {CATEGORY_MAP, CLASS_FORMATS, STUDIOS, TRAINERS} from '@/lib/constants';
+import {CATEGORY_DEPARTMENT, CATEGORY_MAP, CLASS_FORMATS, PRIORITY_SLA_HOURS, STUDIOS, TRAINERS} from '@/lib/constants';
 import {ticketInputSchema} from '@/lib/ticket-contract';
 import {inferPriority} from '@/lib/routing';
 import {
-  composeWriteup, decodeLookup, decodeLookups, encodeLookup, encodeLookups, fieldOptions, gatingFor, hubCategories, hubSub, isVisible, linkedLookup,
+  composeWriteup, decodeLookup, decodeLookups, encodeLookup, encodeLookups, fieldOptions, gatingFor, hubCategories, hubSub, hubTier, isVisible, linkedLookup,
   missingFields, planFields, priorityInputs, relativeFor, seedData, toTicketInput, visibleFields, type IntakeData,
 } from '@/lib/intake/plan';
 import {classDeskAnswers, rosterRows, sessionSnapshot, sessionStats, type SessionDetail} from '@/lib/intake/class-desk';
@@ -216,16 +216,27 @@ console.log('\nThe payload maps onto the contract Iris already files through');
   check('a compliment defaults to positive sentiment', praise.sentiment === 'positive' && praise.kind === 'compliment');
 }
 
-console.log('\nPriority: Iris routing agrees with the Support Hub tiers where both exist');
+console.log('\nOne taxonomy, one priority, one SLA');
 {
-  let shared = 0, agree = 0; const off: string[] = [];
-  for (const c of hubCategories()) for (const sub of c.subs) {
-    if (!CATEGORY_MAP[c.name]?.includes(sub)) continue;
+  const hub = hubCategories();
+  const missing = hub.flatMap(c => c.subs.filter(sub => !CATEGORY_MAP[c.name]?.includes(sub)).map(sub => `${c.name} › ${sub}`));
+  check('every Support Hub sub-category is in the workspace taxonomy', missing.length === 0, missing.slice(0, 5));
+  check('every category routes to a department', Object.keys(CATEGORY_MAP).every(c => CATEGORY_DEPARTMENT[c]), Object.keys(CATEGORY_MAP).filter(c => !CATEGORY_DEPARTMENT[c]));
+  const rank: Record<string, number> = {low: 0, medium: 1, high: 2, critical: 3};
+  let shared = 0; const below: string[] = [];
+  for (const c of hub) for (const sub of c.subs) {
     shared++;
-    const iris = inferPriority({category: c.name, subcategory: sub});
-    if (iris === hubSub(c.name, sub)!.hubPriority) agree++; else off.push(`${sub}: hub ${hubSub(c.name, sub)!.hubPriority} / iris ${iris}`);
+    const iris = inferPriority({category: c.name, subcategory: sub}), tier = hubTier(c.name, sub) || 'low';
+    if (rank[iris] < rank[tier]) below.push(`${sub}: hub ${tier} / iris ${iris}`);
   }
-  check(`${agree}/${shared} baseline tiers agree (the rest are Iris's deliberate choices)`, agree / shared > 0.9, off.slice(0, 5));
+  check(`no sub-category files below the Support Hub tier (${shared} checked)`, below.length === 0, below.slice(0, 5));
+  const tiers: [string, string, string][] = [['Trainer Feedback', 'Trainer Behaviour', 'high'], ['Trainer Feedback', 'Trainer Punctuality Issues', 'high'], ['Miscellaneous', 'Music Volume Issues', 'medium'], ['Repair and Maintenance', 'Fire Safety Compliance', 'critical']];
+  check('conflicts resolve to the higher tier', tiers.every(([c, s, p]) => inferPriority({category: c, subcategory: s}) === p), tiers.map(([c, s]) => inferPriority({category: c, subcategory: s})));
+  const meta = hubSub('Trainer Feedback', 'Trainer Behaviour', {priority: 'high', hours: {critical: 1, high: 6, medium: 24, low: 72}})!;
+  check('the plan reports the priority it is given, with the configured SLA', meta.hubPriority === 'high' && meta.slaLabel === '6 h first response' && meta.hours[0] === 6, meta);
+  check('without configured hours the SLA is the default table', hubSub('Scheduling', 'Time Change')!.slaLabel === `${PRIORITY_SLA_HOURS.medium} h first response`, hubSub('Scheduling', 'Time Change')!.slaLabel);
+  check('the plan carries no SLA strings of its own', !hub.some(c => c.subs.some(sub => /P[1-4] —|min first/.test(hubSub(c.name, sub)!.slaLabel))));
+  check('an admin-added sub-category still gets a plan', hubSub('Scheduling', 'Brand New Drawer') === null && planFields('Scheduling', 'Brand New Drawer', ctx)[0]?.id === 'reporter_type');
 }
 
 console.log('\nThe class desk reads a session the way the review sheet expects');

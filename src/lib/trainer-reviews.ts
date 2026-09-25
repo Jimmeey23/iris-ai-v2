@@ -1,6 +1,6 @@
-import {eq,inArray} from 'drizzle-orm';
+import {eq,inArray,lt} from 'drizzle-orm';
 import {db} from '@/db';
-import {tickets} from '@/db/schema';
+import {appSettings,tickets} from '@/db/schema';
 import {obj,arr} from './momence';
 import {makeDraft,createTicketFromDraft} from './tickets';
 import {credentials,getConfig} from './config';
@@ -133,10 +133,14 @@ export async function fetchReviews(source:ReviewSource){
   return source.kind==='zite-app'?fetchZite(source):fetchFilloutForm(source);
 }
 
-let lastSync=0;let inflight:Promise<SyncResult>|undefined;
+let inflight:Promise<SyncResult>|undefined;
 /** How stale the tab is allowed to be. Each pass is three upstream calls, so this keeps a
  *  busy page from hammering them while still reading as live. */
-const SYNC_TTL_MS=20000;
+const SYNC_TTL_MS=60000;
+/** The throttle lives in app_settings, not module memory: every server instance (and every
+ *  cold start) shares it. `updatedAt` is when a pass was last claimed; `value.lastSync` is
+ *  when one last finished. */
+const SYNC_KEY='trainer-reviews:sync';
 
 export type SyncResult={imported:number;skipped:number;failed:number;unmatched:number;lastSync:string;
   sources:{label:string;id:string;imported:number;skipped:number;failed:number;unmatched:number;total:number;
@@ -198,18 +202,35 @@ export async function syncTrainerReviews():Promise<SyncResult>{
     result.imported+=entry.imported;result.skipped+=entry.skipped;result.failed+=entry.failed;result.unmatched+=entry.unmatched;
     result.sources.push(entry);
   }
-  lastSync=Date.now();
-  result.lastSync=new Date(lastSync).toISOString();
+  result.lastSync=new Date().toISOString();
+  await db.insert(appSettings).values({key:SYNC_KEY,value:{lastSync:result.lastSync}})
+    .onConflictDoUpdate({target:appSettings.key,set:{value:{lastSync:result.lastSync}}}).catch(()=>null);
   return result;
 }
 
 /** When the last pass finished, for the "last synced" line on the reviews tab. */
-export function lastSyncAt(){return lastSync?new Date(lastSync).toISOString():null;}
+export async function lastSyncAt():Promise<string|null>{
+  const[row]=await db.select({value:appSettings.value}).from(appSettings).where(eq(appSettings.key,SYNC_KEY));
+  const at=row?.value?.lastSync;
+  return typeof at==='string'?at:null;
+}
 
-/** Sync unless a pass ran within the TTL, so the reviews tab reads live without thrashing. */
+/** Claims the next pass atomically: the upsert only lands when no pass was claimed within the
+ *  TTL, so concurrent requests on any instance agree on a single winner. */
+async function claimSyncSlot():Promise<boolean>{
+  const now=new Date();
+  const claimed=await db.insert(appSettings).values({key:SYNC_KEY,value:{},updatedAt:now})
+    .onConflictDoUpdate({target:appSettings.key,set:{updatedAt:now},setWhere:lt(appSettings.updatedAt,new Date(now.getTime()-SYNC_TTL_MS))})
+    .returning({key:appSettings.key});
+  return claimed.length>0;
+}
+
+/** Sync unless a pass was claimed within the TTL, so the reviews tab reads live without
+ *  thrashing the upstreams. Meant to run after the response (`after()`), not in its path. */
 export async function syncTrainerReviewsThrottled():Promise<SyncResult|null>{
-  if(Date.now()-lastSync<SYNC_TTL_MS)return null;
-  if(!inflight)inflight=syncTrainerReviews().finally(()=>{inflight=undefined;});
+  if(inflight)return inflight;
+  if(!await claimSyncSlot())return null;
+  inflight=syncTrainerReviews().finally(()=>{inflight=undefined;});
   return inflight;
 }
 

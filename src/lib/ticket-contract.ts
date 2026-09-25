@@ -10,6 +10,11 @@ export const ticketInputSchema=z.object({
   submissionKey:z.string().min(12).max(200).optional(),
 });
 export type TicketInput=z.infer<typeof ticketInputSchema>;
+/** Sources a caller of the public create endpoint may claim. `history` and `system` mark
+ *  imported and automation-raised rows, which reporting treats differently — only the
+ *  importer and the recurrence checks set them, through `makeDraft(raw,{trusted:true})`. */
+export const PUBLIC_TICKET_SOURCES=['iris','template','manual','voice','fillout'] as const;
+export const publicTicketInputSchema=ticketInputSchema.extend({source:z.enum(PUBLIC_TICKET_SOURCES).default('manual')});
 export type AdvancedDraft=TicketInput&{title:string;summary:string;priority:'critical'|'high'|'medium'|'low';severity:string;assignedStaffId:number|null;assignedStaffName:string;assignedStaffEmail:string;assignedStaffRole:string;departmentId:string;departmentName:string;slaHours:number;slaLabel:string;resolutionRequired:boolean;tags:string[];opsChecklist:string[];memberFacingUpdate:string;internalBrief:string;routingReason:string;};
 export type TicketRecord=AdvancedDraft&{id:number;ticketNumber:string;status:string;createdAt:string;updatedAt:string;slaDueAt:string|null;resolvedAt:string|null;version:number;isEscalated:boolean;/** Equipment register row, when the fault was about a specific asset. */assetId:number|null;};
 /** Columns the board, dashboard and link picker actually render. The full row carries

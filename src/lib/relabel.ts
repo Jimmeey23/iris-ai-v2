@@ -1,4 +1,4 @@
-import {eq} from 'drizzle-orm';
+import {eq, sql} from 'drizzle-orm';
 import {db} from '@/db';
 import {tickets} from '@/db/schema';
 import {describeTicket, isGenericLabel} from './ticket-label';
@@ -76,6 +76,7 @@ export async function relabelTickets(options: {dryRun?: boolean; force?: boolean
           title: next,
           // Written once: a second run must not overwrite the true original with a generated one.
           customFields: custom._originalTitle === undefined ? {...custom, _originalTitle: row.title} : custom,
+          version: sql`${tickets.version}+1`,
           updatedAt: new Date(),
         })
         .where(eq(tickets.id, row.id));

@@ -10,8 +10,9 @@ import {
   ticketComments,
   tickets,
 } from "@/db/schema";
-import { DEPARTMENT_RECORDS, STAFF } from "./constants";
-import { assignTicket, inferPriority, inferSeverity, slaHoursFor } from "./routing";
+import { DEPARTMENT_RECORDS } from "./constants";
+import { assignTicket, STAFF } from "./staff-directory";
+import { inferPriority, inferSeverity, slaHoursFor } from "./routing";
 import { hoursFromNow, ticketNumberFor } from "./utils";
 import { seedAssets } from "./assets";
 
@@ -194,7 +195,7 @@ const SAMPLE_TICKETS: SeedTicket[] = [
     memberName: "Shifa desk report",
     memberEmail: "shifa@physique57bengaluru.com",
     memberPhone: "+918000000001",
-    source: "staff",
+    source: "manual",
     hoursAgo: 6,
   },
   {
@@ -247,26 +248,40 @@ const SAMPLE_TICKETS: SeedTicket[] = [
   },
 ];
 
+/** Demo tickets are opt-in: set SEED_DEMO_DATA=true. Nothing else — not a development
+ *  NODE_ENV, not an empty table — puts invented members into a workspace. */
+const demoDataEnabled = () => process.env.SEED_DEMO_DATA === "true";
+
 let seeded = false;
 let seedPromise: Promise<void> | undefined;
 export async function ensureSeeded() {
   if (seeded) return;
-  if (!seedPromise) seedPromise = db.transaction(async tx => {
-    await tx.execute(sql`select pg_advisory_xact_lock(578157)`);
-    // The equipment register is topped up from each studio's planned bike count, and it has
-    // to happen before the workspace marker short-circuits the rest: an existing workspace
-    // has to gain the register too, otherwise its bikes only exist once they have broken.
+  if (!seedPromise) seedPromise = (async () => {
+    // The equipment register is topped up from each studio's planned bike count on every cold
+    // start, before the workspace marker short-circuits the rest: an existing workspace has to
+    // gain the register too. It runs outside the seed transaction (it is idempotent — insert
+    // on conflict do nothing) so the seed never holds two pooled connections at once.
     await seedAssets();
-    const [marker] = await tx.select().from(appSettings).where(eq(appSettings.key,"workspace-initialized"));
-    if (marker) return;
-  const existing = await tx.select({ id: departments.id }).from(departments).limit(1);
-  if (existing.length === 0) {
-    await tx.insert(departments).values([...DEPARTMENT_RECORDS]).onConflictDoNothing();
-  }
-  const staffExisting = await tx.select({ id: staff.id }).from(staff).limit(1);
-  if (staffExisting.length === 0) {
-    await tx.insert(staff).values(STAFF).onConflictDoNothing();
-  }
+    await db.transaction(async tx => {
+      await tx.execute(sql`select pg_advisory_xact_lock(578157)`);
+      const [marker] = await tx.select().from(appSettings).where(eq(appSettings.key,"workspace-initialized"));
+      if (!marker) {
+        // Reference data — departments and staff — is real and always seeded.
+        const existing = await tx.select({ id: departments.id }).from(departments).limit(1);
+        if (existing.length === 0) await tx.insert(departments).values([...DEPARTMENT_RECORDS]).onConflictDoNothing();
+        const staffExisting = await tx.select({ id: staff.id }).from(staff).limit(1);
+        if (staffExisting.length === 0) await tx.insert(staff).values(STAFF).onConflictDoNothing();
+      }
+      if (demoDataEnabled()) await seedDemoTickets(tx);
+      await tx.insert(appSettings).values({key:"workspace-initialized",value:{initialized:true}}).onConflictDoNothing();
+    });
+  })().then(() => { seeded = true; }).catch(error => { seedPromise=undefined; throw error; });
+  await seedPromise;
+}
+
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+/** Sample tickets for a demo workspace, written only into an empty ticket table. */
+async function seedDemoTickets(tx: Tx) {
   const ticketExisting = await tx.select({ id: tickets.id }).from(tickets).limit(1);
   if (ticketExisting.length === 0) {
     for (const sample of SAMPLE_TICKETS) {
@@ -278,6 +293,10 @@ export async function ensureSeeded() {
       const assignment = assignTicket(sample.category, sample.studio);
       const slaHours = slaHoursFor(priority);
       const createdAt = new Date(Date.now() - sample.hoursAgo * 60 * 60 * 1000);
+      // A demo record resolved at the moment it was filed would report a 0h resolution time.
+      const done = sample.status === "resolved" || sample.status === "closed";
+      const resolvedAt = done ? new Date(createdAt.getTime() + Math.max(1, Math.round(sample.hoursAgo / 3)) * 3600000) : null;
+      const closedAt = resolvedAt ? new Date(Math.min(Date.now(), resolvedAt.getTime() + 3600000)) : null;
       const [row] = await tx
         .insert(tickets)
         .values({
@@ -308,13 +327,13 @@ export async function ensureSeeded() {
           slaHours,
           slaDueAt: hoursFromNow(slaHours - sample.hoursAgo),
           source: sample.source,
-          channel: sample.source === "iris" ? "chat" : "staff",
+          channel: sample.source === "iris" ? "chat" : "workspace",
           tags: [sample.category, sample.subcategory, priority],
           customFields: { _demo: true },
           createdAt,
           updatedAt: createdAt,
-          resolvedAt: sample.status === "resolved" || sample.status === "closed" ? createdAt : null,
-          closedAt: sample.status === "closed" ? createdAt : null,
+          resolvedAt,
+          closedAt: sample.status === "closed" ? closedAt : null,
         })
         .returning();
 
@@ -341,10 +360,6 @@ export async function ensureSeeded() {
       }
     }
   }
-
-    await tx.insert(appSettings).values({key:"workspace-initialized",value:{initialized:true}}).onConflictDoNothing();
-  }).then(() => { seeded = true; }).catch(error => { seedPromise=undefined; throw error; });
-  await seedPromise;
 }
 
 

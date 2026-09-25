@@ -45,6 +45,26 @@ const tokenCaches = new Map<"mumbai" | "blr", TokenState>();
 const tokenPromises = new Map<"mumbai" | "blr", Promise<string>>();
 const marketFor = (studio?: string | null): "mumbai" | "blr" =>
   /bengaluru|bangalore/i.test(studio || "") ? "blr" : "mumbai";
+/** Validates a Momence record id before it is placed in a URL path: digits only,
+ *  and encoded anyway so a future relaxation cannot smuggle "/" or "?" through. */
+export function momenceId(v: unknown, label = "ID"): string {
+  const s = String(v ?? "");
+  if (!/^\d{1,18}$/.test(s))
+    throw new ApiError(`${label} must be a numeric Momence ID.`);
+  return encodeURIComponent(s);
+}
+/** Sample members and sessions are a development aid only. In production an
+ *  unconfigured market must fail loudly rather than serve made-up people. */
+const demoAllowed = () =>
+  process.env.NODE_ENV !== "production" &&
+  process.env.VERCEL_ENV !== "production";
+function assertDemoAllowed(studio?: string | null) {
+  if (!demoAllowed())
+    throw new ApiError(
+      `Momence is not configured for ${marketFor(studio) === "blr" ? "Bengaluru" : "Mumbai"}.`,
+      503,
+    );
+}
 async function marketCredentials(studio?: string | null) {
   const all = await credentials("momence");
   if (marketFor(studio) === "mumbai") return all;
@@ -305,6 +325,7 @@ export async function listMomence(
   const configured = await momenceConfigured(studio);
   const page = params.page || 0,
     pageSize = params.pageSize || 24;
+  if (module !== "studios" && !configured) assertDemoAllowed(studio);
   if (module === "studios" || !configured) {
     let items = demoData(module);
     if (params.query)
@@ -343,7 +364,8 @@ export async function listMomence(
     qs.set("sortOrder", "DESC");
     if (params.startAfter) qs.set("startAfter", params.startAfter);
     if (params.startBefore) qs.set("startBefore", params.startBefore);
-    if (params.locationId) qs.set("locationId", params.locationId);
+    if (params.locationId)
+      qs.set("locationId", momenceId(params.locationId, "locationId"));
     // `types` is an array parameter: Momence rejects a bare `types=private` with "types must be an array".
     for (const t of params.sessionTypes || []) qs.append("types[]", t);
   }
@@ -380,8 +402,9 @@ export async function detailMomence(
   page = 0,
   studio?: string | null,
 ) {
-  if (!/^\d+$/.test(id)) throw new ApiError("Invalid record ID");
+  if (!/^\d{1,18}$/.test(id)) throw new ApiError("Invalid record ID");
   const live = await momenceConfigured(studio);
+  if (!live && module !== "studios") assertDemoAllowed(studio);
   if (!live || module === "studios") {
     const raw = demoData(module).find((x) => String(x.id) === id);
     if (!raw) throw new ApiError("Record not found", 404);
@@ -440,7 +463,7 @@ export async function detailMomence(
   if (module === "members" || module === "sessions")
     raw = obj(
       await momenceRequest(
-        `/api/v2/host/${module}/${id}`,
+        `/api/v2/host/${module}/${momenceId(id)}`,
         "GET",
         undefined,
         studio,
@@ -452,15 +475,16 @@ export async function detailMomence(
     if (!found) throw new ApiError("Record not found on this page", 404);
     raw = found.raw;
   }
+  const safeId = momenceId(id);
   const routes: Record<string, string> =
     module === "members"
       ? {
-          memberships: `/members/${id}/bought-memberships/active`,
-          bookings: `/members/${id}/sessions`,
-          notes: `/members/${id}/notes`,
+          memberships: `/members/${safeId}/bought-memberships/active`,
+          bookings: `/members/${safeId}/sessions`,
+          notes: `/members/${safeId}/notes`,
         }
       : module === "sessions"
-        ? { bookings: `/sessions/${id}/bookings` }
+        ? { bookings: `/sessions/${safeId}/bookings` }
         : {};
   await Promise.all(
     Object.entries(routes).map(async ([key, path]) => {
@@ -560,10 +584,7 @@ export async function executeMomence(
   let path = op.path;
   for (const p of op.parameters) {
     if (p.in === "path") {
-      const v = params[p.name];
-      if (!v || !/^\d+$/.test(v))
-        throw new ApiError(`${p.name} must be a numeric Momence ID.`);
-      path = path.replace(`{${p.name}}`, v);
+      path = path.replace(`{${p.name}}`, momenceId(params[p.name], p.name));
     }
   }
   const qs = new URLSearchParams();

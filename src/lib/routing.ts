@@ -1,12 +1,11 @@
-import {
-  CATEGORY_DEPARTMENT,
-  DEPARTMENT_RECORDS,
-  PRIORITY_SLA_HOURS,
-  STAFF,
-  STUDIOS,
-  type StaffRecord,
-} from "./constants";
+import { DEPARTMENT_RECORDS, PRIORITY_SLA_HOURS, STUDIOS, type SlaHours } from "./constants";
 import type { TicketPriority } from "./types";
+
+/* Client-safe: the intake form imports inferPriority from here, so this module must not pull in
+ * the staff directory (lib/staff-directory.ts, server-only). */
+
+/* Sub-category tiers. Where the Support Hub plan and Iris disagreed, each sub-category carries
+ * the higher of the two, so the form, the API and the filed ticket give one answer. */
 
 const CRITICAL_SUBS = new Set([
   "Client Harassment Reports",
@@ -45,7 +44,15 @@ const HIGH_SUBS = new Set([
   "Class Capacity Issues",
   "Injury Prevention and Safety",
   "Unresolved Complaints",
+  // Raised to the Support Hub's tier.
+  "Trainer Punctuality Issues",
+  "Trainer Behaviour",
+  "Class Capacity & Schedule Gaps",
+  "Competitor Solicitation / Client Poaching",
 ]);
+
+/** Lifted above a low-tier category's baseline (the Hub files these at medium). */
+const MEDIUM_SUBS = new Set(["Music Volume Issues"]);
 
 export function studioRegion(studioName?: string | null) {
   if (!studioName) return null;
@@ -55,18 +62,23 @@ export function studioRegion(studioName?: string | null) {
 
 /** Named owners per department and city. Marketing, training and operations tickets go to these
  *  people whatever the scoring below would pick; where a city has two, the one with fewer open
- *  tickets takes it. Patterns match the staff directory's display names. */
+ *  tickets takes it. Patterns match the staff directory's display names; a city with no named
+ *  owner in the directory is left empty and falls back to the department's own scoring. */
 export const CITY_OWNERS: Record<string, {mumbai: RegExp[]; bengaluru: RegExp[]}> = {
-  marketing: {mumbai: [/^shaina\b/i], bengaluru: [/^saachi shetty jr/i]},
+  marketing: {mumbai: [], bengaluru: [/^saachi shetty jr\b/i]},
   training: {mumbai: [/^mrigakshi\b/i, /^vivaran\b/i], bengaluru: [/^pushyank\b/i]},
   operations: {mumbai: [/^zahur\b/i], bengaluru: [/^shifa\b/i]},
 };
 export const cityOf = (studioName?: string | null) => !studioName ? null : /bengaluru|bangalore/i.test(studioName) ? 'bengaluru' as const : 'mumbai' as const;
 
+/** Directory ids that place a staff member at this studio. Courtside and Copper & Cloves reuse
+ *  Kwality House's and Kenkere House's ids, so an id only counts for the studio that owns it (the
+ *  first listed) — otherwise Kwality's team would score as on site for a Courtside ticket. */
 export function studioIdsFor(studioName?: string | null) {
-  if (!studioName) return [] as number[];
-  const studio = STUDIOS.find((s) => s.name === studioName);
-  return studio ? [...studio.studioIds] : [];
+  const studio = studioName ? STUDIOS.find((s) => s.name === studioName) : undefined;
+  if (!studio) return [] as number[];
+  const owner = (id: number) => STUDIOS.find((s) => (s.studioIds as readonly number[]).includes(id))?.name;
+  return studio.studioIds.filter((id) => owner(id) === studio.name) as number[];
 }
 
 const PRIORITY_RANK: Record<TicketPriority, number> = { low: 0, medium: 1, high: 2, critical: 3 };
@@ -96,6 +108,7 @@ export function inferPriority(input: {
   // Baseline from the taxonomy alone, most severe rule last.
   let priority: TicketPriority = "medium";
   if (input.category === "Brand Feedback" || input.category === "Miscellaneous") priority = "low";
+  if (input.subcategory && MEDIUM_SUBS.has(input.subcategory)) priority = "medium";
   if (input.category === "Pricing and Memberships") priority = "medium";
   if (input.category === "Theft and Lost Items") priority = "high";
   if (input.category === "Tech Issues" || input.category === "Operating Systems") priority = "high";
@@ -127,46 +140,10 @@ export function inferSeverity(priority: TicketPriority) {
   return "sev-4";
 }
 
-export function slaHoursFor(priority: TicketPriority) {
-  return PRIORITY_SLA_HOURS[priority] ?? 24;
-}
-
-function scoreStaff(person: StaffRecord, category: string, studioName?: string) {
-  let score = 0;
-  if (!person.isActive) return -1000;
-  if (person.categories.includes(category)) score += 12;
-  const ids = studioIdsFor(studioName);
-  if (person.studioId && ids.includes(person.studioId)) score += 10;
-  const region = studioRegion(studioName);
-  if (region && person.location.toLowerCase().includes(region.toLowerCase())) score += 6;
-  if (person.location === "India") score += 1;
-  if (person.role.toLowerCase().includes("head")) score += 2;
-  if (person.role.toLowerCase().includes("coordinator")) score += 3;
-  if (category === "Safety and Security" && person.role === "Chief Operations Officer") score += 8;
-  if (category === "Safety and Security" && person.role === "Owner") score += 4;
-  if (
-    (category === "Class Experience" || category === "Trainer Feedback") &&
-    person.role === "Head Trainer"
-  ) {
-    score += 5;
-  }
-  return score;
-}
-
-export function assignTicket(category: string, studioName?: string) {
-  const departmentId = CATEGORY_DEPARTMENT[category] ?? "operations";
-  const department = DEPARTMENT_RECORDS.find((d) => d.id === departmentId);
-  const ranked = [...STAFF]
-    .map((person) => ({ person, score: scoreStaff(person, category, studioName) }))
-    .filter((row) => row.score > 0 && row.person.categories.includes(category))
-    .sort((a, b) => b.score - a.score);
-
-  const chosen = ranked[0]?.person ?? STAFF.find((s) => s.id === 19)!;
-  return {
-    staff: chosen,
-    departmentId,
-    departmentName: department?.name ?? chosen.department,
-  };
+/** First-response hours for a tier. Pass the workspace's `responseHours` where it is to hand;
+ *  the default table is what Settings starts from. */
+export function slaHoursFor(priority: TicketPriority, hours: SlaHours = PRIORITY_SLA_HOURS) {
+  return hours[priority] ?? PRIORITY_SLA_HOURS[priority];
 }
 
 export function departmentName(id: string) {

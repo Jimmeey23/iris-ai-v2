@@ -4,6 +4,7 @@ import {intakeActor,errorResponse,ApiError,sameOrigin} from '@/lib/auth';
 import {enforceRateLimit} from '@/lib/rate-limit';
 
 export const dynamic='force-dynamic';
+export const maxDuration=45;
 
 export async function POST(req:Request){
   try {
@@ -18,7 +19,7 @@ export async function POST(req:Request){
     const clean = String(text || '').replace(/[*_#`]/g, '').slice(0, 3000);
     if (!clean.trim()) throw new ApiError('No text supplied to speak.');
 
-    const client = new OpenAI({apiKey: c.api_key, timeout: 30000});
+    const client = new OpenAI({apiKey: c.api_key, timeout: 30000, maxRetries: 1});
     try {
       const speech = await client.audio.speech.create({
         model: 'gpt-4o-mini-tts',

@@ -8,8 +8,9 @@ import {relativeTime} from '@/lib/utils';
 import {TrainerImg} from '@/components/ticket-art';
 
 
-/** How often the tab asks the server to pull the form and the two Zite apps again. */
-const POLL_MS=20000;
+/** How often the tab re-reads the scorecards. Each read also queues a throttled background pull
+ *  of the form and the two Zite apps, whose results show up on the following read. */
+const POLL_MS=60000;
 
 type SyncSource={label:string;id:string;imported:number;skipped:number;failed:number;unmatched:number;total:number;unmatchedStudios:string[];failures:{sourceRef:string;reason:string}[];error?:string};
 type SyncResult={imported:number;skipped:number;failed:number;unmatched:number;lastSync:string;sources:SyncSource[]};
@@ -45,8 +46,9 @@ export default function TrainersPage(){
     })
     .catch(e=>setError(e.message)).finally(()=>setBusy(false));
 
-  // The API pulls new external submissions (throttled server-side) on every read, so this poll is
-  // what makes a submission to the form or either Zite app appear without a manual refresh.
+  // The API queues a pull of new external submissions (throttled server-side) after every read, so
+  // this poll is what makes a submission appear without a manual refresh. It pauses while the tab
+  // is hidden and catches up as soon as it is visible again.
   useEffect(()=>{
     void load();
     const tick=()=>{if(!document.hidden&&listening)void load();};

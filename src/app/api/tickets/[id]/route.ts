@@ -6,7 +6,6 @@ import {
   staff,
   departments,
   ticketActivities,
-  ticketResolutions,
   ticketLinks,
 } from "@/db/schema";
 import {
@@ -21,8 +20,11 @@ import {
   getTicketBundle,
   makeDraft,
   createTicketFromDraft,
-  canResolveTicket,
-  maybeCreateRecurrenceChecks,
+  resolveTicket,
+  assertStatusTransition,
+  statusTimestamps,
+  slaHoursFor,
+  stripReservedFields,
 } from "@/lib/tickets";
 import { getConfig } from "@/lib/config";
 import { inferSeverity } from "@/lib/routing";
@@ -36,9 +38,10 @@ export async function GET(_req: Request, ctx: Ctx) {
       .int()
       .positive()
       .parse((await ctx.params).id);
-    const bundle = await getTicketBundle(id);
+    // Access is checked inside, before any private read; the resolution workspace is only
+    // included for the assigned owner or their reporting manager.
+    const bundle = await getTicketBundle(id, actor);
     if (!bundle) throw new ApiError("Ticket not found", 404);
-    requireTicketAccess(actor, bundle.ticket);
     return Response.json(bundle);
   } catch (e) {
     return errorResponse(e);
@@ -77,60 +80,12 @@ export async function PATCH(req: Request, ctx: Ctx) {
         requestedResolution: z.string().max(2000).optional(),
       })
       .parse(await req.json());
-    const [current] = await db.select().from(tickets).where(eq(tickets.id, id));
+    const [[current], cfg] = await Promise.all([
+      db.select().from(tickets).where(eq(tickets.id, id)),
+      getConfig(),
+    ]);
     if (!current) throw new ApiError("Ticket not found", 404);
     requireTicketAccess(actor, current);
-    if (b.status === "recorded" && current.resolutionRequired)
-      throw new ApiError("Only record-only feedback can use Recorded status.");
-    if (
-      ["resolved", "closed"].includes(b.status || "") &&
-      current.resolutionRequired
-    ) {
-      if (
-        !(await canResolveTicket(
-          actor,
-          current.assignedStaffId,
-          current.resolutionRequired,
-        ))
-      )
-        throw new ApiError(
-          "Only the assigned owner or their reporting manager may resolve this ticket.",
-          403,
-        );
-      const [r] = await db
-        .select()
-        .from(ticketResolutions)
-        .where(eq(ticketResolutions.ticketId, id));
-      if (!r?.actionTaken.trim() || !r.memberOutcome.trim())
-        throw new ApiError(
-          "Complete the private resolution action and outcome first.",
-        );
-      // `requireResolutionNotes` asks for the whole record, not just what was done and what the
-      // member was told: without a root cause and a preventive action the log cannot answer
-      // "has this happened before, and what did we change?".
-      const full = await getConfig();
-      if (
-        full.requireResolutionNotes &&
-        (!r.rootCause.trim() || !r.preventiveAction.trim())
-      )
-        throw new ApiError(
-          "This workspace requires a root cause and a preventive action before a ticket can be resolved.",
-        );
-    }
-    // Reopening is a policy decision: some teams want resolution to be final, with a fresh
-    // ticket raised instead of an old one being reopened weeks later.
-    if (
-      b.status &&
-      !["resolved", "closed", "recorded"].includes(b.status) &&
-      ["resolved", "closed"].includes(current.status)
-    ) {
-      const reopen = await getConfig();
-      if (!reopen.allowReopen)
-        throw new ApiError(
-          "Reopening resolved tickets is switched off for this workspace. Log a new ticket that links to this one.",
-          409,
-        );
-    }
     let ownerFields = {};
     if (b.assignedStaffId) {
       const [p] = await db
@@ -151,34 +106,55 @@ export async function PATCH(req: Request, ctx: Ctx) {
         departmentName: d.name,
       };
     }
-    const cfg = await getConfig();
+    // Same rule as makeDraft: an administrator's per-subcategory SLA override wins over the
+    // priority's default response target.
     const sla =
       b.priority && current.resolutionRequired
-        ? {
-            slaHours: cfg.responseHours[b.priority],
-            slaDueAt: new Date(
-              current.createdAt.getTime() +
-                cfg.responseHours[b.priority] * 3600000,
-            ),
-            severity: inferSeverity(b.priority),
-          }
-        : {};
+        ? (() => {
+            const hours = slaHoursFor(cfg, current.category, current.subcategory, b.priority);
+            return {
+              slaHours: hours,
+              slaDueAt: new Date(current.createdAt.getTime() + hours * 3600000),
+              severity: inferSeverity(b.priority),
+            };
+          })()
+        : b.priority
+          ? { severity: inferSeverity(b.priority) }
+          : {};
+    const { version, status, ...fields } = b;
+    const detail = Object.entries(b)
+      .filter(([k]) => k !== "version")
+      .map(([k, v]) => `${k}: ${v}`)
+      .join(" · ");
+    // Resolving and closing go through the shared resolveTicket, which enforces the resolver,
+    // the private resolution record, the reopen policy and the caller's revision, and raises
+    // the recurrence checks.
+    if (status === "resolved" || status === "closed") {
+      const { ticket, followUps } = await resolveTicket(actor, {
+        ticketId: id,
+        version,
+        status,
+        extra: { ...fields, ...ownerFields, ...sla },
+        detail,
+      });
+      return Response.json({
+        ticket,
+        followUpTickets: followUps.map((f) => ({ id: f.id, ticketNumber: f.ticketNumber })),
+      });
+    }
+    if (status) await assertStatusTransition(actor, current, status, cfg);
     const result = await db.transaction(async (tx) => {
       const [t] = await tx
         .update(tickets)
         .set({
-          ...b,
+          ...fields,
+          ...(status ? { status, ...statusTimestamps(current, status) } : {}),
           ...ownerFields,
           ...sla,
           version: sql`${tickets.version}+1`,
           updatedAt: new Date(),
-          ...(b.status === "resolved" ? { resolvedAt: new Date() } : {}),
-          ...(b.status === "closed" ? { closedAt: new Date() } : {}),
-          ...(b.status && !["resolved", "closed"].includes(b.status)
-            ? { resolvedAt: null, closedAt: null }
-            : {}),
         })
-        .where(and(eq(tickets.id, id), eq(tickets.version, b.version)))
+        .where(and(eq(tickets.id, id), eq(tickets.version, version)))
         .returning();
       if (!t)
         throw new ApiError(
@@ -189,19 +165,11 @@ export async function PATCH(req: Request, ctx: Ctx) {
         ticketId: id,
         actorName: actor.name,
         action: "updated",
-        detail: Object.entries(b)
-          .filter(([k]) => k !== "version")
-          .map(([k, v]) => `${k}: ${v}`)
-          .join(" · "),
+        detail,
       });
       return t;
     });
-    const followUps =
-      b.status === "resolved" ? await maybeCreateRecurrenceChecks(result) : [];
-    return Response.json({
-      ticket: result,
-      followUpTickets: followUps.map((f) => ({ id: f.id, ticketNumber: f.ticketNumber })),
-    });
+    return Response.json({ ticket: result, followUpTickets: [] });
   } catch (e) {
     return errorResponse(e);
   }
@@ -225,8 +193,11 @@ export async function POST(req: Request, ctx: Ctx) {
     if (!t) throw new ApiError("Ticket not found", 404);
     requireTicketAccess(actor, t);
     if (b.action === "duplicate") {
+      // The copy is a fresh report: none of the original's internal markers (routing brief,
+      // automation parentage, repeat counter, demo flag) carry over.
       const draft = await makeDraft({
         ...t,
+        customFields: stripReservedFields(t.customFields || {}),
         title: "Copy · " + t.title,
         source: "manual",
         submissionKey: crypto.randomUUID(),
@@ -259,10 +230,18 @@ export async function POST(req: Request, ctx: Ctx) {
     if (!b.relatedId || b.relatedId === id)
       throw new ApiError("Choose a different ticket");
     const [related] = await db
-      .select({ id: tickets.id })
+      .select({
+        id: tickets.id,
+        assignedStaffId: tickets.assignedStaffId,
+        createdByUserId: tickets.createdByUserId,
+        departmentName: tickets.departmentName,
+        studio: tickets.studio,
+      })
       .from(tickets)
       .where(eq(tickets.id, b.relatedId));
     if (!related) throw new ApiError("Related ticket not found", 404);
+    // Linking reveals one ticket from the other, so the caller must be able to open both.
+    requireTicketAccess(actor, related);
     const a = Math.min(id, b.relatedId),
       r = Math.max(id, b.relatedId);
     if (b.action === "link")

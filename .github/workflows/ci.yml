@@ -1,0 +1,84 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    # A throwaway Postgres so migrations are exercised from scratch and the build
+    # can import src/db without reaching any real database.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: iris_ci
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      # Dummy values: enough for the app to import its config and build. Nothing
+      # here is a real credential, and no external service is contacted.
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/iris_ci
+      INTEGRATION_ENCRYPTION_KEY: "0000000000000000000000000000000000000000000000000000000000000000"
+      NEXT_PUBLIC_SUPABASE_URL: https://ci-placeholder.supabase.co
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ci-placeholder-key
+      SUPABASE_SERVICE_ROLE_KEY: ci-placeholder-service-key
+      CRON_SECRET: ci-placeholder-cron-secret
+      NEXT_TELEMETRY_DISABLED: "1"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Offline checks
+        run: npm test
+
+      - name: Migrations apply cleanly to an empty database
+        run: npm run db:migrate
+
+      - name: Schema and migrations are in sync
+        run: |
+          npx drizzle-kit check
+          npx drizzle-kit generate --name ci-drift-probe
+          if [ -n "$(git status --porcelain drizzle)" ]; then
+            echo "::error::src/db/schema.ts has changes with no migration. Run 'npm run db:generate' and commit the result."
+            git status --porcelain drizzle
+            exit 1
+          fi
+
+      - name: Build
+        run: npm run build
+
+      - name: Production dependency audit
+        run: npm audit --omit=dev --audit-level=high

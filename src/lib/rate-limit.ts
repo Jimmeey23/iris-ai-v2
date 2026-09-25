@@ -33,6 +33,10 @@ export const LIMITS = {
   upload: {max: 20, windowSeconds: 60},
   /** AI-assisted title/summary drafting from the intake form. */
   'intake-draft': {max: 20, windowSeconds: 60},
+  /** Password sign-in, keyed by IP and email. Supabase limits too; this stops credential stuffing earlier. */
+  login: {max: 10, windowSeconds: 300},
+  /** A forced trainer-review sync walks every Fillout page. */
+  trainerSync: {max: 3, windowSeconds: 600},
 } satisfies Record<string, Limit>;
 
 /**

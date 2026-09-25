@@ -1,18 +1,17 @@
 import {z} from 'zod';
 import {db} from '@/db';
 import {ticketResolutions,ticketActivities} from '@/db/schema';
-import {ApiError,errorResponse,requireWorkspace,sameOrigin} from '@/lib/auth';
+import {errorResponse,sameOrigin} from '@/lib/auth';
 import {requireResolutionAccess,getResolutionWorkspace} from '@/lib/tickets';
 
 export const dynamic='force-dynamic';
 type Ctx={params:Promise<{id:string}>};
 
-/** Readable by anyone signed into the workspace. Writing it is another matter —
- *  every mutating handler below goes through requireResolutionAccess. */
+/** The resolution workspace holds private owner notes and member contact details, so
+ *  reading it is gated exactly like writing it: the caller must have access to the ticket. */
 export async function GET(_req:Request,ctx:Ctx){try{
   const id=z.coerce.number().int().positive().parse((await ctx.params).id);
-  const user=await requireWorkspace();
-  if(!user)throw new ApiError('Sign in to view this ticket.',401);
+  await requireResolutionAccess(id);
   return Response.json(await getResolutionWorkspace(id));
 }catch(e){return errorResponse(e);}}
 

@@ -1,9 +1,9 @@
 import {NextRequest} from 'next/server';import {z} from 'zod';
-import {requireAdmin,errorResponse,ApiError,sameOrigin} from '@/lib/auth';import {audit} from '@/lib/config';
+import {requireAdmin,requireWorkspace,errorResponse,ApiError,sameOrigin} from '@/lib/auth';import {audit} from '@/lib/config';
 import {allForms,extractEmbed,saveCustomForm,removeCustomForm,customFormSchema,slugify} from '@/lib/forms';
 export const dynamic='force-dynamic';
 
-export async function GET(){try{const forms=await allForms();return Response.json({forms,count:forms.length});}catch(e){return errorResponse(e);}}
+export async function GET(){try{await requireWorkspace();const forms=await allForms();return Response.json({forms,count:forms.length});}catch(e){return errorResponse(e);}}
 
 const addSchema=z.object({name:z.string().min(2).max(120),blurb:z.string().max(280).optional(),template:z.string().min(1).max(60).optional(),embedCode:z.string().min(1).max(20000),height:z.number().int().min(320).max(1600).optional(),icon:z.string().min(1).max(4).optional()});
 

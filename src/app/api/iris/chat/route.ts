@@ -3,7 +3,7 @@ import {db} from '@/db';import {chatSessions,chatMessages} from '@/db/schema';
 import {browserKey,errorResponse,ApiError,intakeActor,sameOrigin,requireIntegrationAccess} from '@/lib/auth';import {enforceRateLimit} from '@/lib/rate-limit';
 import {irisWelcome,runIris} from '@/lib/iris';import {detailMomence,populateMember,populateSession,momenceConfigured} from '@/lib/momence';
 import type {IrisMessage,IrisTurn} from '@/lib/iris-contract';
-export const dynamic='force-dynamic';
+export const dynamic='force-dynamic';export const maxDuration=60;
 export async function GET(req:Request){try{await intakeActor();const owner=await browserKey();const id=new URL(req.url).searchParams.get('sessionId');if(!id)throw new ApiError('Session ID required');const[s]=await db.select().from(chatSessions).where(and(eq(chatSessions.id,id),eq(chatSessions.ownerKey,owner)));if(!s)throw new ApiError('Conversation not found',404);const messages=await db.select().from(chatMessages).where(eq(chatMessages.sessionId,id)).orderBy(chatMessages.createdAt);const latest=[...messages].reverse().find(m=>m.role==='assistant'&&m.meta);const lastMsg=[...messages].reverse().find(m=>m.role==='assistant');const meta=(latest?.meta||{})as Record<string,unknown>;return Response.json({sessionId:s.id,message:String(meta.message||lastMsg?.content||'Resumed conversation.'),phase:s.ticketId?'complete':(s.phase||meta.phase||'collect'),fieldKey:meta.fieldKey||undefined,lookup:meta.lookup||undefined,lookupFilters:meta.lookupFilters||undefined,options:meta.options||[],collected:(s.collected as Record<string,unknown>)||{},draft:s.draft||meta.draft||undefined,progress:meta.progress||{done:4,total:8},engine:meta.engine||'openai',notice:meta.notice,history:messages.map(m=>({role:m.role,content:m.content})),...(s.ticketId?{ticket:{id:s.ticketId,ticketNumber:s.ticketNumber||`TICK-${s.ticketId}`}}:{})});}catch(e){return errorResponse(e);}}
 export async function POST(req:Request){try{sameOrigin(req);await intakeActor();await enforceRateLimit('irisChat');const owner=await browserKey();const b=z.object({sessionId:z.string().optional(),message:z.string().max(20000).optional(),preset:z.object({category:z.string().optional(),subcategory:z.string().optional()}).optional(),selection:z.object({module:z.enum(['members','sessions']),id:z.string().regex(/^\d+$/)}).optional(),patch:z.record(z.string(),z.unknown()).optional(),attachmentIds:z.array(z.string()).optional(),stream:z.boolean().optional()}).parse(await req.json());
 if(!b.sessionId){const id=crypto.randomUUID();const turn=await irisWelcome(id,b.preset);const expiresAt=new Date();expiresAt.setDate(expiresAt.getDate()+7);await db.insert(chatSessions).values({id,ownerKey:owner,phase:turn.phase,collected:turn.collected,missing:[],expiresAt});await db.insert(chatMessages).values({sessionId:id,role:'assistant',content:turn.message,meta:turn as unknown as Record<string,unknown>});return Response.json(turn);}
@@ -32,7 +32,8 @@ const body=new ReadableStream<Uint8Array>({
       send('turn',turn);
     }catch(e){
       // A stream has already sent its 200, so a failure has to travel as an event.
-      send('error',{error:e instanceof ApiError?e.message:e instanceof Error?e.message:'Request failed'});
+      if(!(e instanceof ApiError))console.error('[iris/chat] stream failed:',e);
+      send('error',{error:e instanceof ApiError?e.message:'Something went wrong. Please try again.'});
     }finally{
       try{controller.close();}catch{}
     }

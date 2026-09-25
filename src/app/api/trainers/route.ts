@@ -1,4 +1,5 @@
-import {desc} from 'drizzle-orm';
+import {after} from 'next/server';
+import {desc,isNotNull} from 'drizzle-orm';
 import {db} from '@/db';
 import {tickets} from '@/db/schema';
 import {TRAINERS} from '@/lib/constants';
@@ -53,15 +54,24 @@ function readScorecard(raw:unknown){
 export async function GET(){
   try{
     await requireWorkspace();
-    // Pull any new external submissions before aggregating, so the tab reflects what has been
-    // submitted to the Fillout form and the two Zite apps rather than only what was logged here.
-    // Throttled internally, and a source being unreachable must never blank the page.
-    await syncTrainerReviewsThrottled().catch(()=>null);
-    const rows=await db.select().from(tickets).orderBy(desc(tickets.createdAt));
-    const trainerNames=new Set<string>(TRAINERS);
-    for(const t of rows)if(t.trainer)for(const name of t.trainer.split(',').map(s=>s.trim()))if(name)trainerNames.add(name);
-    const profiles=[...trainerNames].sort().map(name=>{
-      const related=rows.filter(t=>(t.trainer||'').split(',').map(s=>s.trim()).includes(name));
+    // Pull new external submissions from the Fillout form and the two Zite apps after the
+    // response is sent, so three upstream round-trips never sit in front of the page. The
+    // throttle is shared through app_settings; the next poll picks up whatever this imported.
+    after(()=>syncTrainerReviewsThrottled().then(()=>undefined,()=>undefined));
+    const extras=Promise.all([reviewSourceBreakdown().catch(()=>[]),lastSyncAt().catch(()=>null)]);
+    // Only tickets that name a trainer, and only the columns the profiles read.
+    const rows=await db.select({
+      id:tickets.id,ticketNumber:tickets.ticketNumber,title:tickets.title,summary:tickets.summary,trainer:tickets.trainer,
+      kind:tickets.kind,category:tickets.category,subcategory:tickets.subcategory,sentiment:tickets.sentiment,status:tickets.status,
+      studio:tickets.studio,incidentAt:tickets.incidentAt,customFields:tickets.customFields,createdAt:tickets.createdAt,
+    }).from(tickets).where(isNotNull(tickets.trainer)).orderBy(desc(tickets.createdAt));
+    // One pass indexes each ticket under every trainer it names (newest first, as read).
+    const byTrainer=new Map<string,typeof rows>(TRAINERS.map(name=>[name,[]]));
+    for(const t of rows)for(const name of new Set((t.trainer||'').split(',').map(s=>s.trim()).filter(Boolean))){
+      const list=byTrainer.get(name);if(list)list.push(t);else byTrainer.set(name,[t]);
+    }
+    const profiles=[...byTrainer.keys()].sort().map(name=>{
+      const related=byTrainer.get(name)!;
       // The whole submission is carried through, not only its headline score — the review
       // detail view renders the rubric, the coaching notes and the original answers from here.
       const assessments=related.filter(t=>t.kind==='assessment').map(t=>{
@@ -109,6 +119,7 @@ export async function GET(){
         recentFeedback:feedback.slice(0,8).map(t=>({id:t.id,ticketNumber:t.ticketNumber,title:t.title,subcategory:t.subcategory,sentiment:t.sentiment,status:t.status,createdAt:t.createdAt.toISOString(),kind:t.kind})),
       };
     }).sort((a,b)=>b.totalTickets-a.totalTickets);
-    return Response.json({trainers:profiles,sources:await reviewSourceBreakdown().catch(()=>[]),lastSync:lastSyncAt()});
+    const[sources,lastSync]=await extras;
+    return Response.json({trainers:profiles,sources,lastSync});
   }catch(e){return errorResponse(e);}
 }

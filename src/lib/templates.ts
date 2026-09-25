@@ -1,6 +1,12 @@
 import { CATEGORY_MAP, CATEGORY_DEPARTMENT, DEPARTMENT_RECORDS } from "./constants";
-import { inferPriority, slaHoursFor } from "./routing";
+import { inferPriority } from "./routing";
 import { slugify } from "./utils";
+import { DEFAULT_CONFIG, type WorkspaceConfig } from "./settings-contract";
+
+/** The follow-up hours the workspace has configured — the per-subcategory override first,
+ *  then the priority's response target — so the member email quotes the same number the
+ *  ticket's SLA clock runs on. */
+type SlaConfig = Pick<WorkspaceConfig, "responseHours" | "subcategoryRouting">;
 
 export type TicketTemplate = {
   id: string;
@@ -119,12 +125,20 @@ function fieldsFor(category: string) {
   return always;
 }
 
-export function buildTemplate(category: string, subcategory: string): TicketTemplate {
+export function buildTemplate(
+  category: string,
+  subcategory: string,
+  cfg?: SlaConfig,
+  override?: { priority?: TicketTemplate["defaultPriority"]; slaHours?: number },
+): TicketTemplate {
   const departmentId = CATEGORY_DEPARTMENT[category] ?? "operations";
   const departmentName =
     DEPARTMENT_RECORDS.find((d) => d.id === departmentId)?.name ?? "Operations";
-  const priority = inferPriority({ category, subcategory });
-  const slaHours = slaHoursFor(priority);
+  const priority = override?.priority ?? inferPriority({ category, subcategory });
+  const slaHours =
+    override?.slaHours ??
+    cfg?.subcategoryRouting[category + "|||" + subcategory]?.slaHours ??
+    (cfg ?? DEFAULT_CONFIG).responseHours[priority];
   const id = slugify(`${category}-${subcategory}`);
 
   const memberBody = `Dear {memberName},
@@ -192,11 +206,11 @@ Do not
   };
 }
 
-export function allTemplates(): TicketTemplate[] {
+export function allTemplates(cfg?: SlaConfig): TicketTemplate[] {
   const list: TicketTemplate[] = [];
   for (const [category, subs] of Object.entries(CATEGORY_MAP)) {
     for (const subcategory of subs) {
-      list.push(buildTemplate(category, subcategory));
+      list.push(buildTemplate(category, subcategory, cfg));
     }
   }
   return list;

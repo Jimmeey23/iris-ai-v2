@@ -1,8 +1,8 @@
 import {z} from 'zod';
 import {and,eq} from 'drizzle-orm';
 import {db} from '@/db';
-import {chatSessions} from '@/db/schema';
-import {browserKey,requireWorkspace,requireAgent,errorResponse,ApiError,sameOrigin} from '@/lib/auth';
+import {chatSessions,tickets} from '@/db/schema';
+import {browserKey,requireAgent,requireTicketAccess,errorResponse,ApiError,sameOrigin} from '@/lib/auth';
 import {appendRepeatReport} from '@/lib/tickets';
 import {registerAssetFault} from '@/lib/assets';
 import {obj} from '@/lib/momence';
@@ -19,8 +19,7 @@ export const dynamic = 'force-dynamic';
 export async function POST(req: Request) {
   try {
     sameOrigin(req);
-    await requireWorkspace();
-    await requireAgent();
+    const user = await requireAgent();
     const owner = await browserKey();
     const {sessionId} = z.object({sessionId: z.string()}).parse(await req.json());
     const [s] = await db.select().from(chatSessions).where(and(eq(chatSessions.id, sessionId), eq(chatSessions.ownerKey, owner)));
@@ -30,6 +29,15 @@ export async function POST(req: Request) {
     const c = (s.collected || {}) as Record<string, unknown>;
     const target = Number(c._linkTo || 0);
     if (!Number.isInteger(target) || target <= 0) throw new ApiError('No ticket to add this report to.');
+    // `_linkTo` comes from a "__link__:<id>" chat message, which a caller can type with any id.
+    // Folding into the duplicate the server itself offered (found by findDuplicate) is allowed;
+    // any other ticket needs ordinary ticket access, or this is a write to someone else's ticket.
+    const [ticket] = await db
+      .select({id: tickets.id, assignedStaffId: tickets.assignedStaffId, createdByUserId: tickets.createdByUserId, departmentName: tickets.departmentName, studio: tickets.studio})
+      .from(tickets)
+      .where(eq(tickets.id, target));
+    if (!ticket) throw new ApiError('That ticket no longer exists.', 404);
+    if (Number(obj(c._duplicate).id || 0) !== target) requireTicketAccess(user, ticket);
 
     const reporter = String(c.memberName || '').trim();
     const reporterName = reporter && !/studio team observation/i.test(reporter) ? reporter : 'Studio team';

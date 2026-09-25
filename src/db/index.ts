@@ -1,5 +1,6 @@
+import { attachDatabasePool } from "@vercel/functions";
 import { drizzle } from "drizzle-orm/node-postgres";
-import { Pool } from "pg";
+import { Pool, type PoolConfig } from "pg";
 import * as schema from "./schema";
 
 const databaseUrl = process.env.DATABASE_URL;
@@ -12,6 +13,28 @@ const globalForDb = globalThis as typeof globalThis & {
   __arenaNextJsPostgresqlPool?: Pool;
 };
 
+/**
+ * TLS. When DATABASE_CA_CERT holds the provider's root certificate (PEM; Supabase:
+ * Dashboard → Database → SSL Configuration → Download certificate), the server
+ * certificate is fully verified. Without it, Supabase hosts keep the previous
+ * behaviour — encrypted but unverified, because the pooler's chain does not reach
+ * Node's default CA bundle — and other hosts (local Postgres) connect as before.
+ * `\n` escapes are accepted so the PEM can live on one line in an env var.
+ */
+function sslConfig(url: string): PoolConfig["ssl"] {
+  const ca = process.env.DATABASE_CA_CERT?.trim();
+  if (ca) return { ca: ca.replace(/\\n/g, "\n"), rejectUnauthorized: true };
+  if (url.includes("supabase.com")) return { rejectUnauthorized: false };
+  return undefined;
+}
+
+/**
+ * Serverless sizing: every Vercel function instance gets its own pool, so a small
+ * per-instance cap keeps the total under the Supabase pooler's client limit even when
+ * many instances are warm. DB_POOL_MAX overrides it (e.g. for a long-lived server).
+ */
+const poolMax = Number.parseInt(process.env.DB_POOL_MAX ?? "", 10);
+
 // Reuse the pool across module evaluations in dev so we don't leak connection
 // pools or keep re-registering error listeners on every Fast Refresh.
 const existingPool = globalForDb.__arenaNextJsPostgresqlPool;
@@ -20,17 +43,12 @@ export const pool =
   new Pool({
     connectionString: databaseUrl,
     keepAlive: true,
-    idleTimeoutMillis: 30000,
-    // The database is a long round-trip away, so a query holds its connection for a
-    // comparatively long time. Cap the pool and fail fast rather than letting requests
-    // queue invisibly behind an exhausted pool until they time out.
-    max: 10,
+    max: Number.isFinite(poolMax) && poolMax > 0 ? poolMax : 3,
+    // Close idle clients quickly: a suspended function should not hold pooler slots.
+    idleTimeoutMillis: 5000,
+    // Fail fast rather than letting requests queue invisibly behind an exhausted pool.
     connectionTimeoutMillis: 10000,
-    // Supabase requires TLS; its pooler presents a cert the default CA bundle
-    // does not chain to, so verification is relaxed for that host only.
-    ssl: databaseUrl.includes("supabase.com")
-      ? { rejectUnauthorized: false }
-      : undefined,
+    ssl: sslConfig(databaseUrl),
   });
 
 if (!existingPool) {
@@ -40,6 +58,11 @@ if (!existingPool) {
   pool.on("error", (err) => {
     console.error("[db] idle client error:", err.message);
   });
+
+  // On Vercel (Fluid compute) this keeps the instance alive just long enough to
+  // close idle clients before suspension, so connections are not leaked. It is a
+  // no-op everywhere else.
+  attachDatabasePool(pool);
 
   if (process.env.NODE_ENV !== "production") {
     globalForDb.__arenaNextJsPostgresqlPool = pool;

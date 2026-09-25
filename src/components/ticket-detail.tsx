@@ -59,7 +59,7 @@ import {
 } from "./ticket-art";
 import { EntityDialog, DataTree } from "./momence-tools";
 import { indiaDate, object, display } from "@/lib/display";
-import { STAFF, STATUS_LABELS } from "@/lib/constants";
+import { STATUS_LABELS, type StaffRecord } from "@/lib/constants";
 import type { TicketRecord, TicketListRecord } from "@/lib/ticket-contract";
 type Resolution = import("./resolution-panel").Resolution;
 type Bundle = {
@@ -165,7 +165,7 @@ export function TicketDialog({
       title: string;
       data: unknown;
     }>(),
-    [staff, setStaff] = useState(STAFF);
+    [staff, setStaff] = useState<StaffRecord[]>([]);
   const load = useCallback(async () => {
     try {
       const d = await api<Bundle>("/api/tickets/" + id);
@@ -180,7 +180,7 @@ export function TicketDialog({
       setBundle(undefined);
       setTab("overview");
       void load();
-      void api<{ staff: typeof STAFF }>("/api/staff")
+      void api<{ staff: StaffRecord[] }>("/api/staff")
         .then((d) => setStaff(d.staff))
         .catch(() => {});
       const timer = setInterval(() => {

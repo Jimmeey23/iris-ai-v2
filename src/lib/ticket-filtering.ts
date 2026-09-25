@@ -1,6 +1,6 @@
 import type {TicketListRecord} from './ticket-contract';
 import type {FilterState} from './dashboard-contract';
-import {slaState} from './utils';
+import {isBreachedOpen, isDueSoon, isOpen, isSlaTracked, zonedDayEnd, zonedDayStart} from './metrics';
 
 /**
  * One place where a filter state becomes a set of tickets.
@@ -10,26 +10,28 @@ import {slaState} from './utils';
  * quietly contained rows the table on screen did not.
  */
 
-const CLOSED = ['resolved', 'closed', 'recorded'];
-export const isClosed = (t: TicketListRecord) => CLOSED.includes(t.status);
+// Open / closed, overdue and due-soon are defined once, in lib/metrics.ts.
+export const isClosed = (t: TicketListRecord) => !isOpen(t);
 
-export function slaBucketOf(t: TicketListRecord): 'ok' | 'due' | 'breached' | 'none' {
-  if (!t.resolutionRequired || !t.slaDueAt) return 'none';
-  const state = slaState(t.slaDueAt, t.status);
-  return state === 'breached' ? 'breached' : state === 'soon' ? 'due' : 'ok';
+/** 'breached' is breachedOpen (still open, past target) — the "Overdue" count everywhere. */
+export function slaBucketOf(t: TicketListRecord, now = Date.now()): 'ok' | 'due' | 'breached' | 'none' {
+  if (!isSlaTracked(t)) return 'none';
+  return isBreachedOpen(t, now) ? 'breached' : isDueSoon(t, now) ? 'due' : 'ok';
 }
 
 const AGE_LIMITS: Record<string, number> = {today: 1, week: 7, stale: 3, ancient: 30};
 
 export function applyFilters(tickets: TicketListRecord[], f: FilterState, staleDays = 3): TicketListRecord[] {
   const q = f.q.trim().toLowerCase();
-  // Dates are resolved once rather than per row.
-  const fromMs = f.from ? new Date(f.from + 'T00:00:00').getTime() : null;
-  const toMs = f.to ? new Date(f.to + 'T23:59:59').getTime() : null;
+  // Dates are resolved once rather than per row, as workspace-timezone days (not the
+  // browser's local midnight) so the board agrees with the analytics and reports ranges.
+  const fromMs = f.from ? zonedDayStart(f.from) : null;
+  const toMs = f.to ? zonedDayEnd(f.to) : null;
   const rangeMs = f.range !== 'all' && f.range !== 'custom' && Number(f.range) > 0
     ? Date.now() - Number(f.range) * 86400000
     : null;
 
+  const now = Date.now();
   return tickets.filter((t) => {
     const created = new Date(t.createdAt).getTime();
     if (fromMs !== null && created < fromMs) return false;
@@ -48,10 +50,10 @@ export function applyFilters(tickets: TicketListRecord[], f: FilterState, staleD
     if (f.sources.length && !f.sources.includes(t.source)) return false;
     if (f.owners.length && !f.owners.includes(t.assignedStaffName || '')) return false;
     if (f.departments.length && !f.departments.includes(t.departmentName || '')) return false;
-    if (f.slaStates.length && !f.slaStates.includes(slaBucketOf(t))) return false;
+    if (f.slaStates.length && !f.slaStates.includes(slaBucketOf(t, now))) return false;
 
     if (f.ageBucket !== 'any') {
-      const ageDays = (Date.now() - created) / 86400000;
+      const ageDays = (now - created) / 86400000;
       const limit = f.ageBucket === 'stale' ? staleDays : AGE_LIMITS[f.ageBucket];
       // "today" and "week" mean newer than the limit; "stale" and "ancient" mean older.
       const wantsNewer = f.ageBucket === 'today' || f.ageBucket === 'week';

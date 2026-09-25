@@ -1,3 +1,5 @@
+import { isOpen, slaWindowState } from "./metrics";
+
 export function cn(...values: Array<string | false | null | undefined>) {
   return values.filter(Boolean).join(" ");
 }
@@ -23,13 +25,14 @@ export function hoursFromNow(hours: number) {
   return new Date(Date.now() + hours * 60 * 60 * 1000);
 }
 
-export function slaState(dueAt?: string | Date | null, status?: string) {
-  if (!dueAt || status === "resolved" || status === "closed") return "ok" as const;
-  const due = typeof dueAt === "string" ? new Date(dueAt) : dueAt;
-  const ms = due.getTime() - Date.now();
-  if (ms < 0) return "breached" as const;
-  if (ms < 2 * 60 * 60 * 1000) return "soon" as const;
-  return "ok" as const;
+/** Clock state of a follow-up target. "soon" starts when less than the workspace's
+ *  `slaWarningPercent` of the created→due window is left (see lib/metrics.ts); pass
+ *  `createdAt` so the window is known. */
+export function slaState(dueAt?: string | Date | null, status?: string, createdAt?: string | Date | null) {
+  if (!dueAt || (status && !isOpen({status}))) return "ok" as const;
+  const due = typeof dueAt === "string" ? Date.parse(dueAt) : dueAt.getTime();
+  const start = createdAt ? (typeof createdAt === "string" ? Date.parse(createdAt) : createdAt.getTime()) : NaN;
+  return slaWindowState(Number.isNaN(due) ? null : due, Number.isNaN(start) ? null : start);
 }
 
 export function relativeTime(value?: string | Date | null) {

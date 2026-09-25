@@ -8,7 +8,7 @@ import {
 import {CountUp, Empty, Modal, Priority, Status} from './ui';
 import {indiaDate} from '@/lib/display';
 import {relativeTime} from '@/lib/utils';
-import {isClosed, slaBucketOf} from '@/lib/ticket-filtering';
+import {isBreached, isBreachedOpen, isDone, isOpen, isSlaTracked, median as medianOf, resolutionHours, slaCompliance} from '@/lib/metrics';
 import type {FilterState} from '@/lib/dashboard-contract';
 import type {TicketListRecord} from '@/lib/ticket-contract';
 
@@ -29,6 +29,7 @@ export interface MetricDefinition {
   label: string;
   note: string;
   value: number;
+  /** Shown instead of the counted-up value, e.g. "—" when a rate has no data. */
   display?: string;
   rows: TicketListRecord[];
   tone: '' | 'purple' | 'amber' | 'green' | 'red';
@@ -265,21 +266,27 @@ function weekDelta(rows: TicketListRecord[]): number | null {
  * The eight cards. Counts first, then the rates that describe how the work is going.
  * Each carries the filter that reproduces it in the table below.
  */
-export function boardMetrics(tickets: TicketListRecord[]): MetricDefinition[] {
-  const open = tickets.filter((t) => !isClosed(t));
+export function boardMetrics(tickets: TicketListRecord[], now = Date.now()): MetricDefinition[] {
+  // Every rule here comes from lib/metrics.ts, so these cards agree with analytics and reports.
+  const open = tickets.filter(isOpen);
   const urgent = open.filter((t) => ['high', 'critical'].includes(t.priority));
-  const closed = tickets.filter((t) => ['resolved', 'closed'].includes(t.status));
-  const overdue = tickets.filter((t) => slaBucketOf(t) === 'breached');
+  const closed = tickets.filter(isDone);
+  const overdue = tickets.filter((t) => isBreachedOpen(t, now));
 
-  const timed = tickets.filter((t) => t.resolutionRequired && t.slaDueAt);
-  const breached = timed.filter((t) => new Date(t.slaDueAt as string).getTime() < (t.resolvedAt ? new Date(t.resolvedAt).getTime() : Date.now()));
-  const compliance = timed.length ? Math.round(((timed.length - breached.length) / timed.length) * 100) : 100;
+  const timed = tickets.filter(isSlaTracked);
+  const breachedCount = timed.filter((t) => isBreached(t, now)).length;
+  const compliance = slaCompliance(timed.length, breachedCount);
+  const complianceTone = compliance === null ? '' : compliance >= 85 ? 'green' : compliance >= 60 ? 'amber' : 'red';
 
-  const resolved = tickets.filter((t) => t.resolvedAt);
-  const durations = resolved
-    .map((t) => Math.max(0, (new Date(t.resolvedAt as string).getTime() - new Date(t.createdAt).getTime()) / 3600000))
-    .sort((a, b) => a - b);
-  const median = durations.length ? durations[Math.floor(durations.length / 2)] : 0;
+  // Median over tickets with a genuine resolution time — imported history, system tickets and
+  // automatic re-checks are left out, as they are in analytics.
+  const resolved: TicketListRecord[] = [];
+  const durations: number[] = [];
+  for (const t of tickets) {
+    const h = resolutionHours(t);
+    if (h !== null) { resolved.push(t); durations.push(h); }
+  }
+  const median = medianOf(durations);
 
   const viaIris = tickets.filter((t) => t.source === 'iris');
   const irisShare = tickets.length ? Math.round((viaIris.length / tickets.length) * 100) : 0;
@@ -308,7 +315,7 @@ export function boardMetrics(tickets: TicketListRecord[]): MetricDefinition[] {
       filter: {state: 'open', priorities: ['critical', 'high'], statuses: [], slaStates: []},
     },
     {
-      id: 'overdue', label: 'Past target', value: overdue.length, note: 'Follow-up target already missed',
+      id: 'overdue', label: 'Overdue', value: overdue.length, note: 'Still open, follow-up target already missed',
       rows: overdue, tone: 'red', color: 'var(--red)', icon: Gauge, chart: 'spark',
       delta: weekDelta(overdue), inverse: true, breakdown: byOwner, breakdownLabel: 'By owner',
       filter: {state: 'any', slaStates: ['breached'], statuses: [], priorities: []},
@@ -320,16 +327,17 @@ export function boardMetrics(tickets: TicketListRecord[]): MetricDefinition[] {
       filter: {state: 'closed', statuses: [], priorities: [], slaStates: []},
     },
     {
-      id: 'compliance', label: 'SLA compliance', value: compliance, gauge: compliance, format: (n) => Math.round(n) + '%',
-      note: 'Share that met their follow-up target', rows: timed,
-      tone: compliance >= 85 ? 'green' : compliance >= 60 ? 'amber' : 'red',
-      color: compliance >= 85 ? 'var(--green)' : compliance >= 60 ? 'var(--amber)' : 'var(--red)',
+      id: 'compliance', label: 'SLA compliance', value: compliance ?? 0, gauge: compliance ?? 0, format: (n) => Math.round(n) + '%',
+      display: compliance === null ? '—' : undefined,
+      note: 'Share that met their follow-up target (overdue and resolved-late count as breached)', rows: timed,
+      tone: complianceTone,
+      color: complianceTone ? `var(--${complianceTone})` : 'var(--accent)',
       icon: CheckCircle2, chart: 'gauge', delta: null, breakdown: byOwner, breakdownLabel: 'Targets by owner',
       filter: {state: 'any', slaStates: ['ok', 'due', 'breached']},
     },
     {
-      id: 'median', label: 'Median resolution', value: median, display: median ? median.toFixed(1) + 'h' : '—',
-      note: 'Half are closed faster than this', rows: resolved, tone: 'purple', color: 'var(--purple)',
+      id: 'median', label: 'Median resolution', value: median ?? 0, display: median === null ? '—' : median.toFixed(1) + 'h',
+      note: 'Half are resolved faster than this (excludes imported history and automatic checks)', rows: resolved, tone: 'purple', color: 'var(--purple)',
       icon: Clock3, chart: 'spark', delta: weekDelta(resolved), breakdown: byCategory, breakdownLabel: 'Closed by category',
       filter: {state: 'closed'},
     },

@@ -1,4 +1,4 @@
-import {lookup} from 'dns/promises';import {createHash} from 'crypto';import {and,eq,desc,sql} from 'drizzle-orm';import {z} from 'zod';
+import {lookup} from 'dns/promises';import {createHash} from 'crypto';import {and,asc,eq,desc,isNotNull,isNull,lt,lte,or,sql} from 'drizzle-orm';import {z} from 'zod';
 import {db} from '@/db';import {integrations,deliveryLogs} from '@/db/schema';import {credentials,audit} from './config';import {ApiError} from './auth';import {getAccessToken,obj} from './momence';import {INTEGRATION_CATALOGUE} from './integration-catalogue';
 function required(v:unknown,label:string){if(v===undefined||v===null||String(v).trim()==='')throw new ApiError(`${label} is required.`);return String(v);}
 function identifier(v:unknown,label:string){const id=required(v,label);if(!/^[\w.-]+$/.test(id))throw new ApiError(`${label} has invalid characters.`);return encodeURIComponent(id);}
@@ -44,4 +44,48 @@ if(id==='razorpay'){const auth='Basic '+Buffer.from(`${required(c.key_id,'Key ID
 if(id==='jira'){const site=required(c.site,'Jira site');const auth='Basic '+Buffer.from(`${required(c.email,'Account email')}:${required(c.api_token,'API token')}`).toString('base64');if(action==='test')return remote(`https://${site}/rest/api/3/myself`,'','GET',undefined,{Authorization:auth});return remote(`https://${site}/rest/api/3/issue`,'','POST',{fields:{project:{key:c.project_key},...obj(args).fields as object}},{Authorization:auth});}
 throw new ApiError('Unknown integration action.');}
 export async function loggedIntegration(id:string,action:string,args:Record<string,unknown>,actor:{id?:number;name:string}){const[entry]=await db.insert(deliveryLogs).values({integrationId:id,action,status:'sending',payload:redacted(args) as Record<string,unknown>,attempts:1}).returning();try{const result=await runIntegration(id,action,args);await db.update(deliveryLogs).set({status:'success',result:{data:redacted(result)},updatedAt:new Date()}).where(eq(deliveryLogs.id,entry.id));await audit(actor,'integration.executed',id,{action,deliveryId:entry.id});return result;}catch(e){await db.update(deliveryLogs).set({status:'failed',result:{error:e instanceof Error?e.message:'Provider unavailable'},updatedAt:new Date()}).where(eq(deliveryLogs.id,entry.id));throw e;}}
-export async function deliverPending(){const pending=await db.select().from(deliveryLogs).where(eq(deliveryLogs.status,'pending')).limit(10);for(const job of pending){const[claimed]=await db.update(deliveryLogs).set({status:'sending',attempts:sql`${deliveryLogs.attempts}+1`,updatedAt:new Date()}).where(and(eq(deliveryLogs.id,job.id),eq(deliveryLogs.status,'pending'))).returning();if(!claimed)continue;try{const[connection]=await db.select().from(integrations).where(eq(integrations.id,job.integrationId));if(!connection?.enabled)throw new Error('Integration disabled. Enable it before retrying.');const result=await runIntegration(job.integrationId,job.action,{...job.payload,eventId:'iris-delivery-'+job.id});await db.update(deliveryLogs).set({status:'success',result:{data:redacted(result)},updatedAt:new Date()}).where(eq(deliveryLogs.id,job.id));}catch(e){await db.update(deliveryLogs).set({status:'failed',result:{error:e instanceof Error?e.message:'Delivery failed'},updatedAt:new Date()}).where(eq(deliveryLogs.id,job.id));}}return{processed:pending.length};}
+/** Outbox retry policy. A failed delivery is retried with exponential backoff
+ *  (2, 4, 8, 16, 32 min …, capped at 6 h) until OUTBOX_MAX_ATTEMPTS, then parked as
+ *  'failed' for a human to retry from the Integrations page. */
+export const OUTBOX_MAX_ATTEMPTS=6;
+const OUTBOX_BASE_DELAY_MS=2*60_000,OUTBOX_MAX_DELAY_MS=6*3600_000,OUTBOX_STUCK_MS=10*60_000;
+export function outboxBackoffMs(attempts:number){return Math.min(OUTBOX_MAX_DELAY_MS,OUTBOX_BASE_DELAY_MS*2**Math.max(0,attempts-1));}
+/** Rows left in 'sending' by a function that died mid-delivery (timeout, deploy, crash).
+ *  Outbox rows carry a next_attempt_at from their claim, so they go back to 'pending' (or
+ *  'failed' once out of attempts). Rows written by loggedIntegration() — interactive,
+ *  admin-confirmed actions with no next_attempt_at — are marked failed, never replayed. */
+async function releaseStuckDeliveries(){
+  const cutoff=new Date(Date.now()-OUTBOX_STUCK_MS);
+  const stuck=and(eq(deliveryLogs.status,'sending'),lt(deliveryLogs.updatedAt,cutoff));
+  const requeued=await db.update(deliveryLogs).set({status:'pending',nextAttemptAt:new Date(),updatedAt:new Date()}).where(and(stuck,isNotNull(deliveryLogs.nextAttemptAt),lt(deliveryLogs.attempts,OUTBOX_MAX_ATTEMPTS))).returning({id:deliveryLogs.id});
+  const abandoned=await db.update(deliveryLogs).set({status:'failed',result:{error:'Delivery was interrupted and did not complete.'},updatedAt:new Date()}).where(stuck).returning({id:deliveryLogs.id});
+  return requeued.length+abandoned.length;
+}
+export async function deliverPending({limit=10}:{limit?:number}={}){
+  const reset=await releaseStuckDeliveries();
+  const now=new Date();
+  const pending=await db.select().from(deliveryLogs).where(and(eq(deliveryLogs.status,'pending'),or(isNull(deliveryLogs.nextAttemptAt),lte(deliveryLogs.nextAttemptAt,now)))).orderBy(asc(deliveryLogs.id)).limit(limit);
+  let succeeded=0,retrying=0,failed=0;
+  for(const job of pending){
+    const attempt=job.attempts+1;
+    // Claim: only one worker flips pending→sending. next_attempt_at doubles as the lease —
+    // if this worker dies, releaseStuckDeliveries() requeues the row.
+    const[claimed]=await db.update(deliveryLogs).set({status:'sending',attempts:sql`${deliveryLogs.attempts}+1`,nextAttemptAt:new Date(Date.now()+outboxBackoffMs(attempt)),updatedAt:new Date()}).where(and(eq(deliveryLogs.id,job.id),eq(deliveryLogs.status,'pending'))).returning();
+    if(!claimed)continue;
+    try{
+      const[connection]=await db.select().from(integrations).where(eq(integrations.id,job.integrationId));
+      if(!connection?.enabled)throw new Error('Integration disabled. Enable it before retrying.');
+      const result=await runIntegration(job.integrationId,job.action,{...job.payload,eventId:'iris-delivery-'+job.id});
+      await db.update(deliveryLogs).set({status:'success',result:{data:redacted(result)},nextAttemptAt:null,updatedAt:new Date()}).where(eq(deliveryLogs.id,job.id));
+      succeeded++;
+    }catch(e){
+      const error=e instanceof Error?e.message:'Delivery failed';
+      const giveUp=claimed.attempts>=OUTBOX_MAX_ATTEMPTS;
+      await db.update(deliveryLogs).set(giveUp
+        ?{status:'failed',result:{error,attempts:claimed.attempts},nextAttemptAt:null,updatedAt:new Date()}
+        :{status:'pending',result:{error,attempts:claimed.attempts},nextAttemptAt:new Date(Date.now()+outboxBackoffMs(claimed.attempts)),updatedAt:new Date()}).where(eq(deliveryLogs.id,job.id));
+      if(giveUp)failed++;else retrying++;
+    }
+  }
+  return{processed:pending.length,succeeded,retrying,failed,reset};
+}

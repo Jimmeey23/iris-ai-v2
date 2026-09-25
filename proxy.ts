@@ -1,7 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
 
-const PUBLIC = ["/login", "/auth", "/api/auth", "/video", "/_next", "/favicon.ico"];
+// Static files (anything with a file extension, e.g. /icon.svg) never reach the
+// proxy at all: the matcher below excludes them, so they need no entry here.
+const PUBLIC = ["/login", "/auth", "/api/auth", "/video", "/_next"];
 
 // The OAuth handshake keeps its PKCE code verifier in a cookie named with the
 // same `sb-<ref>-auth-token` prefix the session uses. Refreshing the session on
@@ -10,7 +12,9 @@ const PUBLIC = ["/login", "/auth", "/api/auth", "/video", "/_next", "/favicon.ic
 // refreshed session, so they skip it entirely.
 const OAUTH_HANDSHAKE = ["/auth/callback", "/api/auth/google"];
 
-export async function middleware(request: NextRequest) {
+// Next.js 16 renamed the `middleware` file convention to `proxy`; behaviour is
+// unchanged. See node_modules/next/dist/docs/01-app/01-getting-started/16-proxy.md
+export async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
   const isPublic = PUBLIC.some((p) => path === p || path.startsWith(p + "/"));
   if (OAUTH_HANDSHAKE.includes(path)) return NextResponse.next();

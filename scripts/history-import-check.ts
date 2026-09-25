@@ -15,7 +15,7 @@ import {db,seed} from './iris-replay-support/stub-db';
 import {importHistory} from '@/lib/history';
 import {historicalExamples} from '@/lib/tickets';
 import {isCxExport,fromCxExport} from '@/lib/history-mapping';
-import {CATEGORY_MAP,DEPARTMENT_RECORDS,STAFF} from '@/lib/constants';
+import {CATEGORY_MAP,DEPARTMENT_RECORDS} from '@/lib/constants';import {STAFF} from '@/lib/staff-directory';
 import type {IrisMessage} from '@/lib/iris-contract';
 
 let failed = 0;

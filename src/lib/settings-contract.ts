@@ -1,6 +1,6 @@
 import {z} from "zod";
 import {DEFAULT_COLUMNS, GROUP_BY, TICKET_COLUMNS} from "./dashboard-contract";
-import { CATEGORY_DEPARTMENT, CATEGORY_MAP, CLASS_FORMATS, MEMBERSHIPS, STUDIOS, TRAINERS } from "./constants";
+import { CATEGORY_DEPARTMENT, CATEGORY_MAP, CLASS_FORMATS, MEMBERSHIPS, PRIORITY_SLA_HOURS as SLA, STUDIOS, TRAINERS } from "./constants";
 export const intakeFieldOverrideSchema=z.object({
   id:z.string().regex(/^[a-z][a-z0-9_]*$/).max(80),label:z.string().min(2).max(160),
   type:z.enum(['text','textarea','number','url','datetime','select','multiselect','radio','lookup']),
@@ -20,7 +20,8 @@ export const configSchema = z.object({
   pollSeconds: z.number().min(5).max(120).default(15), aiEnabled: z.boolean().default(true), aiModel: z.string().max(80).default("gpt-4o-mini"),
   aiVoice: z.string().max(1200).default("You're a smart operational assistant helping staff log issues efficiently. Be conversational, strategic, and context-aware. Reference what they've told you. If they signal urgency or blocking issues, prioritize resolution options. Never echo answers, apologize, or recap facts. Be concise like a colleague helping out, not a script."),
   historyRetrieval: z.boolean().default(true), autoTag: z.boolean().default(true), autoAssign: z.boolean().default(true), positiveNoSla: z.boolean().default(true),
-  responseHours: z.object({critical:z.number().min(1).max(720).default(1),high:z.number().min(1).max(720).default(4),medium:z.number().min(1).max(720).default(24),low:z.number().min(1).max(720).default(72)}).default({critical:1,high:4,medium:24,low:72}),
+  /** The SLA every ticket is filed with (first-response hours per priority); defaults are PRIORITY_SLA_HOURS. */
+  responseHours: z.object({critical:z.number().min(1).max(720).default(SLA.critical),high:z.number().min(1).max(720).default(SLA.high),medium:z.number().min(1).max(720).default(SLA.medium),low:z.number().min(1).max(720).default(SLA.low)}).default({...SLA}),
   categoryDepartments: z.record(z.string(),z.string()).default(CATEGORY_DEPARTMENT), routingOwners: z.record(z.string(),z.number().int().positive()).default({}),
   taxonomy: z.record(z.string(),z.array(z.string().min(1))).default(CATEGORY_MAP), studios:z.array(z.string()).default(STUDIOS.map(s=>s.name)), trainers:z.array(z.string()).default([...TRAINERS]), formats:z.array(z.string()).default([...CLASS_FORMATS]), memberships:z.array(z.string()).default([...MEMBERSHIPS]),
   formOverrides:z.record(z.string(),formPlanSchema).default({}),
@@ -49,7 +50,8 @@ export const configSchema = z.object({
    * ---------------------------------------------------------------- */
   /** A ticket older than this, still open, is flagged as ageing. */
   staleTicketDays: z.number().int().min(1).max(90).default(3),
-  /** How long before the follow-up target a ticket starts reading as "due soon". */
+  /** A ticket reads as "due soon" once less than this share of its created→due window is left
+   *  (lib/metrics.ts; same default as DEFAULT_SLA_WARNING_PERCENT there). */
   slaWarningPercent: z.number().int().min(5).max(90).default(20),
   /** Escalate to critical this many hours after a missed follow-up target. 0 disables it. */
   escalateAfterBreachHours: z.number().int().min(0).max(336).default(0),

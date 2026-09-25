@@ -2,6 +2,10 @@
 /**
  * Bring the live assets and asset_locations tables in sync with src/db/schema.ts.
  * Idempotent — safe to re-run.
+ *
+ * LEGACY — superseded by drizzle/ migrations (`npm run db:migrate`) and the one-off
+ * drizzle/manual/0004_prod_alignment.sql. Kept for reference; see docs/MIGRATIONS.md.
+ * Constraint names and ON DELETE rules below match src/db/schema.ts.
  */
 import 'dotenv/config';
 import { Pool } from 'pg';
@@ -108,7 +112,10 @@ if (!(await indexExists('assets_location_idx'))) {
 // 4. FK assets.location_id -> asset_locations.id
 // ------------------------------------------------------------------
 const { rows: fkRows } = await pool.query(
-  `SELECT 1 FROM information_schema.table_constraints WHERE table_schema='public' AND table_name='assets' AND constraint_name='assets_location_id_asset_locations_id_fk'`
+  // Any FK on assets.location_id counts — migrate-equipment.mjs used to add one under a
+  // different name, and adding a second would duplicate the constraint.
+  `SELECT 1 FROM pg_constraint c JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = ANY (c.conkey)
+    WHERE c.contype = 'f' AND c.conrelid = 'public.assets'::regclass AND a.attname = 'location_id'`
 );
 if (fkRows.length === 0) {
   statements.push(`ALTER TABLE "assets" ADD CONSTRAINT "assets_location_id_asset_locations_id_fk" FOREIGN KEY ("location_id") REFERENCES "asset_locations"("id") ON DELETE SET NULL;`);

@@ -1,257 +1,189 @@
 import { NextRequest } from "next/server";
-import { desc } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, or, sql, type SQL } from "drizzle-orm";
 import { db } from "@/db";
-import { tickets } from "@/db/schema";
-import { requireWorkspace, canAccessTicket, errorResponse, ApiError } from "@/lib/auth";
-import { buildReportCatalogue, type TicketLike } from "@/lib/reports";
+import { departments, tickets } from "@/db/schema";
+import { requireWorkspace, errorResponse, ApiError } from "@/lib/auth";
+import { getConfig } from "@/lib/config";
+import { buildReportCatalogue, metricSql, type TicketLike } from "@/lib/reports";
+import { ticketScope } from "@/lib/tickets";
+import { dayBuckets, round1, slaCompliance, zonedDayEnd, zonedDayStart } from "@/lib/metrics";
 export const dynamic = "force-dynamic";
 
-function toLike(t: typeof tickets.$inferSelect): TicketLike {
-  return {
-    id: t.id,
-    ticketNumber: t.ticketNumber,
-    title: t.title,
-    summary: t.summary,
-    description: t.description,
-    category: t.category,
-    subcategory: t.subcategory,
-    status: t.status,
-    priority: t.priority,
-    severity: t.severity,
-    sentiment: t.sentiment,
-    kind: t.kind,
-    studio: t.studio,
-    classFormat: t.classFormat,
-    trainer: t.trainer,
-    membership: t.membership,
-    incidentAt: t.incidentAt,
-    memberName: t.memberName,
-    memberEmail: t.memberEmail,
-    assignedStaffId: t.assignedStaffId,
-    assignedStaffName: t.assignedStaffName,
-    departmentId: t.departmentId,
-    departmentName: t.departmentName,
-    slaHours: t.slaHours,
-    slaDueAt: t.slaDueAt ? t.slaDueAt.toISOString() : null,
-    resolutionRequired: t.resolutionRequired,
-    source: t.source,
-    tags: t.tags,
-    isEscalated: t.isEscalated,
-    resolvedAt: t.resolvedAt ? t.resolvedAt.toISOString() : null,
-    closedAt: t.closedAt ? t.closedAt.toISOString() : null,
-    createdAt: t.createdAt.toISOString(),
-    updatedAt: t.updatedAt.toISOString(),
-    customFields: (t.customFields || {}) as Record<string, unknown>,
-  };
-}
+const iso = (d: Date | null) => (d ? d.toISOString() : null);
+const n = (label: string, where: SQL) => sql<number>`count(*) filter (where ${where})::int`.as(label);
 
 export async function GET(req: NextRequest) {
   try {
     const user = await requireWorkspace();
     const p = req.nextUrl.searchParams;
-    const catalogue = buildReportCatalogue();
+    const [cfg, depts] = await Promise.all([
+      getConfig(),
+      db.select({ id: departments.id, name: departments.name }).from(departments).where(eq(departments.active, true)).orderBy(asc(departments.name)),
+    ]);
+    const now = new Date();
+    const tz = cfg.timezone;
+    // The catalogue follows the workspace's configured taxonomy, studios and departments.
+    const catalogue = buildReportCatalogue({
+      categories: Object.keys(cfg.taxonomy), studios: cfg.studios, departments: depts,
+      now, slaWarningPercent: cfg.slaWarningPercent,
+    });
     if (p.get("list") === "true")
       return Response.json({
-        reports: catalogue.map((r) => ({
-          id: r.id,
-          name: r.name,
-          description: r.description,
-          group: r.group,
-          columns: r.columns,
-        })),
+        reports: catalogue.map((r) => ({ id: r.id, name: r.name, description: r.description, group: r.group, columns: r.columns })),
       });
-    const type = p.get("type");
-    const def = catalogue.find((r) => r.id === type);
+    const def = catalogue.find((r) => r.id === p.get("type"));
     if (!def) throw new ApiError("Unknown report type", 404);
-    const search = (p.get("search") || "").toLowerCase();
+    const search = (p.get("search") || "").trim().toLowerCase();
     const studio = p.get("studio") || "";
     const priority = p.get("priority") || "";
     const status = p.get("status") || "";
-    const from = p.get("from")
-      ? new Date(p.get("from") + "T00:00:00+05:30").getTime()
-      : 0;
-    const to = p.get("to")
-      ? new Date(p.get("to") + "T23:59:59+05:30").getTime()
-      : Date.now() + 86400000;
+    // Custom dates are whole workspace-timezone days.
+    const fromMs = p.get("from") ? zonedDayStart(p.get("from")!, tz) : null;
+    const toMs = p.get("to") ? zonedDayEnd(p.get("to")!, tz) : null;
     const page = Math.max(0, Number(p.get("page")) || 0);
-    const pageSize = Math.min(
-      200,
-      Math.max(5, Number(p.get("pageSize")) || 25),
-    );
-    const all = (await db.select().from(tickets).orderBy(desc(tickets.createdAt)))
-      .filter((ticket)=>canAccessTicket(user,ticket)).map(toLike);
-    let rows = all.filter(def.filter).filter((t) => {
-      const created = new Date(t.createdAt).getTime();
-      if (created < from || created > to) return false;
-      if (studio && t.studio !== studio) return false;
-      if (priority && t.priority !== priority) return false;
-      if (status && t.status !== status) return false;
-      if (
-        search &&
-        !(
-          t.title +
-          " " +
-          t.ticketNumber +
-          " " +
-          t.memberName +
-          " " +
-          t.subcategory
-        )
-          .toLowerCase()
-          .includes(search)
-      )
-        return false;
-      return true;
-    });
-    if (def.sort) rows = rows.sort(def.sort);
-    const total = rows.length;
+    const pageSize = Math.min(200, Math.max(5, Number(p.get("pageSize")) || 25));
     const exportAll = p.get("all") === "true";
-    const pageRows = (
-      exportAll ? rows : rows.slice(page * pageSize, (page + 1) * pageSize)
-    ).map(def.row);
-    const isOpen = (t: TicketLike) =>
-      !["resolved", "closed", "recorded"].includes(t.status);
-    const isDone = (t: TicketLike) => ["resolved", "closed"].includes(t.status);
-    const hrs = (a: string, b: string) =>
-      Math.max(0, (new Date(b).getTime() - new Date(a).getTime()) / 3600000);
-    const done = rows.filter((t) => t.resolvedAt);
-    const durations = done
-      .map((t) => hrs(t.createdAt, t.resolvedAt as string))
-      .sort((a, b) => a - b);
-    const pct = (q: number) =>
-      durations.length
-        ? Math.round(
-            durations[
-              Math.min(durations.length - 1, Math.floor(q * durations.length))
-            ] * 10,
-          ) / 10
-        : null;
-    const timed = rows.filter((t) => t.resolutionRequired && t.slaDueAt);
-    const breached = timed.filter(
-      (t) =>
-        new Date(t.slaDueAt as string).getTime() <
-        (t.resolvedAt ? new Date(t.resolvedAt).getTime() : Date.now()),
-    );
-    const group = (key: keyof TicketLike) => {
-      const r: Record<string, number> = {};
-      for (const t of rows) {
-        const v = String(t[key] ?? "Unassigned") || "Unassigned";
-        r[v] = (r[v] || 0) + 1;
-      }
-      return Object.fromEntries(Object.entries(r).sort((a, b) => b[1] - a[1]));
+
+    // Access, the report's own selection and every filter run in SQL, so only the requested
+    // page of rows ever leaves the database.
+    const clauses: (SQL | undefined)[] = [ticketScope(user), def.where];
+    if (fromMs !== null) clauses.push(sql`${tickets.createdAt} >= ${new Date(fromMs)}`);
+    if (toMs !== null) clauses.push(sql`${tickets.createdAt} <= ${new Date(toMs)}`);
+    if (studio) clauses.push(eq(tickets.studio, studio));
+    if (priority) clauses.push(eq(tickets.priority, priority));
+    if (status) clauses.push(eq(tickets.status, status));
+    if (search) {
+      const like = "%" + search.replace(/[\\%_]/g, (c) => "\\" + c) + "%";
+      clauses.push(or(ilike(tickets.title, like), ilike(tickets.ticketNumber, like), ilike(tickets.memberName, like), ilike(tickets.subcategory, like)));
+    }
+    const where = and(...clauses.filter((c): c is SQL => Boolean(c)));
+
+    const rowColumns = {
+      id: tickets.id, ticketNumber: tickets.ticketNumber, title: tickets.title, category: tickets.category,
+      subcategory: tickets.subcategory, status: tickets.status, priority: tickets.priority, studio: tickets.studio,
+      classFormat: tickets.classFormat, trainer: tickets.trainer, assignedStaffName: tickets.assignedStaffName,
+      slaDueAt: tickets.slaDueAt, resolvedAt: tickets.resolvedAt, createdAt: tickets.createdAt,
+      ...(def.needsCustomFields ? { customFields: tickets.customFields } : {}),
     };
-    const days = 14;
-    const dayKey = (d: Date) =>
-      new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(d);
-    const trend = Array.from({ length: days }, (_, i) => {
-      const d = new Date(Date.now() - (days - 1 - i) * 86400000);
-      const k = dayKey(d);
-      return {
-        date: k,
-        label: new Intl.DateTimeFormat("en-IN", {
-          timeZone: "Asia/Kolkata",
-          day: "numeric",
-          month: "short",
-        }).format(d),
-        created: rows.filter((t) => dayKey(new Date(t.createdAt)) === k).length,
-        resolved: rows.filter(
-          (t) => t.resolvedAt && dayKey(new Date(t.resolvedAt)) === k,
-        ).length,
-      };
-    });
-    const owners = Object.entries(group("assignedStaffName")).map(
-      ([name, count]) => {
-        const ts = rows.filter(
-          (t) => (t.assignedStaffName || "Unassigned") === name,
-        );
-        return {
-          name,
-          total: count,
-          open: ts.filter(isOpen).length,
-          resolved: ts.filter(isDone).length,
-          overdue: ts.filter(
-            (t) =>
-              isOpen(t) &&
-              t.slaDueAt &&
-              new Date(t.slaDueAt).getTime() < Date.now(),
-          ).length,
-        };
-      },
-    );
-    const oldestOpen = rows
-      .filter(isOpen)
-      .sort(
-        (a, b) =>
-          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
-      )[0];
+    const rowQuery = db.select(rowColumns).from(tickets).where(where).orderBy(desc(tickets.createdAt));
+    const weekAgo = new Date(now.getTime() - 7 * 864e5), twoWeeksAgo = new Date(now.getTime() - 14 * 864e5);
+    const trendDays = dayBuckets(14, now.getTime(), tz);
+    const trendFrom = new Date(zonedDayStart(trendDays[0].date, tz) ?? now.getTime() - 14 * 864e5);
+    const hours = metricSql.resolutionHours;
+    const eligible = metricSql.durationEligible;
+    const createdDay = sql<string>`to_char(${tickets.createdAt} at time zone ${tz}, 'YYYY-MM-DD')`;
+    const resolvedDay = sql<string>`to_char(${tickets.resolvedAt} at time zone ${tz}, 'YYYY-MM-DD')`;
+    const dims = {
+      status: tickets.status, priority: tickets.priority, studio: tickets.studio, category: tickets.category,
+      subcategory: tickets.subcategory, department: tickets.departmentName, source: tickets.source,
+      sentiment: tickets.sentiment, kind: tickets.kind, owner: tickets.assignedStaffName,
+    };
+    const dimNames = Object.keys(dims) as (keyof typeof dims)[];
+    const dimCols = Object.values(dims);
+
+    const [pageRows, [m], groups, createdTrend, resolvedTrend] = await Promise.all([
+      exportAll ? rowQuery : rowQuery.limit(pageSize).offset(page * pageSize),
+      db.select({
+        total: sql<number>`count(*)::int`,
+        open: n("open", metricSql.open),
+        resolved: n("resolved", metricSql.resolved),
+        recorded: n("recorded", metricSql.recordOnly),
+        critical: n("critical", eq(tickets.priority, "critical")),
+        high: n("high", eq(tickets.priority, "high")),
+        escalated: n("escalated", eq(tickets.isEscalated, true)),
+        tracked: n("tracked", metricSql.tracked),
+        breachedOpen: n("breached_open", metricSql.breachedOpen(now)),
+        breachedResolved: n("breached_resolved", metricSql.breachedResolved()),
+        avg: sql<number | null>`avg(${hours}) filter (where ${eligible})::float8`,
+        median: sql<number | null>`percentile_cont(0.5) within group (order by ${hours}) filter (where ${eligible})`,
+        p90: sql<number | null>`percentile_disc(0.9) within group (order by ${hours}) filter (where ${eligible})`,
+        oldestOpen: sql<string | null>`min(${tickets.createdAt}) filter (where ${metricSql.open})`,
+        last7: n("last7", sql`${tickets.createdAt} > ${weekAgo}`),
+        prev7: n("prev7", sql`${tickets.createdAt} <= ${weekAgo} and ${tickets.createdAt} > ${twoWeeksAgo}`),
+      }).from(tickets).where(where),
+      // Every breakdown and the owner table from one GROUPING SETS pass.
+      db.select({
+        ...Object.fromEntries(dimNames.map((k) => [k, dims[k]])),
+        rolled: sql<string>`(${sql.join(dimNames.map((_, i) => sql`grouping(${dimCols[i]})::text`), sql` || `)})`,
+        total: sql<number>`count(*)::int`,
+        open: n("open", metricSql.open),
+        resolved: n("resolved", metricSql.resolved),
+        overdue: n("overdue", metricSql.breachedOpen(now)),
+      }).from(tickets).where(where)
+        .groupBy(sql`grouping sets (${sql.join(dimCols.map((c) => sql`(${c})`), sql`, `)})`),
+      // Grouped by ordinal: the timezone is a bind parameter, so repeating the expression in
+      // GROUP BY would be a different parameter and Postgres would reject it.
+      db.select({ day: createdDay, count: sql<number>`count(*)::int` }).from(tickets)
+        .where(and(where, sql`${tickets.createdAt} >= ${trendFrom}`)).groupBy(sql`1`),
+      db.select({ day: resolvedDay, count: sql<number>`count(*)::int` }).from(tickets)
+        .where(and(where, sql`${tickets.resolvedAt} >= ${trendFrom}`)).groupBy(sql`1`),
+    ]);
+
+    const breakdown: Record<string, Record<string, number>> = Object.fromEntries(dimNames.map((k) => [k, {}]));
+    const ownerAgg: Record<string, { name: string; total: number; open: number; resolved: number; overdue: number }> = {};
+    for (const g of groups as unknown as (Record<string, string | null> & { rolled: string; total: number; open: number; resolved: number; overdue: number })[]) {
+      const i = g.rolled.indexOf("0");
+      if (i < 0) continue;
+      const dim = dimNames[i], key = String(g[dim] ?? "") || "Unassigned";
+      breakdown[dim][key] = (breakdown[dim][key] || 0) + g.total;
+      if (dim === "owner") ownerAgg[key] = { name: key, total: g.total, open: g.open, resolved: g.resolved, overdue: g.overdue };
+    }
+    const sorted = (r: Record<string, number>) => Object.fromEntries(Object.entries(r).sort((a, b) => b[1] - a[1]));
+    const createdBy = new Map(createdTrend.map((r) => [r.day, r.count]));
+    const resolvedBy = new Map(resolvedTrend.map((r) => [r.day, r.count]));
+    const trend = trendDays.map((d) => ({ ...d, created: createdBy.get(d.date) || 0, resolved: resolvedBy.get(d.date) || 0 }));
+
+    const total = m.total;
+    const breached = m.breachedOpen + m.breachedResolved;
     const metrics = {
       total,
-      open: rows.filter(isOpen).length,
-      resolved: rows.filter(isDone).length,
-      recorded: rows.filter((t) => t.status === "recorded").length,
-      critical: rows.filter((t) => t.priority === "critical").length,
-      high: rows.filter((t) => t.priority === "high").length,
-      escalated: rows.filter((t) => t.isEscalated).length,
-      avgResolutionHours: durations.length
-        ? Math.round(
-            (durations.reduce((a, b) => a + b, 0) / durations.length) * 10,
-          ) / 10
-        : null,
-      medianResolutionHours: pct(0.5),
-      p90ResolutionHours: pct(0.9),
-      slaCompliance: timed.length
-        ? Math.round(((timed.length - breached.length) / timed.length) * 100)
-        : null,
-      slaBreached: breached.length,
-      oldestOpenAgeHours: oldestOpen
-        ? Math.round(hrs(oldestOpen.createdAt, new Date().toISOString()))
-        : null,
-      last7: rows.filter(
-        (t) => hrs(t.createdAt, new Date().toISOString()) <= 168,
-      ).length,
-      prev7: rows.filter((t) => {
-        const h = hrs(t.createdAt, new Date().toISOString());
-        return h > 168 && h <= 336;
-      }).length,
-      resolutionRate: total
-        ? Math.round((rows.filter(isDone).length / total) * 100)
-        : 0,
+      open: m.open,
+      resolved: m.resolved,
+      recorded: m.recorded,
+      critical: m.critical,
+      high: m.high,
+      escalated: m.escalated,
+      avgResolutionHours: round1(m.avg === null ? null : Number(m.avg)),
+      medianResolutionHours: round1(m.median === null ? null : Number(m.median)),
+      p90ResolutionHours: round1(m.p90 === null ? null : Number(m.p90)),
+      slaCompliance: slaCompliance(m.tracked, breached),
+      slaBreached: breached,
+      slaOverdue: m.breachedOpen,
+      slaResolvedLate: m.breachedResolved,
+      oldestOpenAgeHours: m.oldestOpen ? Math.round((now.getTime() - new Date(m.oldestOpen).getTime()) / 3600000) : null,
+      last7: m.last7,
+      prev7: m.prev7,
+      resolutionRate: total ? Math.round((m.resolved / total) * 100) : 0,
     };
-    const breakdowns = {
-      byStatus: group("status"),
-      byPriority: group("priority"),
-      byStudio: group("studio"),
-      byCategory: group("category"),
-      bySubcategory: group("subcategory"),
-      byDepartment: group("departmentName"),
-      bySource: group("source"),
-      bySentiment: group("sentiment"),
-      byKind: group("kind"),
-    };
+    const rows = (pageRows as (Omit<TicketLike, "slaDueAt" | "resolvedAt" | "createdAt"> & { slaDueAt: Date | null; resolvedAt: Date | null; createdAt: Date })[])
+      .map((t) => def.row({ ...t, slaDueAt: iso(t.slaDueAt), resolvedAt: iso(t.resolvedAt), createdAt: t.createdAt.toISOString() }));
     return Response.json({
       id: def.id,
       name: def.name,
       description: def.description,
       group: def.group,
       columns: def.columns,
-      rows: pageRows,
+      rows,
       total,
       page,
       pageSize,
       hasMore: !exportAll && (page + 1) * pageSize < total,
       metrics,
-      breakdowns,
-      trend,
-      owners,
-      generatedAt: new Date().toISOString(),
-      filters: {
-        search,
-        studio,
-        priority,
-        status,
-        from: p.get("from") || "",
-        to: p.get("to") || "",
+      breakdowns: {
+        byStatus: sorted(breakdown.status),
+        byPriority: sorted(breakdown.priority),
+        byStudio: sorted(breakdown.studio),
+        byCategory: sorted(breakdown.category),
+        bySubcategory: sorted(breakdown.subcategory),
+        byDepartment: sorted(breakdown.department),
+        bySource: sorted(breakdown.source),
+        bySentiment: sorted(breakdown.sentiment),
+        byKind: sorted(breakdown.kind),
       },
+      trend,
+      owners: Object.values(ownerAgg).sort((a, b) => b.total - a.total),
+      generatedAt: now.toISOString(),
+      filters: { search, studio, priority, status, from: p.get("from") || "", to: p.get("to") || "" },
     });
   } catch (e) {
     return errorResponse(e);

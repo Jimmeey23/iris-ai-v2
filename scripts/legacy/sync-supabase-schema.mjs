@@ -3,6 +3,10 @@
  * Idempotent schema sync for the existing Supabase database.
  * Adds columns / indexes / constraints that exist in src/db/schema.ts but are
  * missing in the live DB, without touching existing data.
+ *
+ * LEGACY — superseded by drizzle/ migrations (`npm run db:migrate`) and the one-off
+ * drizzle/manual/0004_prod_alignment.sql. Kept for reference; see docs/MIGRATIONS.md.
+ * Constraint names and ON DELETE rules below match src/db/schema.ts.
  */
 import 'dotenv/config';
 import { Pool } from 'pg';
@@ -36,16 +40,16 @@ async function indexExists(index) {
   return rows.length > 0;
 }
 
-async function constraintExists(table, constraint) {
+/** Any foreign key on this column, whatever it is called — so a constraint created
+ *  under another name (e.g. Postgres' default `<table>_<column>_fkey`) is never
+ *  duplicated. */
+async function fkExists(table, column) {
   const { rows } = await pool.query(
-    `SELECT 1 FROM information_schema.table_constraints WHERE table_schema='public' AND table_name=$1 AND constraint_name=$2`,
-    [table, constraint]
+    `SELECT 1 FROM pg_constraint c JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = ANY (c.conkey)
+      WHERE c.contype = 'f' AND c.conrelid = format('public.%I', $1::text)::regclass AND a.attname = $2`,
+    [table, column]
   );
   return rows.length > 0;
-}
-
-async function fkExists(table, constraint) {
-  return constraintExists(table, constraint);
 }
 
 // ------------------------------------------------------------------
@@ -64,7 +68,7 @@ if (!(await indexExists('tickets_asset_idx'))) {
 if (!(await indexExists('app_users_staff_profile_idx'))) {
   statements.push(`CREATE UNIQUE INDEX "app_users_staff_profile_idx" ON "app_users" ("staff_id");`);
 }
-if (!(await fkExists('app_users', 'app_users_staff_id_staff_id_fk'))) {
+if (!(await fkExists('app_users', 'staff_id'))) {
   statements.push(`ALTER TABLE "app_users" ADD CONSTRAINT "app_users_staff_id_staff_id_fk" FOREIGN KEY ("staff_id") REFERENCES "staff"("id") ON DELETE SET NULL;`);
 }
 
@@ -80,54 +84,55 @@ statements.push(`DROP TABLE IF EXISTS "auth_sessions";`);
 // ------------------------------------------------------------------
 // 4. chat_messages FK (if missing)
 // ------------------------------------------------------------------
-if (!(await fkExists('chat_messages', 'chat_messages_session_id_chat_sessions_id_fk'))) {
+if (!(await fkExists('chat_messages', 'session_id'))) {
   statements.push(`ALTER TABLE "chat_messages" ADD CONSTRAINT "chat_messages_session_id_chat_sessions_id_fk" FOREIGN KEY ("session_id") REFERENCES "chat_sessions"("id") ON DELETE CASCADE;`);
 }
 
 // ------------------------------------------------------------------
-// 5. ticket_contact_log FKs
+// 5. ticket_contact_log FKs. Author FKs are NO ACTION, never CASCADE: deleting a
+//    user must not erase the audit trail they wrote.
 // ------------------------------------------------------------------
-if (!(await fkExists('ticket_contact_log', 'ticket_contact_log_ticket_id_fkey'))) {
-  statements.push(`ALTER TABLE "ticket_contact_log" ADD CONSTRAINT "ticket_contact_log_ticket_id_fkey" FOREIGN KEY ("ticket_id") REFERENCES "tickets"("id") ON DELETE CASCADE;`);
+if (!(await fkExists('ticket_contact_log', 'ticket_id'))) {
+  statements.push(`ALTER TABLE "ticket_contact_log" ADD CONSTRAINT "ticket_contact_log_ticket_id_tickets_id_fk" FOREIGN KEY ("ticket_id") REFERENCES "tickets"("id") ON DELETE CASCADE;`);
 }
-if (!(await fkExists('ticket_contact_log', 'ticket_contact_log_author_user_id_fkey'))) {
-  statements.push(`ALTER TABLE "ticket_contact_log" ADD CONSTRAINT "ticket_contact_log_author_user_id_fkey" FOREIGN KEY ("author_user_id") REFERENCES "app_users"("id") ON DELETE CASCADE;`);
+if (!(await fkExists('ticket_contact_log', 'author_user_id'))) {
+  statements.push(`ALTER TABLE "ticket_contact_log" ADD CONSTRAINT "ticket_contact_log_author_user_id_app_users_id_fk" FOREIGN KEY ("author_user_id") REFERENCES "app_users"("id") ON DELETE NO ACTION;`);
 }
 
 // ------------------------------------------------------------------
 // 6. ticket_follow_ups FKs
 // ------------------------------------------------------------------
-if (!(await fkExists('ticket_follow_ups', 'ticket_follow_ups_ticket_id_fkey'))) {
-  statements.push(`ALTER TABLE "ticket_follow_ups" ADD CONSTRAINT "ticket_follow_ups_ticket_id_fkey" FOREIGN KEY ("ticket_id") REFERENCES "tickets"("id") ON DELETE CASCADE;`);
+if (!(await fkExists('ticket_follow_ups', 'ticket_id'))) {
+  statements.push(`ALTER TABLE "ticket_follow_ups" ADD CONSTRAINT "ticket_follow_ups_ticket_id_tickets_id_fk" FOREIGN KEY ("ticket_id") REFERENCES "tickets"("id") ON DELETE CASCADE;`);
 }
-if (!(await fkExists('ticket_follow_ups', 'ticket_follow_ups_owner_staff_id_fkey'))) {
-  statements.push(`ALTER TABLE "ticket_follow_ups" ADD CONSTRAINT "ticket_follow_ups_owner_staff_id_fkey" FOREIGN KEY ("owner_staff_id") REFERENCES "staff"("id") ON DELETE SET NULL;`);
+if (!(await fkExists('ticket_follow_ups', 'owner_staff_id'))) {
+  statements.push(`ALTER TABLE "ticket_follow_ups" ADD CONSTRAINT "ticket_follow_ups_owner_staff_id_staff_id_fk" FOREIGN KEY ("owner_staff_id") REFERENCES "staff"("id") ON DELETE SET NULL;`);
 }
-if (!(await fkExists('ticket_follow_ups', 'ticket_follow_ups_created_by_user_id_fkey'))) {
-  statements.push(`ALTER TABLE "ticket_follow_ups" ADD CONSTRAINT "ticket_follow_ups_created_by_user_id_fkey" FOREIGN KEY ("created_by_user_id") REFERENCES "app_users"("id") ON DELETE CASCADE;`);
+if (!(await fkExists('ticket_follow_ups', 'created_by_user_id'))) {
+  statements.push(`ALTER TABLE "ticket_follow_ups" ADD CONSTRAINT "ticket_follow_ups_created_by_user_id_app_users_id_fk" FOREIGN KEY ("created_by_user_id") REFERENCES "app_users"("id") ON DELETE NO ACTION;`);
 }
 
 // ------------------------------------------------------------------
 // 7. ticket_resolution_steps FKs
 // ------------------------------------------------------------------
-if (!(await fkExists('ticket_resolution_steps', 'ticket_resolution_steps_ticket_id_fkey'))) {
-  statements.push(`ALTER TABLE "ticket_resolution_steps" ADD CONSTRAINT "ticket_resolution_steps_ticket_id_fkey" FOREIGN KEY ("ticket_id") REFERENCES "tickets"("id") ON DELETE CASCADE;`);
+if (!(await fkExists('ticket_resolution_steps', 'ticket_id'))) {
+  statements.push(`ALTER TABLE "ticket_resolution_steps" ADD CONSTRAINT "ticket_resolution_steps_ticket_id_tickets_id_fk" FOREIGN KEY ("ticket_id") REFERENCES "tickets"("id") ON DELETE CASCADE;`);
 }
-if (!(await fkExists('ticket_resolution_steps', 'ticket_resolution_steps_author_user_id_fkey'))) {
-  statements.push(`ALTER TABLE "ticket_resolution_steps" ADD CONSTRAINT "ticket_resolution_steps_author_user_id_fkey" FOREIGN KEY ("author_user_id") REFERENCES "app_users"("id") ON DELETE CASCADE;`);
+if (!(await fkExists('ticket_resolution_steps', 'author_user_id'))) {
+  statements.push(`ALTER TABLE "ticket_resolution_steps" ADD CONSTRAINT "ticket_resolution_steps_author_user_id_app_users_id_fk" FOREIGN KEY ("author_user_id") REFERENCES "app_users"("id") ON DELETE NO ACTION;`);
 }
 
 // ------------------------------------------------------------------
 // 8. app_settings FK
 // ------------------------------------------------------------------
-if (!(await fkExists('app_settings', 'app_settings_updated_by_app_users_id_fk'))) {
+if (!(await fkExists('app_settings', 'updated_by'))) {
   statements.push(`ALTER TABLE "app_settings" ADD CONSTRAINT "app_settings_updated_by_app_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "app_users"("id") ON DELETE SET NULL;`);
 }
 
 // ------------------------------------------------------------------
 // 9. Per-user persistent ticket drafts
 // ------------------------------------------------------------------
-statements.push(`CREATE TABLE IF NOT EXISTS "ticket_drafts" ("id" serial PRIMARY KEY NOT NULL, "user_id" integer NOT NULL REFERENCES "app_users"("id") ON DELETE CASCADE, "title" text NOT NULL, "template_id" text, "category" text NOT NULL, "subcategory" text NOT NULL, "payload" jsonb DEFAULT '{}'::jsonb NOT NULL, "created_at" timestamp with time zone DEFAULT now() NOT NULL, "updated_at" timestamp with time zone DEFAULT now() NOT NULL);`);
+statements.push(`CREATE TABLE IF NOT EXISTS "ticket_drafts" ("id" serial PRIMARY KEY NOT NULL, "user_id" integer NOT NULL CONSTRAINT "ticket_drafts_user_id_app_users_id_fk" REFERENCES "app_users"("id") ON DELETE CASCADE, "title" text NOT NULL, "template_id" text, "category" text NOT NULL, "subcategory" text NOT NULL, "payload" jsonb DEFAULT '{}'::jsonb NOT NULL, "created_at" timestamp with time zone DEFAULT now() NOT NULL, "updated_at" timestamp with time zone DEFAULT now() NOT NULL);`);
 statements.push(`CREATE INDEX IF NOT EXISTS "ticket_drafts_user_updated_idx" ON "ticket_drafts" ("user_id", "updated_at");`);
 
 // ------------------------------------------------------------------

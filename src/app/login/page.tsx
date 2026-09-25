@@ -6,6 +6,7 @@ import {
   Check,
   Eye,
   EyeOff,
+  KeyRound,
   LockKeyhole,
   Mail,
   Sparkles,
@@ -13,9 +14,24 @@ import {
 import { IrisLockup } from "@/components/iris-mark";
 import "./login.css";
 
+/** Fixed copy for every error code the auth routes redirect with. Anything
+ *  unrecognised falls back to a generic line — query text is never rendered. */
+const ERROR_MESSAGES: Record<string, string> = {
+  google_not_configured:
+    "Google sign-in is not enabled for this workspace yet. Ask an administrator.",
+  inactive:
+    "This account is not active in the workspace. Ask an administrator to restore it.",
+  not_authorised:
+    "Your account is not authorised for this workspace. Ask an administrator for an invite.",
+  profile_unavailable:
+    "You signed in, but your workspace profile could not be loaded. Please try again shortly.",
+  oauth_failed: "Sign-in could not be completed. Please try again.",
+};
+
 export default function LoginPage() {
   const router = useRouter();
-  const [mode, setMode] = useState<"login" | "signup">("login"),
+  const [mode, setMode] = useState<"login" | "setup">("login"),
+    [setupToken, setSetupToken] = useState(""),
     [email, setEmail] = useState(""),
     [name, setName] = useState(""),
     [password, setPassword] = useState(""),
@@ -27,26 +43,14 @@ export default function LoginPage() {
     fetch("/api/auth")
       .then((r) => r.json())
       .then((d) => {
-        if (d.user) router.replace("/dashboard");
+        if (d.user) return router.replace("/dashboard");
+        if (d.setupRequired) setMode("setup");
+        // Only a fixed message keyed by the code is shown; no query text is rendered.
+        const code = new URLSearchParams(window.location.search).get("error");
+        if (code) setError(ERROR_MESSAGES[code] ?? ERROR_MESSAGES.oauth_failed);
       })
       .catch(() => {});
   }, [router]);
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const code = params.get("error");
-    const detail = params.get("detail");
-    if (detail) setNotice(detail);
-    if (code)
-      setError(
-        code === "google_not_configured"
-          ? "Google sign-in is not enabled. Turn on the Google provider in your Supabase project."
-          : code === "inactive"
-            ? "This account is not active in the workspace. Ask an administrator to restore it."
-            : code === "profile_unavailable"
-              ? "Signed in with Google, but your workspace profile could not be loaded. The database may be unreachable or out of date."
-              : "Google sign-in could not be completed. Please try again.",
-      );
-  }, []);
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
@@ -60,20 +64,12 @@ export default function LoginPage() {
           action: mode,
           email,
           password,
-          name: mode === "signup" ? name : undefined,
+          name: mode === "setup" ? name : undefined,
+          setupToken: mode === "setup" ? setupToken : undefined,
         }),
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || "Unable to continue");
-      if (d.confirmationRequired) {
-        // Supabase has sent a confirmation link; there is no session to redirect with yet.
-        setNotice(
-          `Check ${email} for a confirmation link. Your account is ready once you have clicked it.`,
-        );
-        setMode("login");
-        setPassword("");
-        return;
-      }
       router.replace("/dashboard");
       router.refresh();
     } catch (e) {
@@ -142,43 +138,40 @@ export default function LoginPage() {
           <IrisLockup size={34} />
           <div className="auth-copy">
             <span className="auth-eyebrow">SECURE WORKSPACE</span>
-            <h2>{mode === "login" ? "Welcome back" : "Create your account"}</h2>
+            <h2>{mode === "login" ? "Welcome back" : "Set up your workspace"}</h2>
             <p>
               {mode === "login"
                 ? "Sign in to continue to ThitOps."
-                : "Join your team workspace with protected agent access."}
+                : "Create the first administrator using the one-time setup token."}
             </p>
           </div>
-          <div className="auth-tabs" role="tablist">
-            <button
-              className={mode === "login" ? "active" : ""}
-              onClick={() => {
-                setMode("login");
-                setError("");
-                setNotice("");
-              }}
-            >
-              Sign in
-            </button>
-            <button
-              className={mode === "signup" ? "active" : ""}
-              onClick={() => {
-                setMode("signup");
-                setError("");
-                setNotice("");
-              }}
-            >
-              Sign up
-            </button>
-          </div>
-          <a className="auth-google" href="/api/auth/google">
-            <span className="google-g">G</span>Continue with Google
-          </a>
-          <div className="auth-divider">
-            <span>or use email</span>
-          </div>
+          {mode === "login" && (
+            <>
+              <a className="auth-google" href="/api/auth/google">
+                <span className="google-g">G</span>Continue with Google
+              </a>
+              <div className="auth-divider">
+                <span>or use email</span>
+              </div>
+            </>
+          )}
           <form onSubmit={submit} className="auth-form">
-            {mode === "signup" && (
+            {mode === "setup" && (
+              <label>
+                Setup token
+                <div className="auth-input">
+                  <KeyRound />
+                  <input
+                    required
+                    autoComplete="off"
+                    value={setupToken}
+                    onChange={(e) => setSetupToken(e.target.value)}
+                    placeholder="From the SETUP_TOKEN server variable"
+                  />
+                </div>
+              </label>
+            )}
+            {mode === "setup" && (
               <label>
                 Full name
                 <div className="auth-input">
@@ -247,13 +240,13 @@ export default function LoginPage() {
                 ? "Please wait…"
                 : mode === "login"
                   ? "Sign in"
-                  : "Create agent account"}
+                  : "Create administrator"}
               <ArrowRight />
             </button>
           </form>
           <p className="auth-note">
-            New accounts start with Agent access. Managers and Admins are
-            assigned by an administrator.
+            Access is by invitation. Ask an administrator if you need an
+            account.
           </p>
         </div>
       </section>

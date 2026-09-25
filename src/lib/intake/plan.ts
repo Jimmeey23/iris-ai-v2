@@ -11,6 +11,7 @@
  */
 import planData from './plan-data.json';
 import type {TicketInput} from '../ticket-contract';
+import {PRIORITY_SLA_HOURS, type SlaHours} from '../constants';
 
 export type IntakeFieldType = 'text' | 'textarea' | 'number' | 'url' | 'datetime' | 'select' | 'multiselect' | 'radio' | 'lookup';
 export type LookupModule = 'member' | 'session' | 'ticket';
@@ -44,10 +45,12 @@ export type IntakeSubMeta = {
   key: string;
   category: string;
   name: string;
-  /** Support Hub's own tier for the sub-category; Iris's routing decides the filed priority. */
+  /** The priority the sub-category files at. Callers pass Iris's routing tier (which already
+   *  takes the higher of its own and the Hub's); without one it is the Hub's tier. */
   hubPriority: string;
+  /** Follow-up target from the workspace's responseHours — the plan carries no SLA of its own. */
   slaLabel: string;
-  hours: [number | null, number | null];
+  hours: [number | null, null];
   hist: number;
   fieldCount: number;
   requiredCount: number;
@@ -60,7 +63,9 @@ type RawDef = {
   /** Overlay questions can name their group when the shared id means something else here. */
   section?: string;
 };
-type RawSub = {f: number[]; p: string; sla: string; h: [number | null, number | null]; hist: number; department?: string};
+/** `p` is the Hub's tier, kept for the drift check; `department` is a routing hint only — Iris routes
+ *  by the workspace's categoryDepartments, never by the plan. */
+type RawSub = {f: number[]; p: string; hist: number; department?: string};
 type PlanData = {
   source: {repo: string; file: string; commit: string; generatedAt: string};
   opts: string[][];
@@ -128,14 +133,27 @@ export const orderSections = (names: Iterable<string>) => {
 /* ------------------------------------------------------------------ taxonomy */
 export type HubCategory = PlanData['categories'][number];
 export function hubCategories(): HubCategory[] { return DATA.categories; }
-export function hubSub(category: string, sub: string): IntakeSubMeta | null {
+/** "4 h first response", from the configured hours (Settings → response hours) for a tier. */
+export function slaLabelFor(priority: string, hours: SlaHours = PRIORITY_SLA_HOURS, override?: number | null) {
+  const h = override ?? hours[priority as keyof SlaHours];
+  return h ? `${h} h first response` : '';
+}
+/** Plan metadata for a sub-category, or null when the plan has nothing for it (an admin-added
+ *  sub-category): planFields still serves it the universal block. */
+export function hubSub(category: string, sub: string, opts: {priority?: string; hours?: SlaHours; slaHours?: number | null} = {}): IntakeSubMeta | null {
   const raw = DATA.subs[subKey(category, sub)];
   const overlay = SUB_OVERLAYS[subKey(category, sub)] || [];
   if (!raw && !overlay.length) return null;
   const defs = [...DATA.universal.map(i => DATA.defs[i]), ...(raw?.f || []).map(i => DATA.defs[i]), ...overlay];
   const seen = new Set<string>(); let required = 0, total = 0;
   for (const d of defs) { if (seen.has(d.id)) continue; seen.add(d.id); total++; if (d.required) required++; }
-  return {key: subKey(category, sub), category, name: sub, hubPriority: raw?.p || 'low', slaLabel: raw?.sla || 'P4 — 24 hr first response · 5 working days resolution', hours: raw?.h || [24, 120], hist: raw?.hist || 0, fieldCount: total, requiredCount: required};
+  const priority = opts.priority || raw?.p || 'low';
+  const first = opts.slaHours ?? (opts.hours || PRIORITY_SLA_HOURS)[priority as keyof SlaHours] ?? null;
+  return {key: subKey(category, sub), category, name: sub, hubPriority: priority, slaLabel: slaLabelFor(priority, opts.hours, opts.slaHours), hours: [first, null], hist: raw?.hist || 0, fieldCount: total, requiredCount: required};
+}
+/** The Support Hub's own tier, for drift checks only — never shown or filed. */
+export function hubTier(category: string, sub: string): string | null {
+  return DATA.subs[subKey(category, sub)]?.p ?? null;
 }
 export function cycleIntakeQuestions() { return DATA.cycleIntake; }
 /** The controlled list a plan field answers from, by id — the class desk shares these lists

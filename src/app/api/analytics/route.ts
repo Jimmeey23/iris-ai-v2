@@ -1,156 +1,126 @@
 import { NextRequest } from "next/server";
-import { and, desc, eq, gte, lte } from "drizzle-orm";
+import { and, eq, gte, lte, sql, type SQL } from "drizzle-orm";
 import { db } from "@/db";
 import { tickets } from "@/db/schema";
-import { requireWorkspace, canAccessTicket, errorResponse } from "@/lib/auth";
+import { requireWorkspace, errorResponse } from "@/lib/auth";
 import { getConfig } from "@/lib/config";
+import { metricSql } from "@/lib/reports";
+import { ticketScope } from "@/lib/tickets";
+import { dayBuckets, round1, slaCompliance, zonedDayEnd, zonedDayStart } from "@/lib/metrics";
 export const dynamic = "force-dynamic";
+
+const n = (label: string, where: SQL) => sql<number>`count(*) filter (where ${where})::int`.as(label);
+
 export async function GET(req: NextRequest) {
   try {
     const user = await requireWorkspace();
     const cfg = await getConfig();
+    const tz = cfg.timezone;
+    const nowMs = Date.now(), now = new Date(nowMs);
     const range = req.nextUrl.searchParams.get("range") || "30";
     const fromParam = req.nextUrl.searchParams.get("from"),
       toParam = req.nextUrl.searchParams.get("to");
-    const from = fromParam
-      ? new Date(fromParam + "T00:00:00+05:30").getTime()
-      : range === "all"
-        ? 0
-        : Date.now() - Math.min(Number(range) || 30, 730) * 86400000;
-    const to = toParam
-      ? new Date(toParam + "T23:59:59+05:30").getTime()
-      : Date.now();
+    // Custom dates are whole days in the workspace timezone (IST by default).
+    const from = (fromParam ? zonedDayStart(fromParam, tz) : null) ??
+      (range === "all" ? 0 : nowMs - Math.min(Number(range) || 30, 730) * 86400000);
+    const to = (toParam ? zonedDayEnd(toParam, tz) : null) ?? nowMs;
     const studio = req.nextUrl.searchParams.get("studio") || "",
-      department = req.nextUrl.searchParams.get("department") || ""; // The date range, studio and department are filters the database can apply against
-    // tickets_created_idx. Reading every ticket ever logged and filtering in JavaScript cost
-    // a full table scan on every page load, and grew with the ticket table forever.
-    const clauses = [
+      department = req.nextUrl.searchParams.get("department") || "";
+    // Range, studio, department and access all run in SQL against tickets_created_idx, and the
+    // numbers come back as aggregates — no ticket rows are read into the route at all.
+    const clauses: (SQL | undefined)[] = [
       gte(tickets.createdAt, new Date(from)),
       lte(tickets.createdAt, new Date(to)),
+      ticketScope(user),
     ];
     if (studio) clauses.push(eq(tickets.studio, studio));
     if (department) clauses.push(eq(tickets.departmentName, department));
-    const rows = (await db
-      .select()
-      .from(tickets)
-      .where(and(...clauses))
-      .orderBy(desc(tickets.createdAt))).filter((ticket)=>canAccessTicket(user,ticket));
-    const open = rows.filter(
-      (t) => !["resolved", "closed", "recorded"].includes(t.status),
-    );
-    const resolved = rows.filter((t) =>
-      ["resolved", "closed"].includes(t.status),
-    );
-    const timed = rows.filter((t) => t.resolutionRequired && t.slaDueAt);
-    const breaches = timed.filter(
-      (t) => t.slaDueAt!.getTime() < (t.resolvedAt?.getTime() || Date.now()),
-    );
-    const durations = resolved
-      .filter((t) => t.resolvedAt)
-      .map((t) =>
-        Math.max(
-          0,
-          (t.resolvedAt!.getTime() - t.createdAt.getTime()) / 3600000,
-        ),
-      )
-      .sort((a, b) => a - b);
-    const median = durations.length
-      ? (durations[Math.floor((durations.length - 1) / 2)] +
-          durations[Math.ceil((durations.length - 1) / 2)]) /
-        2
-      : null;
-    const group = (
-      key:
-        | "category"
-        | "status"
-        | "priority"
-        | "studio"
-        | "departmentName"
-        | "assignedStaffName"
-        | "source",
-    ) => {
-      const result: Record<string, number> = {};
-      for (const t of rows) {
-        const value = t[key] || "Unassigned";
-        result[value] = (result[value] || 0) + 1;
-      }
-      return result;
+    const where = and(...clauses.filter((c): c is SQL => Boolean(c)));
+
+    const days = dayBuckets(range === "7" ? 7 : 14, to, tz);
+    const trendFrom = new Date(Math.max(from, zonedDayStart(days[0].date, tz) ?? from));
+    const createdDay = sql<string>`to_char(${tickets.createdAt} at time zone ${tz}, 'YYYY-MM-DD')`;
+    const resolvedDay = sql<string>`to_char(${tickets.resolvedAt} at time zone ${tz}, 'YYYY-MM-DD')`;
+    const dims = {
+      category: tickets.category, status: tickets.status, priority: tickets.priority, studio: tickets.studio,
+      departmentName: tickets.departmentName, assignedStaffName: tickets.assignedStaffName, source: tickets.source,
     };
-    const days = range === "7" ? 7 : 14;
-    const dateKey = (d: Date) =>
-      new Intl.DateTimeFormat("en-CA", {
-        timeZone: cfg.timezone,
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-      }).format(d);
-    const trend = Array.from({ length: days }, (_, i) => {
-      const d = new Date(to - (days - 1 - i) * 86400000);
-      const k = dateKey(d);
-      return {
-        date: k,
-        label: new Intl.DateTimeFormat("en-IN", {
-          timeZone: cfg.timezone,
-          day: "numeric",
-          month: "short",
-        }).format(d),
-        created: rows.filter((t) => dateKey(t.createdAt) === k).length,
-        resolved: rows.filter(
-          (t) => t.resolvedAt && dateKey(t.resolvedAt) === k,
-        ).length,
-      };
-    });
-    const owners = Object.entries(group("assignedStaffName")).map(
-      ([name, total]) => {
-        const ts = rows.filter((t) => t.assignedStaffName === name);
-        return {
-          name,
-          total,
-          open: ts.filter(
-            (t) => !["resolved", "closed", "recorded"].includes(t.status),
-          ).length,
-          resolved: ts.filter((t) => ["resolved", "closed"].includes(t.status))
-            .length,
-          overdue: ts.filter(
-            (t) =>
-              t.slaDueAt &&
-              !["resolved", "closed", "recorded"].includes(t.status) &&
-              t.slaDueAt.getTime() < Date.now(),
-          ).length,
-        };
-      },
-    );
+    const dimNames = Object.keys(dims) as (keyof typeof dims)[];
+    const dimCols = Object.values(dims);
+
+    const [[t], groups, createdTrend, resolvedTrend] = await Promise.all([
+      db.select({
+        all: sql<number>`count(*)::int`,
+        open: n("open", metricSql.open),
+        resolved: n("resolved", metricSql.resolved),
+        recorded: n("recorded", metricSql.recordOnly),
+        critical: n("critical", and(metricSql.open, eq(tickets.priority, "critical")) as SQL),
+        tracked: n("tracked", metricSql.tracked),
+        breachedOpen: n("breached_open", metricSql.breachedOpen(now)),
+        breachedResolved: n("breached_resolved", metricSql.breachedResolved()),
+        iris: n("iris", eq(tickets.source, "iris")),
+        median: sql<number | null>`percentile_cont(0.5) within group (order by ${metricSql.resolutionHours}) filter (where ${metricSql.durationEligible})`,
+      }).from(tickets).where(where),
+      // Every breakdown, and the per-owner table, from one GROUPING SETS pass.
+      db.select({
+        ...Object.fromEntries(dimNames.map((k) => [k, dims[k]])),
+        rolled: sql<string>`(${sql.join(dimCols.map((c) => sql`grouping(${c})::text`), sql` || `)})`,
+        total: sql<number>`count(*)::int`,
+        open: n("open", metricSql.open),
+        resolved: n("resolved", metricSql.resolved),
+        overdue: n("overdue", metricSql.breachedOpen(now)),
+      }).from(tickets).where(where)
+        .groupBy(sql`grouping sets (${sql.join(dimCols.map((c) => sql`(${c})`), sql`, `)})`),
+      // Grouped by ordinal: the timezone is a bind parameter, so repeating the expression in
+      // GROUP BY would be a different parameter and Postgres would reject it.
+      db.select({ day: createdDay, count: sql<number>`count(*)::int` }).from(tickets)
+        .where(and(where, gte(tickets.createdAt, trendFrom))).groupBy(sql`1`),
+      db.select({ day: resolvedDay, count: sql<number>`count(*)::int` }).from(tickets)
+        .where(and(where, gte(tickets.resolvedAt, trendFrom))).groupBy(sql`1`),
+    ]);
+
+    const by: Record<string, Record<string, number>> = Object.fromEntries(dimNames.map((k) => [k, {}]));
+    const owners: { name: string; total: number; open: number; resolved: number; overdue: number }[] = [];
+    for (const g of groups as unknown as (Record<string, string | null> & { rolled: string; total: number; open: number; resolved: number; overdue: number })[]) {
+      const i = g.rolled.indexOf("0");
+      if (i < 0) continue;
+      const dim = dimNames[i], key = g[dim] || "Unassigned";
+      by[dim][key] = (by[dim][key] || 0) + g.total;
+      if (dim === "assignedStaffName") owners.push({ name: key, total: g.total, open: g.open, resolved: g.resolved, overdue: g.overdue });
+    }
+    const createdBy = new Map(createdTrend.map((r) => [r.day, r.count]));
+    const resolvedBy = new Map(resolvedTrend.map((r) => [r.day, r.count]));
+    const breached = t.breachedOpen + t.breachedResolved;
     return Response.json({
       totals: {
-        all: rows.length,
-        open: open.length,
-        resolved: resolved.length,
-        recorded: rows.filter((t) => !t.resolutionRequired).length,
-        critical: open.filter((t) => t.priority === "critical").length,
-        breached: breaches.length,
-        iris: rows.filter((t) => t.source === "iris").length,
-        slaCompliance: timed.length
-          ? Math.round(((timed.length - breaches.length) / timed.length) * 100)
-          : null,
-        medianResolutionHours:
-          median === null ? null : Math.round(median * 10) / 10,
+        all: t.all,
+        open: t.open,
+        resolved: t.resolved,
+        recorded: t.recorded,
+        critical: t.critical,
+        breached,
+        breachedOpen: t.breachedOpen,
+        breachedResolved: t.breachedResolved,
+        iris: t.iris,
+        slaCompliance: slaCompliance(t.tracked, breached),
+        medianResolutionHours: round1(t.median === null ? null : Number(t.median)),
       },
-      trend,
-      byCategory: group("category"),
-      byStatus: group("status"),
-      byPriority: group("priority"),
-      byStudio: group("studio"),
-      byDepartment: group("departmentName"),
-      byAssignee: group("assignedStaffName"),
-      bySource: group("source"),
-      owners,
+      trend: days.map((d) => ({ ...d, created: createdBy.get(d.date) || 0, resolved: resolvedBy.get(d.date) || 0 })),
+      byCategory: by.category,
+      byStatus: by.status,
+      byPriority: by.priority,
+      byStudio: by.studio,
+      byDepartment: by.departmentName,
+      byAssignee: by.assignedStaffName,
+      bySource: by.source,
+      owners: owners.sort((a, b) => b.total - a.total),
       scope: {
         from: from ? new Date(from).toISOString() : null,
         to: new Date(to).toISOString(),
         studio,
         department,
       },
-      computedAt: new Date().toISOString(),
+      computedAt: now.toISOString(),
     });
   } catch (e) {
     return errorResponse(e);

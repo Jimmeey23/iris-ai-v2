@@ -9,11 +9,19 @@ if (!url) {
   throw new Error("DATABASE_URL is required");
 }
 
+const ca = process.env.DATABASE_CA_CERT?.trim();
+
 export default defineConfig({
   dialect: "postgresql",
   schema: "./src/db/schema.ts",
-  // Scoped to this app's tables so push never touches other tables that share
-  // the Supabase `public` schema (e.g. brand_documents, n8n_chat_histories).
+  out: "./drizzle",
+  // Only the `public` schema: Supabase keeps auth/storage/realtime in their own
+  // schemas and drizzle-kit must never diff or touch them.
+  schemaFilter: ["public"],
+  // Scoped to this app's tables so push/introspection never touches other tables
+  // that share the Supabase `public` schema (e.g. brand_documents,
+  // n8n_chat_histories). Keep this list identical to the tables in schema.ts —
+  // a table missing here is invisible to drizzle-kit and would be re-created.
   tablesFilter: [
     "app_settings",
     "app_users",
@@ -33,11 +41,20 @@ export default defineConfig({
     "ticket_activities",
     "ticket_comments",
     "ticket_contact_log",
+    "ticket_drafts",
     "ticket_follow_ups",
     "ticket_links",
     "ticket_resolution_steps",
     "ticket_resolutions",
     "tickets",
   ],
-  dbCredentials: { url, ssl: url.includes("supabase.com") ? { rejectUnauthorized: false } : false },
+  migrations: { table: "__drizzle_migrations", schema: "drizzle" },
+  dbCredentials: {
+    url,
+    ssl: ca
+      ? { ca: ca.replace(/\\n/g, "\n"), rejectUnauthorized: true }
+      : url.includes("supabase.com")
+        ? { rejectUnauthorized: false }
+        : false,
+  },
 });

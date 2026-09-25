@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { createHash, timingSafeEqual } from "crypto";
 import { eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { appUsers, staff } from "@/db/schema";
@@ -10,7 +11,11 @@ import {
   logout,
   errorResponse,
   sameOrigin,
+  resolveProfile,
+  INACTIVE_MESSAGE,
+  NOT_AUTHORISED_MESSAGE,
 } from "@/lib/auth";
+import { enforceRateLimit } from "@/lib/rate-limit";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { ensureSeeded } from "@/lib/seed";
@@ -19,7 +24,9 @@ import { audit } from "@/lib/config";
 export const dynamic = "force-dynamic";
 
 const input = z.object({
-  action: z.enum(["login", "signup", "setup", "invite", "logout", "update"]),
+  // There is deliberately no public "signup": accounts come from an administrator
+  // invite, or from Google/email sign-in on an allowlisted domain (see profileFor).
+  action: z.enum(["login", "setup", "invite", "logout", "update"]),
   email: z.string().email().optional(),
   password: z.string().min(12).max(200).optional(),
   name: z.string().min(2).max(80).optional(),
@@ -29,11 +36,31 @@ const input = z.object({
   studio: z.string().max(120).nullable().optional(),
   id: z.number().int().optional(),
   active: z.boolean().optional(),
+  setupToken: z.string().max(500).optional(),
 });
 
+/** Constant-time comparison of the one-time SETUP_TOKEN. Hashing first makes the
+ *  buffers equal length, so timingSafeEqual never throws and length is not leaked. */
+function setupTokenMatches(supplied: string | undefined) {
+  const expected = process.env.SETUP_TOKEN;
+  if (!expected || !supplied) return false;
+  const a = createHash("sha256").update(supplied).digest();
+  const b = createHash("sha256").update(expected).digest();
+  return timingSafeEqual(a, b);
+}
+
+function clientIp(req: Request) {
+  return (
+    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    req.headers.get("x-real-ip") ||
+    "unknown"
+  );
+}
+
+
 /** Supabase returns its own wording for auth failures; these are the ones users
- *  actually hit, restated in the workspace's voice. Anything else is passed
- *  through so a misconfiguration is not hidden behind a generic message. */
+ *  actually hit, restated in the workspace's voice. Anything else is logged
+ *  server-side and answered generically, so provider internals never leak. */
 function authError(message: string): never {
   if (/invalid login credentials/i.test(message))
     throw new ApiError("Email or password is incorrect.", 401);
@@ -46,7 +73,8 @@ function authError(message: string): never {
     throw new ApiError("An account already exists for this email address.", 409);
   if (/rate limit|too many/i.test(message))
     throw new ApiError("Too many attempts. Please wait a minute and try again.", 429);
-  throw new ApiError(message, 400);
+  console.error("Supabase auth error:", message);
+  throw new ApiError("Sign-in could not be completed. Please try again.", 400);
 }
 
 export async function GET() {
@@ -119,47 +147,45 @@ export async function POST(req: Request) {
     const email = b.email.toLowerCase().trim();
 
     if (b.action === "login") {
-      const { error } = await supabase.auth.signInWithPassword({
+      // Keyed by IP and email: stops both a password spray from one address and
+      // a distributed guess at one account from burning through attempts.
+      await enforceRateLimit("login", `login:${clientIp(req)}:${email}`);
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password: b.password,
       });
       if (error) authError(error.message);
-      // The profile row also enforces deactivation, which Supabase does not know about.
-      const user = await currentUser();
-      if (!user) {
+      // The profile row also enforces deactivation and invitation, which
+      // Supabase does not know about.
+      const profile = data.user
+        ? await resolveProfile(data.user)
+        : ({ identity: null, reason: "not_authorised" } as const);
+      if (!profile.identity) {
         await logout();
         throw new ApiError(
-          "This account is not active in the workspace. Ask an administrator to restore it.",
+          profile.reason === "inactive" ? INACTIVE_MESSAGE : NOT_AUTHORISED_MESSAGE,
           403,
         );
       }
       return Response.json({ ok: true });
     }
 
-    if (b.action === "signup") {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password: b.password,
-        options: {
-          data: { full_name: b.name || email },
-          emailRedirectTo: new URL("/auth/callback", req.url).toString(),
-        },
-      });
-      if (error) authError(error.message);
-      // Supabase returns an identity-less user when the email is already taken,
-      // rather than an error, so that signup cannot be used to enumerate accounts.
-      if (data.user && data.user.identities?.length === 0)
-        return Response.json({ ok: true, confirmationRequired: true });
-      const confirmationRequired = !data.session;
-      if (!confirmationRequired) await currentUser();
-      return Response.json({ ok: true, confirmationRequired });
-    }
-
     // `setup` mints the first administrator, `invite` is an administrator minting
     // someone else. Both create a confirmed Supabase user with the service key.
     const admin = b.action === "invite" ? await requireAdmin() : null;
-    if (b.action === "setup" && (await configuredUsers()))
-      throw new ApiError("This workspace already has an administrator.", 409);
+    if (b.action === "setup") {
+      // First-admin setup is otherwise a race anyone on the internet can win
+      // against a fresh deployment; the one-time token proves operator intent.
+      if (!process.env.SETUP_TOKEN)
+        throw new ApiError(
+          "Workspace setup is disabled. Set SETUP_TOKEN on the server to enable it.",
+          403,
+        );
+      if (!setupTokenMatches(b.setupToken))
+        throw new ApiError("The setup token is incorrect.", 403);
+      if (await configuredUsers())
+        throw new ApiError("This workspace already has an administrator.", 409);
+    }
 
     const service = createSupabaseAdminClient();
     const { data: created, error: createError } =

@@ -138,7 +138,7 @@ export async function findDuplicate(c: Record<string, unknown>): Promise<Duplica
       createdAt: tickets.createdAt,
     })
     .from(tickets)
-    .where(and(eq(tickets.studio, studio), notInArray(tickets.status, ['resolved', 'closed']), gte(tickets.createdAt, since)))
+    .where(and(eq(tickets.studio, studio), notInArray(tickets.status, ['resolved', 'closed', 'recorded']), gte(tickets.createdAt, since)))
     .orderBy(desc(tickets.createdAt))
     .limit(200);
 

@@ -48,7 +48,7 @@ import {
   TICKET_COLUMNS,
   type TicketColumn,
 } from "@/lib/dashboard-contract";
-import { DEPARTMENT_RECORDS, STAFF } from "@/lib/constants";
+import { DEPARTMENT_RECORDS, type StaffRecord } from "@/lib/constants";
 import { indiaDate, display } from "@/lib/display";
 import { FormRoutingBuilder } from "@/components/form-routing-builder";
 type Account = {
@@ -86,7 +86,7 @@ export default function SettingsPage() {
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [raw, setRaw] = useState(""),
-    [staff, setStaff] = useState(STAFF);
+    [staff, setStaff] = useState<StaffRecord[]>([]);
   const [invite, setInvite] = useState(false),
     [account, setAccount] = useState({
       name: "",
@@ -126,7 +126,7 @@ export default function SettingsPage() {
       setData(d);
       setCfg(d.config);
       setRaw(JSON.stringify(d.config, null, 2));
-      const people = await api<{ staff: typeof STAFF }>("/api/staff");
+      const people = await api<{ staff: StaffRecord[] }>("/api/staff");
       setStaff(people.staff);
     } catch (e) {
       setError((e as Error).message);

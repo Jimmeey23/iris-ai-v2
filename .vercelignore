@@ -5,8 +5,20 @@ node_modules
 .next
 .next-*
 .git
+.github
 .artifacts
 playwright-report
 test-results
 *.tsbuildinfo
-.env.bak.*
+.env
+.env.*
+!.env.example
+.env.bak*
+
+# Not needed at build or run time. data/ holds operational exports with member
+# details — they are imported through the app, never shipped with it.
+data
+docs
+scripts
+drizzle
+*.md

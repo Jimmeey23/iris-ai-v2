@@ -9,6 +9,10 @@
  *   - chat_attachments.data, so an uploaded file is actually stored
  *
  * Every statement is guarded, so this is safe to re-run.
+ *
+ * LEGACY — superseded by drizzle/ migrations (`npm run db:migrate`) and the one-off
+ * drizzle/manual/0004_prod_alignment.sql. Kept for reference; see docs/MIGRATIONS.md.
+ * Constraint names and ON DELETE rules below match src/db/schema.ts.
  */
 import 'dotenv/config';
 import { Pool } from 'pg';
@@ -51,9 +55,15 @@ ALTER TABLE "assets" ADD COLUMN IF NOT EXISTS "retired_at" timestamp with time z
 
 DO $$
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'assets_location_id_fkey') THEN
+  -- Any FK on assets.location_id counts, whatever its name, so this never adds a
+  -- duplicate of the one sync-assets-schema.mjs creates.
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint c
+      JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = ANY (c.conkey)
+     WHERE c.contype = 'f' AND c.conrelid = 'public.assets'::regclass AND a.attname = 'location_id'
+  ) THEN
     ALTER TABLE "assets"
-      ADD CONSTRAINT "assets_location_id_fkey"
+      ADD CONSTRAINT "assets_location_id_asset_locations_id_fk"
       FOREIGN KEY ("location_id") REFERENCES "asset_locations"("id") ON DELETE SET NULL;
   END IF;
 END $$;
@@ -74,7 +84,7 @@ CREATE TABLE IF NOT EXISTS "momence_action_receipts" (
   "details" jsonb NOT NULL DEFAULT '{}'::jsonb,
   "studio" text,
   "performed_by" text NOT NULL,
-  "performed_by_user_id" integer REFERENCES "app_users"("id"),
+  "performed_by_user_id" integer CONSTRAINT "momence_action_receipts_performed_by_user_id_app_users_id_fk" REFERENCES "app_users"("id") ON DELETE SET NULL,
   "status" text NOT NULL DEFAULT 'synced',
   "momence_ref" text NOT NULL DEFAULT '',
   "performed_at" timestamp with time zone DEFAULT now() NOT NULL

@@ -87,7 +87,7 @@ function TrendChart({points,selectedId,onSelect}:{points:{id:number;at:string;sc
             <circle cx={pad+i*step} cy={y(p.score)} r={active?5:3.5} fill={active?'var(--accent)':'var(--surface)'} stroke="var(--accent)" strokeWidth="2"/>
             <text x={pad+i*step} y={y(p.score)-9} textAnchor="middle" style={{fontSize:9,fontWeight:600,fill:active?'var(--accent)':'var(--text)'}}>{p.score}</text>
             <text x={pad+i*step} y={h-5} textAnchor="middle" style={{fontSize:8,fill:'var(--muted)'}}>
-              {new Date(p.at).toLocaleDateString('en-IN',{day:'numeric',month:'short'})}
+              {indiaDate(p.at,true)}
             </text>
           </g>
         );

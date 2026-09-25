@@ -4,10 +4,10 @@ import { randomUUID } from "crypto";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { momenceActionReceipts } from "@/db/schema";
-import { momenceConfigured, momenceRequest } from "@/lib/momence";
+import { momenceConfigured, momenceRequest, momenceId } from "@/lib/momence";
 import {
   errorResponse,
-  requireAgent,
+  requireManager,
   requireWorkspace,
   sameOrigin,
 } from "@/lib/auth";
@@ -129,6 +129,8 @@ function refOf(res: unknown): string {
   return id === undefined || id === null ? "" : String(id);
 }
 
+const MomenceIdSchema = z.string().regex(/^\d{1,18}$/, "Must be a numeric Momence ID.");
+
 const ActionSchema = z.object({
   action: z.enum([
     "grant_credit",
@@ -136,9 +138,10 @@ const ActionSchema = z.object({
     "substitute_trainer",
     "log_note",
   ]),
-  memberId: z.string().optional(),
-  memberName: z.string().optional(),
-  sessionId: z.string().optional(),
+  // Both ids are interpolated into Momence URL paths: digits only.
+  memberId: MomenceIdSchema.optional(),
+  memberName: z.string().max(200).optional(),
+  sessionId: MomenceIdSchema.optional(),
   sessionName: z.string().optional(),
   studio: z.string().optional(),
   credits: z.number().int().min(1).max(10).default(1),
@@ -154,8 +157,8 @@ export async function GET(req: NextRequest) {
     const user = await requireWorkspace();
     const live = await momenceConfigured(user.studio);
     const sp = req.nextUrl.searchParams;
-    const memberId = sp.get("memberId") || undefined;
-    const sessionId = sp.get("sessionId") || undefined;
+    const memberId = MomenceIdSchema.optional().parse(sp.get("memberId") || undefined);
+    const sessionId = MomenceIdSchema.optional().parse(sp.get("sessionId") || undefined);
 
     if (!live) {
       return NextResponse.json({
@@ -191,8 +194,8 @@ export async function POST(req: NextRequest) {
   try {
     sameOrigin(req);
     // This grants credits and extends memberships in the live Momence account. Reading the
-    // receipts is a workspace matter; writing to a member's billing is not.
-    const user = await requireAgent();
+    // receipts is a workspace matter; writing to a member's billing is for managers and admins.
+    const user = await requireManager();
     const body = ActionSchema.parse(await req.json());
     const isLive = await momenceConfigured(user.studio);
     // Without a live connection there is no member to credit and no session to change.
@@ -225,7 +228,7 @@ export async function POST(req: NextRequest) {
         // The live call is the action. If it throws, the error reaches the user rather than
         // being swallowed into a receipt that claims success.
         const res = await momenceRequest(
-          `/api/v2/host/members/${body.memberId}/credits`,
+          `/api/v2/host/members/${momenceId(body.memberId, "memberId")}/credits`,
           "POST",
           {
             credits: body.credits,
@@ -246,7 +249,7 @@ export async function POST(req: NextRequest) {
           );
         const targetName = body.memberName || `Member ${body.memberId}`;
         const res = await momenceRequest(
-          `/api/v2/host/members/${body.memberId}/extend`,
+          `/api/v2/host/members/${momenceId(body.memberId, "memberId")}/extend`,
           "POST",
           {
             days: body.extensionDays,
@@ -274,7 +277,7 @@ export async function POST(req: NextRequest) {
           );
         const targetName = body.sessionName || `Session ${body.sessionId}`;
         const res = await momenceRequest(
-          `/api/v2/host/sessions/${body.sessionId}`,
+          `/api/v2/host/sessions/${momenceId(body.sessionId, "sessionId")}`,
           "PUT",
           {
             teacherName: body.substituteTrainer,
@@ -298,7 +301,7 @@ export async function POST(req: NextRequest) {
             { status: 400 },
           );
         const res = await momenceRequest(
-          `/api/v2/host/members/${body.memberId}/notes`,
+          `/api/v2/host/members/${momenceId(body.memberId, "memberId")}/notes`,
           "POST",
           { note: body.note },
           user.studio,

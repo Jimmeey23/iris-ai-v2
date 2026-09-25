@@ -111,9 +111,9 @@ const categories = src.categories.map((c) => ({
     const key = `${c.name}|||${s.name}`;
     subs[key] = {
       f: (src.subFields[key] || []).filter(usable).map(internDef),
+      // The Hub's own tier, kept for the drift check only. Its SLA strings are not carried:
+      // follow-up targets come from the workspace's responseHours (Settings), nowhere else.
       p: s.priority,
-      sla: s.slaLabel,
-      h: [s.hours?.first ?? null, s.hours?.res ?? null],
       hist: s.hist || 0,
       department: s.department !== c.department ? s.department : undefined,
     };

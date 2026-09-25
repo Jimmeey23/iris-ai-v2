@@ -1,16 +1,20 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { allowedEmailDomains } from "@/lib/auth";
 
 /** Starts Google sign-in through Supabase. Google is configured in
  *  Supabase Dashboard > Authentication > Providers, not in this app's env. */
 export async function GET(req: NextRequest) {
   try {
     const supabase = await createSupabaseServerClient();
+    // `hd` only steers Google's account picker to the workspace domain; the real
+    // guard is the server-side allowlist/invite check in profileFor.
+    const [hd] = allowedEmailDomains();
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
         redirectTo: new URL("/auth/callback", req.url).toString(),
-        queryParams: { prompt: "select_account" },
+        queryParams: { prompt: "select_account", ...(hd ? { hd } : {}) },
       },
     });
     if (error || !data.url) throw error ?? new Error("no redirect url");

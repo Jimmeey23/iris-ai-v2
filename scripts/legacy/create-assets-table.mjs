@@ -2,6 +2,10 @@
 /**
  * One-off script to create the `assets` table when drizzle-kit push is unavailable.
  * Matches src/db/schema.ts exactly; safe to re-run (CREATE TABLE IF NOT EXISTS).
+ *
+ * LEGACY — superseded by drizzle/ migrations (`npm run db:migrate`) and the one-off
+ * drizzle/manual/0004_prod_alignment.sql. Kept for reference; see docs/MIGRATIONS.md.
+ * Constraint names and ON DELETE rules below match src/db/schema.ts.
  */
 import 'dotenv/config';
 import { Pool } from 'pg';
