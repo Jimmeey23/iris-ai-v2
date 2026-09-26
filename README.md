@@ -18,6 +18,7 @@ Production and operations settings (all documented in `.env.example`):
 |---|---|
 | `SETUP_TOKEN` | One-time token required by the in-app "create first administrator" dialog. Without it setup is disabled. Remove it once the first admin exists. |
 | `ALLOWED_EMAIL_DOMAINS` | Comma-separated domains whose confirmed Supabase users may self-provision an agent profile (default `physique57india.com`). Everyone else needs an admin invite. |
+| `ALLOWED_EMAILS` | Comma-separated individual addresses outside those domains that may also self-provision an agent profile (default `jimmeeygondaa@gmail.com`). Set it to a single space to allow none. |
 | `CRON_SECRET` | Bearer secret for `/api/cron/outbox`. Vercel Cron sends it automatically when set; without it the route rejects every call. |
 | `SEED_DEMO_DATA` | `true` seeds demo tickets. Leave unset in production. |
 | `DB_POOL_MAX` | Postgres pool size per server instance (default `3`, sized for serverless). |
@@ -89,7 +90,7 @@ Fillout exact-submission imports use the actual submission ID. Set `FILLOUT_WEBH
 
 1. Create the Supabase project and configure Auth (see **Authentication**).
 2. Apply the schema (see **Database migrations**).
-3. In Vercel → Project → Settings → Environment Variables (Production, and Preview if used), set `DATABASE_URL` (the Supabase **transaction pooler** URL, port 6543), `INTEGRATION_ENCRYPTION_KEY`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `CRON_SECRET`, `SETUP_TOKEN` (first deploy only), `OPENAI_API_KEY`, and optionally `DATABASE_CA_CERT`, `ALLOWED_EMAIL_DOMAINS` and integration credentials.
+3. In Vercel → Project → Settings → Environment Variables (Production, and Preview if used), set `DATABASE_URL` (the Supabase **transaction pooler** URL, port 6543), `INTEGRATION_ENCRYPTION_KEY`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `CRON_SECRET`, `SETUP_TOKEN` (first deploy only), `OPENAI_API_KEY`, and optionally `DATABASE_CA_CERT`, `ALLOWED_EMAIL_DOMAINS`, `ALLOWED_EMAILS` and integration credentials.
 4. Deploy. Check `GET /api/health` → `{ "ok": true, "db": "up", "commit": "<sha>", "env": "production" }`.
 5. Sign in, open the setup dialog with the `SETUP_TOKEN`, create the first administrator, then remove `SETUP_TOKEN` and redeploy.
 

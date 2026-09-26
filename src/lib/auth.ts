@@ -92,7 +92,9 @@ export function allowedEmailDomains(): string[] {
     .filter(Boolean);
 }
 
-/** Human-readable list of approved domains for error copy. */
+/** Human-readable list of approved domains for error copy. The allowlisted
+ *  individual addresses are deliberately left out: naming them would tell an
+ *  unauthorised visitor exactly which accounts to go after. */
 export function allowedDomainsLabel() {
   const domains = allowedEmailDomains();
   if (domains.length === 0) return "an approved work domain";
@@ -104,6 +106,24 @@ export function allowedDomainsLabel() {
 export function isAllowedEmailDomain(email: string): boolean {
   const domain = email.toLowerCase().split("@").pop() || "";
   return allowedEmailDomains().includes(domain);
+}
+
+/** Individual addresses outside the approved domains that may still
+ *  self-provision — the owner's personal account, and anyone else an operator
+ *  adds to ALLOWED_EMAILS. Kept separate from the domain list so widening it by
+ *  one person never widens it by a whole mail domain. */
+export function allowedEmails(): string[] {
+  return (process.env.ALLOWED_EMAILS ?? "jimmeeygondaa@gmail.com")
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+/** The single gate for self-provisioning an agent profile: an approved domain,
+ *  or a specifically allowlisted address. */
+export function canSelfProvision(email: string): boolean {
+  const address = email.toLowerCase();
+  return allowedEmails().includes(address) || isAllowedEmailDomain(address);
 }
 
 type ProfileRow = {
@@ -139,7 +159,7 @@ function toResult(row: ProfileRow | undefined): ProfileResult {
  *   2. an administrator-invited (or legacy) row with the same email that is not
  *      yet linked, adopted only once Supabase has confirmed the email;
  *   3. self-provisioning as an agent, only for a confirmed email whose domain is
- *      in ALLOWED_EMAIL_DOMAINS. */
+ *      in ALLOWED_EMAIL_DOMAINS or whose address is in ALLOWED_EMAILS. */
 export async function resolveProfile(user: User): Promise<ProfileResult> {
   if (!user.email) return { identity: null, reason: "not_authorised" };
   const email = user.email.toLowerCase();
@@ -179,8 +199,7 @@ export async function resolveProfile(user: User): Promise<ProfileResult> {
       .returning(PROFILE);
     return toResult(row);
   }
-  const domain = email.split("@").pop() || "";
-  if (!allowedEmailDomains().includes(domain))
+  if (!canSelfProvision(email))
     return { identity: null, reason: "not_authorised" };
   [row] = await db
     .insert(appUsers)

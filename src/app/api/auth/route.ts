@@ -12,7 +12,7 @@ import {
   errorResponse,
   sameOrigin,
   resolveProfile,
-  isAllowedEmailDomain,
+  canSelfProvision,
   allowedDomainsLabel,
   INACTIVE_MESSAGE,
   NOT_AUTHORISED_MESSAGE,
@@ -173,7 +173,7 @@ export async function POST(req: Request) {
     if (b.action === "signup") {
       if (!b.name) throw new ApiError("Please enter your full name.", 400);
       await enforceRateLimit("signup", `signup:${clientIp(req)}:${email}`);
-      if (!isAllowedEmailDomain(email)) {
+      if (!canSelfProvision(email)) {
         throw new ApiError(
           `Sign-up is restricted to ${allowedDomainsLabel()} email addresses.`,
           403,

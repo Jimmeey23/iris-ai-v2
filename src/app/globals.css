@@ -16505,329 +16505,304 @@ small {
 }
 
 /* ============================================================================
-   Sidebar — refined surface (soft neumorphism)
+   Sidebar — quiet surface, one clear signal
    ----------------------------------------------------------------------------
-   The rail is treated as one softly-extruded panel rather than a bordered
-   column: light falls from the top-left, so raised controls carry a pale rim
-   there and a diffuse shadow at the bottom-right, and the selected item reads
-   as *pressed into* the panel instead of painted on top of it. Everything is
-   driven by two per-theme tokens (`--sb-hi`, `--sb-lo`) so the effect inverts
-   correctly between the dark and light palettes, where a single hard-coded
-   white highlight would look like a scratch.
+   Elegance here is subtraction. The rail is a calm, near-flat plane a shade
+   apart from the page, separated by a single crisp hairline; the previous
+   vertical wash and double drop-shadow only made it look heavy. Selection is
+   expressed once — a slim accent rail plus a low-opacity tint — instead of
+   being restated by three competing inset shadows.
+
+   The neumorphic note is deliberately confined to the handful of elements that
+   are genuinely raised objects (the account pad, the collapsed icon tiles):
+   one pale rim above, one soft shadow below. Applied to every nav row it reads
+   as plastic; applied to two it reads as craft.
    ========================================================================== */
 .sidebar {
-  --sb-hi: rgb(255 255 255 / 0.05);
-  --sb-lo: rgb(0 0 0 / 0.55);
-  --sb-well: #0e0e13;
-  --sb-raise: linear-gradient(145deg, #191922, #101017);
-  --sb-radius: 14px;
+  /* A single highlight/shade pair, inverted per theme. */
+  --sb-rim: rgb(255 255 255 / 0.055);
+  --sb-cast: rgb(0 0 0 / 0.5);
+  --sb-pad: #17171e;
+  --sb-tint: 13%;
 }
 [data-theme="light"] .sidebar {
-  --sb-hi: #ffffff;
-  --sb-lo: rgb(142 154 176 / 0.42);
-  --sb-well: #eaeef5;
-  --sb-raise: linear-gradient(145deg, #ffffff, #e6ebf3);
+  --sb-rim: #ffffff;
+  --sb-cast: rgb(120 134 158 / 0.26);
+  --sb-pad: #ffffff;
+  --sb-tint: 11%;
 }
 
 .sidebar {
-  width: 236px;
-  padding: 22px 16px 18px;
-  background: var(--sb-well);
-  border-right: 0;
-  box-shadow:
-    inset -1px 0 0 var(--sb-hi),
-    10px 0 30px -22px var(--sb-lo);
+  width: 244px;
+  padding: 22px 14px 16px;
+  background: color-mix(in srgb, var(--surface) 72%, var(--bg));
+  border-right: 1px solid var(--hairline);
+  box-shadow: none;
 }
-/* The right edge is a gradient rather than a hairline, so the panel dissolves
-   into the page at the top and bottom instead of stopping abruptly. */
 .sidebar::after {
-  content: "";
-  position: absolute;
-  inset: 0 -1px 0 auto;
-  width: 1px;
-  background: linear-gradient(
-    180deg,
-    transparent,
-    color-mix(in srgb, var(--text) 9%, transparent) 18%,
-    color-mix(in srgb, var(--accent) 22%, transparent) 50%,
-    color-mix(in srgb, var(--text) 9%, transparent) 82%,
-    transparent
-  );
-  opacity: 0.7;
-  pointer-events: none;
+  content: none;
 }
 .workspace-main {
-  margin-left: 236px;
+  margin-left: 244px;
 }
 
 .sidebar .brand {
-  padding: 2px 6px 4px;
+  padding: 2px 8px 6px;
 }
 .sidebar-scrollable {
-  padding-inline: 3px;
-  scrollbar-color: color-mix(in srgb, var(--text) 12%, transparent) transparent;
+  padding-inline: 2px;
+  scrollbar-color: color-mix(in srgb, var(--text) 11%, transparent) transparent;
 }
 .sidebar-scrollable::-webkit-scrollbar {
   width: 4px;
 }
-.sidebar-scrollable::-webkit-scrollbar-thumb {
-  background: color-mix(in srgb, var(--text) 12%, transparent);
-}
 
-/* Section headings sit on a hairline that fades out to the right, which groups
-   the items beneath them without drawing a full-width rule. */
+/* Headings recede: they are orientation, not content. */
 .sidebar .nav-heading {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  margin: 22px 0 8px;
-  padding: 0 10px;
-  font-size: 8.5px;
-  letter-spacing: 0.2em;
-  opacity: 0.6;
-}
-.sidebar .nav-heading::after {
-  content: "";
-  flex: 1;
-  height: 1px;
-  background: linear-gradient(
-    90deg,
-    color-mix(in srgb, var(--text) 10%, transparent),
-    transparent
-  );
+  margin: 24px 0 7px;
+  padding: 0 12px;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  color: var(--muted);
+  opacity: 0.62;
 }
 .sidebar .nav-heading:first-child {
-  margin-top: 14px;
+  margin-top: 16px;
 }
 
 .sidebar .nav-link {
-  margin-bottom: 4px;
-  padding: 10px 13px;
-  border-radius: var(--sb-radius);
-  font-size: 12.5px;
-  letter-spacing: 0.005em;
-  border: 1px solid transparent;
+  gap: 11px;
+  margin-bottom: 2px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 450;
+  letter-spacing: -0.002em;
+  color: var(--secondary);
+  background: transparent;
+  box-shadow: none;
+  transition:
+    background var(--dur-2) var(--ease-out-expo),
+    color var(--dur-2) var(--ease-out-expo);
 }
-/* Raised on hover: pale rim top-left, soft shadow bottom-right. */
+/* Hover is a whisper — a wash, no lift, no rim. Movement on every row in a
+   ten-item list is noise. */
 .sidebar .nav-link:hover {
-  background: var(--sb-raise);
   transform: none;
-  border-color: color-mix(in srgb, var(--text) 5%, transparent);
-  box-shadow:
-    -3px -3px 8px -4px var(--sb-hi),
-    5px 6px 14px -8px var(--sb-lo),
-    inset 0 1px 0 var(--sb-hi);
+  color: var(--text);
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+  box-shadow: none;
 }
 .sidebar .nav-link:active {
   transform: none;
-  box-shadow:
-    inset 3px 3px 7px -3px var(--sb-lo),
-    inset -2px -2px 6px -3px var(--sb-hi);
+  background: color-mix(in srgb, var(--text) 6%, transparent);
 }
-/* Selected: pressed into the panel, tinted with the accent. */
+.sidebar .nav-link svg {
+  opacity: 0.85;
+  transition: color var(--dur-2), opacity var(--dur-2);
+}
+.sidebar .nav-link:hover svg {
+  opacity: 1;
+}
+
+/* Selection: tint, accent ink, and the rail. Nothing else. */
 .sidebar .nav-link.active {
-  background: linear-gradient(
-    145deg,
-    color-mix(in srgb, var(--accent) 12%, var(--sb-well)),
-    color-mix(in srgb, var(--accent) 4%, var(--sb-well))
-  );
-  border-color: color-mix(in srgb, var(--accent) 16%, transparent);
-  box-shadow:
-    inset 3px 3px 8px -3px var(--sb-lo),
-    inset -3px -3px 8px -4px var(--sb-hi),
-    0 0 0 0.5px color-mix(in srgb, var(--accent) 10%, transparent);
+  color: var(--text);
+  font-weight: 600;
+  background: color-mix(in srgb, var(--accent) var(--sb-tint), transparent);
+  box-shadow: none;
 }
-.sidebar .nav-link.active:hover {
+.sidebar .nav-link.active svg {
   transform: none;
+  opacity: 1;
+  color: var(--accent);
 }
 .sidebar .nav-link.active::before {
-  left: -3px;
-  width: 3px;
+  left: -14px;
+  width: 2.5px;
+  height: 20px;
+  top: 50%;
   border-radius: var(--radius-pill);
+  background: var(--accent);
+  box-shadow: 0 0 10px -1px color-mix(in srgb, var(--accent) 70%, transparent);
 }
 .sidebar .nav-link.locked {
-  opacity: 0.55;
+  opacity: 0.5;
 }
 .sidebar .nav-link.locked:hover {
   background: transparent;
-  border-color: transparent;
-  box-shadow: none;
   cursor: not-allowed;
 }
 
-/* Counters and tags read as small wells carved into the row. */
+/* Trailing markers share one quiet, borderless treatment so the column of
+   labels stays the thing you read first. */
 .sidebar .nav-count,
 .sidebar .nav-ai,
 .sidebar .nav-radar-pill {
+  padding: 2px 7px;
   border: 0;
-  box-shadow:
-    inset 1px 1px 3px -1px var(--sb-lo),
-    inset -1px -1px 2px -1px var(--sb-hi);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  box-shadow: none;
+}
+.sidebar .nav-count {
+  background: color-mix(in srgb, var(--text) 7%, transparent);
+  color: var(--muted);
+}
+.sidebar .nav-link.active .nav-count {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--accent);
 }
 
 .sidebar-bottom {
-  gap: 7px;
-  padding-top: 16px;
-  border-top: 1px solid color-mix(in srgb, var(--text) 6%, transparent);
+  gap: 6px;
+  margin-top: 12px;
+  padding-top: 14px;
+  border-top: 1px solid var(--hairline);
 }
+/* The one genuinely raised object in the rail. */
 .sidebar .user-button {
-  border: 1px solid color-mix(in srgb, var(--text) 5%, transparent);
-  border-radius: var(--sb-radius);
-  padding: 9px 11px;
-  background: var(--sb-raise);
+  padding: 9px 10px;
+  border: 1px solid var(--hairline);
+  border-radius: 12px;
+  background: var(--sb-pad);
   box-shadow:
-    -3px -3px 9px -5px var(--sb-hi),
-    6px 7px 16px -9px var(--sb-lo),
-    inset 0 1px 0 var(--sb-hi);
+    inset 0 1px 0 var(--sb-rim),
+    0 2px 8px -4px var(--sb-cast);
+  transition:
+    border-color var(--dur-2) var(--ease-out-expo),
+    box-shadow var(--dur-2) var(--ease-out-expo);
 }
 .sidebar .user-button:hover {
-  background: var(--sb-raise);
-  transform: translateY(-1px);
-  border-color: color-mix(in srgb, var(--accent) 22%, transparent);
+  transform: none;
+  background: var(--sb-pad);
+  border-color: color-mix(in srgb, var(--accent) 26%, var(--hairline));
   box-shadow:
-    -4px -4px 11px -5px var(--sb-hi),
-    8px 10px 20px -9px var(--sb-lo),
-    inset 0 1px 0 var(--sb-hi);
+    inset 0 1px 0 var(--sb-rim),
+    0 4px 14px -6px var(--sb-cast);
 }
 .sidebar .user-button:active {
-  transform: none;
-  box-shadow:
-    inset 3px 3px 8px -3px var(--sb-lo),
-    inset -3px -3px 8px -4px var(--sb-hi);
+  box-shadow: inset 0 1px 3px -1px var(--sb-cast);
 }
 .sidebar-signout {
-  border-radius: var(--sb-radius);
-  padding: 9px 13px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  font-size: 11.5px;
 }
 .sidebar-signout:hover {
-  background: color-mix(in srgb, var(--red) 9%, var(--sb-well));
-  box-shadow:
-    -2px -2px 7px -4px var(--sb-hi),
-    4px 5px 12px -8px var(--sb-lo),
-    inset 0 0 0 1px color-mix(in srgb, var(--red) 16%, transparent);
+  background: color-mix(in srgb, var(--red) 9%, transparent);
+  box-shadow: none;
 }
 
 /* --- Collapsed rail ------------------------------------------------------ */
 @media (min-width: 768px) {
   .sidebar.collapsed {
-    width: 78px;
-    padding-inline: 13px;
+    width: 72px;
+    padding-inline: 12px;
   }
   .workspace-main.sidebar-collapsed {
-    margin-left: 78px;
+    margin-left: 72px;
   }
+  /* Icon-only: here the tile *is* the object, so it gets the soft rim/shadow
+     pair the expanded rows deliberately go without. */
   .sidebar.collapsed .nav-link {
-    width: 50px;
-    height: 50px;
-    min-height: 50px;
-    margin: 5px auto;
-    border-radius: 16px;
-    background: var(--sb-raise);
-    border-color: color-mix(in srgb, var(--text) 5%, transparent);
+    width: 46px;
+    height: 46px;
+    min-height: 46px;
+    margin: 4px auto;
+    border-radius: 13px;
+    background: var(--sb-pad);
     box-shadow:
-      -3px -3px 9px -5px var(--sb-hi),
-      6px 7px 15px -9px var(--sb-lo),
-      inset 0 1px 0 var(--sb-hi);
+      inset 0 1px 0 var(--sb-rim),
+      0 2px 7px -4px var(--sb-cast);
   }
   .sidebar.collapsed .nav-link:hover {
-    transform: translateY(-1px);
+    transform: none;
+    background: var(--sb-pad);
     box-shadow:
-      -4px -4px 11px -5px var(--sb-hi),
-      8px 10px 20px -9px var(--sb-lo),
-      inset 0 1px 0 var(--sb-hi);
+      inset 0 1px 0 var(--sb-rim),
+      0 4px 12px -5px var(--sb-cast);
   }
   .sidebar.collapsed .nav-link.active {
-    background: linear-gradient(
-      145deg,
-      color-mix(in srgb, var(--accent) 14%, var(--sb-well)),
-      color-mix(in srgb, var(--accent) 4%, var(--sb-well))
-    );
-    border-color: color-mix(in srgb, var(--accent) 18%, transparent);
+    background: color-mix(in srgb, var(--accent) 16%, var(--sb-pad));
     box-shadow:
-      inset 3px 3px 9px -3px var(--sb-lo),
-      inset -3px -3px 9px -4px var(--sb-hi);
+      inset 0 1px 0 var(--sb-rim),
+      0 2px 10px -4px color-mix(in srgb, var(--accent) 45%, transparent);
+  }
+  .sidebar.collapsed .nav-link.active::before {
+    content: none;
   }
   .sidebar.collapsed .sidebar-signout {
-    height: 40px;
-    border-radius: 16px;
-    background: var(--sb-raise);
+    width: 46px;
+    height: 38px;
+    border-radius: 13px;
+    background: var(--sb-pad);
     box-shadow:
-      -3px -3px 9px -5px var(--sb-hi),
-      6px 7px 15px -9px var(--sb-lo),
-      inset 0 1px 0 var(--sb-hi);
+      inset 0 1px 0 var(--sb-rim),
+      0 2px 7px -4px var(--sb-cast);
   }
-  /* Hover-expanded: back to the flat list treatment. */
+  /* Hover-expanded returns to the flat list. */
   .sidebar.collapsed:hover,
   .sidebar.collapsed:focus-within {
-    width: 236px;
-    padding-inline: 16px;
-    box-shadow:
-      inset -1px 0 0 var(--sb-hi),
-      22px 0 54px -30px var(--sb-lo);
+    width: 244px;
+    padding-inline: 14px;
+    box-shadow: 16px 0 40px -28px var(--sb-cast);
   }
   .sidebar.collapsed:hover .nav-link,
   .sidebar.collapsed:focus-within .nav-link {
+    width: 100%;
     height: auto;
     min-height: 0;
-    margin: 0 0 4px;
-    padding: 10px 13px;
-    border-radius: var(--sb-radius);
-    border-color: transparent;
+    margin: 0 0 2px;
+    padding: 9px 12px;
+    border-radius: 10px;
+    background: transparent;
+    box-shadow: none;
   }
   .sidebar.collapsed:hover .nav-link:hover {
-    background: var(--sb-raise);
-    border-color: color-mix(in srgb, var(--text) 5%, transparent);
-    box-shadow:
-      -3px -3px 8px -4px var(--sb-hi),
-      5px 6px 14px -8px var(--sb-lo),
-      inset 0 1px 0 var(--sb-hi);
+    background: color-mix(in srgb, var(--text) 4%, transparent);
   }
   .sidebar.collapsed:hover .nav-link.active,
   .sidebar.collapsed:focus-within .nav-link.active {
-    background: linear-gradient(
-      145deg,
-      color-mix(in srgb, var(--accent) 12%, var(--sb-well)),
-      color-mix(in srgb, var(--accent) 4%, var(--sb-well))
-    );
-    border-color: color-mix(in srgb, var(--accent) 16%, transparent);
-    box-shadow:
-      inset 3px 3px 8px -3px var(--sb-lo),
-      inset -3px -3px 8px -4px var(--sb-hi);
+    background: color-mix(in srgb, var(--accent) var(--sb-tint), transparent);
+    box-shadow: none;
+  }
+  .sidebar.collapsed:hover .nav-link.active::before,
+  .sidebar.collapsed:focus-within .nav-link.active::before {
+    content: "";
+  }
+  .sidebar.collapsed:hover .sidebar-signout,
+  .sidebar.collapsed:focus-within .sidebar-signout {
+    background: transparent;
+    box-shadow: none;
   }
 }
 
-/* The mobile drawer keeps the same material, lifted off the scrim. */
-@media (max-width: 767px) {
-  .sidebar {
-    box-shadow: 24px 0 60px -30px rgb(0 0 0 / 0.6);
-  }
-  .sidebar::after {
-    display: none;
-  }
-}
-
-/* The base width above is declared after the responsive blocks, so the narrow
-   breakpoints are restated here to keep winning. */
+/* Narrow breakpoints are restated because the base width above is declared
+   after the responsive blocks. */
 @media (max-width: 1279px) {
   .sidebar {
-    width: 212px;
+    width: 220px;
   }
   .workspace-main {
-    margin-left: 212px;
+    margin-left: 220px;
   }
 }
 @media (max-width: 1023px) {
   .sidebar {
-    width: 196px;
-    padding: 20px 12px 16px;
+    width: 200px;
+    padding: 20px 11px 16px;
   }
   .workspace-main {
-    margin-left: 196px;
+    margin-left: 200px;
   }
 }
 @media (max-width: 767px) {
   .sidebar {
-    width: 250px;
+    width: 252px;
+    box-shadow: var(--shadow-4);
   }
   .workspace-main,
   .workspace-main.sidebar-collapsed {
