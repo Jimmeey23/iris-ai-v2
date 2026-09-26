@@ -127,3 +127,4 @@ Restore:
 2. From a logical dump: `pg_restore --no-owner --clean --if-exists -d "$DATABASE_URL" iris-YYYY-MM-DD.dump` (into a scratch database first if you only need some rows).
 3. Run `npm run db:migrate` so the restored database is at the current schema, then check `GET /api/health`.
 4. Test a restore at least once a quarter.
+   
