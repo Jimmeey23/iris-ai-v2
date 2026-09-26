@@ -35,6 +35,8 @@ export const LIMITS = {
   'intake-draft': {max: 20, windowSeconds: 60},
   /** Password sign-in, keyed by IP and email. Supabase limits too; this stops credential stuffing earlier. */
   login: {max: 10, windowSeconds: 300},
+  /** Public self-sign-up, keyed by IP and email to slow down abuse of allowed domains. */
+  signup: {max: 5, windowSeconds: 300},
   /** A forced trainer-review sync walks every Fillout page. */
   trainerSync: {max: 3, windowSeconds: 600},
 } satisfies Record<string, Limit>;

@@ -1,13 +1,16 @@
 "use client";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Shell } from "@/components/shell";
 import { api, useApp } from "@/components/ui";
-import { ShieldCheck } from "lucide-react";
+import { ShieldCheck, LogOut } from "lucide-react";
 export default function ProfilePage() {
+  const router = useRouter();
   const { user, refreshUser, notify } = useApp();
   const [name, setName] = useState(""),
     [password, setPassword] = useState(""),
-    [busy, setBusy] = useState(false);
+    [busy, setBusy] = useState(false),
+    [signingOut, setSigningOut] = useState(false);
   // Adjust state during render rather than in an effect: the identity loads asynchronously
   // (see AppStateProvider), so the field must pick up the name the first time it arrives —
   // without this it would keep re-rendering with the empty initial value forever.
@@ -34,6 +37,25 @@ export default function ProfilePage() {
       );
     } finally {
       setBusy(false);
+    }
+  }
+  async function signOut() {
+    setSigningOut(true);
+    try {
+      await api("/api/auth", {
+        method: "POST",
+        body: JSON.stringify({ action: "logout" }),
+      });
+      await refreshUser();
+      router.replace("/login");
+      router.refresh();
+    } catch (e) {
+      notify(
+        e instanceof Error ? e.message : "Could not sign out",
+        "error",
+      );
+    } finally {
+      setSigningOut(false);
     }
   }
   return (
@@ -79,6 +101,17 @@ export default function ProfilePage() {
           <button className="btn btn-primary" disabled={busy}>
             {busy ? "Saving…" : "Save profile"}
           </button>
+          <div className="profile-signout">
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={() => void signOut()}
+              disabled={signingOut}
+            >
+              <LogOut size={16} />
+              {signingOut ? "Signing out…" : "Sign out"}
+            </button>
+          </div>
         </form>
       </div>
     </Shell>

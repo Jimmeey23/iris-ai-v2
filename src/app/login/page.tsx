@@ -10,6 +10,7 @@ import {
   LockKeyhole,
   Mail,
   Sparkles,
+  User,
 } from "lucide-react";
 import { IrisLockup } from "@/components/iris-mark";
 import "./login.css";
@@ -30,7 +31,7 @@ const ERROR_MESSAGES: Record<string, string> = {
 
 export default function LoginPage() {
   const router = useRouter();
-  const [mode, setMode] = useState<"login" | "setup">("login"),
+  const [mode, setMode] = useState<"login" | "signup" | "setup">("login"),
     [setupToken, setSetupToken] = useState(""),
     [email, setEmail] = useState(""),
     [name, setName] = useState(""),
@@ -64,7 +65,7 @@ export default function LoginPage() {
           action: mode,
           email,
           password,
-          name: mode === "setup" ? name : undefined,
+          name: mode === "setup" || mode === "signup" ? name : undefined,
           setupToken: mode === "setup" ? setupToken : undefined,
         }),
       });
@@ -138,11 +139,19 @@ export default function LoginPage() {
           <IrisLockup size={34} />
           <div className="auth-copy">
             <span className="auth-eyebrow">SECURE WORKSPACE</span>
-            <h2>{mode === "login" ? "Welcome back" : "Set up your workspace"}</h2>
+            <h2>
+              {mode === "login"
+                ? "Welcome back"
+                : mode === "signup"
+                  ? "Create your account"
+                  : "Set up your workspace"}
+            </h2>
             <p>
               {mode === "login"
-                ? "Sign in to continue to ThitOps."
-                : "Create the first administrator using the one-time setup token."}
+                ? "Sign in to continue to IRIS."
+                : mode === "signup"
+                  ? "Use your approved work email to join the workspace."
+                  : "Create the first administrator using the one-time setup token."}
             </p>
           </div>
           {mode === "login" && (
@@ -171,11 +180,11 @@ export default function LoginPage() {
                 </div>
               </label>
             )}
-            {mode === "setup" && (
+            {(mode === "setup" || mode === "signup") && (
               <label>
                 Full name
                 <div className="auth-input">
-                  <Sparkles />
+                  <User />
                   <input
                     required
                     minLength={2}
@@ -212,9 +221,13 @@ export default function LoginPage() {
                   autoComplete={
                     mode === "login" ? "current-password" : "new-password"
                   }
+                  placeholder={
+                    mode === "signup"
+                      ? "Create a password (12+ characters)"
+                      : "At least 12 characters"
+                  }
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="At least 12 characters"
                 />
                 <button
                   type="button"
@@ -240,13 +253,44 @@ export default function LoginPage() {
                 ? "Please wait…"
                 : mode === "login"
                   ? "Sign in"
-                  : "Create administrator"}
+                  : mode === "signup"
+                    ? "Create account"
+                    : "Create administrator"}
               <ArrowRight />
             </button>
           </form>
           <p className="auth-note">
-            Access is by invitation. Ask an administrator if you need an
-            account.
+            {mode === "login" ? (
+              <>
+                Need an account?{" "}
+                <button
+                  type="button"
+                  className="auth-toggle"
+                  onClick={() => {
+                    setMode("signup");
+                    setError("");
+                  }}
+                >
+                  Sign up with your work email
+                </button>
+              </>
+            ) : mode === "signup" ? (
+              <>
+                Already have an account?{" "}
+                <button
+                  type="button"
+                  className="auth-toggle"
+                  onClick={() => {
+                    setMode("login");
+                    setError("");
+                  }}
+                >
+                  Sign in
+                </button>
+              </>
+            ) : (
+              <>Access is by invitation. Ask an administrator if you need an account.</>
+            )}
           </p>
         </div>
       </section>

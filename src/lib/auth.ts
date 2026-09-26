@@ -92,6 +92,20 @@ export function allowedEmailDomains(): string[] {
     .filter(Boolean);
 }
 
+/** Human-readable list of approved domains for error copy. */
+export function allowedDomainsLabel() {
+  const domains = allowedEmailDomains();
+  if (domains.length === 0) return "an approved work domain";
+  if (domains.length === 1) return domains[0];
+  return domains.slice(0, -1).join(", ") + " or " + domains[domains.length - 1];
+}
+
+/** True when the supplied email address ends with one of the allowed domains. */
+export function isAllowedEmailDomain(email: string): boolean {
+  const domain = email.toLowerCase().split("@").pop() || "";
+  return allowedEmailDomains().includes(domain);
+}
+
 type ProfileRow = {
   id: number;
   name: string;

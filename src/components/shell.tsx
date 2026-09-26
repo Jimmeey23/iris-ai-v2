@@ -29,6 +29,7 @@ import {
   Drill,
   Palette,
   Lock,
+  LogOut,
 } from "lucide-react";
 import {
   useApp,
@@ -132,7 +133,7 @@ export function Shell({
 }) {
   const path = usePathname(),
     router = useRouter();
-  const { user, openAuth } = useApp();
+  const { user, openAuth, refreshUser, notify } = useApp();
   const [mobile, setMobile] = useState(false),
     [collapsed, setCollapsed] = useState(true),
     [searchOpen, setSearchOpen] = useState(false),
@@ -202,6 +203,19 @@ export function Shell({
     routes.find((n) => path.startsWith(n.href))?.label ||
     (path === "/" ? "Overview" : title);
   const openItems = items.filter(isOpen);
+  async function signOut() {
+    try {
+      await api("/api/auth", {
+        method: "POST",
+        body: JSON.stringify({ action: "logout" }),
+      });
+      await refreshUser();
+      router.replace("/login");
+      router.refresh();
+    } catch (e) {
+      notify(e instanceof Error ? e.message : "Could not sign out", "error");
+    }
+  }
   return (
     <div className="workspace">
       {mobile && (
@@ -315,6 +329,19 @@ export function Shell({
             </div>
             <ChevronDown size={13} className="muted" />
           </button>
+          {user && (
+            <button
+              type="button"
+              className="sidebar-signout"
+              onClick={() => void signOut()}
+              aria-label="Sign out"
+              data-tip={collapsed ? "Sign out" : undefined}
+              data-tip-pos="right"
+            >
+              <LogOut size={15} />
+              <span>Sign out</span>
+            </button>
+          )}
         </div>
       </aside>
       <div className={"workspace-main" + (collapsed ? " sidebar-collapsed" : "")}>

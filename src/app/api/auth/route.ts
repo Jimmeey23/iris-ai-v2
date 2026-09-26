@@ -12,6 +12,8 @@ import {
   errorResponse,
   sameOrigin,
   resolveProfile,
+  isAllowedEmailDomain,
+  allowedDomainsLabel,
   INACTIVE_MESSAGE,
   NOT_AUTHORISED_MESSAGE,
 } from "@/lib/auth";
@@ -24,9 +26,7 @@ import { audit } from "@/lib/config";
 export const dynamic = "force-dynamic";
 
 const input = z.object({
-  // There is deliberately no public "signup": accounts come from an administrator
-  // invite, or from Google/email sign-in on an allowlisted domain (see profileFor).
-  action: z.enum(["login", "setup", "invite", "logout", "update"]),
+  action: z.enum(["login", "signup", "setup", "invite", "logout", "update"]),
   email: z.string().email().optional(),
   password: z.string().min(12).max(200).optional(),
   name: z.string().min(2).max(80).optional(),
@@ -168,6 +168,64 @@ export async function POST(req: Request) {
         );
       }
       return Response.json({ ok: true });
+    }
+
+    if (b.action === "signup") {
+      if (!b.name) throw new ApiError("Please enter your full name.", 400);
+      await enforceRateLimit("signup", `signup:${clientIp(req)}:${email}`);
+      if (!isAllowedEmailDomain(email)) {
+        throw new ApiError(
+          `Sign-up is restricted to ${allowedDomainsLabel()} email addresses.`,
+          403,
+        );
+      }
+      const [existing] = await db
+        .select({ id: appUsers.id })
+        .from(appUsers)
+        .where(eq(appUsers.email, email))
+        .limit(1);
+      if (existing) {
+        throw new ApiError(
+          "An account already exists for this email. Please sign in instead.",
+          409,
+        );
+      }
+      const service = createSupabaseAdminClient();
+      const { data: created, error: createError } =
+        await service.auth.admin.createUser({
+          email,
+          password: b.password,
+          email_confirm: true,
+          user_metadata: { full_name: b.name },
+        });
+      if (createError) authError(createError.message);
+      const supabaseUserId = created.user!.id;
+
+      try {
+        const [u] = await db
+          .insert(appUsers)
+          .values({
+            email,
+            supabaseUserId,
+            name: b.name,
+            role: "agent",
+          })
+          .returning({ id: appUsers.id });
+        const { error } = await supabase.auth.signInWithPassword({
+          email,
+          password: b.password,
+        });
+        if (error) authError(error.message);
+        await audit(
+          { id: u.id, name: b.name },
+          "account.created",
+          "user:" + u.id,
+        );
+        return Response.json({ ok: true });
+      } catch (e) {
+        await service.auth.admin.deleteUser(supabaseUserId).catch(() => {});
+        throw e;
+      }
     }
 
     // `setup` mints the first administrator, `invite` is an administrator minting
