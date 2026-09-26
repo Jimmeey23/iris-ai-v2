@@ -16503,3 +16503,334 @@ small {
     height: auto;
   }
 }
+
+/* ============================================================================
+   Sidebar — refined surface (soft neumorphism)
+   ----------------------------------------------------------------------------
+   The rail is treated as one softly-extruded panel rather than a bordered
+   column: light falls from the top-left, so raised controls carry a pale rim
+   there and a diffuse shadow at the bottom-right, and the selected item reads
+   as *pressed into* the panel instead of painted on top of it. Everything is
+   driven by two per-theme tokens (`--sb-hi`, `--sb-lo`) so the effect inverts
+   correctly between the dark and light palettes, where a single hard-coded
+   white highlight would look like a scratch.
+   ========================================================================== */
+.sidebar {
+  --sb-hi: rgb(255 255 255 / 0.05);
+  --sb-lo: rgb(0 0 0 / 0.55);
+  --sb-well: #0e0e13;
+  --sb-raise: linear-gradient(145deg, #191922, #101017);
+  --sb-radius: 14px;
+}
+[data-theme="light"] .sidebar {
+  --sb-hi: #ffffff;
+  --sb-lo: rgb(142 154 176 / 0.42);
+  --sb-well: #eaeef5;
+  --sb-raise: linear-gradient(145deg, #ffffff, #e6ebf3);
+}
+
+.sidebar {
+  width: 236px;
+  padding: 22px 16px 18px;
+  background: var(--sb-well);
+  border-right: 0;
+  box-shadow:
+    inset -1px 0 0 var(--sb-hi),
+    10px 0 30px -22px var(--sb-lo);
+}
+/* The right edge is a gradient rather than a hairline, so the panel dissolves
+   into the page at the top and bottom instead of stopping abruptly. */
+.sidebar::after {
+  content: "";
+  position: absolute;
+  inset: 0 -1px 0 auto;
+  width: 1px;
+  background: linear-gradient(
+    180deg,
+    transparent,
+    color-mix(in srgb, var(--text) 9%, transparent) 18%,
+    color-mix(in srgb, var(--accent) 22%, transparent) 50%,
+    color-mix(in srgb, var(--text) 9%, transparent) 82%,
+    transparent
+  );
+  opacity: 0.7;
+  pointer-events: none;
+}
+.workspace-main {
+  margin-left: 236px;
+}
+
+.sidebar .brand {
+  padding: 2px 6px 4px;
+}
+.sidebar-scrollable {
+  padding-inline: 3px;
+  scrollbar-color: color-mix(in srgb, var(--text) 12%, transparent) transparent;
+}
+.sidebar-scrollable::-webkit-scrollbar {
+  width: 4px;
+}
+.sidebar-scrollable::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--text) 12%, transparent);
+}
+
+/* Section headings sit on a hairline that fades out to the right, which groups
+   the items beneath them without drawing a full-width rule. */
+.sidebar .nav-heading {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 22px 0 8px;
+  padding: 0 10px;
+  font-size: 8.5px;
+  letter-spacing: 0.2em;
+  opacity: 0.6;
+}
+.sidebar .nav-heading::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--text) 10%, transparent),
+    transparent
+  );
+}
+.sidebar .nav-heading:first-child {
+  margin-top: 14px;
+}
+
+.sidebar .nav-link {
+  margin-bottom: 4px;
+  padding: 10px 13px;
+  border-radius: var(--sb-radius);
+  font-size: 12.5px;
+  letter-spacing: 0.005em;
+  border: 1px solid transparent;
+}
+/* Raised on hover: pale rim top-left, soft shadow bottom-right. */
+.sidebar .nav-link:hover {
+  background: var(--sb-raise);
+  transform: none;
+  border-color: color-mix(in srgb, var(--text) 5%, transparent);
+  box-shadow:
+    -3px -3px 8px -4px var(--sb-hi),
+    5px 6px 14px -8px var(--sb-lo),
+    inset 0 1px 0 var(--sb-hi);
+}
+.sidebar .nav-link:active {
+  transform: none;
+  box-shadow:
+    inset 3px 3px 7px -3px var(--sb-lo),
+    inset -2px -2px 6px -3px var(--sb-hi);
+}
+/* Selected: pressed into the panel, tinted with the accent. */
+.sidebar .nav-link.active {
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--accent) 12%, var(--sb-well)),
+    color-mix(in srgb, var(--accent) 4%, var(--sb-well))
+  );
+  border-color: color-mix(in srgb, var(--accent) 16%, transparent);
+  box-shadow:
+    inset 3px 3px 8px -3px var(--sb-lo),
+    inset -3px -3px 8px -4px var(--sb-hi),
+    0 0 0 0.5px color-mix(in srgb, var(--accent) 10%, transparent);
+}
+.sidebar .nav-link.active:hover {
+  transform: none;
+}
+.sidebar .nav-link.active::before {
+  left: -3px;
+  width: 3px;
+  border-radius: var(--radius-pill);
+}
+.sidebar .nav-link.locked {
+  opacity: 0.55;
+}
+.sidebar .nav-link.locked:hover {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+/* Counters and tags read as small wells carved into the row. */
+.sidebar .nav-count,
+.sidebar .nav-ai,
+.sidebar .nav-radar-pill {
+  border: 0;
+  box-shadow:
+    inset 1px 1px 3px -1px var(--sb-lo),
+    inset -1px -1px 2px -1px var(--sb-hi);
+}
+
+.sidebar-bottom {
+  gap: 7px;
+  padding-top: 16px;
+  border-top: 1px solid color-mix(in srgb, var(--text) 6%, transparent);
+}
+.sidebar .user-button {
+  border: 1px solid color-mix(in srgb, var(--text) 5%, transparent);
+  border-radius: var(--sb-radius);
+  padding: 9px 11px;
+  background: var(--sb-raise);
+  box-shadow:
+    -3px -3px 9px -5px var(--sb-hi),
+    6px 7px 16px -9px var(--sb-lo),
+    inset 0 1px 0 var(--sb-hi);
+}
+.sidebar .user-button:hover {
+  background: var(--sb-raise);
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--accent) 22%, transparent);
+  box-shadow:
+    -4px -4px 11px -5px var(--sb-hi),
+    8px 10px 20px -9px var(--sb-lo),
+    inset 0 1px 0 var(--sb-hi);
+}
+.sidebar .user-button:active {
+  transform: none;
+  box-shadow:
+    inset 3px 3px 8px -3px var(--sb-lo),
+    inset -3px -3px 8px -4px var(--sb-hi);
+}
+.sidebar-signout {
+  border-radius: var(--sb-radius);
+  padding: 9px 13px;
+}
+.sidebar-signout:hover {
+  background: color-mix(in srgb, var(--red) 9%, var(--sb-well));
+  box-shadow:
+    -2px -2px 7px -4px var(--sb-hi),
+    4px 5px 12px -8px var(--sb-lo),
+    inset 0 0 0 1px color-mix(in srgb, var(--red) 16%, transparent);
+}
+
+/* --- Collapsed rail ------------------------------------------------------ */
+@media (min-width: 768px) {
+  .sidebar.collapsed {
+    width: 78px;
+    padding-inline: 13px;
+  }
+  .workspace-main.sidebar-collapsed {
+    margin-left: 78px;
+  }
+  .sidebar.collapsed .nav-link {
+    width: 50px;
+    height: 50px;
+    min-height: 50px;
+    margin: 5px auto;
+    border-radius: 16px;
+    background: var(--sb-raise);
+    border-color: color-mix(in srgb, var(--text) 5%, transparent);
+    box-shadow:
+      -3px -3px 9px -5px var(--sb-hi),
+      6px 7px 15px -9px var(--sb-lo),
+      inset 0 1px 0 var(--sb-hi);
+  }
+  .sidebar.collapsed .nav-link:hover {
+    transform: translateY(-1px);
+    box-shadow:
+      -4px -4px 11px -5px var(--sb-hi),
+      8px 10px 20px -9px var(--sb-lo),
+      inset 0 1px 0 var(--sb-hi);
+  }
+  .sidebar.collapsed .nav-link.active {
+    background: linear-gradient(
+      145deg,
+      color-mix(in srgb, var(--accent) 14%, var(--sb-well)),
+      color-mix(in srgb, var(--accent) 4%, var(--sb-well))
+    );
+    border-color: color-mix(in srgb, var(--accent) 18%, transparent);
+    box-shadow:
+      inset 3px 3px 9px -3px var(--sb-lo),
+      inset -3px -3px 9px -4px var(--sb-hi);
+  }
+  .sidebar.collapsed .sidebar-signout {
+    height: 40px;
+    border-radius: 16px;
+    background: var(--sb-raise);
+    box-shadow:
+      -3px -3px 9px -5px var(--sb-hi),
+      6px 7px 15px -9px var(--sb-lo),
+      inset 0 1px 0 var(--sb-hi);
+  }
+  /* Hover-expanded: back to the flat list treatment. */
+  .sidebar.collapsed:hover,
+  .sidebar.collapsed:focus-within {
+    width: 236px;
+    padding-inline: 16px;
+    box-shadow:
+      inset -1px 0 0 var(--sb-hi),
+      22px 0 54px -30px var(--sb-lo);
+  }
+  .sidebar.collapsed:hover .nav-link,
+  .sidebar.collapsed:focus-within .nav-link {
+    height: auto;
+    min-height: 0;
+    margin: 0 0 4px;
+    padding: 10px 13px;
+    border-radius: var(--sb-radius);
+    border-color: transparent;
+  }
+  .sidebar.collapsed:hover .nav-link:hover {
+    background: var(--sb-raise);
+    border-color: color-mix(in srgb, var(--text) 5%, transparent);
+    box-shadow:
+      -3px -3px 8px -4px var(--sb-hi),
+      5px 6px 14px -8px var(--sb-lo),
+      inset 0 1px 0 var(--sb-hi);
+  }
+  .sidebar.collapsed:hover .nav-link.active,
+  .sidebar.collapsed:focus-within .nav-link.active {
+    background: linear-gradient(
+      145deg,
+      color-mix(in srgb, var(--accent) 12%, var(--sb-well)),
+      color-mix(in srgb, var(--accent) 4%, var(--sb-well))
+    );
+    border-color: color-mix(in srgb, var(--accent) 16%, transparent);
+    box-shadow:
+      inset 3px 3px 8px -3px var(--sb-lo),
+      inset -3px -3px 8px -4px var(--sb-hi);
+  }
+}
+
+/* The mobile drawer keeps the same material, lifted off the scrim. */
+@media (max-width: 767px) {
+  .sidebar {
+    box-shadow: 24px 0 60px -30px rgb(0 0 0 / 0.6);
+  }
+  .sidebar::after {
+    display: none;
+  }
+}
+
+/* The base width above is declared after the responsive blocks, so the narrow
+   breakpoints are restated here to keep winning. */
+@media (max-width: 1279px) {
+  .sidebar {
+    width: 212px;
+  }
+  .workspace-main {
+    margin-left: 212px;
+  }
+}
+@media (max-width: 1023px) {
+  .sidebar {
+    width: 196px;
+    padding: 20px 12px 16px;
+  }
+  .workspace-main {
+    margin-left: 196px;
+  }
+}
+@media (max-width: 767px) {
+  .sidebar {
+    width: 250px;
+  }
+  .workspace-main,
+  .workspace-main.sidebar-collapsed {
+    margin-left: 0;
+  }
+}
