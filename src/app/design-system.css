@@ -513,182 +513,234 @@ select:hover:not(:focus) {
 }
 
 /* ---------- 6. Sidebar ---------------------------------------------------- */
+/* A flat, uniform panel — white in light mode — with restrained corners and a
+   single bright-accent selected state. The neumorphic note is now only where a
+   control genuinely is an object you press: the account pad. Everything else
+   gets its weight from spacing and from the accent, not from shadow.
+
+   This section owns the sidebar outright: it is the last stylesheet the app
+   loads, so put sidebar theming here rather than fighting it from globals.css
+   with `[data-theme=…]` overrides. */
 .sidebar {
-  inset: 0 auto 0 0;
+  --sb-face: #101015;
+  --sb-hover: rgb(255 255 255 / 0.05);
+  --sb-edge: rgb(255 255 255 / 0.07);
+  --sb-lift: 0 2px 6px -3px rgb(0 0 0 / 0.6);
+  --sb-inner-light: rgb(255 255 255 / 0.05);
+  /* Corner radius for a nav row / icon tile: restrained, not a capsule. */
+  --sb-r: 9px;
+
+  /* The neumorphism is carried by the panel itself rather than by each row:
+     the rail detaches from the page as one soft slab, lit from the top-left
+     and casting down-right. Doing it per-tab turned fourteen rows into
+     fourteen competing objects; doing it once gives the component its depth
+     and leaves the contents calm. */
+  --sb-bloom: -7px -7px 16px rgb(255 255 255 / 0.035);
+  --sb-cast: 12px 12px 30px rgb(0 0 0 / 0.72);
+
+  inset: 12px auto 12px 12px;
+  width: 246px;
   display: flex;
-  overflow: hidden;
+  padding: 20px 14px 16px;
+  background: var(--sb-face);
   background-clip: padding-box;
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--accent) 3%, transparent), transparent 30%),
-    var(--glass-strong);
-  backdrop-filter: blur(20px) saturate(1.4);
-  -webkit-backdrop-filter: blur(20px) saturate(1.4);
-  border-right: 1px solid var(--hairline);
-  box-shadow: 1px 0 0 color-mix(in srgb, var(--white) 2%, transparent) inset;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: 0;
+  border-radius: 22px;
+  box-shadow:
+    var(--sb-bloom),
+    var(--sb-cast),
+    inset 0 1px 0 var(--sb-inner-light);
+}
+[data-theme="light"] .sidebar {
+  --sb-face: #ffffff;
+  --sb-hover: #f1f3f7;
+  --sb-edge: #e7eaf1;
+  --sb-lift: 0 2px 6px -3px rgb(93 108 135 / 0.28);
+  --sb-bloom: -7px -7px 16px #ffffff;
+  --sb-cast: 12px 12px 30px rgb(118 132 158 / 0.3);
+  --sb-inner-light: #ffffff;
 }
 .sidebar:after {
-  content: "";
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  right: -1px;
-  width: 1px;
-  background: linear-gradient(
-    180deg,
-    transparent,
-    color-mix(in srgb, var(--accent) 30%, transparent) 30%,
-    color-mix(in srgb, var(--accent) 30%, transparent) 70%,
-    transparent
-  );
-  opacity: 0.5;
-  pointer-events: none;
+  content: none;
 }
+/* 12px gutter either side of the floating slab. */
+.workspace-main {
+  margin-left: 270px;
+}
+
+.sidebar .brand {
+  padding: 4px 8px 18px;
+}
+.sidebar-scrollable {
+  padding-inline: 2px;
+}
+/* Nothing in the expanded rail is meant to scroll sideways — a long label
+   ellipsizes instead of dragging the column off screen. The collapsed rail is
+   deliberately left un-clipped: its labels are `data-tip` tooltips that render
+   outside the sidebar, and hiding the overflow would cut them off. */
+.sidebar:not(.collapsed) .sidebar-scrollable {
+  overflow-x: hidden;
+}
+
+.nav-heading {
+  font-family: var(--font-mono);
+  color: var(--muted);
+  padding: 0 12px;
+  font-weight: 700;
+  font-size: var(--text-3xs);
+  letter-spacing: 0.16em;
+  margin: 22px 0 10px;
+  opacity: 0.6;
+}
+.sidebar-scrollable > .nav-heading:first-child {
+  margin-top: 6px;
+}
+
 .workspace-selector {
   display: flex;
   align-items: center;
   gap: 10px;
-  border: 1px solid var(--border);
-  padding: 11px;
+  border: 1px solid var(--sb-edge);
+  padding: 10px;
   color: var(--text);
   font-size: 12px;
-  border-radius: var(--radius-lg);
-  border-color: var(--hairline-strong);
-  background: color-mix(in srgb, var(--surface-2) 70%, transparent);
-  transition:
-    border-color var(--dur-2),
-    background var(--dur-2),
-    transform var(--dur-2) var(--ease-out-expo);
+  border-radius: var(--sb-r);
+  background: var(--sb-face);
+  transition: background var(--dur-2) var(--ease-out-expo);
 }
 .workspace-selector:hover {
-  border-color: color-mix(in srgb, var(--accent) 30%, var(--border));
-  background: var(--surface-2);
-  transform: translateY(-1px);
+  transform: none;
+  background: var(--sb-hover);
 }
 .workspace-selector .mini-spark {
-  width: 29px;
-  height: 29px;
+  width: 28px;
+  height: 28px;
   display: grid;
   place-items: center;
-  border-radius: var(--radius-md);
+  border-radius: 7px;
   background: var(--grad-accent);
   color: var(--accent-text);
-  box-shadow: 0 4px 12px -4px color-mix(in srgb, var(--accent) 60%, transparent);
 }
-.nav-heading {
-  font-family: var(--font-mono);
-  color: var(--muted);
-  padding: 0 14px;
-  font-weight: 600;
-  font-size: var(--text-3xs);
-  letter-spacing: 0.18em;
-  margin: 22px 0 10px;
-  opacity: 0.75;
-}
+
+/* --- Rows ---------------------------------------------------------------- */
 .nav-link {
   color: var(--secondary);
   display: flex;
   align-items: center;
   gap: 12px;
   position: relative;
-  border-radius: var(--radius-lg);
-  padding: 10px 14px;
-  font-size: 12.5px;
+  border: 0;
+  border-radius: var(--sb-r);
+  /* Breathing room between rows does the separating that shadows used to. */
+  margin-bottom: 8px;
+  padding: 13px;
+  min-height: 44px;
+  font-size: 13px;
   font-weight: 500;
+  letter-spacing: -0.003em;
   background: transparent;
+  box-shadow: none;
   transition:
     background var(--dur-2) var(--ease-out-expo),
-    color var(--dur-2) var(--ease-out-expo),
-    transform var(--dur-2) var(--ease-out-expo),
-    box-shadow var(--dur-2) var(--ease-out-expo);
+    color var(--dur-2) var(--ease-out-expo);
+}
+.nav-link .nav-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .nav-link svg {
-  transition:
-    transform var(--dur-3) var(--ease-spring),
-    color var(--dur-2);
+  flex: 0 0 auto;
+  width: 15px;
+  height: 15px;
+  color: var(--muted);
+  transition: color var(--dur-2);
 }
 .nav-link:hover {
+  transform: none;
   color: var(--text);
-  background: color-mix(in srgb, var(--text) 5%, transparent);
-  transform: translateX(2px);
+  background: var(--sb-hover);
+  box-shadow: none;
 }
 .nav-link:hover svg {
-  transform: scale(1.12);
+  transform: none;
+  color: var(--secondary);
 }
+.nav-link:active {
+  transform: none;
+}
+
+/* Selected is the one saturated thing in the rail: a solid bright-accent fill,
+   with the icon and label reading on top of it. */
 .nav-link.active {
-  color: var(--text);
-  font-weight: 600;
-  background:
-    linear-gradient(
-      135deg,
-      color-mix(in srgb, var(--accent) 18%, transparent),
-      color-mix(in srgb, var(--accent) 5%, transparent)
-    );
-  box-shadow:
-    inset 0 1px 1px color-mix(in srgb, var(--accent) 25%, transparent),
-    inset 0 -1px 1px color-mix(in srgb, rgb(0 0 0) 12%, transparent),
-    0 1px 2px color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+  font-weight: 650;
+  background: color-mix(in srgb, var(--accent) 9%, var(--sb-face));
+  box-shadow: none;
+}
+.nav-link.active:hover {
+  transform: none;
+  background: color-mix(in srgb, var(--accent) 12%, var(--sb-face));
 }
 .nav-link.active svg {
+  transform: none;
   color: var(--accent);
 }
 .nav-link.active:before {
-  content: "";
-  position: absolute;
-  left: -14px;
-  top: 24%;
-  bottom: 24%;
-  width: 3px;
-  border-radius: 0 var(--radius-2xs) var(--radius-2xs) 0;
-  background: var(--grad-accent);
-  box-shadow: 0 0 14px color-mix(in srgb, var(--accent) 70%, transparent);
-  animation: ds-nav-in var(--dur-3) var(--ease-out-expo) both;
+  content: none;
 }
-@keyframes ds-nav-in {
-  from {
-    transform: scaleY(0);
-  }
-  to {
-    transform: scaleY(1);
-  }
+.nav-link.locked {
+  opacity: 0.45;
+  box-shadow: none;
 }
-.nav-link .nav-count {
-  color: var(--secondary);
+.nav-link.locked:hover {
+  background: transparent;
+  cursor: not-allowed;
+}
+
+/* Trailing markers sit quietly; on the selected row they invert onto the fill. */
+.nav-link .nav-count,
+.nav-ai,
+.nav-radar-pill {
   font-family: var(--font-mono);
-  border-radius: var(--radius-pill);
-  padding: 2px 8px;
-  background: color-mix(in srgb, var(--text) 7%, transparent);
-  font-size: 10px;
-  font-weight: 600;
-  box-shadow: inset 0 1px 2px rgb(0 0 0 / 0.08);
-}
-.nav-link.active .nav-count {
-  background: color-mix(in srgb, var(--accent) 20%, transparent);
-  color: var(--accent);
-}
-.nav-ai {
-  font-family: var(--font-mono);
-  font-size: var(--text-3xs);
-  background: var(--purple-bg);
-  color: var(--purple);
+  border: 0;
   border-radius: var(--radius-pill);
   padding: 2px 7px;
+  font-size: 9.5px;
   font-weight: 700;
-  letter-spacing: 0.06em;
-  border: 1px solid color-mix(in srgb, var(--purple) 30%, transparent);
-  box-shadow: 0 1px 2px rgb(0 0 0 / 0.06);
+  letter-spacing: 0.04em;
+  background: color-mix(in srgb, var(--text) 7%, transparent);
+  box-shadow: none;
 }
+.nav-link .nav-count {
+  color: var(--muted);
+}
+.nav-ai {
+  color: var(--purple);
+  background: var(--purple-bg);
+}
+.nav-radar-pill {
+  color: var(--green);
+  background: var(--green-bg);
+}
+.nav-link.active .nav-count,
+.nav-link.active .nav-ai,
+.nav-link.active .nav-radar-pill {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
 .help-card {
-  border: 1px solid var(--border);
+  border: 1px solid var(--sb-edge);
   padding: 14px 13px;
   position: relative;
   overflow: hidden;
-  border-radius: var(--radius-lg);
-  background: linear-gradient(
-    150deg,
-    color-mix(in srgb, var(--accent) 10%, var(--surface-2)),
-    color-mix(in srgb, var(--purple) 7%, var(--surface-2))
-  );
-  border-color: color-mix(in srgb, var(--accent) 18%, var(--border));
+  border-radius: var(--sb-r);
+  background: var(--sb-face);
+  box-shadow: none;
 }
 .help-card:before {
   content: "";
@@ -698,48 +750,215 @@ select:hover:not(:focus) {
   width: 120px;
   height: 120px;
   border-radius: 50%;
-  background: radial-gradient(
-    circle,
-    color-mix(in srgb, var(--accent) 22%, transparent),
-    transparent 70%
-  );
-  animation: ds-float 8s ease-in-out infinite;
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
   pointer-events: none;
 }
-@keyframes ds-float {
-  0%,
-  100% {
-    transform: translate(0, 0);
-  }
-  50% {
-    transform: translate(-8px, 10px);
-  }
-}
+
+/* --- Account block ------------------------------------------------------- */
+/* The one pressable object in the rail, so the one place a soft lift earns its
+   keep. */
 .user-button {
   display: flex;
   gap: 10px;
   align-items: center;
   width: 100%;
-  background: var(--surface-2);
-  color: var(--text);
-  border: 1px solid var(--hairline);
+  border: 1px solid var(--sb-edge);
   text-align: left;
-  border-radius: var(--radius-lg);
-  padding: 10px;
-  box-shadow:
-    0 2px 6px -2px color-mix(in srgb, var(--bg) 60%, transparent),
-    inset 0 1px 0 color-mix(in srgb, var(--text) 5%, transparent);
+  border-radius: var(--sb-r);
+  padding: 9px 11px;
+  color: var(--text);
+  background: var(--sb-face);
+  box-shadow: var(--sb-lift);
   transition:
     background var(--dur-2) var(--ease-out-expo),
-    transform var(--dur-2) var(--ease-out-expo),
     box-shadow var(--dur-2) var(--ease-out-expo);
 }
 .user-button:hover {
-  background: var(--surface-3);
-  transform: translateY(-1px);
-  box-shadow:
-    0 6px 14px -6px color-mix(in srgb, var(--bg) 70%, transparent),
-    inset 0 1px 0 color-mix(in srgb, var(--text) 6%, transparent);
+  transform: none;
+  background: var(--sb-hover);
+  box-shadow: var(--sb-lift);
+}
+.sidebar-bottom {
+  gap: 8px;
+  padding-top: 14px;
+  border-top: 1px solid var(--sb-edge);
+}
+.sidebar-signout {
+  border: 0;
+  border-radius: var(--sb-r);
+  padding: 9px 13px;
+  font-size: 11.5px;
+  background: transparent;
+  box-shadow: none;
+}
+.sidebar-signout:hover {
+  color: var(--red);
+  background: color-mix(in srgb, var(--red) 9%, transparent);
+  box-shadow: none;
+}
+
+/* --- Collapsed rail ------------------------------------------------------ */
+/* Icon tiles carry no fill of their own — only the selected one is filled, in
+   the accent. The rail is wide enough that a 44px tile plus its padding never
+   meets the panel edge, which is what was clipping them before. */
+@media (min-width: 768px) {
+  .sidebar.collapsed {
+    width: 72px;
+    padding-inline: 14px;
+  }
+  .workspace-main.sidebar-collapsed {
+    margin-left: 96px;
+  }
+  /* Everything in the icon rail shares one centre line: the scroll area keeps
+     its own horizontal padding out of the way, and each tile is a fixed square
+     centred in what is left. Without this the tiles inherit the expanded rail's
+     asymmetric padding and sit a few pixels left of the brand mark. */
+  .sidebar.collapsed .brand {
+    justify-content: center;
+    padding: 4px 0 22px;
+  }
+  .sidebar.collapsed .sidebar-scrollable {
+    padding-inline: 0;
+    align-items: center;
+  }
+  .sidebar.collapsed .nav-link {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 0;
+    flex: 0 0 auto;
+    width: 44px;
+    height: 44px;
+    min-height: 44px;
+    margin: 0 0 8px;
+    padding: 0;
+    border-radius: var(--sb-r);
+    background: transparent;
+    box-shadow: none;
+  }
+  .sidebar.collapsed .nav-link:hover {
+    transform: none;
+    background: var(--sb-hover);
+    box-shadow: none;
+  }
+  .sidebar.collapsed .nav-link.active {
+    color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 10%, var(--sb-face));
+    box-shadow: none;
+  }
+  .sidebar.collapsed .nav-link.active:before {
+    content: none;
+  }
+  .sidebar.collapsed .nav-link svg {
+    width: 16px;
+    height: 16px;
+  }
+  .sidebar.collapsed .user-button {
+    width: 44px;
+    min-height: 44px;
+    justify-content: center;
+    padding: 0;
+    border-radius: var(--sb-r);
+  }
+  .sidebar.collapsed .sidebar-signout {
+    width: 44px;
+    height: 38px;
+    margin-inline: auto;
+    justify-content: center;
+    padding: 0;
+    border-radius: var(--sb-r);
+    background: transparent;
+    box-shadow: none;
+  }
+  .sidebar.collapsed .user-button {
+    margin-inline: auto;
+  }
+  /* Hover-expanded is simply the expanded rail again. */
+  .sidebar.collapsed:hover,
+  .sidebar.collapsed:focus-within {
+    width: 246px;
+    padding-inline: 14px;
+  }
+  .sidebar.collapsed:hover .brand,
+  .sidebar.collapsed:focus-within .brand {
+    justify-content: flex-start;
+    padding: 4px 8px 18px;
+  }
+  .sidebar.collapsed:hover .sidebar-scrollable,
+  .sidebar.collapsed:focus-within .sidebar-scrollable {
+    padding-inline: 2px;
+    align-items: stretch;
+  }
+  .sidebar.collapsed:hover .nav-link,
+  .sidebar.collapsed:focus-within .nav-link {
+    justify-content: flex-start;
+    gap: 12px;
+    width: 100%;
+    height: auto;
+    min-height: 0;
+    margin: 0 0 8px;
+    padding: 13px;
+    min-height: 44px;
+    border-radius: var(--sb-r);
+    background: transparent;
+    box-shadow: none;
+  }
+  .sidebar.collapsed:hover .nav-link:hover {
+    background: var(--sb-hover);
+  }
+  .sidebar.collapsed:hover .nav-link.active,
+  .sidebar.collapsed:focus-within .nav-link.active {
+    color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 9%, var(--sb-face));
+  }
+  .sidebar.collapsed:hover .nav-link svg,
+  .sidebar.collapsed:focus-within .nav-link svg {
+    width: 15px;
+    height: 15px;
+  }
+  .sidebar.collapsed:hover .user-button,
+  .sidebar.collapsed:focus-within .user-button {
+    width: 100%;
+    justify-content: flex-start;
+    padding: 9px 11px;
+  }
+  .sidebar.collapsed:hover .sidebar-signout,
+  .sidebar.collapsed:focus-within .sidebar-signout {
+    width: 100%;
+    height: auto;
+  }
+}
+
+@media (max-width: 1279px) {
+  .sidebar {
+    width: 224px;
+  }
+  .workspace-main {
+    margin-left: 248px;
+  }
+}
+@media (max-width: 1023px) {
+  .sidebar {
+    width: 206px;
+    padding: 18px 12px 14px;
+  }
+  .workspace-main {
+    margin-left: 230px;
+  }
+}
+/* As a drawer it sits flush again — a floating slab with a scrim behind it
+   reads as two overlapping sheets. */
+@media (max-width: 767px) {
+  .sidebar {
+    inset: 0 auto 0 0;
+    width: 256px;
+    border-radius: 0;
+    box-shadow: 16px 0 44px -18px rgb(0 0 0 / 0.4);
+  }
+  .workspace-main,
+  .workspace-main.sidebar-collapsed {
+    margin-left: 0;
+  }
 }
 
 /* ---------- 7. Topbar ---------------------------------------------------- */
@@ -1320,5 +1539,1785 @@ textarea:focus-visible,
 @media (max-width: 900px) {
   .topbar-status {
     display: none;
+  }
+}
+
+/* ---------- 12. Overview — mild neumorphism -------------------------------
+   The cockpit is built from a lot of nested panels, and each one had picked up
+   its own border, gradient and shadow over time, so the page read as a stack of
+   competing boxes. This restates them in one material: a soft surface lifted off
+   the page by a light rim above and a short, wide cast below — the same grammar
+   as the sidebar, kept deliberately mild so a dense table stays readable.
+
+   Two rules hold it together. Containers are raised; the things *inside* them
+   that represent a value (a snapshot tile, a segmented track, a meter) are
+   pressed in. And borders are dropped almost everywhere, because a hairline plus
+   a shadow on the same edge is what made the old panels look heavy.
+   -------------------------------------------------------------------------- */
+.cc-overview {
+  --ov-face: var(--surface);
+  --ov-rim: inset 0 1px 0 rgb(255 255 255 / 0.05);
+  --ov-cast:
+    0 1px 2px rgb(0 0 0 / 0.3),
+    0 10px 24px -16px rgb(0 0 0 / 0.65);
+  --ov-cast-lg:
+    0 2px 4px rgb(0 0 0 / 0.32),
+    0 18px 40px -22px rgb(0 0 0 / 0.7);
+  --ov-press:
+    inset 2px 2px 5px rgb(0 0 0 / 0.38),
+    inset -1px -1px 3px rgb(255 255 255 / 0.04);
+  --ov-r: 16px;
+}
+[data-theme="light"] .cc-overview {
+  --ov-face: #ffffff;
+  --ov-rim: inset 0 1px 0 #ffffff;
+  --ov-cast:
+    0 1px 2px rgb(93 108 135 / 0.09),
+    0 10px 24px -16px rgb(93 108 135 / 0.45);
+  --ov-cast-lg:
+    0 2px 4px rgb(93 108 135 / 0.1),
+    0 18px 40px -22px rgb(93 108 135 / 0.5);
+  --ov-press:
+    inset 2px 2px 5px rgb(148 160 182 / 0.28),
+    inset -1px -1px 3px #ffffff;
+}
+
+/* --- Raised containers ---------------------------------------------------- */
+.cc-overview .overview-command-deck,
+.cc-overview .cockpit-signal-deck,
+.cc-overview .tickets-panel,
+.cc-overview .cockpit-right-sidebar > section {
+  border: 0;
+  border-radius: var(--ov-r);
+  box-shadow: var(--ov-rim), var(--ov-cast);
+}
+.cc-overview .cockpit-signal-deck,
+.cc-overview .tickets-panel,
+.cc-overview .cockpit-right-sidebar > section {
+  background: var(--ov-face);
+}
+/* The hero keeps its tint, but as a wash over the shared surface rather than a
+   gradient panel of its own. */
+.cc-overview .overview-command-deck {
+  background:
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--accent) 7%, var(--ov-face)),
+      var(--ov-face) 58%,
+      color-mix(in srgb, var(--purple) 5%, var(--ov-face))
+    );
+  box-shadow: var(--ov-rim), var(--ov-cast-lg);
+}
+/* Nested sections inside the signal deck are already inside a raised box, so
+   they carry no elevation of their own — nesting shadows is what muddies this
+   style fastest. */
+.cc-overview .board-telemetry,
+.cc-overview .focus-rail {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+/* --- Pressed values ------------------------------------------------------- */
+/* A figure someone reads sits in a well: it reads as inset data rather than as
+   another button competing with the real ones. */
+.cc-overview .overview-snapshot-grid > * {
+  border: 0;
+  border-radius: 13px;
+  background: var(--ov-face);
+  box-shadow: var(--ov-press);
+  transition: box-shadow var(--dur-2) var(--ease-out-expo);
+}
+.cc-overview .overview-snapshot-grid > button:hover,
+.cc-overview .overview-snapshot-grid > a:hover {
+  box-shadow: var(--ov-rim), var(--ov-cast);
+}
+.cc-overview .mc-breakdown-track,
+.cc-overview .progress-bar {
+  border: 0;
+  box-shadow: var(--ov-press);
+}
+
+/* --- Metric cards --------------------------------------------------------- */
+.cc-overview .mc-card {
+  border: 0;
+  border-radius: var(--ov-r);
+  background: transparent;
+  box-shadow: none;
+  transition: transform var(--dur-2) var(--ease-out-expo);
+}
+.cc-overview .mc-face {
+  border: 0;
+  border-radius: var(--ov-r);
+  background: var(--ov-face);
+  box-shadow: var(--ov-rim), var(--ov-cast);
+  transition: box-shadow var(--dur-3) var(--ease-out-expo);
+}
+.cc-overview .mc-card:hover .mc-face {
+  box-shadow: var(--ov-rim), var(--ov-cast-lg);
+}
+.cc-overview .mc-card:active {
+  transform: translateY(1px);
+}
+.cc-overview .mc-grid-lines {
+  opacity: 0.35;
+}
+
+/* --- Focus rail ----------------------------------------------------------- */
+.cc-overview .focus-item {
+  border: 0;
+  border-radius: 13px;
+  background: var(--ov-face);
+  box-shadow: var(--ov-rim), var(--ov-cast);
+  transition:
+    box-shadow var(--dur-3) var(--ease-out-expo),
+    transform var(--dur-2) var(--ease-out-expo);
+}
+.cc-overview .focus-item:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--ov-rim), var(--ov-cast-lg);
+}
+.cc-overview .focus-item:active {
+  transform: none;
+  box-shadow: var(--ov-press);
+}
+.cc-overview .focus-icon {
+  border-radius: 11px;
+  box-shadow: var(--ov-rim);
+}
+
+/* --- Segmented tabs ------------------------------------------------------- */
+/* The track is the well; the thumb is the one thing that rises out of it. */
+.cc-overview .tabs-segment {
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+  box-shadow: var(--ov-press);
+}
+/* The thumb keeps the accent fill: the selected tab's label is `--accent-text`
+   (white in light, near-black in dark), so a neutral thumb renders it invisible
+   against its own background. Only the elevation is restyled. */
+.cc-overview .tabs-thumb {
+  border: 0;
+  border-radius: var(--radius-pill);
+  box-shadow:
+    0 2px 8px -3px color-mix(in srgb, var(--accent) 55%, transparent),
+    inset 0 1px 0 rgb(255 255 255 / 0.25);
+}
+.cc-overview .tab[aria-selected="true"] {
+  color: var(--accent-text);
+}
+.cc-overview .tab[aria-selected="true"] .tab-pill {
+  background: color-mix(in srgb, var(--accent-text) 20%, transparent);
+  color: var(--accent-text);
+}
+
+/* --- Supporting cards ----------------------------------------------------- */
+.cc-overview .quick-template,
+.cc-overview .insight-line {
+  border: 0;
+  border-radius: 12px;
+  transition: box-shadow var(--dur-2) var(--ease-out-expo);
+}
+.cc-overview .quick-template:hover {
+  background: transparent;
+  box-shadow: var(--ov-rim), var(--ov-cast);
+}
+.cc-overview .insight-icon,
+.cc-overview .overview-snapshot-icon {
+  border-radius: 10px;
+  box-shadow: var(--ov-rim);
+}
+
+/* The table keeps its own rhythm — a shadow under every row would be unreadable
+   at 651 rows — but loses the panel border that doubled the outer edge. */
+.cc-overview .tickets-panel .table-wrap {
+  border: 0;
+}
+
+/* ---------- 13. Chrome ---------------------------------------------------- */
+/* The top bar only took a background once the page had scrolled, so at rest the
+   page heading slid underneath it in plain sight. */
+.topbar {
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+  backdrop-filter: blur(14px) saturate(1.5);
+  -webkit-backdrop-filter: blur(14px) saturate(1.5);
+}
+
+/* ---------- 14. Overview canvas -------------------------------------------
+   Ported from the reference design in `modern-premium-dashboard-design`.
+
+   The whole look rests on one idea: a whisper-soft neumorphism where the light
+   comes from the top-left, so every raised thing carries a near-white bloom up
+   there and a cool blue-grey cast down-right. The values below are the
+   reference's own, kept to the pixel — at this strength the effect has to be
+   exact or it reads as blur rather than as form.
+
+   Accent is rationed. One KPI chip, one primary button and one highlighted bar
+   in the histogram; everything else is neutral. That restraint is what makes
+   the accent mean something when it does appear.
+   -------------------------------------------------------------------------- */
+.ovc {
+  --ovc-line: rgb(16 24 40 / 0.08);
+  --ovc-ink: #101828;
+  --ovc-muted: #667085;
+  --ovc-faint: #98a2b3;
+  --ovc-surface: #ffffff;
+  --ovc-sunken: #f1f4f8;
+  --ovc-spark-muted: #94a3b8;
+  --ovc-chip-bg: #f1f4f8;
+  --ovc-chip-ink: #475569;
+
+  /* Raised: cast down-right, bloom up-left. */
+  --ovc-neu-sm: 3px 3px 9px rgb(174 186 204 / 0.2), -3px -3px 9px rgb(255 255 255 / 0.95);
+  --ovc-neu-md: 5px 5px 14px rgb(174 186 204 / 0.22), -5px -5px 14px rgb(255 255 255 / 0.95);
+  --ovc-neu-xs: 2px 2px 6px rgb(174 186 204 / 0.18), -2px -2px 6px rgb(255 255 255 / 0.95);
+  /* Pressed: the same pair turned inward. */
+  --ovc-neu-in: inset 3px 3px 8px rgb(174 186 204 / 0.22), inset -3px -3px 8px rgb(255 255 255 / 0.95);
+  --ovc-neu-in-sm: inset 2px 2px 5px rgb(174 186 204 / 0.2), inset -2px -2px 5px rgb(255 255 255 / 0.95);
+
+  display: grid;
+  gap: 20px;
+}
+[data-theme="dark"] .ovc {
+  --ovc-line: rgb(255 255 255 / 0.07);
+  --ovc-ink: #f2efe6;
+  --ovc-muted: #a09a89;
+  --ovc-faint: #6e695c;
+  --ovc-surface: #131315;
+  --ovc-sunken: #0e0e10;
+  --ovc-spark-muted: #6e695c;
+  --ovc-chip-bg: #1c1d20;
+  --ovc-chip-ink: #c9c3b4;
+
+  --ovc-neu-sm: 4px 4px 12px rgb(0 0 0 / 0.5), -2px -2px 8px rgb(255 255 255 / 0.03);
+  --ovc-neu-md: 7px 7px 20px rgb(0 0 0 / 0.55), -3px -3px 10px rgb(255 255 255 / 0.03);
+  --ovc-neu-xs: 2px 2px 7px rgb(0 0 0 / 0.5), -1px -1px 5px rgb(255 255 255 / 0.03);
+  --ovc-neu-in: inset 3px 3px 9px rgb(0 0 0 / 0.6), inset -2px -2px 7px rgb(255 255 255 / 0.04);
+  --ovc-neu-in-sm: inset 2px 2px 5px rgb(0 0 0 / 0.55), inset -1px -1px 4px rgb(255 255 255 / 0.035);
+}
+
+/* --- The card --- */
+.ovc-card {
+  position: relative;
+  border: 1px solid var(--ovc-line);
+  border-radius: 18px;
+  background: var(--ovc-surface);
+  box-shadow: var(--ovc-neu-sm);
+  color: var(--ovc-ink);
+}
+[data-theme="dark"] .ovc-card {
+  background: linear-gradient(170deg, #151618 0%, #111214 100%);
+}
+
+.ovc-row {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr;
+  gap: 20px;
+  align-items: stretch;
+}
+
+/* --- Hero --- */
+.ovc-hero {
+  overflow: hidden;
+  padding: 32px;
+}
+/* A single soft bloom in the corner, so the card is lit rather than flat. */
+.ovc-bloom {
+  position: absolute;
+  top: -96px;
+  right: -96px;
+  width: 256px;
+  height: 256px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+  filter: blur(48px);
+  pointer-events: none;
+}
+.ovc-hero-inner {
+  position: relative;
+}
+.ovc-eyebrow {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ovc-faint);
+}
+.ovc-title {
+  margin: 12px 0 0;
+  max-width: 480px;
+  font-family: var(--font-display);
+  font-size: clamp(27px, 2.1vw, 31px);
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: -0.025em;
+  color: var(--ovc-ink);
+}
+.ovc-title em {
+  font-style: normal;
+  color: var(--accent);
+}
+.ovc-lede {
+  margin: 12px 0 0;
+  max-width: 440px;
+  font-size: 13.5px;
+  line-height: 1.62;
+  color: var(--ovc-muted);
+}
+.ovc-cta-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 24px;
+}
+.ovc-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 20px;
+  border: 0;
+  border-radius: 12px;
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    filter 0.18s ease;
+}
+/* The one saturated element in the header. */
+.ovc-btn-accent {
+  background: var(--accent);
+  color: var(--accent-text);
+  box-shadow:
+    0 6px 18px -6px color-mix(in srgb, var(--accent) 50%, transparent),
+    inset 0 1px 0 rgb(255 255 255 / 0.25);
+}
+.ovc-btn-accent:hover {
+  filter: brightness(1.06);
+  box-shadow:
+    0 10px 24px -6px color-mix(in srgb, var(--accent) 55%, transparent),
+    inset 0 1px 0 rgb(255 255 255 / 0.25);
+}
+.ovc-btn-accent:active {
+  transform: scale(0.98);
+}
+.ovc-btn-accent .ovc-btn-arrow {
+  transition: transform 0.18s ease;
+}
+.ovc-btn-accent:hover .ovc-btn-arrow {
+  transform: translateX(2px);
+}
+.ovc-btn-soft {
+  border: 1px solid var(--ovc-line);
+  background: var(--ovc-surface);
+  color: var(--ovc-ink);
+  font-weight: 600;
+  box-shadow: var(--ovc-neu-xs);
+}
+[data-theme="dark"] .ovc-btn-soft {
+  background: #1c1d20;
+}
+.ovc-btn-soft:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--ovc-neu-sm);
+}
+.ovc-btn-soft:active {
+  transform: translateY(0);
+  box-shadow: var(--ovc-neu-in-sm);
+}
+
+.ovc-hero-foot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--ovc-line);
+}
+.ovc-hero-foot p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--ovc-muted);
+}
+.ovc-hero-foot b {
+  color: var(--ovc-ink);
+  font-weight: 700;
+}
+/* Overlapping initials, each ringed in the card colour so the stack reads as
+   depth rather than as a row of touching circles. */
+.ovc-stack {
+  display: flex;
+}
+.ovc-stack i {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 28px;
+  min-width: 28px;
+  margin-right: -8px;
+  border-radius: 999px;
+  box-shadow: 0 0 0 2px var(--ovc-surface);
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 700;
+  color: #ffffff;
+  background: linear-gradient(140deg, #4f7cff, #2f5bd6);
+}
+.ovc-stack i[data-tone="1"] {
+  background: linear-gradient(140deg, #a07cf0, #7a4fd0);
+}
+.ovc-stack i[data-tone="2"] {
+  background: linear-gradient(140deg, #34c3a0, #1d9c7e);
+}
+.ovc-stack .ovc-stack-more {
+  padding: 0 9px;
+  background: var(--ovc-chip-bg);
+  color: var(--ovc-chip-ink);
+}
+
+/* --- Snapshot --- */
+.ovc-snapshot {
+  display: flex;
+  flex-direction: column;
+  padding: 28px;
+}
+.ovc-snapshot-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.ovc-flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.ovc-flag i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.ovc-flag.is-alert {
+  background: color-mix(in srgb, var(--red) 10%, transparent);
+  color: var(--red);
+}
+.ovc-flag.is-ok {
+  background: color-mix(in srgb, var(--green) 10%, transparent);
+  color: var(--green);
+}
+
+.ovc-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin: 24px 0 0;
+}
+.ovc-stats > div + div {
+  padding-left: 16px;
+  border-left: 1px solid var(--ovc-line);
+}
+.ovc-stats dd {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 30px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  color: var(--ovc-ink);
+}
+.ovc-stats dt {
+  margin-top: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ovc-ink);
+}
+.ovc-stats small {
+  display: block;
+  font-size: 11px;
+  color: var(--ovc-faint);
+}
+
+/* The histogram sits in a well — data set into the card, not on it. */
+.ovc-volume {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  margin-top: 24px;
+  padding: 16px;
+  border-radius: 16px;
+  background: var(--ovc-sunken);
+  box-shadow: var(--ovc-neu-in-sm);
+}
+.ovc-volume-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.ovc-volume-head small {
+  font-size: 11px;
+  color: var(--ovc-faint);
+}
+/* The bars take whatever height the card has left, so the well never shows a
+   band of empty space under them. */
+.ovc-volume-bars {
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  min-height: 40px;
+  margin-top: 12px;
+}
+.ovc-volume-bars span {
+  flex: 1;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--ovc-spark-muted) 55%, transparent);
+  transition: height 0.5s var(--ease-out-expo);
+}
+.ovc-volume-bars .is-peak {
+  background: var(--accent);
+  opacity: 0.9;
+}
+
+/* --- KPI strip --- */
+.ovc-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 20px;
+}
+.ovc-kpi {
+  display: block;
+  padding: 20px;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease;
+}
+.ovc-kpi:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--ovc-neu-md);
+}
+.ovc-kpi:active {
+  transform: translateY(0);
+  box-shadow: var(--ovc-neu-in-sm);
+}
+.ovc-kpi-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.ovc-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 11px;
+  flex: 0 0 auto;
+}
+.ovc-chip.is-accent {
+  background: var(--accent);
+  color: var(--accent-text);
+  box-shadow:
+    0 6px 18px -6px color-mix(in srgb, var(--accent) 50%, transparent),
+    inset 0 1px 0 rgb(255 255 255 / 0.25);
+}
+.ovc-chip.is-neutral {
+  border: 1px solid rgb(16 24 40 / 0.05);
+  background: var(--ovc-chip-bg);
+  color: var(--ovc-chip-ink);
+  box-shadow: var(--ovc-neu-xs);
+}
+[data-theme="dark"] .ovc-chip.is-neutral {
+  border-color: rgb(255 255 255 / 0.06);
+}
+.ovc-spark {
+  overflow: visible;
+  flex: 0 0 auto;
+}
+.ovc-spark-dot {
+  stroke: var(--ovc-surface);
+  stroke-width: 1.5;
+}
+.ovc-kpi strong {
+  display: block;
+  margin-top: 16px;
+  font-family: var(--font-display);
+  font-size: 30px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  color: var(--ovc-ink);
+}
+.ovc-kpi-label {
+  display: block;
+  margin-top: 8px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--ovc-ink);
+}
+.ovc-kpi small {
+  display: block;
+  font-size: 11.5px;
+  color: var(--ovc-faint);
+}
+
+@media (max-width: 1280px) {
+  .ovc-row {
+    grid-template-columns: 1fr;
+  }
+  .ovc-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 720px) {
+  .ovc-hero,
+  .ovc-snapshot {
+    padding: 22px;
+  }
+  .ovc-kpis {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---------- 15. Global neumorphism ----------------------------------------
+   One material for the whole app.
+
+   Everything below is expressed through five tokens — a raised pair at three
+   strengths, and the same pair turned inward — so a card on Settings is lit the
+   same way as a card on the Overview, and a pressed input looks pressed
+   everywhere. The rule that keeps it coherent: **containers rise, values sink.**
+   A panel, a button or a card is raised; a track, a well, a field or a figure
+   someone reads is set into the surface.
+
+   This is the last stylesheet the app loads, so this section is where the
+   material is defined. Anything in globals.css that fights it is being
+   overridden here on purpose.
+   -------------------------------------------------------------------------- */
+:root,
+[data-theme="dark"] {
+  --neu-line: rgb(255 255 255 / 0.07);
+  --neu-sunken: #0e0e10;
+  --neu-xs: 2px 2px 7px rgb(0 0 0 / 0.5), -1px -1px 5px rgb(255 255 255 / 0.03);
+  --neu-sm: 4px 4px 12px rgb(0 0 0 / 0.5), -2px -2px 8px rgb(255 255 255 / 0.03);
+  --neu-md: 7px 7px 20px rgb(0 0 0 / 0.55), -3px -3px 10px rgb(255 255 255 / 0.03);
+  --neu-in: inset 3px 3px 9px rgb(0 0 0 / 0.6), inset -2px -2px 7px rgb(255 255 255 / 0.04);
+  --neu-in-sm: inset 2px 2px 5px rgb(0 0 0 / 0.55), inset -1px -1px 4px rgb(255 255 255 / 0.035);
+}
+[data-theme="light"] {
+  --neu-line: rgb(16 24 40 / 0.08);
+  --neu-sunken: #f1f4f8;
+  --neu-xs: 2px 2px 6px rgb(174 186 204 / 0.18), -2px -2px 6px rgb(255 255 255 / 0.95);
+  --neu-sm: 3px 3px 9px rgb(174 186 204 / 0.2), -3px -3px 9px rgb(255 255 255 / 0.95);
+  --neu-md: 5px 5px 14px rgb(174 186 204 / 0.22), -5px -5px 14px rgb(255 255 255 / 0.95);
+  --neu-in: inset 3px 3px 8px rgb(174 186 204 / 0.22), inset -3px -3px 8px rgb(255 255 255 / 0.95);
+  --neu-in-sm: inset 2px 2px 5px rgb(174 186 204 / 0.2), inset -2px -2px 5px rgb(255 255 255 / 0.95);
+}
+
+/* --- Page ----------------------------------------------------------------- */
+body,
+.workspace,
+.content {
+  background: var(--bg);
+}
+
+/* --- Raised: panels, cards, anything that holds other things -------------- */
+.card,
+.panel,
+.metric,
+.tickets-panel,
+.insights-widget,
+.studio-pulse,
+.quick-templates,
+.settings-card,
+.entity-card,
+.template-card,
+.integration-card,
+.report-card,
+.asset-card,
+.form-card,
+.stat-card {
+  border: 1px solid var(--neu-line);
+  border-radius: 18px;
+  background: var(--surface);
+  box-shadow: var(--neu-sm);
+}
+
+/* --- Raised: controls ----------------------------------------------------- */
+.btn,
+.icon-btn,
+.text-btn.btn,
+.related-ticket,
+.quick-template {
+  border: 1px solid var(--neu-line);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--neu-xs);
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    background-color 0.18s ease;
+}
+.btn:hover,
+.icon-btn:hover,
+.related-ticket:hover,
+.quick-template:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--neu-sm);
+}
+.btn:active,
+.icon-btn:active,
+.related-ticket:active,
+.quick-template:active {
+  transform: translateY(0);
+  box-shadow: var(--neu-in-sm);
+}
+/* The primary action keeps its accent fill; only the elevation is restated. */
+.btn-primary {
+  border-color: transparent;
+  background: var(--accent);
+  color: var(--accent-text);
+  box-shadow:
+    0 6px 18px -6px color-mix(in srgb, var(--accent) 50%, transparent),
+    inset 0 1px 0 rgb(255 255 255 / 0.25);
+}
+.btn-primary:hover {
+  filter: brightness(1.06);
+  box-shadow:
+    0 10px 24px -6px color-mix(in srgb, var(--accent) 55%, transparent),
+    inset 0 1px 0 rgb(255 255 255 / 0.25);
+}
+.btn-primary:active {
+  transform: scale(0.98);
+  filter: none;
+}
+.icon-btn {
+  border-radius: 11px;
+}
+
+/* --- Pressed: fields, tracks, wells --------------------------------------- */
+.input,
+input[type="text"],
+input[type="search"],
+input[type="email"],
+input[type="password"],
+input[type="number"],
+input[type="date"],
+select,
+textarea,
+.search-field,
+.topbar-search {
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: var(--neu-sunken);
+  box-shadow: var(--neu-in-sm);
+}
+.input:focus,
+input:focus,
+select:focus,
+textarea:focus,
+.search-field:focus-within {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow:
+    var(--neu-in-sm),
+    0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
+}
+.progress-bar,
+.tabs-segment,
+.mc-breakdown-track,
+.bt-bar {
+  border: 0;
+  background: var(--neu-sunken);
+  box-shadow: var(--neu-in-sm);
+}
+
+/* --- Tables --------------------------------------------------------------- */
+/* The header row is a sunken band, so the column labels read as part of the
+   frame rather than as a first row of data. */
+.table-wrap {
+  border: 0;
+  border-radius: 16px;
+  overflow: hidden;
+}
+.data-table thead th,
+.tg-th {
+  background: var(--neu-sunken);
+  border-bottom: 1px solid var(--neu-line);
+}
+.data-table tbody tr {
+  transition: background 0.16s ease;
+}
+.data-table tbody tr:hover {
+  background: color-mix(in srgb, var(--text) 3%, transparent);
+}
+/* The SLA column was set two to five points larger than every other cell and
+   read as a different kind of data. It is the same kind. */
+.sla-countdown-value,
+.sla-countdown.ok .sla-countdown-value,
+.sla-countdown.soon .sla-countdown-value,
+.sla-countdown.breached .sla-countdown-value,
+.sla-countdown.done .sla-countdown-value {
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+/* --- Overlays ------------------------------------------------------------- */
+.modal-card,
+.sheet,
+.popover,
+.menu {
+  border: 1px solid var(--neu-line);
+  border-radius: 20px;
+  background: var(--surface);
+  box-shadow: var(--neu-md);
+}
+
+/* --- Rail and bar as one continuous chrome -------------------------------
+   The sidebar runs the full height of the window and the top bar starts where
+   it ends, so the two read as a single L-shaped surface rather than as a panel
+   tucked under a banner. They share `--surface` and meet on one hairline; the
+   brand sits in the rail at exactly the bar's height, which puts it on the
+   intersection.
+
+   `--rail` is the single source of truth for the width. The bar's left edge and
+   the page's left margin are both driven by it, so nothing can ever be
+   overlapped by an expanding rail — the layout moves out of its way. */
+.workspace {
+  --rail: 246px;
+  --bar: 64px;
+}
+.workspace.rail-collapsed {
+  --rail: 72px;
+}
+.sidebar {
+  inset: 0 auto 0 0;
+  width: var(--rail);
+  padding: 0 14px 16px;
+  border-radius: 0;
+  border-right: 1px solid var(--neu-line);
+  background: var(--surface);
+  box-shadow: none;
+  transition: width 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+/* The mark occupies the corner where the two surfaces meet. */
+.sidebar .brand {
+  display: flex;
+  align-items: center;
+  height: var(--bar);
+  margin-bottom: 10px;
+  padding: 0 4px;
+  border-bottom: 1px solid transparent;
+}
+.workspace.rail-collapsed .sidebar .brand {
+  justify-content: center;
+  padding: 0;
+}
+.topbar {
+  position: fixed;
+  top: 0;
+  right: 0;
+  left: var(--rail);
+  z-index: 60;
+  height: var(--bar);
+  padding: 0 24px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--neu-line);
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  transition: left 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.topbar[data-scrolled="true"] {
+  background: var(--surface);
+  box-shadow: var(--neu-xs);
+}
+.workspace-main,
+.workspace-main.sidebar-collapsed {
+  margin-left: var(--rail);
+  padding-top: var(--bar);
+  transition: margin-left 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+/* Peeking at a collapsed rail widens the layout rather than covering it. */
+@media (min-width: 768px) {
+  .sidebar.collapsed:hover,
+  .sidebar.collapsed:focus-within {
+    width: 246px;
+    padding-inline: 14px;
+    box-shadow: none;
+  }
+  .sidebar.collapsed:hover ~ .topbar,
+  .sidebar.collapsed:focus-within ~ .topbar {
+    left: 246px;
+  }
+  .sidebar.collapsed:hover ~ .workspace-main,
+  .sidebar.collapsed:focus-within ~ .workspace-main {
+    margin-left: 246px;
+  }
+}
+@media (max-width: 767px) {
+  .topbar {
+    left: 0;
+  }
+  .workspace-main,
+  .workspace-main.sidebar-collapsed {
+    margin-left: 0;
+  }
+  .sidebar {
+    border-radius: 0;
+  }
+}
+
+/* --- Supporting cards share a row, so they share a height ----------------- */
+.cockpit-right-sidebar {
+  align-items: stretch;
+}
+.cockpit-right-sidebar > section {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  border: 1px solid var(--neu-line);
+  border-radius: 18px;
+  background: var(--surface);
+  box-shadow: var(--neu-sm);
+}
+
+/* ---------- 16. Metric cards: the reverse side ----------------------------
+   A metric card answers "how many"; its reverse answers "made of what". The
+   flip is a real 3D rotation rather than a cross-fade, because the card is
+   meant to read as one object with two faces — the figure and its breakdown
+   are the same thing seen from different sides.
+
+   Clicking used to rewrite the table's filters, which is a large, surprising
+   consequence for a click on a number. Filtering is now a deliberate second
+   step on the back of the card.
+   -------------------------------------------------------------------------- */
+.ovc-kpi-scene {
+  perspective: 1400px;
+}
+.ovc-kpi-flip {
+  position: relative;
+  height: 100%;
+  transform-style: preserve-3d;
+  transition: transform 0.62s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.ovc-kpi-scene.is-flipped .ovc-kpi-flip {
+  transform: rotateY(180deg);
+}
+.ovc-kpi-face,
+.ovc-kpi-back {
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+.ovc-kpi-face {
+  width: 100%;
+  height: 100%;
+}
+.ovc-kpi-back {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px;
+  transform: rotateY(180deg);
+  text-align: left;
+  cursor: default;
+}
+.ovc-kpi-back header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.ovc-kpi-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--ovc-line);
+  border-radius: 9px;
+  background: var(--ovc-surface);
+  color: var(--ovc-muted);
+  cursor: pointer;
+  box-shadow: var(--ovc-neu-xs);
+}
+.ovc-kpi-close:hover {
+  color: var(--ovc-ink);
+}
+.ovc-kpi-close:active {
+  box-shadow: var(--ovc-neu-in-sm);
+}
+
+/* Three figures, set into the card so they read as data, not as buttons. */
+.ovc-kpi-facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin: 0;
+  padding: 10px;
+  border-radius: 12px;
+  background: var(--ovc-sunken);
+  box-shadow: var(--ovc-neu-in-sm);
+}
+.ovc-kpi-facts dt {
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ovc-faint);
+}
+.ovc-kpi-facts dd {
+  margin: 3px 0 0;
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--ovc-ink);
+}
+
+/* Where the work actually sits. */
+.ovc-kpi-studios {
+  display: grid;
+  gap: 7px;
+}
+.ovc-kpi-studios > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 54px auto;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--ovc-muted);
+}
+.ovc-kpi-studios span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ovc-kpi-studios i {
+  display: block;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--ovc-sunken);
+  box-shadow: var(--ovc-neu-in-sm);
+  overflow: hidden;
+}
+.ovc-kpi-studios u {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  text-decoration: none;
+  transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.ovc-kpi-studios b {
+  font-variant-numeric: tabular-nums;
+  color: var(--ovc-ink);
+}
+
+.ovc-kpi-filter {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: auto;
+  height: 32px;
+  border: 1px solid var(--ovc-line);
+  border-radius: 10px;
+  background: var(--ovc-surface);
+  color: var(--ovc-muted);
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: var(--ovc-neu-xs);
+  transition: transform 0.18s ease, box-shadow 0.18s ease, color 0.18s ease;
+}
+.ovc-kpi-filter:hover {
+  transform: translateY(-1px);
+  color: var(--accent);
+  box-shadow: var(--ovc-neu-sm);
+}
+.ovc-kpi-filter:active {
+  transform: none;
+  box-shadow: var(--ovc-neu-in-sm);
+}
+
+/* The sparkline draws itself in once, and the bars grow from the floor. */
+@keyframes ovc-draw {
+  from {
+    stroke-dashoffset: 260;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes ovc-rise {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+.ovc-spark path:last-of-type {
+  stroke-dasharray: 260;
+  animation: ovc-draw 1.1s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.ovc-volume-bars span {
+  transform-origin: bottom;
+  animation: ovc-rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ovc-kpi-flip,
+  .ovc-spark path:last-of-type,
+  .ovc-volume-bars span,
+  .ovc-kpi-studios u {
+    animation: none;
+    transition: none;
+  }
+}
+
+/* ---------- 17. Flip-card sizing + the filter panel -----------------------
+   Two fixes and one restyle.
+
+   The reverse of a metric card was overflowing because only the front face had
+   a height: the scene collapsed to the front's box and the back — which has
+   more in it — spilled out. Giving the scene a floor and the back `min-height:
+   0` plus its own overflow rule makes the taller face decide the size.
+
+   The filter panel was a flat grey band of loose rows. It becomes a sunken
+   drawer with labelled groups on a real grid, so it reads as part of the table
+   it belongs to rather than as a strip floating above it.
+   -------------------------------------------------------------------------- */
+.ovc-kpi-scene {
+  min-height: 244px;
+}
+.ovc-kpi-flip {
+  min-height: 244px;
+}
+.ovc-kpi-back {
+  min-height: 0;
+  overflow: hidden;
+  padding: 16px;
+  gap: 10px;
+}
+.ovc-kpi-back .ovc-kpi-label {
+  margin: 0;
+  font-size: 12px;
+}
+.ovc-kpi-facts {
+  padding: 9px;
+  gap: 4px;
+}
+.ovc-kpi-facts dd {
+  font-size: 15.5px;
+}
+.ovc-kpi-studios {
+  gap: 6px;
+  min-height: 0;
+  overflow: hidden;
+}
+.ovc-kpi-filter {
+  height: 30px;
+  flex: 0 0 auto;
+}
+
+/* --- Filter drawer -------------------------------------------------------- */
+.ticket-filters {
+  border-bottom: 1px solid var(--neu-line);
+  background: var(--surface);
+}
+.tf-head {
+  padding: 12px 20px;
+}
+/* Set into the panel: the drawer is a well, not another raised card. */
+.tf-body {
+  gap: 18px;
+  padding: 18px 20px;
+  margin: 0 14px 14px;
+  border: 0;
+  border-radius: 16px;
+  background: var(--neu-sunken);
+  box-shadow: var(--neu-in-sm);
+}
+.tf-row,
+.tf-row-primary,
+.tf-row-layout {
+  align-items: end;
+  gap: 14px;
+  padding-top: 0;
+  border-top: 0;
+}
+/* Each group is a labelled column on one grid, rather than fields wrapping
+   wherever they happen to fit. */
+.tf-grid {
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 16px 18px;
+}
+.tf-row .field,
+.tf-row-primary .field {
+  min-width: 170px;
+  flex: 1 1 170px;
+}
+.tf-chipset-label,
+.tf-row .field > label,
+.tf-grid label {
+  font-family: var(--font-sans);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.tf-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.tf-chip {
+  border: 1px solid var(--neu-line);
+  border-radius: 999px;
+  padding: 5px 11px;
+  background: var(--surface);
+  font-size: 11.5px;
+  font-weight: 600;
+  box-shadow: var(--neu-xs);
+  transition:
+    transform 0.16s ease,
+    box-shadow 0.16s ease,
+    color 0.16s ease;
+}
+.tf-chip:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--neu-sm);
+}
+/* A selected chip is pressed into the drawer — the same language as every
+   other "on" state in the app. */
+.tf-chip-on {
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  box-shadow: var(--neu-in-sm);
+  transform: none;
+}
+.tf-chip-clear {
+  color: var(--red);
+}
+/* The layout controls are a distinct concern from the filters, so they sit
+   below a rule instead of in the same soup of rows. */
+.tf-row-layout {
+  margin-top: 2px;
+  padding-top: 16px;
+  border-top: 1px solid var(--neu-line);
+}
+.tf-columns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.tf-column {
+  border: 1px solid var(--neu-line);
+  border-radius: 999px;
+  padding: 4px 10px;
+  background: var(--surface);
+  font-size: 11px;
+  box-shadow: var(--neu-xs);
+}
+.tf-column-on {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+  box-shadow: var(--neu-in-sm);
+}
+.tf-column-locked {
+  opacity: 0.55;
+}
+.tf-summary,
+.tf-matched {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* The resolved line shares the bars' scale, so the gap between them is
+   readable directly: bars above the line are work arriving faster than it is
+   being closed. */
+.ovc-volume-plot {
+  position: relative;
+  flex: 1;
+  min-height: 44px;
+  margin-top: 12px;
+}
+.ovc-volume-plot .ovc-volume-bars {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+}
+.ovc-volume-line {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+.ovc-volume-line path {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 300;
+  animation: ovc-draw 1.2s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.ovc-volume-key {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 10px 0 0;
+  font-size: 10px;
+  color: var(--ovc-faint);
+}
+.ovc-volume-key span {
+  width: 11px;
+  height: 3px;
+  border-radius: 2px;
+}
+.ovc-volume-key .is-bar {
+  background: color-mix(in srgb, var(--ovc-spark-muted) 55%, transparent);
+}
+.ovc-volume-key .is-line {
+  margin-left: 8px;
+  background: var(--accent);
+}
+@media (prefers-reduced-motion: reduce) {
+  .ovc-volume-line path {
+    animation: none;
+    stroke-dasharray: none;
+  }
+}
+
+/* ---------- 18. Rail refinements ------------------------------------------
+   The mark stays on the left edge at every width. Centring it only makes sense
+   while the rail is a 72px icon strip; the moment the rail widens — including
+   the hover peek — the mark must return to the same left margin as the labels
+   beneath it, or it appears to slide sideways as the panel opens.
+   -------------------------------------------------------------------------- */
+@media (min-width: 768px) {
+  .sidebar.collapsed:hover .brand,
+  .sidebar.collapsed:focus-within .brand,
+  .workspace.rail-collapsed .sidebar:hover .brand,
+  .workspace.rail-collapsed .sidebar:focus-within .brand {
+    justify-content: flex-start;
+    padding: 0 4px;
+  }
+}
+
+/* --- Tabs: mild neumorphism ----------------------------------------------
+   Flat at rest so a column of them stays quiet, softly raised under the
+   pointer, and pressed into the rail when selected. The selected row keeps an
+   accent wash and accent ink rather than a solid accent slab: at this size a
+   filled block is a lot of colour for something that is simply "where you
+   are". */
+.sidebar .nav-link {
+  border: 1px solid transparent;
+  border-radius: 11px;
+  background: transparent;
+  box-shadow: none;
+  transition:
+    background 0.18s ease,
+    box-shadow 0.18s ease,
+    color 0.18s ease,
+    border-color 0.18s ease;
+}
+.sidebar .nav-link:hover {
+  transform: none;
+  background: var(--surface);
+  border-color: var(--neu-line);
+  box-shadow: var(--neu-xs);
+}
+.sidebar .nav-link:active {
+  box-shadow: var(--neu-in-sm);
+}
+.sidebar .nav-link.active {
+  color: var(--accent);
+  font-weight: 650;
+  background: color-mix(in srgb, var(--accent) 9%, var(--surface));
+  border-color: color-mix(in srgb, var(--accent) 22%, transparent);
+  box-shadow: var(--neu-in-sm);
+}
+.sidebar .nav-link.active:hover {
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+  box-shadow: var(--neu-in-sm);
+}
+.sidebar .nav-link.active svg {
+  color: var(--accent);
+}
+/* A slim accent marker on the pressed row, so the selection still reads at a
+   glance in the collapsed rail where there is no label to colour. */
+.sidebar .nav-link.active::before {
+  content: "";
+  position: absolute;
+  left: 5px;
+  top: 50%;
+  width: 3px;
+  height: 15px;
+  transform: translateY(-50%);
+  border-radius: 999px;
+  background: var(--accent);
+}
+@media (min-width: 768px) {
+  .sidebar.collapsed .nav-link {
+    border: 1px solid transparent;
+    background: transparent;
+    box-shadow: none;
+  }
+  .sidebar.collapsed .nav-link:hover {
+    background: var(--surface);
+    border-color: var(--neu-line);
+    box-shadow: var(--neu-xs);
+  }
+  .sidebar.collapsed .nav-link.active {
+    background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+    border-color: color-mix(in srgb, var(--accent) 24%, transparent);
+    box-shadow: var(--neu-in-sm);
+  }
+  .sidebar.collapsed .nav-link.active::before {
+    content: none;
+  }
+}
+.sidebar .nav-heading {
+  padding-inline: 12px;
+}
+
+/* ---------- 19. Hero density ----------------------------------------------
+   The eyebrow used to be a short label stranded at the top-left of a wide
+   card. It now spans the row: text, a rule that takes up the slack, and the
+   scope count on the right — the same device a chart legend uses, and it makes
+   the card's full width feel deliberate rather than empty.
+
+   Beneath the copy sits a strip of five readings. The headline says what needs
+   deciding; these say what the shape of the work is — what closed, whether the
+   backlog is falling, how old it is, and where it is concentrated.
+   -------------------------------------------------------------------------- */
+.ovc-eyebrow-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+.ovc-eyebrow-row i {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    var(--ovc-line),
+    color-mix(in srgb, var(--ovc-line) 35%, transparent)
+  );
+}
+.ovc-eyebrow-end {
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.08em;
+  color: var(--ovc-faint);
+}
+
+.ovc-strip {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 1px;
+  margin: 24px 0 0;
+  padding: 1px;
+  border-radius: 14px;
+  background: var(--ovc-line);
+  overflow: hidden;
+  box-shadow: var(--ovc-neu-in-sm);
+}
+.ovc-strip > div {
+  min-width: 0;
+  padding: 11px 12px;
+  background: var(--ovc-surface);
+}
+.ovc-strip dt {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--ovc-faint);
+}
+.ovc-strip dd {
+  margin: 5px 0 0;
+  font-family: var(--font-display);
+  font-size: 19px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--ovc-ink);
+}
+.ovc-strip small {
+  display: block;
+  margin-top: 3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10px;
+  color: var(--ovc-muted);
+}
+@media (max-width: 1280px) {
+  .ovc-strip {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (max-width: 720px) {
+  .ovc-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* ---------- 20. One radius scale, one material ----------------------------
+   Rounding is now three values and nothing else: a panel, a control, a chip.
+   Fully-round corners are reserved for things that genuinely are circles —
+   avatars, status dots, the live indicator — because a capsule button next to
+   a 12px card makes the two look like they came from different kits.
+
+   Everything else in this section extends the raised/pressed pair to the
+   surfaces that had not been covered yet, so a badge on Settings, a tab on
+   Reports and a chip in the filter drawer are all lit the same way.
+   -------------------------------------------------------------------------- */
+:root {
+  --r-panel: 14px;
+  --r-ctl: 9px;
+  --r-chip: 7px;
+}
+
+/* --- Panels --------------------------------------------------------------- */
+.card,
+.panel,
+.metric,
+.tickets-panel,
+.insights-widget,
+.studio-pulse,
+.quick-templates,
+.settings-card,
+.entity-card,
+.template-card,
+.integration-card,
+.report-card,
+.asset-card,
+.form-card,
+.stat-card,
+.modal-card,
+.sheet,
+.popover,
+.menu,
+.help-card,
+.cockpit-right-sidebar > section,
+.table-wrap,
+.tf-body,
+.ovc-volume,
+.ovc-strip,
+.ovc-kpi-facts {
+  border-radius: var(--r-panel);
+}
+
+/* --- Controls ------------------------------------------------------------- */
+.btn,
+.icon-btn,
+.related-ticket,
+.quick-template,
+.input,
+input[type="text"],
+input[type="search"],
+input[type="email"],
+input[type="password"],
+input[type="number"],
+input[type="date"],
+select,
+textarea,
+.search-field,
+.topbar-search,
+.tab,
+.tabs-segment,
+.tabs-thumb,
+.nav-link,
+.ovc-btn,
+.ovc-chip,
+.ovc-kpi-close,
+.ovc-kpi-filter,
+.sidebar-signout,
+.user-button,
+.tf-toggle,
+.ifield-skip {
+  border-radius: var(--r-ctl);
+}
+
+/* --- Chips, pills and tags ------------------------------------------------ */
+.badge,
+.chip,
+.tab-pill,
+.tf-chip,
+.tf-column,
+.nav-count,
+.nav-ai,
+.nav-radar-pill,
+.ovc-flag,
+.status-dot + span,
+.priority-low,
+.topbar-status,
+.breadcrumb strong,
+.tab-count-pill,
+.ovc-eyebrow-end {
+  border-radius: var(--r-chip);
+}
+/* Chips are small, so they take the lightest well rather than a raised edge —
+   a shadow pair at this scale turns into a smudge. */
+.badge,
+.chip,
+.tab-pill,
+.nav-count {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 14%, transparent);
+}
+
+/* --- Genuinely round ------------------------------------------------------ */
+.avatar,
+.avatar-owner,
+.status-dot,
+.live-label i,
+.notif-dot,
+.ovc-stack i,
+.ovc-live i,
+.ovc-flag i,
+.overview-live-dot,
+.mini-owner .avatar {
+  border-radius: 999px;
+}
+
+/* --- Progress and meters: always sunken ----------------------------------- */
+.progress-bar,
+.mc-breakdown-track,
+.bt-bar,
+.ovc-kpi-studios i,
+.studio-row i,
+.sla-bar {
+  border-radius: var(--r-chip);
+  background: var(--neu-sunken);
+  box-shadow: var(--neu-in-sm);
+}
+.progress-bar > span,
+.mc-breakdown-fill,
+.ovc-kpi-studios u,
+.studio-row u {
+  border-radius: inherit;
+}
+
+/* --- Page furniture ------------------------------------------------------- */
+.page-heading h1 {
+  letter-spacing: -0.03em;
+}
+.section-head,
+.tickets-title {
+  color: var(--text);
+}
+.empty-state,
+.locked-page {
+  border: 1px solid var(--neu-line);
+  border-radius: var(--r-panel);
+  background: var(--surface);
+  box-shadow: var(--neu-sm);
+}
+
+/* ---------- 21. The Overview as one surface -------------------------------
+   The header read as a pile of separate boxes because that is what it was:
+   six independently bordered cards, each with its own shadow, separated by
+   20px of page.
+
+   It is now a single raised panel whose parts are divided by hairlines. The
+   trick is the 1px grid gap over a line-coloured background — the cells butt
+   together and the gap itself becomes the rule, so there is one outline, one
+   shadow and one radius for the whole assembly. Depth belongs to the panel;
+   the cells inside it are flat, which is the same rule the rest of the app
+   follows: containers rise, contents do not.
+   -------------------------------------------------------------------------- */
+.ovc {
+  gap: 1px;
+  border: 1px solid var(--neu-line);
+  border-radius: var(--r-panel);
+  background: var(--neu-line);
+  box-shadow: var(--neu-sm);
+  overflow: hidden;
+}
+.ovc-row,
+.ovc-kpis {
+  gap: 1px;
+  background: var(--neu-line);
+}
+/* Every cell is flat: the panel around them carries the elevation. */
+.ovc .ovc-card {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: var(--ovc-surface);
+}
+[data-theme="dark"] .ovc .ovc-card {
+  background: linear-gradient(170deg, #151618 0%, #111214 100%);
+}
+.ovc-hero {
+  padding: 28px 30px;
+}
+.ovc-snapshot {
+  padding: 26px;
+}
+.ovc-kpi {
+  padding: 18px 20px;
+}
+/* With the cells flush, a lift would tear the seam. Hovering tints instead. */
+.ovc-kpi:hover,
+.ovc-kpi-scene.is-flipped .ovc-kpi {
+  transform: none;
+  box-shadow: none;
+  background: color-mix(in srgb, var(--text) 3%, var(--ovc-surface));
+}
+.ovc-kpi:active {
+  transform: none;
+  box-shadow: var(--neu-in-sm);
+}
+.ovc-kpi-scene {
+  background: var(--ovc-surface);
+}
+.ovc-kpi-back {
+  border-radius: 0;
+}
+
+/* The ticket workspace continues the same surface rather than starting a new
+   one: same border, same radius, butted up under the header. */
+.cockpit-workspace-stage {
+  margin-top: 14px !important;
+  gap: 14px;
+}
+.cockpit-workspace-stage .tickets-panel {
+  border-radius: var(--r-panel);
+  box-shadow: var(--neu-sm);
+}
+
+@media (max-width: 1280px) {
+  .ovc-row {
+    grid-template-columns: 1fr;
   }
 }

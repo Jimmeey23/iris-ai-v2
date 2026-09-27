@@ -19,6 +19,7 @@ Production and operations settings (all documented in `.env.example`):
 | `SETUP_TOKEN` | One-time token required by the in-app "create first administrator" dialog. Without it setup is disabled. Remove it once the first admin exists. |
 | `ALLOWED_EMAIL_DOMAINS` | Comma-separated domains whose confirmed Supabase users may self-provision an agent profile (default `physique57india.com`). Everyone else needs an admin invite. |
 | `ALLOWED_EMAILS` | Comma-separated individual addresses outside those domains that may also self-provision an agent profile (default `jimmeeygondaa@gmail.com`). Set it to a single space to allow none. |
+| `SEND_EMAILS` | `true` lets IRIS email the assigned owner when a ticket is created. Fails closed: anything else sends no automatic mail. The workspace's own assignment-email setting must also be on. |
 | `CRON_SECRET` | Bearer secret for `/api/cron/outbox`. Vercel Cron sends it automatically when set; without it the route rejects every call. |
 | `SEED_DEMO_DATA` | `true` seeds demo tickets. Leave unset in production. |
 | `DB_POOL_MAX` | Postgres pool size per server instance (default `3`, sized for serverless). |

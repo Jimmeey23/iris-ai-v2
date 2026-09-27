@@ -125,10 +125,13 @@
 }
 [data-theme="light"] {
   color-scheme: light;
-  --bg: #f3f5f9;
+  /* White page. Neumorphism needs the page and its cards to share a colour —
+     separation comes from the shadow pair, not from a tint — so the old blue-
+     grey canvas is gone and the sunken steps do the contrast work instead. */
+  --bg: #ffffff;
   --surface: #ffffff;
-  --surface-2: #f7f8fb;
-  --surface-3: #eef1f6;
+  --surface-2: #f4f6f9;
+  --surface-3: #eceff4;
   --surface-4: #e4e8f0;
   --text: #0c1220;
   --muted: #5b6472;
@@ -12895,10 +12898,13 @@ small {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* The table gets the full width and the supporting cards sit underneath it as a
+   row of three. Squeezed into a 286px right-hand column they forced the ticket
+   grid to ellipsize columns that people actually read. */
 .cockpit-workspace-stage {
   width: 100%;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 286px;
+  grid-template-columns: minmax(0, 1fr);
   gap: 14px;
   align-items: start;
 }
@@ -12907,10 +12913,10 @@ small {
   border-radius: var(--radius-xl);
 }
 .cockpit-right-sidebar {
-  position: sticky;
-  top: 76px;
-  display: flex;
-  flex-direction: column;
+  position: static;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: start;
   gap: 12px;
   min-width: 0;
 }
@@ -12990,8 +12996,8 @@ small {
   }
 }
 @media (max-width: 1100px) {
-  .cockpit-workspace-stage {
-    grid-template-columns: minmax(0, 1fr) 260px;
+  .cockpit-right-sidebar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 @media (max-width: 767px) {
@@ -13004,11 +13010,8 @@ small {
   .cc-overview .mc-value {
     font-size: 22px;
   }
-  .cockpit-workspace-stage {
-    grid-template-columns: 1fr;
-  }
   .cockpit-right-sidebar {
-    position: static;
+    grid-template-columns: 1fr;
   }
   .cockpit-workspace-stage .tabs-toolbar {
     display: flex;
@@ -13363,13 +13366,12 @@ small {
   }
 }
 
-/* Light mode carries a livelier glass gradient so the cockpit feels deliberate,
-   not like grey cards placed on a grey page. */
+/* The light page is plain white. The tinted glass gradient that used to live
+   here predates the neumorphic material, where separation comes from the
+   shadow pair rather than from a coloured canvas — and a blue wash under cards
+   that are lit by white bloom reads as a colour cast, not as depth. */
 [data-theme="light"] .content {
-  background:
-    radial-gradient(circle at 84% 4%, rgb(92 142 255 / 0.16), transparent 30%),
-    radial-gradient(circle at 18% 18%, rgb(75 214 203 / 0.11), transparent 28%),
-    linear-gradient(145deg, #f7faff 0%, #f1f7ff 46%, #f8f5ff 100%);
+  background: var(--bg);
 }
 [data-theme="light"] .overview-command-deck {
   border-color: color-mix(in srgb, var(--accent) 35%, #b8d4ff);
@@ -13388,59 +13390,14 @@ small {
 [data-theme="light"] .cc-overview .mc-face {
   background: linear-gradient(155deg, #ffffff, #f7faff);
 }
-[data-theme="light"] .sidebar {
-  background:
-    linear-gradient(
-      180deg,
-      rgb(255 255 255 / 0.98),
-      rgb(243 248 255 / 0.98) 55%,
-      rgb(237 244 255 / 0.98)
-    );
-  border-right: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
-  box-shadow:
-    6px 0 32px -14px color-mix(in srgb, rgb(26 60 120) 16%, transparent),
-    inset -1px 0 0 rgb(255 255 255 / 0.7);
-}
-[data-theme="light"] .sidebar.collapsed .nav-link,
-[data-theme="light"] .sidebar.collapsed .sidebar-signout,
-[data-theme="light"] .sidebar.collapsed .user-button {
-  background: var(--surface);
-  box-shadow:
-    0 2px 6px -2px color-mix(in srgb, rgb(26 60 120) 10%, transparent),
-    inset 0 1px 0 rgb(255 255 255 / 0.9);
-}
-[data-theme="light"] .sidebar.collapsed .nav-link:hover,
-[data-theme="light"] .sidebar.collapsed .sidebar-signout:hover {
-  background: var(--surface-2);
-  box-shadow:
-    0 6px 14px -6px color-mix(in srgb, rgb(26 60 120) 14%, transparent),
-    inset 0 1px 0 rgb(255 255 255 / 0.95);
-}
-[data-theme="light"] .sidebar.collapsed .nav-link.active {
-  background: linear-gradient(
-    145deg,
-    color-mix(in srgb, var(--accent) 16%, var(--surface)),
-    color-mix(in srgb, var(--accent) 6%, var(--surface))
-  );
-  box-shadow:
-    inset 0 1px 1px color-mix(in srgb, var(--accent) 25%, transparent),
-    inset 0 -1px 1px color-mix(in srgb, rgb(0 0 0) 6%, transparent),
-    0 2px 6px -3px color-mix(in srgb, var(--accent) 25%, transparent);
-}
-[data-theme="light"] .user-button {
-  background: var(--surface);
-  box-shadow:
-    0 2px 6px -2px color-mix(in srgb, rgb(26 60 120) 10%, transparent),
-    inset 0 1px 0 rgb(255 255 255 / 0.9);
-}
-[data-theme="light"] .user-button:hover {
-  background: var(--surface-2);
-}
-[data-theme="dark"] .sidebar {
-  box-shadow:
-    6px 0 34px -14px rgb(0 0 0 / 0.65),
-    inset -1px 0 0 color-mix(in srgb, var(--text) 5%, transparent);
-}
+/* The light- and dark-theme sidebar overrides that used to live here have been
+   removed. They were written before the rail was restyled and, being scoped to
+   `[data-theme=…]`, outranked every unscoped `.sidebar` rule — which is what
+   made the collapsed tiles paint themselves `--surface` (a white chip on a
+   tinted panel) no matter what the sidebar section said. Both themes are now
+   expressed as `--sb-face` / `--sb-light` / `--sb-dark` in design-system.css,
+   section 6, which is the last stylesheet the app loads. Put sidebar theming
+   there, not here. */
 
 /* Resolution command workspace: one continuous rail with a status console,
    three activity readouts, and icon-led navigation. */
@@ -16501,311 +16458,5 @@ small {
     justify-content: flex-start;
     width: 100%;
     height: auto;
-  }
-}
-
-/* ============================================================================
-   Sidebar — quiet surface, one clear signal
-   ----------------------------------------------------------------------------
-   Elegance here is subtraction. The rail is a calm, near-flat plane a shade
-   apart from the page, separated by a single crisp hairline; the previous
-   vertical wash and double drop-shadow only made it look heavy. Selection is
-   expressed once — a slim accent rail plus a low-opacity tint — instead of
-   being restated by three competing inset shadows.
-
-   The neumorphic note is deliberately confined to the handful of elements that
-   are genuinely raised objects (the account pad, the collapsed icon tiles):
-   one pale rim above, one soft shadow below. Applied to every nav row it reads
-   as plastic; applied to two it reads as craft.
-   ========================================================================== */
-.sidebar {
-  /* A single highlight/shade pair, inverted per theme. */
-  --sb-rim: rgb(255 255 255 / 0.055);
-  --sb-cast: rgb(0 0 0 / 0.5);
-  --sb-pad: #17171e;
-  --sb-tint: 13%;
-}
-[data-theme="light"] .sidebar {
-  --sb-rim: #ffffff;
-  --sb-cast: rgb(120 134 158 / 0.26);
-  --sb-pad: #ffffff;
-  --sb-tint: 11%;
-}
-
-.sidebar {
-  width: 244px;
-  padding: 22px 14px 16px;
-  background: color-mix(in srgb, var(--surface) 72%, var(--bg));
-  border-right: 1px solid var(--hairline);
-  box-shadow: none;
-}
-.sidebar::after {
-  content: none;
-}
-.workspace-main {
-  margin-left: 244px;
-}
-
-.sidebar .brand {
-  padding: 2px 8px 6px;
-}
-.sidebar-scrollable {
-  padding-inline: 2px;
-  scrollbar-color: color-mix(in srgb, var(--text) 11%, transparent) transparent;
-}
-.sidebar-scrollable::-webkit-scrollbar {
-  width: 4px;
-}
-
-/* Headings recede: they are orientation, not content. */
-.sidebar .nav-heading {
-  margin: 24px 0 7px;
-  padding: 0 12px;
-  font-size: 9px;
-  font-weight: 600;
-  letter-spacing: 0.16em;
-  color: var(--muted);
-  opacity: 0.62;
-}
-.sidebar .nav-heading:first-child {
-  margin-top: 16px;
-}
-
-.sidebar .nav-link {
-  gap: 11px;
-  margin-bottom: 2px;
-  padding: 9px 12px;
-  border-radius: 10px;
-  font-size: 13px;
-  font-weight: 450;
-  letter-spacing: -0.002em;
-  color: var(--secondary);
-  background: transparent;
-  box-shadow: none;
-  transition:
-    background var(--dur-2) var(--ease-out-expo),
-    color var(--dur-2) var(--ease-out-expo);
-}
-/* Hover is a whisper — a wash, no lift, no rim. Movement on every row in a
-   ten-item list is noise. */
-.sidebar .nav-link:hover {
-  transform: none;
-  color: var(--text);
-  background: color-mix(in srgb, var(--text) 4%, transparent);
-  box-shadow: none;
-}
-.sidebar .nav-link:active {
-  transform: none;
-  background: color-mix(in srgb, var(--text) 6%, transparent);
-}
-.sidebar .nav-link svg {
-  opacity: 0.85;
-  transition: color var(--dur-2), opacity var(--dur-2);
-}
-.sidebar .nav-link:hover svg {
-  opacity: 1;
-}
-
-/* Selection: tint, accent ink, and the rail. Nothing else. */
-.sidebar .nav-link.active {
-  color: var(--text);
-  font-weight: 600;
-  background: color-mix(in srgb, var(--accent) var(--sb-tint), transparent);
-  box-shadow: none;
-}
-.sidebar .nav-link.active svg {
-  transform: none;
-  opacity: 1;
-  color: var(--accent);
-}
-.sidebar .nav-link.active::before {
-  left: -14px;
-  width: 2.5px;
-  height: 20px;
-  top: 50%;
-  border-radius: var(--radius-pill);
-  background: var(--accent);
-  box-shadow: 0 0 10px -1px color-mix(in srgb, var(--accent) 70%, transparent);
-}
-.sidebar .nav-link.locked {
-  opacity: 0.5;
-}
-.sidebar .nav-link.locked:hover {
-  background: transparent;
-  cursor: not-allowed;
-}
-
-/* Trailing markers share one quiet, borderless treatment so the column of
-   labels stays the thing you read first. */
-.sidebar .nav-count,
-.sidebar .nav-ai,
-.sidebar .nav-radar-pill {
-  padding: 2px 7px;
-  border: 0;
-  font-size: 9.5px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  box-shadow: none;
-}
-.sidebar .nav-count {
-  background: color-mix(in srgb, var(--text) 7%, transparent);
-  color: var(--muted);
-}
-.sidebar .nav-link.active .nav-count {
-  background: color-mix(in srgb, var(--accent) 18%, transparent);
-  color: var(--accent);
-}
-
-.sidebar-bottom {
-  gap: 6px;
-  margin-top: 12px;
-  padding-top: 14px;
-  border-top: 1px solid var(--hairline);
-}
-/* The one genuinely raised object in the rail. */
-.sidebar .user-button {
-  padding: 9px 10px;
-  border: 1px solid var(--hairline);
-  border-radius: 12px;
-  background: var(--sb-pad);
-  box-shadow:
-    inset 0 1px 0 var(--sb-rim),
-    0 2px 8px -4px var(--sb-cast);
-  transition:
-    border-color var(--dur-2) var(--ease-out-expo),
-    box-shadow var(--dur-2) var(--ease-out-expo);
-}
-.sidebar .user-button:hover {
-  transform: none;
-  background: var(--sb-pad);
-  border-color: color-mix(in srgb, var(--accent) 26%, var(--hairline));
-  box-shadow:
-    inset 0 1px 0 var(--sb-rim),
-    0 4px 14px -6px var(--sb-cast);
-}
-.sidebar .user-button:active {
-  box-shadow: inset 0 1px 3px -1px var(--sb-cast);
-}
-.sidebar-signout {
-  padding: 8px 12px;
-  border-radius: 10px;
-  font-size: 11.5px;
-}
-.sidebar-signout:hover {
-  background: color-mix(in srgb, var(--red) 9%, transparent);
-  box-shadow: none;
-}
-
-/* --- Collapsed rail ------------------------------------------------------ */
-@media (min-width: 768px) {
-  .sidebar.collapsed {
-    width: 72px;
-    padding-inline: 12px;
-  }
-  .workspace-main.sidebar-collapsed {
-    margin-left: 72px;
-  }
-  /* Icon-only: here the tile *is* the object, so it gets the soft rim/shadow
-     pair the expanded rows deliberately go without. */
-  .sidebar.collapsed .nav-link {
-    width: 46px;
-    height: 46px;
-    min-height: 46px;
-    margin: 4px auto;
-    border-radius: 13px;
-    background: var(--sb-pad);
-    box-shadow:
-      inset 0 1px 0 var(--sb-rim),
-      0 2px 7px -4px var(--sb-cast);
-  }
-  .sidebar.collapsed .nav-link:hover {
-    transform: none;
-    background: var(--sb-pad);
-    box-shadow:
-      inset 0 1px 0 var(--sb-rim),
-      0 4px 12px -5px var(--sb-cast);
-  }
-  .sidebar.collapsed .nav-link.active {
-    background: color-mix(in srgb, var(--accent) 16%, var(--sb-pad));
-    box-shadow:
-      inset 0 1px 0 var(--sb-rim),
-      0 2px 10px -4px color-mix(in srgb, var(--accent) 45%, transparent);
-  }
-  .sidebar.collapsed .nav-link.active::before {
-    content: none;
-  }
-  .sidebar.collapsed .sidebar-signout {
-    width: 46px;
-    height: 38px;
-    border-radius: 13px;
-    background: var(--sb-pad);
-    box-shadow:
-      inset 0 1px 0 var(--sb-rim),
-      0 2px 7px -4px var(--sb-cast);
-  }
-  /* Hover-expanded returns to the flat list. */
-  .sidebar.collapsed:hover,
-  .sidebar.collapsed:focus-within {
-    width: 244px;
-    padding-inline: 14px;
-    box-shadow: 16px 0 40px -28px var(--sb-cast);
-  }
-  .sidebar.collapsed:hover .nav-link,
-  .sidebar.collapsed:focus-within .nav-link {
-    width: 100%;
-    height: auto;
-    min-height: 0;
-    margin: 0 0 2px;
-    padding: 9px 12px;
-    border-radius: 10px;
-    background: transparent;
-    box-shadow: none;
-  }
-  .sidebar.collapsed:hover .nav-link:hover {
-    background: color-mix(in srgb, var(--text) 4%, transparent);
-  }
-  .sidebar.collapsed:hover .nav-link.active,
-  .sidebar.collapsed:focus-within .nav-link.active {
-    background: color-mix(in srgb, var(--accent) var(--sb-tint), transparent);
-    box-shadow: none;
-  }
-  .sidebar.collapsed:hover .nav-link.active::before,
-  .sidebar.collapsed:focus-within .nav-link.active::before {
-    content: "";
-  }
-  .sidebar.collapsed:hover .sidebar-signout,
-  .sidebar.collapsed:focus-within .sidebar-signout {
-    background: transparent;
-    box-shadow: none;
-  }
-}
-
-/* Narrow breakpoints are restated because the base width above is declared
-   after the responsive blocks. */
-@media (max-width: 1279px) {
-  .sidebar {
-    width: 220px;
-  }
-  .workspace-main {
-    margin-left: 220px;
-  }
-}
-@media (max-width: 1023px) {
-  .sidebar {
-    width: 200px;
-    padding: 20px 11px 16px;
-  }
-  .workspace-main {
-    margin-left: 200px;
-  }
-}
-@media (max-width: 767px) {
-  .sidebar {
-    width: 252px;
-    box-shadow: var(--shadow-4);
-  }
-  .workspace-main,
-  .workspace-main.sidebar-collapsed {
-    margin-left: 0;
   }
 }

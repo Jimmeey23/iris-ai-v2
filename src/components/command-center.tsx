@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import {Shell} from './shell';
 import {useTickets, Kanban, TicketCard, MatrixView, FeedView} from './tickets-board';
+import {OverviewCanvas} from './overview-canvas';
 import {TicketGrid} from './ticket-grid';
 import {TicketFilters} from './ticket-filters';
 import {MetricCards, boardMetrics} from './metric-cards';
@@ -404,85 +405,19 @@ export function CommandCenter({directory = false}: {directory?: boolean}) {
       action={shellAction}
     >
       {!directory && (
-        <div className="cc-overview cockpit-canvas">
-          <section className="overview-command-deck" aria-labelledby="overview-command-title">
-            <span className="iris-banner-shine" aria-hidden="true"/>
-            <div className="overview-command-copy">
-              <div className="overview-command-kicker">
-                <span className="overview-live-dot" aria-hidden="true"/>
-                LIVE OPERATIONS OVERVIEW
-                <span className="overview-command-rule" aria-hidden="true"/>
-                <span>{filtered.length === tickets.length ? 'ALL STUDIOS' : 'FILTERED SCOPE'}</span>
-              </div>
-              <div className="overview-command-title-row">
-                <div className="iris-orb"><Sparkles size={22}/></div>
-                <div>
-                  <h2 id="overview-command-title">
-                    {overdue.length
-                      ? `${overdue.length} overdue follow-up${overdue.length === 1 ? '' : 's'} need a decision.`
-                      : urgent.length
-                        ? `${urgent.length} priority ticket${urgent.length === 1 ? '' : 's'} need attention.`
-                        : 'Operations are clear for the next move.'}
-                  </h2>
-                  <p>One live view of member voice, ownership, service risk and studio activity.</p>
-                </div>
-              </div>
-              <div className="overview-command-actions">
-                <Link className="btn btn-primary" href="/iris">Raise with IRIS <ArrowUpRight size={14}/></Link>
-                <button className="overview-queue-link" onClick={() => applyMetricFilter({state: 'open'}, 'Open tickets')}>
-                  Open work queue <ArrowRight size={13}/>
-                </button>
-              </div>
-            </div>
-            <div className="overview-command-snapshot" aria-label="Current operational snapshot">
-              <div className="overview-snapshot-head">
-                <span><Activity size={12}/> COMMAND SNAPSHOT</span>
-                <Badge tone={overdue.length ? 'red' : 'green'}>{overdue.length ? 'ACTION NEEDED' : 'ON TRACK'}</Badge>
-              </div>
-              <div className="overview-snapshot-grid">
-                <button onClick={() => applyMetricFilter({state: 'open'}, 'Open tickets')}>
-                  <span className="overview-snapshot-icon"><ShieldCheck size={14}/></span>
-                  <strong>{open.length}</strong><small>Open</small>
-                </button>
-                <div>
-                  <span className="overview-snapshot-icon"><UserRoundCheck size={14}/></span>
-                  <strong>{unassigned.length}</strong><small>Unassigned</small>
-                </div>
-                <Link href="/radar">
-                  <span className="overview-snapshot-icon"><Building2 size={14}/></span>
-                  <strong>{activeStudios}</strong><small>Active studios</small>
-                </Link>
-              </div>
-              <p><span className="overview-live-dot" aria-hidden="true"/> Derived from the tickets in your current reporting scope.</p>
-            </div>
-          </section>
-          <section className="cockpit-signal-deck" aria-label="Live scope and priority work">
-            <BoardTelemetry tickets={filtered} total={tickets.length} staleDays={staleTicketDays}/>
-            <section className="focus-rail" aria-label="Priority work queues">
-              <div className="focus-rail-intro">
-                <span className="focus-rail-kicker"><Sparkles size={11}/>TODAY&apos;S FOCUS</span>
-                <strong>Move the work that matters most.</strong>
-                <span>Live queues, ranked for action.</span>
-              </div>
-              <button className="focus-item focus-item-critical" onClick={() => applyMetricFilter({state: 'open', priorities: ['critical', 'high']}, 'Urgent open tickets')}>
-                <span className="focus-icon"><Siren size={15}/></span>
-                <span className="focus-copy"><strong>{urgent.length}</strong><span>Urgent</span><small>Critical &amp; high priority</small></span>
-                <ArrowUpRight size={14} className="focus-arrow"/>
-              </button>
-              <button className="focus-item focus-item-overdue" onClick={() => applyMetricFilter({state: 'open', slaStates: ['breached']}, 'Overdue follow-ups')}>
-                <span className="focus-icon"><TimerReset size={15}/></span>
-                <span className="focus-copy"><strong>{overdue.length}</strong><span>Overdue</span><small>Past the follow-up target</small></span>
-                <ArrowUpRight size={14} className="focus-arrow"/>
-              </button>
-              <button className="focus-item focus-item-ageing" onClick={() => applyMetricFilter({state: 'open', ageBucket: 'stale'}, 'Ageing open tickets')}>
-                <span className="focus-icon"><History size={15}/></span>
-                <span className="focus-copy"><strong>{ageing.length}</strong><span>Ageing</span><small>Open for {staleTicketDays}+ days</small></span>
-                <ArrowUpRight size={14} className="focus-arrow"/>
-              </button>
-            </section>
-          </section>
-          <MetricCards metrics={keyMetrics} onApplyFilter={applyMetricFilter} onOpenTicket={setDetail}/>
-        </div>
+        <OverviewCanvas
+          name={user?.name || 'there'}
+          tickets={tickets}
+          open={open}
+          urgent={urgent}
+          overdue={overdue}
+          ageing={ageing}
+          unassigned={unassigned}
+          slaRisk={slaRisk}
+          studios={activeStudios}
+          staleDays={staleTicketDays}
+          onFilter={applyMetricFilter}
+        />
       )}
 
       <div className={!directory ? 'cc-overview cockpit-workspace-stage' : ''} style={{marginTop: !directory ? 14 : 0}}>

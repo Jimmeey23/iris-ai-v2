@@ -42,17 +42,18 @@ import {
 } from "./ui";
 import { IrisLockup } from "./iris-mark";
 import { isOpen } from "@/lib/metrics";
+/** The rail carries labels only — no AI / LIVE / count badges. The open-ticket
+ *  figure still appears in the top bar, which is where a changing number
+ *  belongs; in the nav it competed with the labels for attention. */
 type NavItem = {
   href: string;
   label: string;
   icon: React.ComponentType<{ size?: number; className?: string }>;
-  ai?: boolean;
-  live?: boolean;
 };
 const nav: NavItem[] = [
   { href: "/dashboard", label: "Overview", icon: Gauge },
-  { href: "/iris", label: "IRIS assistant", icon: Bot, ai: true },
-  { href: "/radar", label: "Radar", icon: Radar, live: true },
+  { href: "/iris", label: "IRIS assistant", icon: Bot },
+  { href: "/radar", label: "Radar", icon: Radar },
   { href: "/tickets", label: "All tickets", icon: Tickets },
   { href: "/equipment", label: "Equipment", icon: Drill },
   { href: "/templates", label: "Template library", icon: LibraryBig },
@@ -87,7 +88,9 @@ const LOCKED_ITEM_STYLE = {
 } as const;
 const LOCKED_HINT = "Available to administrators";
 /** A locked item stays focusable so keyboard and screen-reader users learn why it
- *  will not open, rather than meeting a silent, unreachable span. */
+ *  will not open, rather than meeting a silent, unreachable span. The lock glyph
+ *  states the same thing to everyone else: dimming alone reads as "disabled for
+ *  now", where a lock reads as "not yours to open". */
 function LockedNavItem({ item }: { item: NavItem }) {
   const Icon = item.icon;
   return (
@@ -95,8 +98,6 @@ function LockedNavItem({ item }: { item: NavItem }) {
       type="button"
       className="nav-link locked"
       aria-disabled="true"
-      data-tip={LOCKED_HINT}
-      data-tip-pos="right"
       style={LOCKED_ITEM_STYLE}
       onClick={(e) => e.preventDefault()}
     >
@@ -203,6 +204,8 @@ export function Shell({
     routes.find((n) => path.startsWith(n.href))?.label ||
     (path === "/" ? "Overview" : title);
   const openItems = items.filter(isOpen);
+  /** The Overview is deliberately chrome-free: no drawer or collapse controls. */
+  const isOverview = path === "/dashboard" || path === "/";
   async function signOut() {
     try {
       await api("/api/auth", {
@@ -217,7 +220,7 @@ export function Shell({
     }
   }
   return (
-    <div className="workspace">
+    <div className={"workspace" + (collapsed ? " rail-collapsed" : "")}>
       {mobile && (
         <div
           className="sidebar-scrim"
@@ -251,18 +254,6 @@ export function Shell({
               >
                 <Icon size={16} />
                 <span className="nav-label">{n.label}</span>
-                {n.ai && <span className="nav-ai">AI</span>}
-                {n.href === "/radar" && (
-                  <span className="nav-radar-pill">LIVE</span>
-                )}
-                {n.href === "/tickets" && (
-                  <span
-                    className="nav-count"
-                    aria-label={openItems.length + " open tickets"}
-                  >
-                    {openItems.length}
-                  </span>
-                )}
               </Link>
             );
           })}
@@ -315,53 +306,28 @@ export function Shell({
             </>
           )}
         </div>
-        <div className="sidebar-bottom">
-          <button
-            className="user-button"
-            onClick={() => (user ? router.push("/profile") : openAuth())}
-          >
-            <Avatar name={user?.name || "Guest"} tone="purple" />
-            <div className="grow">
-              <strong>{user?.name || "Not signed in"}</strong>
-              <small>
-                {user ? user.role + " access" : "Sign in to your account"}
-              </small>
-            </div>
-            <ChevronDown size={13} className="muted" />
-          </button>
-          {user && (
-            <button
-              type="button"
-              className="sidebar-signout"
-              onClick={() => void signOut()}
-              aria-label="Sign out"
-              data-tip={collapsed ? "Sign out" : undefined}
-              data-tip-pos="right"
-            >
-              <LogOut size={15} />
-              <span>Sign out</span>
-            </button>
-          )}
-        </div>
       </aside>
-      <div className={"workspace-main" + (collapsed ? " sidebar-collapsed" : "")}>
-        <header className="topbar" ref={topbarRef}>
+      <header className="topbar" ref={topbarRef}>
           <div className="flex-row">
-            <button
-              className="icon-btn mobile-menu"
-              onClick={() => setMobile(true)}
-              aria-label="Open navigation"
-            >
-              <Menu size={19} />
-            </button>
-            <button
-              className="icon-btn desktop-sidebar-toggle"
-              onClick={() => setCollapsed((value) => !value)}
-              aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
-              aria-pressed={collapsed}
-            >
-              <PanelLeft size={17} />
-            </button>
+            {!isOverview && (
+              <>
+                <button
+                  className="icon-btn mobile-menu"
+                  onClick={() => setMobile(true)}
+                  aria-label="Open navigation"
+                >
+                  <Menu size={19} />
+                </button>
+                <button
+                  className="icon-btn desktop-sidebar-toggle"
+                  onClick={() => setCollapsed((value) => !value)}
+                  aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
+                  aria-pressed={collapsed}
+                >
+                  <PanelLeft size={17} />
+                </button>
+              </>
+            )}
             <div className="breadcrumb">
               <PanelLeft size={15} />
               <span>Workspace</span>
@@ -414,6 +380,7 @@ export function Shell({
             </button>
           </div>
         </header>
+      <div className={"workspace-main" + (collapsed ? " sidebar-collapsed" : "")}>
         {banner}
         <main
           className={

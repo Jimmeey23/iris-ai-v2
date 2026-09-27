@@ -108,18 +108,41 @@ const[row]=await tx.insert(tickets).values({ticketNumber:'P57-'+randomUUID(),tit
 if(!row){const[winner]=await findExisting(tx);if(!winner)throw new ApiError('This ticket could not be saved. Try again.',409);return{row:winner,created:false};}
 const number=ticketNumberFor(row.id);await tx.update(tickets).set({ticketNumber:number}).where(eq(tickets.id,row.id));await tx.insert(ticketActivities).values({ticketId:row.id,actorName:source==='history'?'History import':'IRIS',action:'created',detail:`${draft.assignedStaffName} · ${draft.departmentName} · ${backfill?'No SLA · closed historical record':draft.slaLabel}`,createdAt:now});
 if(cfg?.webhookOnCreate)await tx.insert(deliveryLogs).values({integrationId:'n8n',action:'webhook',payload:{event:'ticket.created',ticket:{id:row.id,ticketNumber:number,title:draft.title,priority:draft.priority,department:draft.departmentName,assignedTo:draft.assignedStaffName}}});
-if(cfg?.assignmentEmail&&draft.assignedStaffEmail)await tx.insert(deliveryLogs).values({integrationId:'mailtrap',action:'send',payload:{to:[{email:draft.assignedStaffEmail}],subject:`Assigned: ${number}`,text:`${draft.title}\n\nA ticket has been assigned to you in IRIS. Please sign in to review it.`}});
+if(emailSendingEnabled()&&cfg?.assignmentEmail&&draft.assignedStaffEmail)await tx.insert(deliveryLogs).values({integrationId:'mailtrap',action:'send',payload:{to:[{email:draft.assignedStaffEmail}],subject:`Assigned: ${number}`,text:`${draft.title}\n\nA ticket has been assigned to you in IRIS. Please sign in to review it.`}});
 return{row:{...row,ticketNumber:number},created:true};};
 return external?.tx?external.tx.transaction(work):db.transaction(work);}
 /** List views never read `customFields` or the long-form text, which are ~85% of the
  *  table's bytes. Selecting only the rendered columns keeps this response small. */
 const LIST_COLUMNS={id:tickets.id,ticketNumber:tickets.ticketNumber,title:tickets.title,status:tickets.status,priority:tickets.priority,category:tickets.category,subcategory:tickets.subcategory,studio:tickets.studio,memberName:tickets.memberName,assignedStaffId:tickets.assignedStaffId,assignedStaffName:tickets.assignedStaffName,departmentName:tickets.departmentName,createdByUserId:tickets.createdByUserId,kind:tickets.kind,source:tickets.source,resolutionRequired:tickets.resolutionRequired,slaDueAt:tickets.slaDueAt,resolvedAt:tickets.resolvedAt,createdAt:tickets.createdAt,updatedAt:tickets.updatedAt,version:tickets.version};
 /** SQL form of `canAccessTicket`, so a list or a search only ever reads rows the caller may open. */
+/** The row filter behind every list, search and count. Mirrors `canAccessTicket`
+ *  in lib/auth.ts — that one judges a single ticket, this one turns the same
+ *  rule into SQL, and the two must never drift apart.
+ *
+ *  An agent sees their own work plus their whole studio's: a studio is a shared
+ *  workplace, so an associate needs what the previous shift logged, not only
+ *  the tickets bearing their own name. An agent with no studio recorded still
+ *  sees only their own. */
 export function ticketScope(user?:Identity):SQL|undefined{
   return !user||user.role==='admin'?undefined:user.role==='agent'
-    ? or(user.staffId===null?undefined:eq(tickets.assignedStaffId,user.staffId),eq(tickets.createdByUserId,user.id))
+    ? or(
+        user.staffId===null?undefined:eq(tickets.assignedStaffId,user.staffId),
+        eq(tickets.createdByUserId,user.id),
+        user.studio?eq(tickets.studio,user.studio):undefined,
+      )
     : and(user.department?eq(tickets.departmentName,user.department):undefined,user.studio?eq(tickets.studio,user.studio):undefined,user.department||user.studio?undefined:sql`false`);
 }
+/**
+ * Whether the app may send the automatic "assigned to you" email on ticket
+ * creation.
+ *
+ * Two switches must both be on: this environment flag and the workspace's own
+ * `assignmentEmail` setting. The env flag is the outer one and it fails closed
+ * — anything other than a literal `true` means no mail — so a copied database
+ * or a fresh deployment cannot start emailing real staff before someone has
+ * decided it should. Set `SEND_EMAILS=true` to enable it.
+ */
+export function emailSendingEnabled(){return (process.env.SEND_EMAILS??'').trim().toLowerCase()==='true';}
 export const DEFAULT_LIST_LIMIT=500;export const MAX_LIST_LIMIT=2000;
 /** Keyset cursor over (createdAt desc, id desc): stable while new tickets arrive, unlike an offset. */
 const encodeCursor=(t:{createdAt:Date;id:number})=>Buffer.from(t.createdAt.toISOString()+'|'+t.id).toString('base64url');

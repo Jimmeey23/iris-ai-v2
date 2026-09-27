@@ -220,6 +220,21 @@ export async function resolveProfile(user: User): Promise<ProfileResult> {
       .select(PROFILE)
       .from(appUsers)
       .where(eq(appUsers.supabaseUserId, user.id));
+  // The insert can also be swallowed by the unique index on `email` when a
+  // profile for this address is already linked to a *different* Supabase user
+  // id — typically one that was deleted and re-created in the Auth project, so
+  // the stored link now points at nothing. Relinking here would be an account
+  // takeover primitive, so the row is left alone; but the person is otherwise
+  // told only "not authorised", which is indistinguishable from having no
+  // invite and leaves an administrator nothing to go on. Log the mismatch so
+  // the real cause is visible in the server logs.
+  if (!row)
+    console.error(
+      `resolveProfile: ${email} is allowed to self-provision, but a profile ` +
+        `for this address is already linked to another Supabase user id. ` +
+        `Auth user ${user.id} cannot be adopted — clear app_users.supabase_user_id ` +
+        `for this email to let the next confirmed sign-in adopt the row.`,
+    );
   return toResult(row);
 }
 
@@ -333,10 +348,18 @@ export function canAccessTicket(
   },
 ) {
   if (user.role === "admin") return true;
+  // An agent sees their own work *and* everything logged for their studio. A
+  // studio is a shared workplace: an associate covering the floor needs the
+  // tickets raised by whoever was on shift before them, not only the ones with
+  // their own name on. Agents with no studio on their profile stay limited to
+  // their own tickets. Keep this in step with `ticketScope` in lib/tickets.ts —
+  // the two answer the same question, one row at a time and one query at a
+  // time, and they must never disagree.
   if (user.role === "agent")
     return (
       (user.staffId !== null && ticket.assignedStaffId === user.staffId) ||
-      ticket.createdByUserId === user.id
+      ticket.createdByUserId === user.id ||
+      (!!user.studio && ticket.studio === user.studio)
     );
   const checks: boolean[] = [];
   if (user.department) checks.push(ticket.departmentName === user.department);

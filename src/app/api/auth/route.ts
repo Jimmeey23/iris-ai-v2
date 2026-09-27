@@ -21,6 +21,7 @@ import { enforceRateLimit } from "@/lib/rate-limit";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { ensureSeeded } from "@/lib/seed";
+import { STUDIOS, DEPARTMENT_RECORDS } from "@/lib/constants";
 import { audit } from "@/lib/config";
 
 export const dynamic = "force-dynamic";
@@ -34,6 +35,7 @@ const input = z.object({
   role: z.enum(["admin", "manager", "agent"]).optional(),
   department: z.string().max(100).nullable().optional(),
   studio: z.string().max(120).nullable().optional(),
+  reportingManager: z.string().max(80).nullable().optional(),
   id: z.number().int().optional(),
   active: z.boolean().optional(),
   setupToken: z.string().max(500).optional(),
@@ -201,6 +203,18 @@ export async function POST(req: Request) {
       if (createError) authError(createError.message);
       const supabaseUserId = created.user!.id;
 
+      // Studio and department decide what this account can see, so neither is
+      // taken on trust from the form: each must match a known record, and an
+      // unrecognised value is rejected rather than quietly stored. The studio
+      // in particular widens read access to every ticket at that location.
+      const studio = b.studio?.trim() || "";
+      const department = b.department?.trim() || "";
+      if (!STUDIOS.some((x) => x.name === studio))
+        throw new ApiError("Please choose your studio from the list.", 400);
+      if (!DEPARTMENT_RECORDS.some((d) => d.name === department))
+        throw new ApiError("Please choose your department from the list.", 400);
+      const reportingManager = b.reportingManager?.trim() || null;
+
       try {
         const [u] = await db
           .insert(appUsers)
@@ -209,6 +223,9 @@ export async function POST(req: Request) {
             supabaseUserId,
             name: b.name,
             role: "agent",
+            studio,
+            department,
+            reportingManager,
           })
           .returning({ id: appUsers.id });
         const { error } = await supabase.auth.signInWithPassword({

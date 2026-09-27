@@ -11,8 +11,10 @@ import {
   Mail,
   Sparkles,
   User,
+  Building2,
 } from "lucide-react";
 import { IrisLockup } from "@/components/iris-mark";
+import { STUDIOS, DEPARTMENT_RECORDS } from "@/lib/constants";
 import "./login.css";
 
 /** Fixed copy for every error code the auth routes redirect with. Anything
@@ -36,6 +38,9 @@ export default function LoginPage() {
     [email, setEmail] = useState(""),
     [name, setName] = useState(""),
     [password, setPassword] = useState(""),
+    [studio, setStudio] = useState(""),
+    [department, setDepartment] = useState(""),
+    [reportingManager, setReportingManager] = useState(""),
     [show, setShow] = useState(false),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
@@ -66,6 +71,9 @@ export default function LoginPage() {
           email,
           password,
           name: mode === "setup" || mode === "signup" ? name : undefined,
+          studio: mode === "signup" ? studio : undefined,
+          department: mode === "signup" ? department : undefined,
+          reportingManager: mode === "signup" ? reportingManager : undefined,
           setupToken: mode === "setup" ? setupToken : undefined,
         }),
       });
@@ -195,6 +203,68 @@ export default function LoginPage() {
                   />
                 </div>
               </label>
+            )}
+            {/* Studio decides what the account can see — everything logged at
+                that location, not only this person's own tickets — so it is a
+                fixed list rather than free text, and the server checks it
+                again against the same records. */}
+            {mode === "signup" && (
+              <>
+                <label>
+                  Studio
+                  <div className="auth-input">
+                    <Building2 />
+                    <select
+                      required
+                      value={studio}
+                      onChange={(e) => setStudio(e.target.value)}
+                    >
+                      <option value="" disabled>
+                        Select your studio
+                      </option>
+                      {STUDIOS.map((s) => (
+                        <option key={s.id} value={s.name}>
+                          {s.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </label>
+                <label>
+                  Department
+                  <div className="auth-input">
+                    <Building2 />
+                    <select
+                      required
+                      value={department}
+                      onChange={(e) => setDepartment(e.target.value)}
+                    >
+                      <option value="" disabled>
+                        Select your department
+                      </option>
+                      {DEPARTMENT_RECORDS.filter((d) => d.active).map((d) => (
+                        <option key={d.id} value={d.name}>
+                          {d.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </label>
+                <label>
+                  Reporting manager
+                  <div className="auth-input">
+                    <User />
+                    <input
+                      required
+                      minLength={2}
+                      maxLength={80}
+                      value={reportingManager}
+                      onChange={(e) => setReportingManager(e.target.value)}
+                      placeholder="Who you report to"
+                    />
+                  </div>
+                </label>
+              </>
             )}
             <label>
               Work email
