@@ -32,4 +32,21 @@ export async function audit(actor:{id?:number;name:string},action:string,entity:
 function encryptionKey(){const key=process.env.INTEGRATION_ENCRYPTION_KEY;if(!key||!/^[a-fA-F0-9]{64}$/.test(key))throw new Error("Set INTEGRATION_ENCRYPTION_KEY to a 32-byte hex key before saving credentials.");return Buffer.from(key,"hex");}
 export function encryptSecrets(values:Record<string,string>){const iv=randomBytes(12);const cipher=createCipheriv("aes-256-gcm",encryptionKey(),iv);const encrypted=Buffer.concat([cipher.update(JSON.stringify(values)),cipher.final()]);return [iv.toString("base64"),cipher.getAuthTag().toString("base64"),encrypted.toString("base64")].join(".");}
 export function decryptSecrets(value?:string|null):Record<string,string>{if(!value)return{};const[iv,tag,data]=value.split(".");const decipher=createDecipheriv("aes-256-gcm",encryptionKey(),Buffer.from(iv,"base64"));decipher.setAuthTag(Buffer.from(tag,"base64"));return JSON.parse(Buffer.concat([decipher.update(Buffer.from(data,"base64")),decipher.final()]).toString());}
-export const credentials=cache(async function credentials(id:string):Promise<Record<string,string>>{const[row]=await db.select().from(integrations).where(eq(integrations.id,id));const saved=decryptSecrets(row?.encryptedSecrets);const prefix=id==='chatgpt'?'OPENAI':id.toUpperCase().replaceAll('-','_');const env=Object.fromEntries(Object.entries(process.env).filter(([k,v])=>k.startsWith(prefix+'_')&&v).map(([k,v])=>[k.slice(prefix.length+1).toLowerCase(),v!]));return{...row?.config,...saved,...env,_enabled:String(row?.enabled??true)};});
+/** Environment-variable prefix for an integration's credentials: `MAILTRAP_SMTP_HOST`
+ *  supplies `smtp_host` for `mailtrap`. ChatGPT reads the conventional OPENAI_ names. */
+export function envPrefix(id:string){return id==='chatgpt'?'OPENAI':id.toUpperCase().replaceAll('-','_');}
+/** The credentials an integration id can read from the environment. */
+export function envCredentials(id:string,source:Record<string,string|undefined>=process.env):Record<string,string>{const prefix=envPrefix(id)+'_';return Object.fromEntries(Object.entries(source).filter(([k,v])=>k.startsWith(prefix)&&v).map(([k,v])=>[k.slice(prefix.length).toLowerCase(),v!]));}
+/**
+ * Precedence: what an administrator saved in Settings wins, and the environment is
+ * the fallback for anything they have not filled in.
+ *
+ * A field saved blank counts as not filled in and falls back to the environment,
+ * rather than blanking a working credential — clearing a box in the UI should not
+ * be able to take down a connection that the deployment configures.
+ */
+export function mergeCredentials(stored:Record<string,unknown>|undefined,env:Record<string,string>,enabled?:boolean|null):Record<string,string>{
+  const filled=Object.fromEntries(Object.entries(stored??{}).filter(([,v])=>typeof v==='string'&&v.trim()!=='')) as Record<string,string>;
+  return{...env,...filled,_enabled:String(enabled??true)};
+}
+export const credentials=cache(async function credentials(id:string):Promise<Record<string,string>>{const[row]=await db.select().from(integrations).where(eq(integrations.id,id));return mergeCredentials({...row?.config,...decryptSecrets(row?.encryptedSecrets)},envCredentials(id),row?.enabled);});

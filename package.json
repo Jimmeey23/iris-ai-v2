@@ -27,7 +27,8 @@
     "check:dashboard:api": "npx tsx --tsconfig tsconfig.checks.json scripts/dashboard-api-check.mjs",
     "check:webhooks": "npx tsx --tsconfig tsconfig.checks.json scripts/webhook-check.ts",
     "check:emails": "npx tsx --tsconfig tsconfig.checks.json scripts/email-check.ts",
-    "test": "npm run check:intake && npm run check:labels && npm run check:dashboard && npm run check:webhooks && npm run check:emails && npm run check:iris"
+    "check:credentials": "npx tsx --tsconfig tsconfig.checks.json scripts/credentials-check.ts",
+    "test": "npm run check:intake && npm run check:labels && npm run check:dashboard && npm run check:webhooks && npm run check:emails && npm run check:credentials && npm run check:iris"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.23",

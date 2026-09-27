@@ -1,0 +1,74 @@
+/**
+ * Integration credential precedence: what an administrator saved in Settings wins,
+ * and the environment is the fallback for anything they have not filled in.
+ *
+ * Pure merge logic only — nothing here reads the database or decrypts anything.
+ */
+process.env.DATABASE_URL ||= 'postgres://check:check@127.0.0.1:5432/check';
+
+import {envCredentials, envPrefix, mergeCredentials} from '../src/lib/config';
+
+let pass = 0, fail = 0;
+const check = (name: string, ok: boolean, detail?: unknown) => {
+  if (ok) { pass++; console.log('  PASS  ' + name); }
+  else { fail++; console.log('  FAIL  ' + name + '   got: ' + JSON.stringify(detail)); }
+};
+const section = (t: string) => console.log('\n' + t);
+
+section('Environment prefixes');
+check('an id maps to its upper-case prefix', envPrefix('mailtrap') === 'MAILTRAP', envPrefix('mailtrap'));
+check('hyphens become underscores', envPrefix('google-sheets') === 'GOOGLE_SHEETS', envPrefix('google-sheets'));
+check('chatgpt reads the conventional OPENAI names', envPrefix('chatgpt') === 'OPENAI', envPrefix('chatgpt'));
+
+const env = {
+  MAILTRAP_API_KEY: 'env-token',
+  MAILTRAP_FROM_EMAIL: 'env@example.com',
+  MAILTRAP_SMTP_HOST: 'live.smtp.mailtrap.io',
+  N8N_WEBHOOK_URL: 'https://env.example/webhook',
+  UNRELATED_KEY: 'ignored',
+};
+
+section('Reading the environment');
+const mailtrapEnv = envCredentials('mailtrap', env);
+check('strips the prefix and lower-cases the key', mailtrapEnv.api_key === 'env-token', mailtrapEnv);
+check('keeps multi-word keys intact', mailtrapEnv.smtp_host === 'live.smtp.mailtrap.io', mailtrapEnv.smtp_host);
+check('ignores other integrations', !('webhook_url' in mailtrapEnv), mailtrapEnv);
+check('ignores unrelated variables', !Object.values(mailtrapEnv).includes('ignored'), mailtrapEnv);
+check('an integration with nothing in the environment reads empty',
+  Object.keys(envCredentials('trello', env)).length === 0, envCredentials('trello', env));
+
+section('Precedence');
+check('a saved value beats the environment',
+  mergeCredentials({api_key: 'saved-token'}, mailtrapEnv).api_key === 'saved-token',
+  mergeCredentials({api_key: 'saved-token'}, mailtrapEnv).api_key);
+check('the environment fills a field that was never saved',
+  mergeCredentials({api_key: 'saved-token'}, mailtrapEnv).from_email === 'env@example.com');
+check('with nothing saved, the environment supplies everything',
+  mergeCredentials({}, mailtrapEnv).api_key === 'env-token');
+check('with nothing in the environment, saved values stand alone',
+  mergeCredentials({api_key: 'saved-token'}, {}).api_key === 'saved-token');
+
+section('Blank fields fall back rather than blanking');
+check('an empty saved field falls back to the environment',
+  mergeCredentials({api_key: ''}, mailtrapEnv).api_key === 'env-token',
+  mergeCredentials({api_key: ''}, mailtrapEnv).api_key);
+check('a whitespace-only saved field falls back too',
+  mergeCredentials({api_key: '   '}, mailtrapEnv).api_key === 'env-token');
+check('a blank field with no environment value stays absent',
+  mergeCredentials({api_key: ''}, {}).api_key === undefined,
+  mergeCredentials({api_key: ''}, {}).api_key);
+check('a non-string saved value is ignored',
+  mergeCredentials({api_key: 42 as unknown as string}, mailtrapEnv).api_key === 'env-token');
+
+section('The enabled flag');
+check('comes from the database row', mergeCredentials({}, mailtrapEnv, false)._enabled === 'false');
+check('an enabled row reads true', mergeCredentials({}, mailtrapEnv, true)._enabled === 'true');
+check('an integration with no row defaults to enabled', mergeCredentials({}, mailtrapEnv)._enabled === 'true');
+check('the environment cannot forge the flag',
+  mergeCredentials({}, {...mailtrapEnv, _enabled: 'true'}, false)._enabled === 'false',
+  mergeCredentials({}, {...mailtrapEnv, _enabled: 'true'}, false)._enabled);
+check('a saved field cannot forge the flag',
+  mergeCredentials({_enabled: 'true'}, mailtrapEnv, false)._enabled === 'false');
+
+console.log(`\n${pass} passed, ${fail} failed`);
+if (fail) process.exit(1);
