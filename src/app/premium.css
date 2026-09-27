@@ -2764,3 +2764,201 @@ input[type="radio"] {
   white-space: nowrap;
 }
 .tpc-head .badge { flex-shrink: 0; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   MATERIAL ENFORCEMENT v6 — REPORTS LIBRARY
+   Curated shelves in the sidebar, and the filter bar that sits between the
+   report header and the numbers so the slice is chosen before generating.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Sidebar shelves ─────────────────────────────────────────────────────── */
+.report-nav .report-nav-heading {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  margin: 0;
+  padding: 8px 10px 6px;
+  border: 0;
+  border-radius: 9px;
+  background: none;
+  font: inherit;
+  font-family: var(--font-mono);
+  font-size: var(--text-3xs);
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  font-weight: 650;
+  color: var(--muted);
+  cursor: pointer;
+  text-align: left;
+  transition: color 0.18s ease, background 0.18s ease;
+}
+.report-nav .report-nav-heading:hover {
+  color: var(--text);
+  background: color-mix(in srgb, var(--ink, #8b93a7) 7%, transparent);
+}
+.report-nav .report-nav-heading .rng-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.report-nav .report-nav-heading svg {
+  flex-shrink: 0;
+  opacity: 0.75;
+}
+.report-nav .rng-count {
+  flex-shrink: 0;
+  padding: 1px 7px;
+  border-radius: 99px;
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  background: var(--neu-in-sm) !important;
+  box-shadow: var(--neu-in) !important;
+  line-height: 1.5;
+}
+.report-nav .rng-chevron {
+  flex-shrink: 0;
+  transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.report-nav .report-nav-heading.is-open .rng-chevron,
+.report-nav .report-nav-heading[aria-expanded="true"] .rng-chevron {
+  transform: rotate(90deg);
+}
+.report-nav-group {
+  margin-bottom: 6px;
+}
+
+/* ── The pre-generation filter bar ───────────────────────────────────────── */
+.rp-filters {
+  border-radius: 18px;
+  box-shadow: var(--neu-sm) !important;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.rp-filters-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.rp-filters-top .metric-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent-ink, #b07f10);
+  background: var(--neu-in-sm) !important;
+  box-shadow: var(--neu-in) !important;
+  flex-shrink: 0;
+}
+.rp-filters-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 9px;
+}
+.rp-filters-row .search-field,
+.rp-filters-row .filter-select {
+  flex: 0 1 auto;
+}
+.rp-filters-row .filter-select {
+  min-width: 128px;
+}
+.rp-date-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 4px;
+}
+.rp-date {
+  font: inherit;
+  font-size: 11px;
+  color: var(--text);
+  padding: 7px 9px;
+  max-width: 138px;
+  border-radius: 11px;
+  border: 0;
+  background: var(--neu-in-sm) !important;
+  box-shadow: var(--neu-in) !important;
+  color-scheme: var(--scheme, dark);
+}
+:root[data-theme="light"] .rp-date { color-scheme: light; }
+.rp-presets {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 12px;
+  background: var(--neu-in-sm) !important;
+  box-shadow: var(--neu-in) !important;
+  flex-wrap: wrap;
+}
+.rp-preset {
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--muted);
+  padding: 5px 10px;
+  border-radius: 9px;
+  cursor: pointer;
+  transition: color 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
+  white-space: nowrap;
+}
+.rp-preset:hover { color: var(--text); }
+.rp-preset.active {
+  color: var(--active-fg);
+  background: var(--active-bg) !important;
+  box-shadow: var(--neu-xs) !important;
+  font-weight: 700;
+}
+.rp-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  padding-top: 2px;
+}
+.rp-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: inherit;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--text);
+  padding: 5px 10px;
+  border-radius: 99px;
+  border: 0;
+  cursor: pointer;
+  background: var(--card) !important;
+  box-shadow: var(--neu-xs) !important;
+  transition: box-shadow 0.16s ease, color 0.16s ease;
+}
+.rp-chip:hover {
+  color: var(--red-text, #e5484d);
+  box-shadow: var(--neu-in-sm) !important;
+}
+.rp-chip svg { opacity: 0.65; }
+.rp-chip:hover svg { opacity: 1; }
+
+/* ── Data tab header strip (columns control lives here now) ─────────────── */
+.rp-data-bar {
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+@media (max-width: 900px) {
+  .rp-filters-row .filter-select,
+  .rp-date-group { flex: 1 1 45%; }
+  .rp-presets { flex: 1 1 100%; }
+}

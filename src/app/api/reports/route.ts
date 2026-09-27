@@ -4,7 +4,7 @@ import { db, isPreviewDb } from "@/db";
 import { departments, tickets } from "@/db/schema";
 import { requireWorkspace, errorResponse, ApiError } from "@/lib/auth";
 import { getConfig } from "@/lib/config";
-import { buildReportCatalogue, metricSql, type TicketLike } from "@/lib/reports";
+import { buildReportCatalogue, metricSql, orderedGroups, type TicketLike } from "@/lib/reports";
 import { ticketScope } from "@/lib/tickets";
 import {
   dayBuckets, dayKey, isBreachedOpen, isOpen, isRecordOnly, isResolved, isSlaTracked,
@@ -29,6 +29,7 @@ type PreviewRow = {
   resolvedAt: Date | null; createdAt: Date; resolutionRequired: boolean | null;
   source: string | null; tags: string[] | null; isEscalated: boolean | null;
   sentiment: string | null; kind: string | null; departmentName: string | null;
+  memberName: string | null; customFields?: Record<string, unknown> | null;
 };
 type PreviewMetrics = {
   total: number; open: number; resolved: number; recorded: number; critical: number;
@@ -66,7 +67,8 @@ async function computePreviewReport(opts: {
     slaDueAt: tickets.slaDueAt, resolvedAt: tickets.resolvedAt, createdAt: tickets.createdAt,
     resolutionRequired: tickets.resolutionRequired, source: tickets.source, tags: tickets.tags,
     isEscalated: tickets.isEscalated, sentiment: tickets.sentiment, kind: tickets.kind,
-    departmentName: tickets.departmentName,
+    departmentName: tickets.departmentName, memberName: tickets.memberName,
+    customFields: tickets.customFields,
   }).from(tickets).where(where).orderBy(desc(tickets.createdAt))) as unknown as PreviewRow[];
 
   const nowMs = now.getTime();
@@ -167,6 +169,7 @@ export async function GET(req: NextRequest) {
     if (p.get("list") === "true")
       return Response.json({
         reports: catalogue.map((r) => ({ id: r.id, name: r.name, description: r.description, group: r.group, columns: r.columns })),
+        groups: orderedGroups(catalogue),
       });
     const def = catalogue.find((r) => r.id === p.get("type"));
     if (!def) throw new ApiError("Unknown report type", 404);
@@ -199,6 +202,8 @@ export async function GET(req: NextRequest) {
       id: tickets.id, ticketNumber: tickets.ticketNumber, title: tickets.title, category: tickets.category,
       subcategory: tickets.subcategory, status: tickets.status, priority: tickets.priority, studio: tickets.studio,
       classFormat: tickets.classFormat, trainer: tickets.trainer, assignedStaffName: tickets.assignedStaffName,
+      memberName: tickets.memberName, source: tickets.source, departmentName: tickets.departmentName,
+      kind: tickets.kind, sentiment: tickets.sentiment,
       slaDueAt: tickets.slaDueAt, resolvedAt: tickets.resolvedAt, createdAt: tickets.createdAt,
       ...(def.needsCustomFields ? { customFields: tickets.customFields } : {}),
     };

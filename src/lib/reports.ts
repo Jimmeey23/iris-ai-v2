@@ -10,6 +10,8 @@ const RECURRENCE_CHECK_LABEL=RECURRENCE_CHECK_DAYS.join('- and ')+'-day';
 /** The columns a report row can draw on. The route selects exactly these (customFields only
  *  for the reports that need it), never the full ticket. */
 export type TicketLike={id:number;ticketNumber:string;title:string;category:string;subcategory:string;status:string;priority:string;studio:string|null;classFormat:string|null;trainer:string|null;assignedStaffName:string|null;slaDueAt:string|null;resolvedAt:string|null;createdAt:string;
+  /** Who raised it, and how it reached the workspace — the curated reports surface these. */
+  memberName?:string;source?:string;departmentName?:string|null;kind?:string;sentiment?:string|null;
   /** The assessment scorecard and its source live here, not in a column. */
   customFields?:Record<string,unknown>};
 
@@ -23,6 +25,32 @@ export type ReportDef={
   /** Selects customFields for the row builder. */
   needsCustomFields?:boolean;
 };
+
+/* ── Grouping ─────────────────────────────────────────────────────────────
+ * The library's ten shelves, in the order the sidebar shows them: the six
+ * curated operational views first, then the per-taxonomy registers. Each
+ * carries a one-line blurb so a first-time reader knows what belongs where. */
+export type ReportGroupMeta={id:string;label:string;blurb:string};
+export const REPORT_GROUPS:ReportGroupMeta[]=[
+  {id:'Operational',label:'Operations',blurb:'Day-to-day registers — open work, queues and the full export.'},
+  {id:'Compliance',label:'Compliance & risk',blurb:'SLA breaches, escalation, critical priority, safety and theft.'},
+  {id:'Performance',label:'Performance',blurb:'How fast the team actually closes work.'},
+  {id:'People',label:'People',blurb:'Trainer feedback and assessment scorecards.'},
+  {id:'Sentiment',label:'Member sentiment',blurb:'Praise and frustration in the members\u2019 own words.'},
+  {id:'Time-based',label:'Recent activity',blurb:'Rolling windows and weekly wrap-ups.'},
+  {id:'By category',label:'By category',blurb:'One register per feedback category in the taxonomy.'},
+  {id:'By department',label:'By department',blurb:'Workload by the department that owns it.'},
+  {id:'By studio',label:'By studio',blurb:'Location-level logs for each studio.'},
+  {id:'By source',label:'By intake channel',blurb:'Where tickets entered the workspace.'},
+];
+/** The groups a catalogue actually uses, in shelf order — unknown groups sort last. */
+export function orderedGroups(reports:{group:string}[]):ReportGroupMeta[]{
+  const used=new Set(reports.map(r=>r.group));
+  const known=REPORT_GROUPS.filter(g=>used.has(g.id));
+  const extra=[...used].filter(g=>!REPORT_GROUPS.some(m=>m.id===g)).sort()
+    .map(id=>({id,label:id,blurb:''}));
+  return[...known,...extra];
+}
 
 /* ------------------------------------------------------------------------------------ *
  * SQL mirrors of the lib/metrics.ts definitions, built from the same constants so the
@@ -76,26 +104,26 @@ export function buildReportCatalogue(ctx:CatalogueContext):ReportDef[]{
   const resolutionRow=(t:TicketLike)=>({resolutionHours:t.resolvedAt?hoursBetween(t.createdAt,t.resolvedAt).toFixed(1):'—'});
   const reports:ReportDef[]=[];
   for(const category of ctx.categories){
-    reports.push(makeSimple(slugify('category-'+category),`${category} — full log`,`Every ticket logged under ${category}, across all studios and statuses.`,'By category',eq(tickets.category,category)));
+    reports.push(makeSimple(slugify('category-'+category),`${category} — full log`,`Every ticket logged under ${category}, across all studios and statuses. Filter by studio, priority or date range before exporting.`,'By category',eq(tickets.category,category)));
   }
   for(const dept of ctx.departments){
-    reports.push(makeSimple(slugify('department-'+dept.id),`${dept.name} — department workload`,`All tickets currently routed to ${dept.name}.`,'By department',eq(tickets.departmentName,dept.name)));
+    reports.push(makeSimple(slugify('department-'+dept.id),`${dept.name} — department workload`,`All tickets currently routed to ${dept.name}, with owners and SLA state.`,'By department',eq(tickets.departmentName,dept.name)));
   }
   for(const studio of ctx.studios){
-    reports.push(makeSimple(slugify('studio-'+studio),`${studio} — studio log`,`Every ticket logged at ${studio}.`,'By studio',eq(tickets.studio,studio)));
+    reports.push(makeSimple(slugify('studio-'+studio),`${studio} — studio log`,`Every ticket logged at ${studio}, newest first.`,'By studio',eq(tickets.studio,studio)));
   }
   reports.push(
-    makeSimple('all-open','Open tickets register','Every ticket that has not yet reached resolved / closed / recorded.','Operational',metricSql.open),
+    makeSimple('all-open','Open tickets register','Every ticket that has not yet reached resolved / closed / recorded, with its follow-up target and age.','Operational',metricSql.open,[{key:'slaDueAt',label:'Due'},{key:'ageHours',label:'Age (h)'}],t=>({slaDueAt:t.slaDueAt||'—',ageHours:hoursBetween(t.createdAt,now.toISOString()).toFixed(1)})),
     makeSimple('all-resolved','Resolved & closed register','Every ticket marked resolved or closed, for audit and QA.','Operational',metricSql.done,[{key:'resolvedAt',label:'Resolved'},...resolutionCol],t=>({resolvedAt:t.resolvedAt||'—',...resolutionRow(t)})),
-    makeSimple('sla-breached','Overdue (SLA breached, still open)','Open tickets whose follow-up target has passed without resolution.','Compliance',metricSql.breachedOpen(now),[{key:'slaDueAt',label:'Was due'},{key:'overdueHours',label:'Overdue by (h)'}],t=>({slaDueAt:t.slaDueAt||'—',overdueHours:t.slaDueAt?hoursBetween(t.slaDueAt,now.toISOString()).toFixed(1):'—'})),
-    makeSimple('sla-resolved-late','Resolved late (SLA breached)','Tickets resolved after their follow-up target had passed.','Compliance',metricSql.breachedResolved(),[{key:'slaDueAt',label:'Was due'},{key:'resolvedAt',label:'Resolved'},{key:'lateHours',label:'Late by (h)'}],t=>({slaDueAt:t.slaDueAt||'—',resolvedAt:t.resolvedAt||'—',lateHours:t.slaDueAt&&t.resolvedAt?hoursBetween(t.slaDueAt,t.resolvedAt).toFixed(1):'—'})),
-    makeSimple('sla-at-risk','SLA due soon',`Open tickets with less than ${ctx.slaWarningPercent}% of their follow-up window left.`,'Compliance',metricSql.dueSoon(now,ctx.slaWarningPercent),[{key:'slaDueAt',label:'Due'}],t=>({slaDueAt:t.slaDueAt||'—'})),
-    makeSimple('critical-open','Critical priority — open','All open tickets carrying critical priority.','Compliance',and(eq(tickets.priority,'critical'),metricSql.open)),
-    makeSimple('high-open','High priority — open','All open tickets carrying high priority.','Compliance',and(eq(tickets.priority,'high'),metricSql.open)),
-    makeSimple('escalated','Escalated tickets','Every ticket that has been explicitly escalated for management review.','Compliance',eq(tickets.isEscalated,true)),
-    makeSimple('unassigned','Unassigned queue','Tickets waiting in a department queue without a named owner.','Operational',isNull(tickets.assignedStaffId)),
-    makeSimple('resolution-time','Resolution time analysis','Resolved tickets with the time taken from creation to resolution (excludes imported history and automatic checks).','Performance',metricSql.durationEligible,resolutionCol,resolutionRow),
-    makeSimple('trainer-feedback','Trainer feedback summary','All trainer-related feedback and issues raised.','People',and(eq(tickets.category,'Trainer Feedback'),ne(tickets.kind,'assessment')),[{key:'trainer',label:'Trainer'}],t=>({trainer:t.trainer||'—'})),
+    makeSimple('sla-breached','Overdue (SLA breached, still open)','Open tickets whose follow-up target has passed without resolution — the morning risk list.','Compliance',metricSql.breachedOpen(now),[{key:'slaDueAt',label:'Was due'},{key:'overdueHours',label:'Overdue by (h)'}],t=>({slaDueAt:t.slaDueAt||'—',overdueHours:t.slaDueAt?hoursBetween(t.slaDueAt,now.toISOString()).toFixed(1):'—'})),
+    makeSimple('sla-resolved-late','Resolved late (SLA breached)','Tickets resolved after their follow-up target had passed — the retrospective breach log.','Compliance',metricSql.breachedResolved(),[{key:'slaDueAt',label:'Was due'},{key:'resolvedAt',label:'Resolved'},{key:'lateHours',label:'Late by (h)'}],t=>({slaDueAt:t.slaDueAt||'—',resolvedAt:t.resolvedAt||'—',lateHours:t.slaDueAt&&t.resolvedAt?hoursBetween(t.slaDueAt,t.resolvedAt).toFixed(1):'—'})),
+    makeSimple('sla-at-risk','SLA due soon',`Open tickets with less than ${ctx.slaWarningPercent}% of their follow-up window left — act on these before they breach.`,'Compliance',metricSql.dueSoon(now,ctx.slaWarningPercent),[{key:'slaDueAt',label:'Due'}],t=>({slaDueAt:t.slaDueAt||'—'})),
+    makeSimple('critical-open','Critical priority — open','All open tickets carrying critical priority, with follow-up target and age.','Compliance',and(eq(tickets.priority,'critical'),metricSql.open),[{key:'slaDueAt',label:'Due'},{key:'ageHours',label:'Age (h)'}],t=>({slaDueAt:t.slaDueAt||'—',ageHours:hoursBetween(t.createdAt,now.toISOString()).toFixed(1)})),
+    makeSimple('high-open','High priority — open','All open tickets carrying high priority, with follow-up target and age.','Compliance',and(eq(tickets.priority,'high'),metricSql.open),[{key:'slaDueAt',label:'Due'},{key:'ageHours',label:'Age (h)'}],t=>({slaDueAt:t.slaDueAt||'—',ageHours:hoursBetween(t.createdAt,now.toISOString()).toFixed(1)})),
+    makeSimple('escalated','Escalated tickets','Every ticket explicitly escalated for management review, with age since creation.','Compliance',eq(tickets.isEscalated,true),[{key:'ageHours',label:'Age (h)'}],t=>({ageHours:hoursBetween(t.createdAt,now.toISOString()).toFixed(1)})),
+    makeSimple('unassigned','Unassigned queue','Tickets waiting in a department queue without a named owner — triage these first.','Operational',isNull(tickets.assignedStaffId),[{key:'department',label:'Department'},{key:'slaDueAt',label:'Due'}],t=>({department:t.departmentName||'—',slaDueAt:t.slaDueAt||'—'})),
+    makeSimple('resolution-time','Resolution time analysis','Resolved tickets with the time taken from creation to resolution (excludes imported history and automatic checks) — the fair view of team speed.','Performance',metricSql.durationEligible,resolutionCol,resolutionRow),
+    makeSimple('trainer-feedback','Trainer feedback summary','All trainer-related feedback and issues raised, with the class and member context.','People',and(eq(tickets.category,'Trainer Feedback'),ne(tickets.kind,'assessment')),[{key:'trainer',label:'Trainer'},{key:'classFormat',label:'Class'},{key:'member',label:'Member'}],t=>({trainer:t.trainer||'—',classFormat:t.classFormat||'—',member:t.memberName||'—'})),
     // The score, evaluator and form the assessment came from are the point of this report —
     // without them the rows were indistinguishable from any other trainer ticket.
     {...makeSimple('trainer-assessments','Trainer assessment scorecards','Completed evaluations for trainers, with their score and the form each came from.','People',eq(tickets.kind,'assessment'),
@@ -104,22 +132,23 @@ export function buildReportCatalogue(ctx:CatalogueContext):ReportDef[]{
         return{trainer:t.trainer||'—',evaluationScore:Number.isFinite(score)&&score>0?score:'—',
           evaluator:String(cf.evaluator||'—')||'—',sessionName:String(cf.sessionName||t.classFormat||'—')||'—',
           reviewSource:String(cf.sourceLabel||'Logged in IRIS')};}),needsCustomFields:true},
-    makeSimple('safety-incidents','Safety & security incidents','All logged safety and security concerns, for management review.','Compliance',eq(tickets.category,'Safety and Security')),
-    makeSimple('theft-register','Theft & lost items register','Every reported theft or missing item, with last-seen context.','Compliance',eq(tickets.category,'Theft and Lost Items')),
-    makeSimple('compliments','Compliments & positive feedback','Record-only appreciation and positive member feedback.','Sentiment',or(eq(tickets.kind,'compliment'),eq(tickets.sentiment,'positive'))),
-    makeSimple('negative-sentiment','Negative sentiment log','Tickets logged with a frustrated or negative sentiment.','Sentiment',inArray(tickets.sentiment,['negative','frustrated'])),
-    makeSimple('momence-linked','Momence-linked tickets','Tickets connected to a live Momence member or session record.','Operational',hasAnyTag(['momence-linked'])),
+    makeSimple('safety-incidents','Safety & security incidents','All logged safety and security concerns, for management review.','Compliance',eq(tickets.category,'Safety and Security'),[{key:'member',label:'Reported by'}],t=>({member:t.memberName||'—'})),
+    {...makeSimple('theft-register','Theft & lost items register','Every reported theft or missing item, with the item and last-seen context captured at intake.','Compliance',eq(tickets.category,'Theft and Lost Items'),[{key:'member',label:'Reported by'},{key:'item',label:'Item'},{key:'lastSeen',label:'Last seen'}],t=>{const cf=t.customFields||{};return{member:t.memberName||'—',item:String(cf.itemDescription||'—'),lastSeen:String(cf.lastSeen||'—')};}),needsCustomFields:true},
+
+    makeSimple('compliments','Compliments & positive feedback','Record-only appreciation and positive member feedback — share these with the team.','Sentiment',or(eq(tickets.kind,'compliment'),eq(tickets.sentiment,'positive')),[{key:'member',label:'Member'},{key:'trainer',label:'Trainer'}],t=>({member:t.memberName||'—',trainer:t.trainer||'—'})),
+    makeSimple('negative-sentiment','Negative sentiment log','Tickets logged with a frustrated or negative sentiment — the service-recovery follow-up list.','Sentiment',inArray(tickets.sentiment,['negative','frustrated']),[{key:'member',label:'Member'},{key:'sentiment',label:'Sentiment'}],t=>({member:t.memberName||'—',sentiment:t.sentiment||'—'})),
+    makeSimple('momence-linked','Momence-linked tickets','Tickets connected to a live Momence member or session record, with the member for cross-reference.','Operational',hasAnyTag(['momence-linked']),[{key:'member',label:'Member'}],t=>({member:t.memberName||'—'})),
     // The resolve flow tags each bike check `bike-recheck` (lib/tickets.ts maybeCreateRecurrenceChecks).
     // Same case-insensitive match as the previous `title || ' ' || description ~* 'bike|powercycle'`,
     // spelled with ILIKE so the in-memory preview database (pg-mem) can run it too.
-    makeSimple('powercycle-bikes','PowerCycle bike issues & recurrence checks',`Bike malfunction tickets and their automatic ${RECURRENCE_CHECK_LABEL} recurrence checks.`,'Operational',or(hasAnyTag([BIKE_RECHECK_TAG]),sql`(${tickets.title} ilike '%bike%' or ${tickets.title} ilike '%powercycle%' or ${tickets.description} ilike '%bike%' or ${tickets.description} ilike '%powercycle%')`)),
-    makeSimple('auto-follow-ups','Automated follow-up tickets','Tickets automatically raised by the system (e.g. recurrence checks).','Operational',eq(tickets.source,'system')),
-    makeSimple('recent-7-days','Logged in the last 7 days','Everything logged in the last week, newest first.','Time-based',sql`${tickets.createdAt} >= ${weekAgo}`),
-    makeSimple('recently-resolved','Resolved in the last 7 days','Tickets closed out in the last week — good for a weekly wrap-up.','Time-based',sql`${tickets.resolvedAt} >= ${weekAgo}`),
-    makeSimple('full-export','Full ticket export','Every ticket ever logged, unfiltered — the complete register.','Operational',undefined),
+    makeSimple('powercycle-bikes','PowerCycle bike issues & recurrence checks',`Bike malfunction tickets and their automatic ${RECURRENCE_CHECK_LABEL} recurrence checks, with the reporting member.`,'Operational',or(hasAnyTag([BIKE_RECHECK_TAG]),sql`(${tickets.title} ilike '%bike%' or ${tickets.title} ilike '%powercycle%' or ${tickets.description} ilike '%bike%' or ${tickets.description} ilike '%powercycle%')`),[{key:'member',label:'Member'},{key:'slaDueAt',label:'Due'}],t=>({member:t.memberName||'—',slaDueAt:t.slaDueAt||'—'})),
+    makeSimple('auto-follow-ups','Automated follow-up tickets','Tickets automatically raised by the system (e.g. recurrence checks), with their follow-up target.','Operational',eq(tickets.source,'system'),[{key:'slaDueAt',label:'Due'}],t=>({slaDueAt:t.slaDueAt||'—'})),
+    makeSimple('recent-7-days','Logged in the last 7 days','Everything logged in the last week, newest first — the rolling intake log.','Time-based',sql`${tickets.createdAt} >= ${weekAgo}`,[{key:'source',label:'Source'}],t=>({source:t.source||'—'})),
+    makeSimple('recently-resolved','Resolved in the last 7 days','Tickets closed out in the last week with their resolution time — good for a weekly wrap-up.','Time-based',sql`${tickets.resolvedAt} >= ${weekAgo}`,[{key:'resolvedAt',label:'Resolved'},...resolutionCol],t=>({resolvedAt:t.resolvedAt||'—',...resolutionRow(t)})),
+    makeSimple('full-export','Full ticket export','Every ticket ever logged, unfiltered — the complete register for backup or audit.','Operational',undefined),
   );
   for(const source of ['iris','manual','template','voice','fillout','history']){
-    reports.push(makeSimple(slugify('source-'+source),`Logged via ${source}`,`Every ticket whose intake channel was "${source}".`,'By source',eq(tickets.source,source)));
+    reports.push(makeSimple(slugify('source-'+source),`Logged via ${source}`,`Every ticket whose intake channel was "${source}", with the reporting member.`,'By source',eq(tickets.source,source),[{key:'member',label:'Member'}],t=>({member:t.memberName||'—'})));
   }
   return reports;
 }
