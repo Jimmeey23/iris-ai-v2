@@ -55,8 +55,8 @@ function Counter({ value, suffix = "" }: { value: number; suffix?: string }) {
   const frame = useRef(0);
   useEffect(() => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      setShown(value);
-      return;
+      frame.current = requestAnimationFrame(() => setShown(value));
+      return () => cancelAnimationFrame(frame.current);
     }
     const start = performance.now();
     const tick = (t: number) => {
@@ -131,7 +131,8 @@ export function OverviewCanvas({
   staleDays: number;
   onFilter: (patch: Record<string, unknown>, label: string) => void;
 }) {
-  const today = new Date().setHours(0, 0, 0, 0);
+  const [mountedAt] = useState(() => Date.now());
+  const today = new Date(mountedAt).setHours(0, 0, 0, 0);
 
   const loggedToday = useMemo(
     () => tickets.filter((t) => dayIndex(t.createdAt, today) === 0).length,
@@ -155,9 +156,9 @@ export function OverviewCanvas({
       const at = new Date(t.createdAt).getTime();
       if (at < first) first = at;
     }
-    const now = Date.now();
+    const now = mountedAt;
     return [Number.isFinite(first) ? first : now - 20 * 86_400_000, now];
-  }, [tickets]);
+  }, [tickets, mountedAt]);
 
   const volume = useMemo(() => bucketCounts(tickets, span), [tickets, span]);
   /** Tickets *resolved* in each bucket, keyed off `resolvedAt` rather than
@@ -176,7 +177,7 @@ export function OverviewCanvas({
     const risky = new Set(slaRisk.map((t) => t.id));
     return open.filter((t) => !risky.has(t.id));
   }, [open, slaRisk]);
-  const compliance = open.length ? Math.round((healthy.length / open.length) * 100) : 100;
+  const compliance = open.length ? Math.round((healthy.length / open.length) * 100) : null;
 
   /** Which card is showing its reverse. Clicking a card flips it; the filter
    *  is a deliberate second step on the back, so a stray click never rewrites
@@ -264,7 +265,7 @@ export function OverviewCanvas({
       id: "active",
       icon: Zap,
       accent: true,
-      value: open.length,
+      value: open.length || null,
       label: "Active now",
       sub: "Open queues",
       data: bucketCounts(open, span),
@@ -280,7 +281,7 @@ export function OverviewCanvas({
       id: "attention",
       icon: TriangleAlert,
       accent: false,
-      value: urgent.length,
+      value: urgent.length || null,
       label: "Needs attention",
       sub: `${shareOfOpen(urgent.length)}% of open`,
       data: bucketCounts(urgent, span),
@@ -296,7 +297,7 @@ export function OverviewCanvas({
       id: "overdue",
       icon: Timer,
       accent: false,
-      value: overdue.length,
+      value: overdue.length || null,
       label: "Overdue",
       sub: `${shareOfOpen(overdue.length)}% of open`,
       data: bucketCounts(overdue, span),
@@ -477,7 +478,7 @@ export function OverviewCanvas({
                   className="ovc-card ovc-kpi ovc-kpi-face"
                   onClick={() => setFlipped(k.id)}
                   aria-expanded={isBack}
-                  aria-label={`${k.label}: ${k.value}${k.suffix ?? ""}. Show detail`}
+                  aria-label={`${k.label}: ${k.value === null ? "No data" : `${k.value}${k.suffix ?? ""}`}. Show detail`}
                   tabIndex={isBack ? -1 : 0}
                 >
                   <span className="ovc-kpi-top">
@@ -490,11 +491,11 @@ export function OverviewCanvas({
                       stroke={k.accent ? "var(--accent)" : "var(--ovc-spark-muted)"}
                     />
                   </span>
-                  <strong>
-                    <Counter value={k.value} suffix={k.suffix ?? ""} />
+                  <strong className={k.value === null ? "is-empty" : undefined}>
+                    {k.value === null ? "—" : <Counter value={k.value} suffix={k.suffix ?? ""} />}
                   </strong>
                   <span className="ovc-kpi-label">{k.label}</span>
-                  <small>{k.sub}</small>
+                  <small>{k.value === null ? "No matching tickets" : k.sub}</small>
                 </button>
 
                 <div className="ovc-card ovc-kpi ovc-kpi-back" aria-hidden={!isBack}>
@@ -509,15 +510,21 @@ export function OverviewCanvas({
                       <RotateCcw size={13} />
                     </button>
                   </header>
-                  <dl className="ovc-kpi-facts">
+                  {k.value === null ? (
+                    <div className="ovc-kpi-empty">
+                      <ShieldCheck size={20} aria-hidden="true" />
+                      <strong>Nothing to break down</strong>
+                      <span>No matching tickets are in the current scope.</span>
+                    </div>
+                  ) : <dl className="ovc-kpi-facts">
                     {k.facts.map(([label, value]) => (
                       <div key={label}>
                         <dt>{label}</dt>
                         <dd>{value}</dd>
                       </div>
                     ))}
-                  </dl>
-                  {k.studios.length > 0 && (
+                  </dl>}
+                  {k.value !== null && k.studios.length > 0 && (
                     <div className="ovc-kpi-studios">
                       {k.studios.map(([studio, n]) => (
                         <div key={studio}>

@@ -404,6 +404,7 @@ export function TicketDialog({
                     createdAt={t.createdAt}
                     slaDueAt={t.slaDueAt}
                     status={t.status}
+                    size={96}
                   />
                   <SlaCountdown ticket={t as never} large />
                   <small>

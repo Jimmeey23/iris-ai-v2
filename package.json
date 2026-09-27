@@ -22,6 +22,7 @@
     "check:ops": "npx tsx --tsconfig tsconfig.checks.json scripts/ops-check.mjs",
     "check:labels": "npx tsx --tsconfig tsconfig.checks.json scripts/label-check.ts",
     "tickets:relabel": "npx tsx scripts/relabel-tickets.mjs",
+    "tickets:repair-routing": "npx tsx scripts/backfill-repair-routing.mjs",
     "check:dashboard": "npx tsx --tsconfig tsconfig.checks.json scripts/dashboard-check.ts",
     "check:dashboard:api": "npx tsx --tsconfig tsconfig.checks.json scripts/dashboard-api-check.mjs",
     "test": "npm run check:intake && npm run check:labels && npm run check:dashboard && npm run check:iris"

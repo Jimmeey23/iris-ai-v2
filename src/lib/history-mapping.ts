@@ -1,4 +1,5 @@
 import {CATEGORY_MAP} from './constants';
+import {equipmentRepairRoute} from './equipment-routing';
 
 /** Shape of the CX analyst export (`complaint_category`, `issue_summary`, ...), which
  *  uses its own vocabulary rather than the workspace taxonomy. */
@@ -44,6 +45,7 @@ const RULES:[RegExp,string,string][]=[
   [/odour|odor|smell|aroma|fragrance/i,'Studio Amenities and Facilities','Studio Odour and Aroma'],
   [/clean|hygien|washroom|toilet|shower|towel/i,'Studio Amenities and Facilities','Cleanliness and Hygiene'],
   [/locker/i,'Studio Amenities and Facilities','Locker Availability'],
+  [/\b(wireless mic(?:rophone)?|mic(?:rophone)?|head(?:phone|set|phones|sets)|speaker|audio system|sound system|music system)\b.*\b(broken|fault|fail|malfunction|not working|repair|static|crackle|no signal|cut(?:ting)? out)/i,'Repair and Maintenance','Studio System Malfunction'],
   [/maintenance|repair|broken|malfunction|plumbing|leak|lighting/i,'Repair and Maintenance','General Maintenance Delays'],
   [/music|volume|speaker|audio|sound|mic\b/i,'Class Experience','Audio Issues'],
   [/overcrowd|capacity|full class|waitlist/i,'Scheduling','Class Capacity Issues'],
@@ -85,7 +87,9 @@ export function fromCxExport(r:Record<string,unknown>){
   const [routedCategory,defaultSub]=CATEGORY_ROUTE[rawCategory]||CATEGORY_ROUTE.Other;
   const rawSub=str(r.complaint_subcategory);
   const ruled=matchRule(rawSub,str(r.issue_summary));
-  const [category,subcategory]=ruled&&CATEGORY_MAP[ruled[0]]?.includes(ruled[1])?ruled:[routedCategory,defaultSub];
+  let [category,subcategory]=ruled&&CATEGORY_MAP[ruled[0]]?.includes(ruled[1])?ruled:[routedCategory,defaultSub];
+  const repair=equipmentRepairRoute({category,subcategory,title:rawSub,summary:str(r.issue_summary),description:[str(r.issue_summary),...list(r.key_customer_statements)].join(' ')});
+  if(repair){category=repair.category;subcategory=repair.subcategory;}
 
   const sentiment=(r.sentiment||{}) as Record<string,unknown>;
   const frustration=str(sentiment.frustration_level).toLowerCase();

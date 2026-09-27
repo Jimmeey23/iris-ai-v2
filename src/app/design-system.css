@@ -3305,6 +3305,28 @@ textarea,
   border-radius: 0;
 }
 
+.ovc-kpi-scene,
+.ovc-kpi-flip { min-height: 174px; }
+.ovc-kpi { padding: 14px 16px; }
+.ovc-kpi strong { font-size: 25px; }
+.ovc-kpi strong.is-empty { color: var(--ovc-faint); }
+.ovc-kpi-label { margin-top: 5px; }
+.ovc-kpi-back { padding: 13px 14px; gap: 8px; }
+.ovc-kpi-facts { padding: 7px 8px; }
+.ovc-kpi-facts dd { font-size: 14px; }
+.ovc-kpi-empty {
+  flex: 1;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 5px;
+  min-height: 84px;
+  color: var(--ovc-faint);
+  text-align: center;
+}
+.ovc-kpi-empty strong { font: 650 12px/1.2 var(--font-body); color: var(--ovc-muted); }
+.ovc-kpi-empty span { max-width: 22ch; font-size: 10.5px; line-height: 1.4; }
+
 /* The ticket workspace continues the same surface rather than starting a new
    one: same border, same radius, butted up under the header. */
 .cockpit-workspace-stage {

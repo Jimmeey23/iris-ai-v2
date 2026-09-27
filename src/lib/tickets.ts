@@ -12,6 +12,7 @@ import {ticketNumberFor,slugify} from './utils';
 import {scoreAssessment} from './guided-templates';
 import {configuredTemplates} from './template-store';
 import {indiaDate} from './display';
+import {equipmentRepairRoute} from './equipment-routing';
 
 type Priority='low'|'medium'|'high'|'critical';
 type Config=WorkspaceConfig;
@@ -56,6 +57,10 @@ return{departmentId,dept,owner,ids,override};}
  *  `trusted` is for server-side callers (history import) that carry their own facts. */
 export async function makeDraft(raw:unknown,opts:{trusted?:boolean}&DraftContext={}):Promise<AdvancedDraft>{const trusted=Boolean(opts.trusted);const input:TicketInput=trusted?ticketInputSchema.parse(raw):publicTicketInputSchema.parse(raw);const cfg=opts.cfg||await getConfig();
 if(!trusted)input.customFields=stripReservedFields(input.customFields);
+// A broken mic, headset or any other equipment/system failure is repair work. Apply this
+// before taxonomy validation and routing so every intake path reaches Operations.
+const repairRoute=equipmentRepairRoute({category:input.category,subcategory:input.subcategory,title:input.title,summary:input.summary,description:input.description,systemName:String(input.customFields.systemName||''),itemDescription:String(input.customFields.itemDescription||'')});
+if(repairRoute){input.category=repairRoute.category;input.subcategory=repairRoute.subcategory;}
 // An asset reference has to name a row in the register; anything else is dropped rather than stored as a dangling id.
 if(input.customFields.assetId!==undefined){const assetId=Number(input.customFields.assetId);const[asset]=Number.isInteger(assetId)&&assetId>0?await db.select({id:assets.id}).from(assets).where(eq(assets.id,assetId)):[];if(asset)input.customFields.assetId=asset.id;else delete input.customFields.assetId;}
 if(!cfg.taxonomy[input.category]?.includes(input.subcategory))throw new ApiError('Choose a subcategory belonging to the selected category.');

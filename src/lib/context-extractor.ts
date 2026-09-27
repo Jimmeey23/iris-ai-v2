@@ -5,6 +5,7 @@
  */
 
 import { STUDIOS, TRAINERS, STUDIO_AREAS, CLASS_FORMATS, CATEGORY_MAP } from "./constants";
+import { equipmentRepairRoute } from "./equipment-routing";
 
 /** Map studio aliases and slangs to canonical studio names */
 const STUDIO_ALIASES: Array<[string, RegExp]> = [
@@ -141,6 +142,12 @@ export function extractCategory(
 ): { category?: string; subcategory?: string; confidence?: number } {
   if (!text) return {};
   const lower = text.toLowerCase();
+
+  // Equipment and studio-system failures belong to Repair and Maintenance even
+  // when they disrupted a class. Experience-only comments (for example music
+  // preference or volume) continue through the normal Class Experience rules.
+  const equipmentFault = equipmentRepairRoute({description: text});
+  if (equipmentFault) return {...equipmentFault, confidence: 0.99};
 
   const rules: Array<{
     category: string;

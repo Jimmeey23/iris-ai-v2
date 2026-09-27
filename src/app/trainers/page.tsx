@@ -83,7 +83,17 @@ export default function TrainersPage(){
     finally{setSyncing(false);}
   }
 
-  const filtered=useMemo(()=>trainers.filter(t=>!q||t.name.toLowerCase().includes(q.toLowerCase())),[trainers,q]);
+  const filtered=useMemo(()=>trainers.filter(t=>!q||[t.name,t.primaryStudio,t.city].some(v=>v.toLowerCase().includes(q.toLowerCase()))),[trainers,q]);
+  const grouped=useMemo(()=>{
+    const groups=new Map<string,Map<string,Trainer[]>>();
+    for(const trainer of filtered){
+      const studios=groups.get(trainer.city)||new Map<string,Trainer[]>();
+      const people=studios.get(trainer.primaryStudio)||[];
+      people.push(trainer);studios.set(trainer.primaryStudio,people);groups.set(trainer.city,studios);
+    }
+    const cityOrder=(city:string)=>city==='Mumbai'?0:city==='Bengaluru'?1:2;
+    return [...groups.entries()].sort(([a],[b])=>cityOrder(a)-cityOrder(b)||a.localeCompare(b)).map(([city,studios])=>({city,studios:[...studios.entries()].sort(([a],[b])=>a.localeCompare(b))}));
+  },[filtered]);
   const active=useMemo(()=>trainers.find(t=>t.name===activeName),[trainers,activeName]);
   const withScores=trainers.filter(t=>t.avgScore!==null);
   const orgAvg=withScores.length?Math.round(withScores.reduce((n,t)=>n+(t.avgScore||0),0)/withScores.length):null;
@@ -120,11 +130,16 @@ export default function TrainersPage(){
         </div>
       </ImageStreamHero>
       {ping&&<div className="info-box pop-in" style={{marginBottom:16}}>✦ {ping}</div>}
-      <div style={{marginBottom:20}}><SearchField value={q} onChange={setQ} placeholder="Find a trainer…"/></div>
+      <div style={{marginBottom:20}}><SearchField value={q} onChange={setQ} placeholder="Find a trainer, studio or city…"/></div>
       {error&&<div className="error-box">{error}</div>}
       {busy?<Loading/>:!filtered.length?<Empty art="people" title="No trainers found"/>:(
-        <div className="entity-grid rise-stagger">
-          {filtered.map(t=>{
+        <div className="trainer-groups">
+          {grouped.map(group=><section className="trainer-city-group" key={group.city}>
+            <header className="trainer-group-heading"><span>{group.city}</span><small>{group.studios.reduce((n,[,people])=>n+people.length,0)} trainers</small></header>
+            {group.studios.map(([studio,people])=><div className="trainer-studio-group" key={studio}>
+              <div className="trainer-studio-heading"><h3>{studio}</h3><span>{people.length}</span></div>
+              <div className="entity-grid rise-stagger">
+          {people.map(t=>{
             return (
             <button key={t.name} className="trainer-profile-card" onClick={()=>setActiveName(t.name)}>
               {/* Compact portrait row: a small framed headshot beside the name,
@@ -138,7 +153,7 @@ export default function TrainersPage(){
                   </span>
                   <span className="tpc-id">
                     <h3>{t.name}</h3>
-                    <p>{t.band||'Awaiting a formal assessment'}</p>
+                    <p>{t.band||'Awaiting a formal assessment'} · {t.primaryStudio}</p>
                   </span>
                   {t.avgScore!==null?<Badge tone={t.bandTone}>{t.avgScore}%</Badge>:<Badge>No assessments</Badge>}
                 </div>
@@ -151,6 +166,9 @@ export default function TrainersPage(){
               </div>
             </button>
           );})}
+              </div>
+            </div>)}
+          </section>)}
         </div>
 
       )}

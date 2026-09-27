@@ -2,7 +2,7 @@ import {after} from 'next/server';
 import {desc,isNotNull} from 'drizzle-orm';
 import {db} from '@/db';
 import {tickets} from '@/db/schema';
-import {TRAINERS} from '@/lib/constants';
+import {STUDIOS,TRAINERS} from '@/lib/constants';
 import {requireAdmin,errorResponse} from '@/lib/auth';
 import {syncTrainerReviewsThrottled,reviewSourceBreakdown,lastSyncAt} from '@/lib/trainer-reviews';
 export const dynamic='force-dynamic';
@@ -104,8 +104,17 @@ export async function GET(){
       const issues=feedback.filter(t=>t.kind==='issue'&&t.sentiment!=='positive');
       const scored=assessments.filter(a=>a.score>0);
       const avgScore=scored.length?Math.round(scored.reduce((n,a)=>n+a.score,0)/scored.length):null;
+      const studioCounts=new Map<string,number>();
+      for(const ticket of related){
+        const studio=ticket.studio?.trim();
+        if(studio)studioCounts.set(studio,(studioCounts.get(studio)||0)+1);
+      }
+      const studioSummary=[...studioCounts.entries()].map(([studio,count])=>({studio,count})).sort((a,b)=>b.count-a.count||a.studio.localeCompare(b.studio));
+      const primaryStudio=studioSummary[0]?.studio||'Studio not assigned';
+      const city=STUDIOS.find(s=>s.name===primaryStudio)?.city||(/bengaluru|bangalore/i.test(primaryStudio)?'Bengaluru':/mumbai|bandra|kemps|kwality|courtside/i.test(primaryStudio)?'Mumbai':'Other');
       return{
         name,
+        primaryStudio,city,studioSummary,
         totalTickets:related.length,
         assessmentCount:assessments.length,
         feedbackCount:feedback.length,

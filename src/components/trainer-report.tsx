@@ -20,6 +20,7 @@ export type FeedbackRow={id:number;ticketNumber:string;title:string;subcategory:
 export type Trainer={
   name:string;totalTickets:number;assessmentCount:number;feedbackCount:number;complimentCount:number;
   issueCount:number;avgScore:number|null;band:string|null;bandTone:string;
+  primaryStudio:string;city:string;studioSummary:{studio:string;count:number}[];
   latestAssessment:Assessment|null;assessments:Assessment[];recentFeedback:FeedbackRow[];
 };
 
