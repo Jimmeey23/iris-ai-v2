@@ -8,7 +8,7 @@ export const intakeFieldOverrideSchema=z.object({
   required:z.boolean().optional(),conditional:z.boolean().optional(),dependsOn:z.string().max(80).optional(),when:z.string().max(240).optional(),
   options:z.array(z.string().min(1).max(160)).max(80).optional(),module:z.enum(['member','session','ticket']).optional(),multi:z.boolean().optional(),universal:z.boolean().optional(),
 });
-export const subcategoryRoutingSchema=z.object({departmentId:z.string().min(1),ownerId:z.number().int().positive().nullable().optional(),slaHours:z.number().int().min(1).max(720).nullable().optional()});
+export const subcategoryRoutingSchema=z.object({departmentId:z.string().min(1),ownerId:z.number().int().positive().nullable().optional(),slaHours:z.number().int().min(12).max(72).nullable().optional()});
 const formPlanSchema=z.array(intakeFieldOverrideSchema).min(1).max(100).superRefine((fields,ctx)=>{
   const ids=new Set<string>();
   fields.forEach((field,index)=>{if(ids.has(field.id))ctx.addIssue({code:'custom',path:[index,'id'],message:`Duplicate field ID: ${field.id}`});ids.add(field.id);});
@@ -21,12 +21,12 @@ export const configSchema = z.object({
   aiVoice: z.string().max(1200).default("You're a smart operational assistant helping staff log issues efficiently. Be conversational, strategic, and context-aware. Reference what they've told you. If they signal urgency or blocking issues, prioritize resolution options. Never echo answers, apologize, or recap facts. Be concise like a colleague helping out, not a script."),
   historyRetrieval: z.boolean().default(true), autoTag: z.boolean().default(true), autoAssign: z.boolean().default(true), positiveNoSla: z.boolean().default(true),
   /** The SLA every ticket is filed with (first-response hours per priority); defaults are PRIORITY_SLA_HOURS. */
-  responseHours: z.object({critical:z.number().min(1).max(720).default(SLA.critical),high:z.number().min(1).max(720).default(SLA.high),medium:z.number().min(1).max(720).default(SLA.medium),low:z.number().min(1).max(720).default(SLA.low)}).default({...SLA}),
+  responseHours: z.object({critical:z.number().min(12).max(72).default(SLA.critical),high:z.number().min(12).max(72).default(SLA.high),medium:z.number().min(12).max(72).default(SLA.medium),low:z.number().min(12).max(72).default(SLA.low)}).default({...SLA}),
   categoryDepartments: z.record(z.string(),z.string()).default(CATEGORY_DEPARTMENT), routingOwners: z.record(z.string(),z.number().int().positive()).default({}),
   taxonomy: z.record(z.string(),z.array(z.string().min(1))).default(CATEGORY_MAP), studios:z.array(z.string()).default(STUDIOS.map(s=>s.name)), trainers:z.array(z.string()).default([...TRAINERS]), formats:z.array(z.string()).default([...CLASS_FORMATS]), memberships:z.array(z.string()).default([...MEMBERSHIPS]),
   formOverrides:z.record(z.string(),formPlanSchema).default({}),
   subcategoryRouting:z.record(z.string(),subcategoryRoutingSchema).default({}),
-  webhookOnCreate:z.boolean().default(false), assignmentEmail:z.boolean().default(false),
+  webhookOnCreate:z.boolean().default(false), assignmentEmail:z.boolean().default(true),
 
   /* ---------------------------------------------------------------- *
    * Workspace defaults for the ticket board.

@@ -1,8 +1,8 @@
-import {and,desc,eq,or,sql,ne,inArray,lt,ilike,type SQL} from 'drizzle-orm';
+import {and,desc,eq,or,sql,ne,inArray,lt,lte,gt,ilike,type SQL} from 'drizzle-orm';
 import {describeTicket} from './ticket-label';
 import {randomUUID} from 'crypto';
 import {db} from '@/db';
-import {tickets,staff,departments,assets,appSettings,ticketActivities,ticketComments,ticketLinks,ticketResolutions,ticketResolutionSteps,ticketFollowUps,ticketContactLog,ticketResolutionAttachments,deliveryLogs} from '@/db/schema';
+import {tickets,staff,departments,assets,appSettings,ticketActivities,ticketComments,ticketLinks,ticketResolutions,ticketResolutionSteps,ticketFollowUps,ticketContactLog,ticketResolutionAttachments,deliveryLogs,ticketNotifications} from '@/db/schema';
 import {ticketInputSchema,publicTicketInputSchema,type TicketInput,type AdvancedDraft} from './ticket-contract';
 import {getConfig,type WorkspaceConfig} from './config';
 import {ApiError,canAccessTicket,currentUser,requireTicketAccess,type Identity} from './auth';
@@ -23,23 +23,35 @@ const isPriority=(p:unknown):p is Priority=>typeof p==='string'&&p in PRIORITY_R
 export function maxPriority(a:Priority,b?:string|null):Priority{return isPriority(b)&&PRIORITY_RANK[b]>PRIORITY_RANK[a]?b:a;}
 /** Follow-up hours for a priority, honouring an administrator's per-subcategory override —
  *  the one rule makeDraft, the PATCH route and every automatic priority raise share. */
-export function slaHoursFor(cfg:Pick<Config,'responseHours'|'subcategoryRouting'>,category:string,subcategory:string,priority:Priority):number{return cfg.subcategoryRouting[category+'|||'+subcategory]?.slaHours??cfg.responseHours[priority];}
+export function slaHoursFor(cfg:Pick<Config,'responseHours'|'subcategoryRouting'>,category:string,subcategory:string,priority:Priority):number{return Math.max(12,Math.min(72,cfg.subcategoryRouting[category+'|||'+subcategory]?.slaHours??cfg.responseHours[priority]));}
 /** customFields keys only the server writes: the routing brief, automation markers, the chat's
  *  own session keys and the repeat counter. `_intake` stays — the form intake legitimately
  *  records which plan the answers came from (see README). */
 const RESERVED_FIELD=/^(autoFollowUp|followUpType|followUpReason|parent[A-Z].*|recurrence.*|recheck.*|firstResolvedAt|lastRepeatAt|closedOnImport)$/;
 export function stripReservedFields(cf:Record<string,unknown>):Record<string,unknown>{return Object.fromEntries(Object.entries(cf).filter(([k])=>k==='_intake'||(!k.startsWith('_')&&!RESERVED_FIELD.test(k))));}
+const ticketArea=(fields:Record<string,unknown>)=>String(fields.area||fields.specific_area||fields.affected_room||fields.incident_location||'').trim()||null;
 /** Kinds that may be filed record-only (no SLA, no resolution), per the README. */
 const recordOnlyEligible=(input:{kind:string;sentiment:string})=>input.kind==='compliment'||input.kind==='assessment'||input.kind==='feedback'&&input.sentiment==='positive';
 type Routing=Awaited<ReturnType<typeof resolveRouting>>;
 /** Per-run caches for bulk callers (history import), so a thousand rows do not read the
  *  configuration and the routing tables a thousand times. */
 export type DraftContext={cfg?:Config;routing?:Map<string,Routing>};
+const TRAINING_CATEGORIES=new Set(['Scheduling','Trainer Feedback','Class Experience']);
+const OPERATIONS_CATEGORIES=new Set(['Repair and Maintenance','Studio Amenities and Facilities','Operating Systems','Tech Issues','Theft and Lost Items','Internal Operations & Admin']);
+const OPERATIONS_WORK=/\b(maintenance|repair|malfunction|fault|broken|issue|sop|standard operating procedure|process|policy|facility|facilities|housekeeping|cleaning|equipment|system|plumbing|electrical|inventory|security|safety)\b/i;
+/** Training owns only schedules, trainers and method/class delivery. Operational work wins
+ * over saved workspace overrides; an unknown category has a safe Management fallback. */
+export function departmentForTicket(cfg:Pick<Config,'categoryDepartments'|'subcategoryRouting'>,category:string,subcategory=''){
+  if(TRAINING_CATEGORIES.has(category))return'training';
+  if(OPERATIONS_CATEGORIES.has(category)||OPERATIONS_WORK.test(`${category} ${subcategory}`))return'operations';
+  const configured=cfg.subcategoryRouting[category+'|||'+subcategory]?.departmentId||cfg.categoryDepartments[category];
+  return configured&&configured!=='training'?configured:'management';
+}
 /** Department and owner for a category at a studio — the same rule makeDraft applies, exposed
  *  so the intake form can show who will pick a ticket up before it is filed. */
 export async function resolveRouting(cfg:Awaited<ReturnType<typeof getConfig>>,category:string,studio:string,subcategory?:string){
 const subRule=subcategory?cfg.subcategoryRouting[category+'|||'+subcategory]:undefined;
-const departmentId=subRule?.departmentId||cfg.categoryDepartments[category]||'operations';const[dept]=await db.select().from(departments).where(eq(departments.id,departmentId));if(!dept?.active)throw new ApiError('The routing department is inactive. Ask an administrator to update the routing rule.');
+const departmentId=departmentForTicket(cfg,category,subcategory);const[dept]=await db.select().from(departments).where(eq(departments.id,departmentId));if(!dept?.active)throw new ApiError('The routing department is inactive. Ask an administrator to update the routing rule.');
 const people=await db.select().from(staff).where(and(eq(staff.isActive,true),eq(staff.department,dept.name)));
 const ids=studioIdsFor(studio);const override=subRule?.ownerId||cfg.routingOwners[category+'::'+studio]||cfg.routingOwners[category];
 // Named city owners come after a rule an administrator set on the sub-category itself.
@@ -100,6 +112,24 @@ const memberFacingUpdate=praise?`Thank you${input.memberName?' , '+input.memberN
 return{...input,title,summary,priority,severity:inferSeverity(priority),assignedStaffId:owner.id,assignedStaffName:owner.name,assignedStaffEmail:owner.email,assignedStaffRole:owner.role,departmentId,departmentName:dept.name,slaHours,slaLabel:noSla?'No SLA required':slaHours===1?'1 hour':slaHours+' hours',resolutionRequired:!noSla,tags,opsChecklist,memberFacingUpdate,internalBrief:input.description,routingReason:!cfg.autoAssign?'Automatic assignment disabled · parked in the department queue':override?`Administrator-defined routing rule for ${input.category}${cfg.routingOwners[input.category+'::'+input.studio]?' at '+studioShort:''} → ${owner.name}`:`${input.category} routes to ${dept.name}. ${owner.name} picked up as the active ${owner.role||'specialist'}${ids.length?` covering ${studioShort}`:''}, with a ${noSla?'record-only':slaHours+'h'} follow-up target at ${priority} priority.`};}
 
 type ExternalCreate={sourceRef?:string;createdAt?:Date;status?:string;resolvedAt?:Date;/** A backfilled record was never worked in this system, so it carries no SLA clock. */noSla?:boolean;/** An explicit follow-up deadline (recurrence checks are due days after the resolution, not hours after filing). */slaDueAt?:Date;/** Run inside the caller's transaction (as a savepoint) instead of opening a new one — the history import batches rows this way. */tx?:Tx};
+async function notificationRecipients(tx:Tx,ownerId:number|null,ownerEmail:string|null){
+  const emails=new Set<string>();if(ownerEmail)emails.add(ownerEmail.trim().toLowerCase());
+  if(ownerId){const[owner]=await tx.select({manager:staff.manager}).from(staff).where(eq(staff.id,ownerId));if(owner?.manager){const[manager]=await tx.select({email:staff.email}).from(staff).where(and(eq(staff.isActive,true),ilike(staff.name,owner.manager.trim())));if(manager?.email)emails.add(manager.email.trim().toLowerCase());}}
+  return[...emails].filter(Boolean);
+}
+async function queueTicketEmails(tx:Tx,ticket:{id:number;ticketNumber:string;title:string;assignedStaffId:number|null;assignedStaffEmail:string|null;slaDueAt:Date|null},kind:'assigned'|'sla-3h',recipients?:string[]){
+  const targets=recipients||await notificationRecipients(tx,ticket.assignedStaffId,ticket.assignedStaffEmail);
+  let queued=0;
+  for(const email of targets){
+    const[ledger]=await tx.insert(ticketNotifications).values({ticketId:ticket.id,kind,recipientEmail:email}).onConflictDoNothing().returning({id:ticketNotifications.id});
+    if(!ledger)continue;
+    const subject=kind==='assigned'?`Assigned: ${ticket.ticketNumber}`:`Due in 3 hours: ${ticket.ticketNumber}`;
+    const deadline=ticket.slaDueAt?`\nFollow-up target: ${indiaDate(ticket.slaDueAt)}.`:'';
+    const text=kind==='assigned'?`${ticket.title}\n\nThis ticket has been assigned in IRIS.${deadline}\nPlease sign in to review and update it.`:`${ticket.title}\n\nThis ticket remains unresolved and reaches its follow-up target in approximately 3 hours.${deadline}\nPlease add an update or resolve it now.`;
+    await tx.insert(deliveryLogs).values({integrationId:'mailtrap',action:'send',nextAttemptAt:new Date(),payload:{to:[{email}],subject,text}});queued++;
+  }
+  return queued;
+}
 export async function createTicketFromDraft(draft:AdvancedDraft,source=draft.source,channel='workspace',external?:ExternalCreate){return(await insertTicketFromDraft(draft,source,channel,external)).row;}
 /** `created` is false when the submission key or source reference already had a ticket. */
 async function insertTicketFromDraft(draft:AdvancedDraft,source=draft.source,channel='workspace',external?:ExternalCreate){const cfg=source==='history'?null:await getConfig();const submissionKey=draft.submissionKey||randomUUID();
@@ -108,17 +138,19 @@ const work=async(tx:Tx)=>{await tx.execute(sql`select pg_advisory_xact_lock(hash
 const now=external?.createdAt||new Date();
 // An Unassigned (queue-parked) ticket is not "assigned" to anyone yet.
 const status=external?.status||(draft.resolutionRequired?(draft.assignedStaffId?'assigned':'new'):'recorded');const closed=['resolved','closed'].includes(status);const backfill=Boolean(external?.noSla);const resolvedAt=closed?external?.resolvedAt||now:null;
-const[row]=await tx.insert(tickets).values({ticketNumber:'P57-'+randomUUID(),title:draft.title,summary:draft.summary,description:draft.description,category:draft.category,subcategory:draft.subcategory,status,priority:draft.priority,severity:draft.severity,sentiment:draft.sentiment,kind:draft.kind,resolutionRequired:backfill?false:draft.resolutionRequired,impact:draft.impact,studio:draft.studio,classFormat:draft.classFormat,trainer:draft.trainer,membership:draft.membership,incidentAt:draft.incidentAt,memberName:draft.memberName,memberEmail:draft.memberEmail,memberPhone:draft.memberPhone,momenceMemberId:draft.momenceMemberId,momenceSessionId:draft.momenceSessionId,preferredContact:draft.preferredContact,requestedResolution:draft.requestedResolution,assignedStaffId:draft.assignedStaffId,assignedStaffName:draft.assignedStaffName,assignedStaffEmail:draft.assignedStaffEmail,departmentId:draft.departmentId,departmentName:draft.departmentName,slaHours:backfill?0:draft.slaHours,slaDueAt:backfill||!draft.slaHours?null:external?.slaDueAt||new Date(now.getTime()+draft.slaHours*3600000),source,channel,tags:draft.tags,templateId:draft.templateId,customFields:{...draft.customFields,_brief:{opsChecklist:draft.opsChecklist,memberFacingUpdate:draft.memberFacingUpdate,routingReason:draft.routingReason}},momenceContext:draft.momenceContext||null,assetId:typeof draft.customFields?.assetId==='number'?draft.customFields.assetId:null,submissionKey,sourceRef:external?.sourceRef,createdAt:now,updatedAt:now,resolvedAt,closedAt:status==='closed'?resolvedAt:null}).onConflictDoNothing().returning();
+const area=ticketArea(draft.customFields);
+const[row]=await tx.insert(tickets).values({ticketNumber:'P57-'+randomUUID(),title:draft.title,summary:draft.summary,description:draft.description,category:draft.category,subcategory:draft.subcategory,status,priority:draft.priority,severity:draft.severity,sentiment:draft.sentiment,kind:draft.kind,resolutionRequired:backfill?false:draft.resolutionRequired,impact:draft.impact,studio:draft.studio,area,classFormat:draft.classFormat,trainer:draft.trainer,membership:draft.membership,incidentAt:draft.incidentAt,memberName:draft.memberName,memberEmail:draft.memberEmail,memberPhone:draft.memberPhone,momenceMemberId:draft.momenceMemberId,momenceSessionId:draft.momenceSessionId,preferredContact:draft.preferredContact,requestedResolution:draft.requestedResolution,assignedStaffId:draft.assignedStaffId,assignedStaffName:draft.assignedStaffName,assignedStaffEmail:draft.assignedStaffEmail,departmentId:draft.departmentId,departmentName:draft.departmentName,slaHours:backfill?0:draft.slaHours,slaDueAt:backfill||!draft.slaHours?null:external?.slaDueAt||new Date(now.getTime()+draft.slaHours*3600000),source,channel,tags:draft.tags,templateId:draft.templateId,customFields:{...draft.customFields,_brief:{opsChecklist:draft.opsChecklist,memberFacingUpdate:draft.memberFacingUpdate,routingReason:draft.routingReason}},momenceContext:draft.momenceContext||null,assetId:typeof draft.customFields?.assetId==='number'?draft.customFields.assetId:null,submissionKey,sourceRef:external?.sourceRef,createdAt:now,updatedAt:now,resolvedAt,closedAt:status==='closed'?resolvedAt:null}).onConflictDoNothing().returning();
 // A concurrent insert with the same key or source reference won the race: return that row rather than a 500.
 if(!row){const[winner]=await findExisting(tx);if(!winner)throw new ApiError('This ticket could not be saved. Try again.',409);return{row:winner,created:false};}
 const number=ticketNumberFor(row.id);await tx.update(tickets).set({ticketNumber:number}).where(eq(tickets.id,row.id));await tx.insert(ticketActivities).values({ticketId:row.id,actorName:source==='history'?'History import':'IRIS',action:'created',detail:`${draft.assignedStaffName} · ${draft.departmentName} · ${backfill?'No SLA · closed historical record':draft.slaLabel}`,createdAt:now});
+if(area&&draft.studio){const related=await tx.select({id:tickets.id}).from(tickets).where(and(ne(tickets.id,row.id),eq(tickets.subcategory,draft.subcategory),eq(tickets.studio,draft.studio),eq(tickets.area,area))).orderBy(desc(tickets.createdAt)).limit(12);if(related.length){await tx.insert(ticketLinks).values(related.map(other=>({ticketId:Math.min(row.id,other.id),relatedId:Math.max(row.id,other.id),relation:'recurring-context'}))).onConflictDoNothing();await tx.insert(ticketActivities).values({ticketId:row.id,actorName:'IRIS Automation',action:'linked.recurring_context',detail:`Auto-linked ${related.length} ticket${related.length===1?'':'s'} with the same subcategory, studio and area.`});}}
 if(cfg?.webhookOnCreate)await tx.insert(deliveryLogs).values({integrationId:'n8n',action:'webhook',payload:{event:'ticket.created',ticket:{id:row.id,ticketNumber:number,title:draft.title,priority:draft.priority,department:draft.departmentName,assignedTo:draft.assignedStaffName}}});
-if(emailSendingEnabled()&&cfg?.assignmentEmail&&draft.assignedStaffEmail)await tx.insert(deliveryLogs).values({integrationId:'mailtrap',action:'send',payload:{to:[{email:draft.assignedStaffEmail}],subject:`Assigned: ${number}`,text:`${draft.title}\n\nA ticket has been assigned to you in IRIS. Please sign in to review it.`}});
-return{row:{...row,ticketNumber:number},created:true};};
+const savedRow={...row,ticketNumber:number};if(emailSendingEnabled()&&cfg?.assignmentEmail&&source!=='history')await queueTicketEmails(tx,savedRow,'assigned');
+return{row:savedRow,created:true};};
 return external?.tx?external.tx.transaction(work):db.transaction(work);}
 /** List views never read `customFields` or the long-form text, which are ~85% of the
  *  table's bytes. Selecting only the rendered columns keeps this response small. */
-const LIST_COLUMNS={id:tickets.id,ticketNumber:tickets.ticketNumber,title:tickets.title,status:tickets.status,priority:tickets.priority,category:tickets.category,subcategory:tickets.subcategory,studio:tickets.studio,memberName:tickets.memberName,assignedStaffId:tickets.assignedStaffId,assignedStaffName:tickets.assignedStaffName,departmentName:tickets.departmentName,createdByUserId:tickets.createdByUserId,kind:tickets.kind,source:tickets.source,resolutionRequired:tickets.resolutionRequired,slaDueAt:tickets.slaDueAt,resolvedAt:tickets.resolvedAt,createdAt:tickets.createdAt,updatedAt:tickets.updatedAt,version:tickets.version};
+const LIST_COLUMNS={id:tickets.id,ticketNumber:tickets.ticketNumber,title:tickets.title,status:tickets.status,priority:tickets.priority,category:tickets.category,subcategory:tickets.subcategory,studio:tickets.studio,area:tickets.area,memberName:tickets.memberName,assignedStaffId:tickets.assignedStaffId,assignedStaffName:tickets.assignedStaffName,departmentName:tickets.departmentName,createdByUserId:tickets.createdByUserId,kind:tickets.kind,source:tickets.source,resolutionRequired:tickets.resolutionRequired,slaDueAt:tickets.slaDueAt,resolvedAt:tickets.resolvedAt,createdAt:tickets.createdAt,updatedAt:tickets.updatedAt,version:tickets.version};
 /** SQL form of `canAccessTicket`, so a list or a search only ever reads rows the caller may open. */
 /** The row filter behind every list, search and count. Mirrors `canAccessTicket`
  *  in lib/auth.ts — that one judges a single ticket, this one turns the same
@@ -141,13 +173,18 @@ export function ticketScope(user?:Identity):SQL|undefined{
  * Whether the app may send the automatic "assigned to you" email on ticket
  * creation.
  *
- * Two switches must both be on: this environment flag and the workspace's own
- * `assignmentEmail` setting. The env flag is the outer one and it fails closed
- * — anything other than a literal `true` means no mail — so a copied database
- * or a fresh deployment cannot start emailing real staff before someone has
- * decided it should. Set `SEND_EMAILS=true` to enable it.
+ * The workspace setting controls normal operation. `SEND_EMAILS=false` is an
+ * explicit emergency/test kill switch; otherwise enabled workspaces queue mail.
  */
-export function emailSendingEnabled(){return (process.env.SEND_EMAILS??'').trim().toLowerCase()==='true';}
+export function emailSendingEnabled(){return (process.env.SEND_EMAILS??'true').trim().toLowerCase()!=='false';}
+/** Queue one idempotent warning per recipient when an unresolved ticket enters its final
+ * three-hour SLA window. The hourly cron calls this before draining the outbox. */
+export async function queueSlaReminderEmails(now=new Date()){
+  if(!emailSendingEnabled())return 0;const cfg=await getConfig();if(!cfg.assignmentEmail)return 0;
+  const dueBefore=new Date(now.getTime()+3*3600_000);
+  const rows=await db.select({id:tickets.id,ticketNumber:tickets.ticketNumber,title:tickets.title,assignedStaffId:tickets.assignedStaffId,assignedStaffEmail:tickets.assignedStaffEmail,slaDueAt:tickets.slaDueAt}).from(tickets).where(and(sql`${tickets.status} not in ('resolved','closed','recorded')`,gt(tickets.slaDueAt,now),lte(tickets.slaDueAt,dueBefore)));
+  let queued=0;for(const ticket of rows)queued+=await db.transaction(tx=>queueTicketEmails(tx,ticket,'sla-3h'));return queued;
+}
 export const DEFAULT_LIST_LIMIT=500;export const MAX_LIST_LIMIT=2000;
 /** Keyset cursor over (createdAt desc, id desc): stable while new tickets arrive, unlike an offset. */
 const encodeCursor=(t:{createdAt:Date;id:number})=>Buffer.from(t.createdAt.toISOString()+'|'+t.id).toString('base64url');
@@ -281,7 +318,7 @@ export function statusTimestamps(current:{resolvedAt:Date|null;closedAt:Date|nul
 }
 /** The one way a ticket reaches resolved or closed — the ticket page, the ops radar and any
  *  future surface. Enforces access, the resolver rule, the resolution record, the reopen
- *  policy and the caller's own revision, then raises the bike/mic recurrence checks. */
+ *  policy and the caller's own revision, then raises equipment recurrence checks. */
 export async function resolveTicket(actor:Identity,input:{ticketId:number;version:number;status?:'resolved'|'closed';/** Other columns changed in the same save (the PATCH route). */extra?:Partial<typeof tickets.$inferInsert>;action?:string;detail?:string}){
   const status=input.status||'resolved';
   const[[current],cfg]=await Promise.all([db.select().from(tickets).where(eq(tickets.id,input.ticketId)),getConfig()]);
@@ -303,29 +340,33 @@ export async function resolveTicket(actor:Identity,input:{ticketId:number;versio
 const BIKE_PATTERN=/\b(bike|bikes|cycle|cycling|powercycle|power cycle|spin bike|pedal|flywheel|resistance knob)\b/i;
 export function isPowerCycleBikeTicket(t:{title:string;description:string;subcategory:string;classFormat:string|null;category:string}):boolean{const haystack=`${t.title} ${t.description} ${t.subcategory} ${t.classFormat||''}`;if(!BIKE_PATTERN.test(haystack))return false;return['Repair and Maintenance','Tech Issues','Studio Amenities and Facilities'].includes(t.category)||/powercycle/i.test(t.classFormat||'');}
 const MIC_PATTERN=/\b(mic|mics|microphone|microphones|headset mic|lapel mic|mic pack)\b/i;
+const AC_PATTERN=/\b(a\.?c\.?|air ?con(?:ditioner|ditioning)?|hvac|cooling unit|ventilation)\b/i;
 const EQUIPMENT_CATEGORIES_FOR_CHECKS=['Repair and Maintenance','Tech Issues','Studio Amenities and Facilities','Class Experience','Miscellaneous','Operating Systems'];
 /** A studio microphone fault: the headset, handheld or its receiver. */
 export function isMicTicket(t:{title:string;description:string;subcategory:string;category:string}):boolean{return MIC_PATTERN.test(`${t.title} ${t.description} ${t.subcategory}`)&&EQUIPMENT_CATEGORIES_FOR_CHECKS.includes(t.category);}
-/** The two re-checks raised when a bike or mic fault is resolved: days after resolution. */
+export function isAcTicket(t:{title:string;description:string;subcategory:string;category:string}):boolean{return AC_PATTERN.test(`${t.title} ${t.description} ${t.subcategory}`)&&EQUIPMENT_CATEGORIES_FOR_CHECKS.includes(t.category);}
+/** The two re-checks raised when a bike, AC or mic fault is resolved: days after resolution. */
 export const RECURRENCE_CHECK_DAYS=[5,10] as const;
-type ResolvedTicket={id:number;ticketNumber:string;title:string;description:string;subcategory:string;category:string;classFormat:string|null;studio:string|null;assignedStaffId:number|null;assignedStaffName:string|null;assignedStaffEmail:string|null;departmentId:string|null;departmentName:string|null;memberName:string;trainer:string|null;resolvedAt?:Date|string|null;source?:string;customFields?:Record<string,unknown>|null};
+type ResolvedTicket={id:number;ticketNumber:string;title:string;description:string;subcategory:string;category:string;classFormat:string|null;studio:string|null;area?:string|null;assignedStaffId:number|null;assignedStaffName:string|null;assignedStaffEmail:string|null;departmentId:string|null;departmentName:string|null;memberName:string;trainer:string|null;resolvedAt?:Date|string|null;source?:string;customFields?:Record<string,unknown>|null};
 const shortDate=(d:Date)=>d.toLocaleDateString('en-IN',{timeZone:'Asia/Kolkata',day:'numeric',month:'short',year:'numeric'});
-/** When a PowerCycle bike or a microphone fault is resolved, raise two child tickets for the
+/** When a PowerCycle bike, AC or microphone fault is resolved, raise two child tickets for the
  *  same owner — due 5 and 10 days after the resolution — asking the studio to confirm the
  *  fault has not come back. A check is itself never re-checked, and each is raised once:
  *  resolving, re-opening and resolving again does not duplicate them. */
 export async function maybeCreateRecurrenceChecks(resolved:ResolvedTicket){
   if(resolved.customFields?.autoFollowUp)return [];
-  const bike=isPowerCycleBikeTicket(resolved);const mic=!bike&&isMicTicket(resolved);
-  if(!bike&&!mic)return [];
+  const bike=isPowerCycleBikeTicket(resolved);const ac=!bike&&isAcTicket(resolved);const mic=!bike&&!ac&&isMicTicket(resolved);
+  if(!bike&&!ac&&!mic)return [];
   const text=resolved.title+' '+resolved.description;
-  const num=bike?text.match(/bike\s*(?:no\.?|number|#)?\s*(\d{1,3})\b/i):text.match(/\bmic(?:rophone)?\s*(?:no\.?|number|#)?\s*(\d{1,2})\b/i);
-  const label=bike?(num?`Bike #${num[1]}`:'PowerCycle bike'):(num?`Mic #${num[1]}`:'Studio microphone');
-  const kind=bike?'bike':'mic';
+  const num=bike?text.match(/bike\s*(?:no\.?|number|#)?\s*(\d{1,3})\b/i):mic?text.match(/\bmic(?:rophone)?\s*(?:no\.?|number|#)?\s*(\d{1,2})\b/i):null;
+  const label=bike?(num?`Bike #${num[1]}`:'PowerCycle bike'):ac?'Air-conditioning system':(num?`Mic #${num[1]}`:'Studio microphone');
+  const kind=bike?'bike':ac?'ac':'mic';
   const base=resolved.resolvedAt?new Date(resolved.resolvedAt):new Date();
   const checklist=bike
     ?['Ride-test the bike for at least 5 minutes','Confirm the original fault has not come back','Check pedal tightness (42 N·m), crank arm torque (52–57 N·m) and the saddle clamp','Test the resistance knob, SprintShift lever and power meter pairing','Ask the trainers who taught on it whether anything felt off','Resolve only once you have confirmed there is no recurrence; if it has returned, say so and escalate to the vendor']
-    :['Power the mic on and do a full sound check through the studio system','Confirm the original fault (drop-outs, crackle, no signal) has not come back','Check the battery, the pack connector and the headset cable','Ask the trainers who used it whether it cut out in class','Resolve only once you have confirmed there is no recurrence; if it has returned, say so and escalate to the vendor'];
+    :ac
+      ?['Run the AC through a complete cooling cycle','Record the room temperature and airflow','Confirm the original fault has not returned','Ask the studio team whether cooling dropped or fluctuated since the repair','Add a comment confirming no relapse, or describe the relapse and new symptoms before escalating to the vendor']
+      :['Power the mic on and do a full sound check through the studio system','Confirm the original fault (drop-outs, crackle, no signal) has not come back','Check the battery, the pack connector and the headset cable','Ask the trainers who used it whether it cut out in class','Resolve only once you have confirmed there is no recurrence; if it has returned, say so and escalate to the vendor'];
   const created=[];
   for(const [i,days] of RECURRENCE_CHECK_DAYS.entries()){
     const key=`recheck:${resolved.id}:d${days}`;
@@ -343,7 +384,7 @@ export async function maybeCreateRecurrenceChecks(resolved:ResolvedTicket){
       preferredContact:'Internal log only',requestedResolution:`Confirm ${label.toLowerCase()} has had no recurrence of the original fault since ${shortDate(base)}.`,
       priority:'medium',severity:inferSeverity('medium'),sentiment:'neutral',
       tags:['auto-follow-up','recurrence-check',`${kind}-recheck`,`day-${days}-check`],
-      customFields:{parentTicketId:resolved.id,parentTicketNumber:resolved.ticketNumber,autoFollowUp:true,followUpType:'recurrence-check',recheckEquipment:kind,recheckDay:days,recheckOf:RECURRENCE_CHECK_DAYS.length,recheckDueAt:due.toISOString(),firstResolvedAt:base.toISOString(),followUpReason:`Confirm no recurrence ${days} days after resolution`},
+      customFields:{area:resolved.area||resolved.customFields?.area,parentTicketId:resolved.id,parentTicketNumber:resolved.ticketNumber,autoFollowUp:true,followUpType:'recurrence-check',recheckEquipment:kind,recheckDay:days,recheckOf:RECURRENCE_CHECK_DAYS.length,recheckDueAt:due.toISOString(),firstResolvedAt:base.toISOString(),recurrenceConfirmationRequired:true,relapseDetailsAllowed:true,followUpReason:`Confirm no recurrence ${days} days after resolution`},
       assignedStaffId:resolved.assignedStaffId,assignedStaffName:resolved.assignedStaffName||'Unassigned',assignedStaffEmail:resolved.assignedStaffEmail||'',assignedStaffRole:'Follow-up owner',
       departmentId:resolved.departmentId||'operations',departmentName:resolved.departmentName||'Operations',slaHours,slaLabel:`${days} days from the first resolution`,resolutionRequired:true,
       opsChecklist:checklist,memberFacingUpdate:'',internalBrief:`Day-${days} recurrence check for ${resolved.ticketNumber} — ${label}.`,routingReason:`Auto-raised ${days}-day recurrence check, same owner as ${resolved.ticketNumber}.`};

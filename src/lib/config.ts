@@ -12,7 +12,13 @@ export type {WorkspaceConfig};
 /** Memoised per request with React cache(); outside a render (scripts) it simply runs each call. */
 export const getConfig=cache(async function getConfig():Promise<WorkspaceConfig>{
   const[row]=await db.select().from(appSettings).where(eq(appSettings.key,"workspace"));
-  const parsed=configSchema.parse({...DEFAULT_CONFIG,aiModel:process.env.OPENAI_MODEL||DEFAULT_CONFIG.aiModel,...row?.value});
+  const saved={...(row?.value||{})} as Record<string,unknown>;
+  const clamp=(value:unknown,fallback:number)=>Math.max(12,Math.min(72,Number(value)||fallback));
+  const rawHours=(saved.responseHours||{}) as Record<string,unknown>;
+  saved.responseHours={critical:clamp(rawHours.critical,12),high:clamp(rawHours.high,16),medium:clamp(rawHours.medium,48),low:clamp(rawHours.low,72)};
+  const rawSubRouting=(saved.subcategoryRouting||{}) as Record<string,Record<string,unknown>>;
+  saved.subcategoryRouting=Object.fromEntries(Object.entries(rawSubRouting).map(([key,rule])=>[key,{...rule,...(rule.slaHours==null?{}:{slaHours:clamp(rule.slaHours,48)})}]));
+  const parsed=configSchema.parse({...DEFAULT_CONFIG,aiModel:process.env.OPENAI_MODEL||DEFAULT_CONFIG.aiModel,...saved});
   const hosted='Hosted Class Feedback';
   const legacyRepairLabels=new Set(['AC and HVAC Issues','Lighting Issues','Studio System Malfunction','Plumbing Leaks','General Maintenance Delays','Door Lock Issues','Dust and Mold in Corners','Broken Equipment Not Repaired','PowerCycle Bike Fault (Stages SC3)']);
   const configuredRepair=(parsed.taxonomy['Repair and Maintenance']||[]).filter(label=>!legacyRepairLabels.has(label));

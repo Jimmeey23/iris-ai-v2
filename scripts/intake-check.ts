@@ -18,6 +18,7 @@ import {
 } from '@/lib/intake/plan';
 import {classDeskAnswers, rosterRows, sessionSnapshot, sessionStats, type SessionDetail} from '@/lib/intake/class-desk';
 import {equipmentRepairRoute} from '@/lib/equipment-routing';
+import {departmentForTicket, isAcTicket, slaHoursFor} from '@/lib/tickets';
 
 let failed = 0;
 function check(name: string, cond: boolean, got?: unknown) {
@@ -292,6 +293,18 @@ console.log('\nOperational faults use specific Repair and Maintenance sub-catego
     const route = equipmentRepairRoute({description});
     check(`${expected} is selectable and routed`, CATEGORY_MAP['Repair and Maintenance'].includes(expected) && route?.subcategory === expected, route);
   }
+}
+
+console.log('\nRouting and SLA policy are bounded and deterministic');
+{
+  const policy = {categoryDepartments: {Scheduling: 'operations', 'Repair and Maintenance': 'training'}, subcategoryRouting: {}};
+  check('scheduling routes to Training even when saved settings drift', departmentForTicket(policy, 'Scheduling', 'Waitlist Concerns') === 'training');
+  check('repair routes to Operations even when saved settings drift', departmentForTicket(policy, 'Repair and Maintenance', 'PowerCycle Bike Malfunction & Repairs') === 'operations');
+  check('unknown work falls back to Management', departmentForTicket(policy, 'Unmapped Category', 'Unclear request') === 'management');
+  check('an AC fault is eligible for recurrence checks', isAcTicket({title: 'Studio 1 AC repaired', description: 'Cooling stopped', subcategory: 'AC & Ventilation Repairs', category: 'Repair and Maintenance'}));
+  const slaCfg = {responseHours: {critical: 1, high: 16, medium: 48, low: 200}, subcategoryRouting: {'Repair and Maintenance|||PowerCycle Bike Malfunction & Repairs': {departmentId: 'operations', slaHours: 4}}};
+  check('SLA values cannot fall below 12 hours', slaHoursFor(slaCfg, 'Repair and Maintenance', 'PowerCycle Bike Malfunction & Repairs', 'critical') === 12);
+  check('SLA values cannot exceed 72 hours', slaHoursFor(slaCfg, 'Miscellaneous', 'Other', 'low') === 72);
 }
 
 console.log(failed ? `\n${failed} check(s) failed` : '\nall passed');

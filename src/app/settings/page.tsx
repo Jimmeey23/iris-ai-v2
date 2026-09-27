@@ -1300,8 +1300,8 @@ export default function SettingsPage() {
                   )}
                   {booleanSetting(
                     "assignmentEmail",
-                    "Email the assigned owner",
-                    "Requires an enabled Mailtrap connection and verified sender. Sends a real assignment notification to the owner’s work email.",
+                    "Email the owner and reporting manager",
+                    "Requires an enabled Mailtrap connection and verified sender. Sends assignment notifications and one reminder three hours before an unresolved ticket’s SLA target.",
                   )}
                   <div className="info-box warning" style={{ marginTop: 20 }}>
                     Enabling these controls authorizes automatic external

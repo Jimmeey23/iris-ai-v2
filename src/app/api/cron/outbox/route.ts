@@ -1,6 +1,6 @@
 import {timingSafeEqual} from 'node:crypto';
 import {deliverPending} from '@/lib/integrations';
-import {applyEscalations} from '@/lib/tickets';
+import {applyEscalations,queueSlaReminderEmails} from '@/lib/tickets';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -29,9 +29,10 @@ function authorized(req: Request) {
 export async function GET(req: Request) {
   if (!authorized(req)) return Response.json({ok: false, error: 'Unauthorized'}, {status: 401});
   const started = Date.now();
-  const totals = {batches: 0, processed: 0, succeeded: 0, retrying: 0, failed: 0, reset: 0};
+  const totals = {batches: 0, processed: 0, succeeded: 0, retrying: 0, failed: 0, reset: 0, reminders: 0};
   try {
     while (Date.now() - started < TIME_BUDGET_MS) {
+      if(totals.batches===0)totals.reminders=await queueSlaReminderEmails();
       const r = await deliverPending({limit: BATCH});
       totals.batches++;
       totals.processed += r.processed;

@@ -707,7 +707,7 @@ export const DEPARTMENT_RECORDS = [
 ] as const;
 
 export const CATEGORY_DEPARTMENT: Record<string, string> = {
-  Scheduling: "operations",
+  Scheduling: "training",
   "Class Experience": "training",
   "Trainer Feedback": "training",
   "Repair and Maintenance": "operations",
@@ -756,9 +756,9 @@ export const STATUS_LABELS: Record<string, string> = {
  *  `responseHours` (Settings) defaults to this and is what tickets are actually filed with. */
 export type SlaHours = Record<"critical" | "high" | "medium" | "low", number>;
 export const PRIORITY_SLA_HOURS: SlaHours = {
-  critical: 1,
-  high: 4,
-  medium: 24,
+  critical: 12,
+  high: 16,
+  medium: 48,
   low: 72,
 };
 
