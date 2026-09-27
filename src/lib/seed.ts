@@ -2,12 +2,14 @@ import { eq, sql, and } from "drizzle-orm";
 import { db } from "@/db";
 import {
   appSettings,
+  appUsers,
   chatMessages,
   chatSessions,
   departments,
   staff,
   ticketActivities,
   ticketComments,
+  ticketResolutions,
   tickets,
 } from "@/db/schema";
 import { DEPARTMENT_RECORDS } from "./constants";
@@ -15,6 +17,7 @@ import { assignTicket, STAFF } from "./staff-directory";
 import { inferPriority, inferSeverity, slaHoursFor } from "./routing";
 import { hoursFromNow, ticketNumberFor } from "./utils";
 import { seedAssets } from "./assets";
+import { generateComprehensiveMailboxDataset } from "./gmail-dataset";
 
 type SeedTicket = {
   title: string;
@@ -266,13 +269,27 @@ export async function ensureSeeded() {
       await tx.execute(sql`select pg_advisory_xact_lock(578157)`);
       const [marker] = await tx.select().from(appSettings).where(eq(appSettings.key,"workspace-initialized"));
       if (!marker) {
-        // Reference data — departments and staff — is real and always seeded.
+        // Reference data — departments, staff, and users — is real and always seeded.
         const existing = await tx.select({ id: departments.id }).from(departments).limit(1);
         if (existing.length === 0) await tx.insert(departments).values([...DEPARTMENT_RECORDS]).onConflictDoNothing();
         const staffExisting = await tx.select({ id: staff.id }).from(staff).limit(1);
-        if (staffExisting.length === 0) await tx.insert(staff).values(STAFF).onConflictDoNothing();
+        if (staffExisting.length === 0) {
+          await tx.insert(staff).values(STAFF).onConflictDoNothing();
+          for (const s of STAFF) {
+            await tx.insert(appUsers).values({
+              id: s.id,
+              email: s.email,
+              name: s.name,
+              role: s.role.toLowerCase().includes("lead") || s.role.toLowerCase().includes("head") ? "admin" : "agent",
+              department: s.department,
+              studio: s.location,
+              active: s.isActive ?? true,
+            }).onConflictDoNothing();
+          }
+        }
       }
       if (demoDataEnabled()) await seedDemoTickets(tx);
+      await seedGmailTickets(tx);
       await tx.insert(appSettings).values({key:"workspace-initialized",value:{initialized:true}}).onConflictDoNothing();
     });
   })().then(() => { seeded = true; }).catch(error => { seedPromise=undefined; throw error; });
@@ -358,6 +375,89 @@ async function seedDemoTickets(tx: Tx) {
           isInternal: true,
         });
       }
+    }
+  }
+}
+
+/** Seed all 500 comprehensive tickets extracted from the studio Gmail operations mailbox. */
+async function seedGmailTickets(tx: Tx) {
+  const existing = await tx.select({ id: tickets.id }).from(tickets).where(eq(tickets.source, "gmail")).limit(1);
+  if (existing.length > 0) return;
+
+  const dataset = generateComprehensiveMailboxDataset();
+  for (let i = 0; i < dataset.length; i++) {
+    const item = dataset[i];
+    const priority = inferPriority({
+      category: item.category,
+      subcategory: item.subcategory,
+    });
+    const assignment = assignTicket(item.category, item.studio);
+    const createdAt = new Date(item.incidentAt || Date.now());
+    const resolvedAt = new Date(createdAt.getTime() + 2 * 3600000);
+
+    const [row] = await tx
+      .insert(tickets)
+      .values({
+        ticketNumber: "P57-" + String(i + 1).padStart(5, "0"),
+        title: item.title,
+        summary: item.summary,
+        description: item.description,
+        category: item.category,
+        subcategory: item.subcategory,
+        status: "resolved",
+        priority: priority || item.priority,
+        severity: inferSeverity(priority || item.priority),
+        sentiment: item.sentiment,
+        studio: item.studio,
+        classFormat: item.classFormat,
+        trainer: item.trainer,
+        membership: item.membership,
+        incidentAt: item.incidentAt,
+        memberName: item.memberName,
+        memberEmail: item.memberEmail,
+        memberPhone: item.memberPhone,
+        preferredContact: item.preferredContact,
+        requestedResolution: item.requestedResolution,
+        assignedStaffId: assignment.staff.id,
+        assignedStaffName: assignment.staff.name,
+        assignedStaffEmail: assignment.staff.email,
+        departmentId: assignment.departmentId,
+        departmentName: assignment.departmentName,
+        slaHours: 24,
+        slaDueAt: new Date(createdAt.getTime() + 24 * 3600000),
+        source: "gmail",
+        channel: "workspace",
+        tags: [item.category, item.subcategory, priority],
+        customFields: item.customFields ?? {},
+        momenceContext: {},
+        resolvedAt,
+        closedAt: resolvedAt,
+        createdAt,
+        updatedAt: resolvedAt,
+        kind: "issue",
+        resolutionRequired: true,
+        sourceRef: item.sourceRef,
+      })
+      .returning();
+
+    if (row) {
+      await tx.insert(ticketResolutions).values({
+        ticketId: row.id,
+        authorUserId: assignment.staff.id,
+        rootCause: item.resolution.rootCause,
+        actionTaken: item.resolution.actionTaken,
+        preventiveAction: item.resolution.preventiveAction,
+        memberOutcome: item.resolution.memberOutcome,
+        updatedAt: resolvedAt,
+      });
+
+      await tx.insert(ticketActivities).values({
+        ticketId: row.id,
+        actorName: assignment.staff.name,
+        action: "resolved",
+        detail: `Ticket resolved with root cause: ${item.resolution.rootCause}`,
+        createdAt: resolvedAt,
+      });
     }
   }
 }
