@@ -7,6 +7,7 @@ process.env.DATABASE_URL ||= 'postgres://check:check@127.0.0.1:5432/check';
 
 import {canAccessTicket, coveredStudios, type Identity} from '../src/lib/auth';
 import {ticketScope} from '../src/lib/tickets';
+import {existsSync, readFileSync} from 'fs';
 
 let pass = 0, fail = 0;
 const check = (name: string, ok: boolean, detail?: unknown) => {
@@ -101,6 +102,29 @@ check('a multi-studio associate filters on every studio',
   [KWALITY, SUPREME, COURTSIDE].every(s => sqlFor(trainer).includes(s)), sqlFor(trainer));
 check('a manager with nothing set produces a filter that excludes everything',
   sqlFor(user({role: 'manager'})).includes('false'), sqlFor(user({role: 'manager'})));
+
+section('Route protection is actually wired up');
+// Next resolves the proxy only when it sits beside `app`. This project keeps its app
+// at src/app, so the file must be src/proxy.ts. At the repo root it is silently
+// ignored and every page answers 200 to a signed-out request.
+// node_modules/next/dist/docs/01-app/03-api-reference/03-file-conventions/proxy.md
+{
+  const root = new URL('../', import.meta.url);
+  const at = (p: string) => existsSync(new URL(p, root));
+  check('the app lives at src/app', at('src/app'));
+  check('proxy.ts sits beside app, at src/proxy.ts', at('src/proxy.ts'));
+  check('no stray proxy.ts at the repo root, which Next would ignore', !at('proxy.ts'));
+  check('no stray middleware.ts either', !at('middleware.ts') && !at('src/middleware.ts'));
+  const proxy = readFileSync(new URL('src/proxy.ts', root), 'utf8');
+  check('signed-out page requests are redirected to /login',
+    /redirect\(new URL\("\/login"/.test(proxy));
+  check('API routes are left to answer 401 themselves, not redirected',
+    /path\.startsWith\("\/api\/"\)/.test(proxy));
+  check('the login page is public, or the redirect would loop',
+    /"\/login"/.test(proxy));
+  check('the OAuth handshake is exempt from session refresh',
+    /\/auth\/callback/.test(proxy));
+}
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);
