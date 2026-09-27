@@ -847,25 +847,54 @@ export const TRAINER_IMAGES: Record<string, string> = {
   "Shruti Kulkarni": "/trainer-images/Shruti-Kulkarni.jpeg",
   "Simonelle De Vitre": "/trainer-images/Simonelle.jpeg",
   "Vivaran Dhasmana": "/trainer-images/015-Vivaran-Image-4.jpg",
+  // Files that were already on disk but had no entry, so these trainers fell
+  // back to initials. A bare first name ("Karanvir", "Siddhartha") resolves
+  // through the first-name rule below once the full name is listed here.
+  "Karanvir Bhatia": "/trainer-images/Karanvir-Bhatia.jpeg",
+  "Siddhartha Kusuma": "/trainer-images/siddhartha-kusuma.jpg",
+  "Simran Dutt": "/trainer-images/Simran.jpeg",
+  "Maysaa Nafis": "/trainer-images/maysaa-nafis.jpeg",
+  "Siya Mukund": "/trainer-images/siya-mukund.jpeg",
+};
+
+/** Headshots for the associates — the studio and office staff who are not
+ *  trainers. Kept as its own map because the two groups come from different
+ *  shoots and live in different folders; the lookup below reads both. */
+export const ASSOCIATE_IMAGES: Record<string, string> = {
+  "Deesha Changwani": "/associates/deesha-changwani.png",
+  "Imran Shaikh": "/associates/imran-shaikh.jpg",
+  "Nadiya Shaikh": "/associates/nadiya-shaikh.png",
+  // The file is named for a former surname; the directory lists her as Pinge.
+  "Shipra Pinge": "/associates/shipra-bhika.jpg",
 };
 
 /** A trainer's headshot, or null. Matches the full name first, then a first name on its own
  *  ("Anisha") — never a different person who happens to share a first name ("Rohan Mehta" is
  *  not "Rohan Dahima"), and never "Karanvir" for "Karan". A co-taught "Anisha, Atulan" reads as
  *  its first trainer. */
-export function getTrainerImage(name: string): string | null {
+function lookupImage(name: string, map: Record<string, string>): string | null {
   if (!name) return null;
   const first = name.split(/\s*(?:,|\+|&|\band\b)\s*/i)[0].trim().toLowerCase().replace(/\s+/g, ' ');
   if (!first) return null;
-  for (const [key, url] of Object.entries(TRAINER_IMAGES)) if (key.toLowerCase() === first) return url;
+  for (const [key, url] of Object.entries(map)) if (key.toLowerCase() === first) return url;
   const words = first.split(' ');
-  const matches = Object.entries(TRAINER_IMAGES).filter(([key]) => {
+  const matches = Object.entries(map).filter(([key]) => {
     const k = key.toLowerCase().split(' ');
     if (k[0] !== words[0]) return false;
     // A second word has to agree too, at least by its first letter ("Simonelle D.").
     return words.length === 1 || (k[1] || '').startsWith(words[1].replace(/\.$/, ''));
   });
   return matches.length === 1 ? matches[0][1] : null;
+}
+
+export function getTrainerImage(name: string): string | null {
+  return lookupImage(name, TRAINER_IMAGES);
+}
+
+/** Any person's headshot: a trainer first, then an associate. One person is
+ *  never in both maps, so the order only decides which is searched first. */
+export function getPersonImage(name: string): string | null {
+  return lookupImage(name, TRAINER_IMAGES) ?? lookupImage(name, ASSOCIATE_IMAGES);
 }
 
 /* ------------------------------------------------------------------------ *

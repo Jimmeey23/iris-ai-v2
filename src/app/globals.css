@@ -1,3 +1,4 @@
+/* css-languageserver-disable-next-line css-lcurlyexpected css-semicolonexpected -- Tailwind CSS v4 import directive */
 @import "tailwindcss" source(none);
 
 /* Tailwind v4 auto-detects content by walking the whole project. Left alone it
@@ -6,14 +7,18 @@
    `public/Trainer Images` — and rescanned all of them on every rebuild.
    `source(none)` turns auto-detection off; class names only ever appear in
    `src`, so that is the one place we point at. */
+/* css-languageserver-disable-next-line css-unknownAtRules -- Tailwind CSS v4 directive */
+/* stylelint-disable-next-line at-rule-no-unknown */
 @source "../**/*.{ts,tsx,js,jsx,mdx}";
 
 /* `dark:` utilities follow the app theme (the `data-theme` attribute toggled by
    ThemeToggle), not the OS preference. With no attribute the app is dark (the
    server always renders dark), so anything not explicitly light counts. */
+/* css-languageserver-disable-next-line css-unknownAtRules -- Tailwind CSS v4 @custom-variant */
+/* stylelint-disable-next-line at-rule-no-unknown */
 @custom-variant dark (&:where(:root:not([data-theme="light"]), :root:not([data-theme="light"]) *));
 
-/* ════════════════════════════════════════════════════════════════════════
+/* ════════════════════════════════════════════════════════════════════════════
    DESIGN TOKENS — the single source of truth for the IRIS visual language.
 
    Everything below is a token: colour, type, radius, elevation, spacing,
@@ -25,6 +30,8 @@
    `rounded-card`, `shadow-2` and `ease-out-expo` available and — crucially —
    keeps them pointing at the live `var()` so they re-resolve on theme switch.
    ════════════════════════════════════════════════════════════════════════ */
+/* css-languageserver-disable-next-line unknownAtRules -- Tailwind CSS v4 directive */
+/* stylelint-disable-next-line at-rule-no-unknown */
 @theme inline {
   --color-bg: var(--bg);
   --color-surface: var(--surface);
@@ -75,6 +82,7 @@
   --animate-scale-in: scale-in var(--dur-2) var(--ease-out-expo) both;
   --animate-shimmer: shimmer 1.6s var(--ease-in-out-quart) infinite;
 }
+/* css-languageserver-enable unknownAtRules */
 
 /* ── Dark theme (default) ──────────────────────────────────────────────────
    The server always renders dark and the inline head script sets
@@ -3547,6 +3555,7 @@ small {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   overflow: hidden;
   word-break: break-word;
 }
@@ -4830,6 +4839,7 @@ small {
   height: 100%;
   opacity: 0;
   cursor: pointer;
+  appearance: none;
   -webkit-appearance: none;
 }
 .context-tab .tab-chevron {
@@ -12558,6 +12568,7 @@ small {
   margin-top: 2px;
   color: var(--secondary);
   display: -webkit-box;
+  line-clamp: 1;
   -webkit-line-clamp: 1;
   -webkit-box-orient: vertical;
   overflow: hidden;
@@ -14029,6 +14040,7 @@ small {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;
+  line-clamp: 3;
   overflow: hidden;
 }
 .template-field-preview {
@@ -16007,6 +16019,7 @@ small {
   max-width: 72ch;
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
@@ -16292,6 +16305,7 @@ small {
   font-size: 13.5px;
   font-weight: 520;
   line-height: 1.55;
+  line-clamp: initial;
   -webkit-line-clamp: initial;
 }
 .dialog-content .ticket-detail-shell .td-chips { margin-top: 11px; }

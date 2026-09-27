@@ -301,3 +301,128 @@
   .tr-stream-copy { width: auto; margin: 14px; padding: 20px; }
   .tr-stream-hero { min-height: 380px; }
 }
+
+/* ---------- Trainer cards: leaner, smaller portrait ----------------------
+   The card leads with identity and numbers, so the portrait is a thumbnail
+   beside the name rather than the subject of the card. It drops from 62px to
+   44px with tighter corners, and the card loses the accent gradient, the
+   radial glow and the heavy coloured shadow it used to carry — on a grid of
+   twenty cards that tint read as twenty competing highlights.
+
+   `--neu-edge` from the branch these rules came from does not exist here, so
+   the elevation is the plain raised pair; referencing a missing token would
+   silently void the whole shadow list.
+   -------------------------------------------------------------------------- */
+.trainer-profile-card {
+  border: 1px solid var(--neu-line);
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: var(--neu-xs);
+  text-align: left;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    border-color 0.18s ease;
+}
+/* The tinted wash and the glow blob both go. */
+.trainer-profile-card::before {
+  content: none;
+}
+.trainer-profile-card:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--accent) 26%, var(--neu-line));
+  box-shadow: var(--neu-sm);
+}
+.trainer-profile-card:active {
+  transform: none;
+  box-shadow: var(--neu-in-sm);
+}
+.trainer-profile-meta {
+  padding: 13px 14px;
+  display: grid;
+  gap: 9px;
+}
+
+.tpc-head {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 0;
+}
+/* Thumbnail, not a headshot panel. */
+.tpc-photo {
+  position: relative;
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  border-radius: 11px;
+  overflow: hidden;
+  border: 1px solid var(--neu-line);
+  background: var(--surface-2);
+  box-shadow: var(--neu-in-sm);
+  transition: box-shadow 0.22s ease;
+}
+.trainer-profile-card:hover .tpc-photo {
+  transform: none;
+  box-shadow: var(--neu-xs);
+}
+.tpc-photo .tpc-photo-img,
+.tpc-photo .avatar,
+.tpc-photo .person-photo-fallback {
+  width: 100% !important;
+  height: 100% !important;
+  /* Faces sit high in these portraits, so the crop favours the top third. */
+  object-fit: cover;
+  object-position: 50% 16%;
+  display: block;
+}
+.tpc-photo .avatar {
+  border-radius: 0;
+  border: 0;
+  box-shadow: none;
+  font-size: 13px;
+}
+.tpc-id {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+.tpc-id h3 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 13.5px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tpc-id p {
+  margin: 0;
+  font-size: 10.5px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tpc-head .badge {
+  flex-shrink: 0;
+}
+/* The three counters are supporting detail: smaller, quieter, one line. */
+.trainer-profile-meta .tag {
+  padding: 2px 7px;
+  font-size: 10px;
+}
+.trainer-profile-meta .entity-foot {
+  margin-top: 1px;
+  padding-top: 9px;
+  border-top: 1px solid var(--neu-line);
+  font-size: 10.5px;
+}
+/* Leaner cards fit more per row — only on this grid. */
+.entity-grid:has(.trainer-profile-card) {
+  grid-template-columns: repeat(auto-fill, minmax(268px, 1fr));
+  gap: 12px;
+}

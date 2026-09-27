@@ -10,7 +10,7 @@
 "use client";
 import {useEffect,useState} from 'react';
 import Image from 'next/image';
-import {getTrainerImage} from '@/lib/constants';
+import {getPersonImage} from '@/lib/constants';
 import {Avatar} from './ui';
 
 /* ── Category glyphs ──────────────────────────────────────────────────────── */
@@ -170,7 +170,7 @@ export function SlaRing({createdAt,slaDueAt,status,size=74}:{createdAt:string;sl
 
 /** A real headshot when we have one on file, the initials avatar when we do not. */
 export function PersonPhoto({name,size=44,tone='',caption}:{name:string;size?:number;tone?:string;caption?:string}){
-  const src=getTrainerImage(name);
+  const src=getPersonImage(name);
   // A file that fails to load falls back to initials rather than a broken-image icon.
   const[failed,setFailed]=useState<string|null>(null);
   if(!src||failed===src)return <span className="person-photo person-photo-fallback" style={{width:size,height:size}}><Avatar name={name} tone={tone} large={size>40}/></span>;
@@ -182,7 +182,7 @@ export function PersonPhoto({name,size=44,tone='',caption}:{name:string;size?:nu
 /** A trainer's photo as a plain <img>, for large portraits; renders `fallback` when there is
  *  no file on record or the file fails to load, so a broken-image icon never shows. */
 export function TrainerImg({name,className,fallback,lazy=true}:{name:string;className?:string;fallback:React.ReactNode;lazy?:boolean}){
-  const src=getTrainerImage(name);
+  const src=getPersonImage(name);
   const[failed,setFailed]=useState<string|null>(null);
   if(!src||failed===src)return <>{fallback}</>;
   // eslint-disable-next-line @next/next/no-img-element

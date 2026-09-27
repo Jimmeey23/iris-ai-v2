@@ -12,6 +12,7 @@ import {
   Loading,
   Empty,
 } from "@/components/ui";
+import { PersonPhoto } from "@/components/ticket-art";
 import { DataTree } from "@/components/momence-tools";
 import type { StaffRecord } from "@/lib/constants";
 export default function StaffPage() {
@@ -100,10 +101,11 @@ export default function StaffPage() {
               onClick={() => setActive(p)}
             >
               <div className="between">
-                <Avatar
+                {/* A real headshot when one is on file, initials otherwise. */}
+                <PersonPhoto
                   name={p.name}
+                  size={48}
                   tone={i % 3 === 1 ? "purple" : i % 3 === 2 ? "green" : ""}
-                  large
                 />
                 <Badge tone={p.isActive ? "green" : ""}>
                   {p.isActive ? "Active" : "Inactive"}
@@ -128,7 +130,7 @@ export default function StaffPage() {
         >
           <div className="stack">
             <div className="flex-row">
-              <Avatar name={active.name} large />
+              <PersonPhoto name={active.name} size={56} />
               <div>
                 <h3>{active.department}</h3>
                 <p className="secondary" style={{ fontSize: 12 }}>
