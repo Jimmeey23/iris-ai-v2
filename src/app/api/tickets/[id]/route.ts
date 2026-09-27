@@ -27,6 +27,7 @@ import {
   stripReservedFields,
 } from "@/lib/tickets";
 import { getConfig } from "@/lib/config";
+import { emitTicketEvent } from "@/lib/ticket-events";
 import { inferSeverity } from "@/lib/routing";
 export const dynamic = "force-dynamic";
 type Ctx = { params: Promise<{ id: string }> };
@@ -167,6 +168,36 @@ export async function PATCH(req: Request, ctx: Ctx) {
         action: "updated",
         detail,
       });
+      // One save can legitimately be both a status change and a reassignment; each
+      // gets its own event so a workflow can subscribe to either alone.
+      if (status && status !== current.status)
+        await emitTicketEvent(tx, {
+          type: "ticket.status_changed",
+          ticket: t,
+          cfg,
+          actor,
+          changes: { status: { from: current.status, to: status } },
+        });
+      if (
+        t.assignedStaffId !== null &&
+        t.assignedStaffId !== current.assignedStaffId
+      )
+        await emitTicketEvent(tx, {
+          type: "ticket.assigned",
+          ticket: t,
+          cfg,
+          actor,
+          changes: {
+            assignedStaffId: {
+              from: current.assignedStaffId,
+              to: t.assignedStaffId,
+            },
+            assignedStaffName: {
+              from: current.assignedStaffName,
+              to: t.assignedStaffName,
+            },
+          },
+        });
       return t;
     });
     return Response.json({ ticket: result, followUpTickets: [] });

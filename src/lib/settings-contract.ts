@@ -26,7 +26,18 @@ export const configSchema = z.object({
   taxonomy: z.record(z.string(),z.array(z.string().min(1))).default(CATEGORY_MAP), studios:z.array(z.string()).default(STUDIOS.map(s=>s.name)), trainers:z.array(z.string()).default([...TRAINERS]), formats:z.array(z.string()).default([...CLASS_FORMATS]), memberships:z.array(z.string()).default([...MEMBERSHIPS]),
   formOverrides:z.record(z.string(),formPlanSchema).default({}),
   subcategoryRouting:z.record(z.string(),subcategoryRoutingSchema).default({}),
+  /** @deprecated Superseded by `n8nEvents.created`, which this is OR'd into so an
+   *  existing workspace keeps receiving created events without re-configuring. */
   webhookOnCreate:z.boolean().default(false), assignmentEmail:z.boolean().default(true),
+  /** Which ticket lifecycle events are pushed to the n8n webhook. See lib/ticket-events.ts. */
+  n8nEvents:z.object({
+    created:z.boolean().default(false),
+    statusChanged:z.boolean().default(false),
+    assigned:z.boolean().default(false),
+    resolved:z.boolean().default(false),
+    overdue:z.boolean().default(false),
+    escalated:z.boolean().default(false),
+  }).default({created:false,statusChanged:false,assigned:false,resolved:false,overdue:false,escalated:false}),
 
   /* ---------------------------------------------------------------- *
    * Workspace defaults for the ticket board.

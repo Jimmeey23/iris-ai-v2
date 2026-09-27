@@ -291,6 +291,29 @@ export default function SettingsPage() {
           )) as WorkspaceConfig["defaultColumns"],
     );
   };
+  /** One n8n lifecycle event toggle. Nested under `n8nEvents`, so it cannot use the
+   *  flat `set` helper above. */
+  const eventSetting = (
+    key: keyof WorkspaceConfig["n8nEvents"],
+    title: string,
+    description: string,
+  ) => (
+    <div className="setting-row" key={key}>
+      <div>
+        <h4>{title}</h4>
+        <p>{description}</p>
+      </div>
+      <Switch
+        checked={Boolean(cfg?.n8nEvents?.[key])}
+        onChange={(v) =>
+          setCfg((c) =>
+            c ? { ...c, n8nEvents: { ...c.n8nEvents, [key]: v } } : c,
+          )
+        }
+        label={title}
+      />
+    </div>
+  );
   const booleanSetting = (
     key:
       | "aiEnabled"
@@ -1293,10 +1316,46 @@ export default function SettingsPage() {
                     Events are saved to an outbox, delivered after ticket
                     creation, and logged with their result.
                   </p>
-                  {booleanSetting(
-                    "webhookOnCreate",
-                    "Send ticket-created events to n8n",
-                    "Requires an enabled n8n connection. Sends ticket metadata to your configured workflow after creation.",
+                  <h3 style={{ marginTop: 18, fontSize: 13 }}>
+                    Ticket events sent to n8n
+                  </h3>
+                  <p
+                    className="secondary"
+                    style={{ fontSize: 12, margin: "4px 0 10px" }}
+                  >
+                    Each event posts the full ticket to your configured n8n
+                    webhook. Requires an enabled n8n connection. History imports
+                    never send events.
+                  </p>
+                  {eventSetting(
+                    "created",
+                    "Ticket created",
+                    "Fires once when a ticket is filed, from any source except a history import.",
+                  )}
+                  {eventSetting(
+                    "statusChanged",
+                    "Status changed",
+                    "Fires on every status move except resolving and closing, which send their own event.",
+                  )}
+                  {eventSetting(
+                    "assigned",
+                    "Owner assigned or changed",
+                    "Fires when a ticket gains a new owner, including a reassignment.",
+                  )}
+                  {eventSetting(
+                    "resolved",
+                    "Resolved or closed",
+                    "Fires once when a ticket reaches resolved or closed.",
+                  )}
+                  {eventSetting(
+                    "overdue",
+                    "Follow-up target missed",
+                    "Fires once per ticket, when an open ticket passes its SLA target. Checked on every scheduled run.",
+                  )}
+                  {eventSetting(
+                    "escalated",
+                    "Escalated to critical",
+                    "Fires when the automatic breach escalation raises a ticket to critical.",
                   )}
                   {booleanSetting(
                     "assignmentEmail",

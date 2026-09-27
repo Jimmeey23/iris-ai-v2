@@ -181,7 +181,9 @@ export const deliveryLogs = pgTable("delivery_logs", {
   nextAttemptAt: timestamp("next_attempt_at",{withTimezone:true}),
   createdAt: timestamp("created_at",{withTimezone:true}).defaultNow().notNull(), updatedAt: timestamp("updated_at",{withTimezone:true}).defaultNow().notNull(),
 },(t)=>[index("delivery_logs_status_next_idx").on(t.status,t.nextAttemptAt),index("delivery_logs_created_idx").on(t.createdAt)]);
-/** Idempotency ledger for automatic assignment and SLA-warning emails. */
+/** Idempotency ledger for one-shot, once-per-ticket notifications: the automatic
+ *  assignment and SLA-warning emails, and the `webhook:overdue` n8n event. For a
+ *  webhook, `recipientEmail` holds a channel name ('n8n') rather than an address. */
 export const ticketNotifications = pgTable("ticket_notifications", {
   id: serial("id").primaryKey(),
   ticketId: integer("ticket_id").notNull().references(()=>tickets.id,{onDelete:"cascade"}),

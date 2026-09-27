@@ -1,7 +1,7 @@
 import {and,desc,eq,or,sql,ne,inArray,lt,lte,gt,ilike,type SQL} from 'drizzle-orm';
 import {describeTicket} from './ticket-label';
 import {randomUUID} from 'crypto';
-import {db} from '@/db';
+import {db,type Tx} from '@/db';
 import {tickets,staff,departments,assets,appSettings,ticketActivities,ticketComments,ticketLinks,ticketResolutions,ticketResolutionSteps,ticketFollowUps,ticketContactLog,ticketResolutionAttachments,deliveryLogs,ticketNotifications} from '@/db/schema';
 import {ticketInputSchema,publicTicketInputSchema,type TicketInput,type AdvancedDraft} from './ticket-contract';
 import {getConfig,type WorkspaceConfig} from './config';
@@ -13,10 +13,10 @@ import {scoreAssessment} from './guided-templates';
 import {configuredTemplates} from './template-store';
 import {indiaDate} from './display';
 import {equipmentRepairRoute} from './equipment-routing';
+import {emitTicketEvent,eventEnabled} from './ticket-events';
 
 type Priority='low'|'medium'|'high'|'critical';
 type Config=WorkspaceConfig;
-type Tx=Parameters<Parameters<typeof db.transaction>[0]>[0];
 const PRIORITY_RANK:Record<Priority,number>={low:0,medium:1,high:2,critical:3};
 const isPriority=(p:unknown):p is Priority=>typeof p==='string'&&p in PRIORITY_RANK;
 /** The higher of two priorities. A reporter's own priority may raise what the rules inferred, never lower it. */
@@ -144,8 +144,10 @@ const[row]=await tx.insert(tickets).values({ticketNumber:'P57-'+randomUUID(),tit
 if(!row){const[winner]=await findExisting(tx);if(!winner)throw new ApiError('This ticket could not be saved. Try again.',409);return{row:winner,created:false};}
 const number=ticketNumberFor(row.id);await tx.update(tickets).set({ticketNumber:number}).where(eq(tickets.id,row.id));await tx.insert(ticketActivities).values({ticketId:row.id,actorName:source==='history'?'History import':'IRIS',action:'created',detail:`${draft.assignedStaffName} · ${draft.departmentName} · ${backfill?'No SLA · closed historical record':draft.slaLabel}`,createdAt:now});
 if(area&&draft.studio){const related=await tx.select({id:tickets.id}).from(tickets).where(and(ne(tickets.id,row.id),eq(tickets.subcategory,draft.subcategory),eq(tickets.studio,draft.studio),eq(tickets.area,area))).orderBy(desc(tickets.createdAt)).limit(12);if(related.length){await tx.insert(ticketLinks).values(related.map(other=>({ticketId:Math.min(row.id,other.id),relatedId:Math.max(row.id,other.id),relation:'recurring-context'}))).onConflictDoNothing();await tx.insert(ticketActivities).values({ticketId:row.id,actorName:'IRIS Automation',action:'linked.recurring_context',detail:`Auto-linked ${related.length} ticket${related.length===1?'':'s'} with the same subcategory, studio and area.`});}}
-if(cfg?.webhookOnCreate)await tx.insert(deliveryLogs).values({integrationId:'n8n',action:'webhook',payload:{event:'ticket.created',ticket:{id:row.id,ticketNumber:number,title:draft.title,priority:draft.priority,department:draft.departmentName,assignedTo:draft.assignedStaffName}}});
-const savedRow={...row,ticketNumber:number};if(emailSendingEnabled()&&cfg?.assignmentEmail&&source!=='history')await queueTicketEmails(tx,savedRow,'assigned');
+const savedRow={...row,ticketNumber:number};
+// A history backfill imports thousands of rows that were never worked here; firing a
+// webhook for each would flood the workflow with events for closed historical records.
+if(cfg&&source!=='history')await emitTicketEvent(tx,{type:'ticket.created',ticket:savedRow,cfg,actor:{name:'IRIS'}});if(emailSendingEnabled()&&cfg?.assignmentEmail&&source!=='history')await queueTicketEmails(tx,savedRow,'assigned');
 return{row:savedRow,created:true};};
 return external?.tx?external.tx.transaction(work):db.transaction(work);}
 /** List views never read `customFields` or the long-form text, which are ~85% of the
@@ -184,6 +186,40 @@ export async function queueSlaReminderEmails(now=new Date()){
   const dueBefore=new Date(now.getTime()+3*3600_000);
   const rows=await db.select({id:tickets.id,ticketNumber:tickets.ticketNumber,title:tickets.title,assignedStaffId:tickets.assignedStaffId,assignedStaffEmail:tickets.assignedStaffEmail,slaDueAt:tickets.slaDueAt}).from(tickets).where(and(sql`${tickets.status} not in ('resolved','closed','recorded')`,gt(tickets.slaDueAt,now),lte(tickets.slaDueAt,dueBefore)));
   let queued=0;for(const ticket of rows)queued+=await db.transaction(tx=>queueTicketEmails(tx,ticket,'sla-3h'));return queued;
+}
+/**
+ * Webhook sweep for breached follow-up targets. Nothing else notices a breach:
+ * applyEscalations() only runs when `escalateAfterBreachHours` is configured, and it
+ * defaults to off.
+ *
+ * Idempotency reuses the ticketNotifications ledger — its unique index on
+ * (ticketId, kind, recipientEmail) is what stops the same ticket being reported on
+ * every cron tick. `recipientEmail` holds a channel name rather than an address here.
+ *
+ * Known limitation: a ticket that breaches, is resolved, is reopened and breaches
+ * again emits once in total. Repeated alerts for one ticket are worse than a missed
+ * second one.
+ */
+export async function emitOverdueEvents(now=new Date()){
+  const cfg=await getConfig();
+  if(!eventEnabled(cfg,'ticket.overdue'))return 0;
+  const rows=await db.select().from(tickets).where(and(
+    eq(tickets.resolutionRequired,true),
+    sql`${tickets.status} not in ('resolved','closed','recorded')`,
+    sql`${tickets.slaDueAt} is not null`,
+    lt(tickets.slaDueAt,now),
+  )).limit(500);
+  let emitted=0;
+  for(const ticket of rows){
+    emitted+=await db.transaction(async tx=>{
+      const[ledger]=await tx.insert(ticketNotifications)
+        .values({ticketId:ticket.id,kind:'webhook:overdue',recipientEmail:'n8n'})
+        .onConflictDoNothing().returning({id:ticketNotifications.id});
+      if(!ledger)return 0;
+      return await emitTicketEvent(tx,{type:'ticket.overdue',ticket,cfg})?1:0;
+    });
+  }
+  return emitted;
 }
 export const DEFAULT_LIST_LIMIT=500;export const MAX_LIST_LIMIT=2000;
 /** Keyset cursor over (createdAt desc, id desc): stable while new tickets arrive, unlike an offset. */
@@ -239,8 +275,11 @@ export async function applyEscalations(){
         ne(tickets.priority,'critical'),
         sql`${tickets.status} not in ('resolved','closed','recorded')`,
         sql`${tickets.slaDueAt} is not null and ${tickets.slaDueAt} < ${cutoff}`,
-      )).returning({id:tickets.id});
+      )).returning();
     if(rows.length)await tx.insert(ticketActivities).values(rows.map(r=>({ticketId:r.id,actorName:'IRIS',action:'escalated',detail:`Raised to critical — more than ${hours}h past the follow-up target.`})));
+    // No `changes` block: RETURNING gives the post-update row, so the prior priority is
+    // not knowable here, and a half-true diff is worse than none.
+    for(const row of rows)await emitTicketEvent(tx,{type:'ticket.escalated',ticket:row,cfg});
     return rows.length;
   });
 }
@@ -332,6 +371,8 @@ export async function resolveTicket(actor:Identity,input:{ticketId:number;versio
       .where(and(eq(tickets.id,input.ticketId),eq(tickets.version,input.version))).returning();
     if(!t)throw new ApiError('This ticket changed elsewhere. Refresh before saving.',409);
     await tx.insert(ticketActivities).values({ticketId:t.id,actorName:actor.name,action:input.action||'updated',detail:input.detail||`status: ${status}`,createdAt:now});
+    // A resolution is one event, not a status change plus a resolution.
+    await emitTicketEvent(tx,{type:'ticket.resolved',ticket:t,cfg,actor,changes:{status:{from:current.status,to:status}}});
     return t;
   });
   const followUps=TERMINAL.includes(current.status)?[]:await maybeCreateRecurrenceChecks(ticket);

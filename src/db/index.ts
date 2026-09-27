@@ -70,3 +70,6 @@ if (!existingPool) {
 }
 
 export const db = drizzle(pool, { schema });
+
+/** A transaction handle, for helpers that must run inside a caller's transaction. */
+export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
