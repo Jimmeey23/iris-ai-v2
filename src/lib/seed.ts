@@ -289,7 +289,10 @@ export async function ensureSeeded() {
         }
       }
       if (demoDataEnabled()) await seedDemoTickets(tx);
-      await seedGmailTickets(tx);
+      // The large historical mailbox is production import data. The Arena
+      // preview only needs the curated visual demo tickets and avoids seeding
+      // records whose legacy author ids are not present in the in-memory staff set.
+      if (process.env.PREVIEW_MODE !== "true") await seedGmailTickets(tx);
       await tx.insert(appSettings).values({key:"workspace-initialized",value:{initialized:true}}).onConflictDoNothing();
     });
   })().then(() => { seeded = true; }).catch(error => { seedPromise=undefined; throw error; });

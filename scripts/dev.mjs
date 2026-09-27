@@ -54,6 +54,11 @@ const child = spawn(
     env: {
       ...process.env,
       NODE_OPTIONS: process.env.NODE_OPTIONS || '--max-old-space-size=4096',
+      // A clean checkout has no Supabase credentials, so the Arena preview uses
+      // a safe, dev-only workspace identity and the in-memory demo dataset. A
+      // real local environment can opt out with PREVIEW_MODE=false.
+      PREVIEW_MODE: process.env.PREVIEW_MODE ?? (process.env.DATABASE_URL ? 'false' : 'true'),
+      SEED_DEMO_DATA: process.env.SEED_DEMO_DATA ?? (process.env.DATABASE_URL ? 'false' : 'true'),
       NEXT_DIST_DIR: distDir,
       PORT: String(port),
     },

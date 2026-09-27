@@ -83,6 +83,23 @@ export const NOT_AUTHORISED_MESSAGE =
 export const INACTIVE_MESSAGE =
   "This account is not active in the workspace. Ask an administrator to restore it.";
 
+/** The Arena live preview runs without external credentials. It gets a clearly
+ * labelled, admin-shaped identity only in development; production auth never
+ * falls back to this path. Set PREVIEW_MODE=false for a real local sign-in. */
+export function isPreviewMode() {
+  return process.env.NODE_ENV !== "production" && process.env.PREVIEW_MODE === "true";
+}
+export const PREVIEW_IDENTITY: Identity = {
+  id: 1,
+  name: "Preview Operator",
+  email: "preview@iris.local",
+  role: "admin",
+  staffId: 1,
+  department: "Operations",
+  studio: null,
+  avatarUrl: null,
+};
+
 /** Email domains whose confirmed Supabase users may self-provision an agent
  *  profile. Everyone else needs an administrator invite (an app_users row). */
 export function allowedEmailDomains(): string[] {
@@ -249,6 +266,7 @@ type Session =
 /** One verification per request: React cache() memoises it for the lifetime of
  *  the current server request, so the several gates a route calls are free. */
 const session = cache(async (): Promise<Session> => {
+  if (isPreviewMode()) return { identity: PREVIEW_IDENTITY };
   const supabase = await createSupabaseServerClient();
   // getClaims() verifies the JWT signature (locally with asymmetric keys, via
   // the Auth server otherwise). getSession() does not verify and must never be
@@ -391,6 +409,7 @@ export async function requireIntegrationAccess(write = false) {
 }
 
 export async function logout() {
+  if (isPreviewMode()) return;
   const supabase = await createSupabaseServerClient();
   await supabase.auth.signOut();
 }

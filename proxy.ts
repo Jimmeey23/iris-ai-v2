@@ -16,6 +16,10 @@ const OAUTH_HANDSHAKE = ["/auth/callback", "/api/auth/google"];
 // unchanged. See node_modules/next/dist/docs/01-app/01-getting-started/16-proxy.md
 export async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
+  // The dev launcher enables a local-only preview identity when external auth
+  // credentials are absent, so every workspace tab is inspectable in Arena.
+  if (process.env.NODE_ENV !== "production" && process.env.PREVIEW_MODE === "true")
+    return NextResponse.next();
   const isPublic = PUBLIC.some((p) => path === p || path.startsWith(p + "/"));
   if (OAUTH_HANDSHAKE.includes(path)) return NextResponse.next();
   let session: Awaited<ReturnType<typeof updateSession>>;

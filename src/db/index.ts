@@ -63,26 +63,47 @@ function createMemDbPool(): Pool {
       String(str).padStart(len, pad),
   });
 
-  const cwd = process.cwd();
-  const sql0Path = path.join(cwd, "drizzle", "0000_baseline.sql");
-  const sql1Path = path.join(cwd, "drizzle", "0001_nice_random.sql");
-
-  if (fs.existsSync(sql0Path)) {
-    const sql0 = fs.readFileSync(sql0Path, "utf-8");
-    mem.public.none(sql0);
-  }
-  if (fs.existsSync(sql1Path)) {
-    const sql1 = fs.readFileSync(sql1Path, "utf-8");
-    mem.public.none(sql1);
+  const migrationDir = path.join(process.cwd(), "drizzle");
+  // Keep the in-memory preview schema aligned with every checked-in migration;
+  // loading only the first two left newer columns such as reporting_manager out.
+  for (const file of fs
+    .readdirSync(migrationDir)
+    .filter((name) => name.endsWith(".sql"))
+    .sort()) {
+    const sql = fs.readFileSync(path.join(migrationDir, file), "utf-8");
+    for (const statement of sql.split(/--> statement-breakpoint\s*/)) {
+      if (statement.trim()) mem.public.none(statement);
+    }
   }
 
   const pg = mem.adapters.createPg();
-  (pg as any).types = {
-    getTypeParser: () => (val: unknown) => val,
-    setTypeParser: () => {},
-  };
-
-  const poolInstance = new pg.Pool() as unknown as Pool;
+  // Drizzle passes node-postgres' optional `types` parser object on every query.
+  // pg-mem deliberately rejects that option, so strip it only at this in-memory
+  // adapter boundary; real Postgres keeps the native parser behavior.
+  const MemoryPool = pg.Pool as any;
+  class PreviewPool extends MemoryPool {
+    async query(query: unknown, ...args: unknown[]) {
+      const arrayMode =
+        Boolean(query && typeof query === "object" && "rowMode" in query);
+      const cleanQuery =
+        query && typeof query === "object"
+          ? Object.fromEntries(
+              Object.entries(query).filter(
+                ([key]) => key !== "types" && key !== "rowMode",
+              ),
+            )
+          : query;
+      const result = await super.query(cleanQuery, ...args);
+      if (!arrayMode || !result || typeof result !== "object") return result;
+      const rows = Array.isArray((result as any).rows)
+        ? (result as any).rows.map((row: unknown) =>
+            Array.isArray(row) ? row : Object.values(row as Record<string, unknown>),
+          )
+        : (result as any).rows;
+      return { ...(result as any), rows };
+    }
+  }
+  const poolInstance = new PreviewPool() as unknown as Pool;
   globalForDb.__arenaNextJsMemDb = { mem, pool: poolInstance };
   return poolInstance;
 }

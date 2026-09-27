@@ -16,6 +16,8 @@ import {
   allowedDomainsLabel,
   INACTIVE_MESSAGE,
   NOT_AUTHORISED_MESSAGE,
+  isPreviewMode,
+  PREVIEW_IDENTITY,
 } from "@/lib/auth";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -82,6 +84,12 @@ function authError(message: string): never {
 export async function GET() {
   try {
     await ensureSeeded();
+    if (isPreviewMode())
+      return Response.json({
+        user: PREVIEW_IDENTITY,
+        setupRequired: false,
+        preview: true,
+      });
     return Response.json({
       user: await currentUser(),
       setupRequired: !(await configuredUsers()),
