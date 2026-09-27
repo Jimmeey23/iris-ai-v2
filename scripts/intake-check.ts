@@ -17,6 +17,7 @@ import {
   missingFields, planFields, priorityInputs, relativeFor, seedData, toTicketInput, visibleFields, type IntakeData,
 } from '@/lib/intake/plan';
 import {classDeskAnswers, rosterRows, sessionSnapshot, sessionStats, type SessionDetail} from '@/lib/intake/class-desk';
+import {equipmentRepairRoute} from '@/lib/equipment-routing';
 
 let failed = 0;
 function check(name: string, cond: boolean, got?: unknown) {
@@ -274,6 +275,23 @@ console.log('\nThe class desk reads a session the way the review sheet expects')
   const cf = input.customFields as Record<string, unknown>;
   check('the roll rides along for the owner', Array.isArray(cf.attendeeNotes) && (cf.classSnapshot as {booked: number}).booked === 3 && cf.impactedMembers === 'Aarav Khanna', cf);
   check('nothing is left required', missingFields(fields, data).length === 0 && gatingFor(fields, data, {name: 'Class Capacity Issues', category: 'Scheduling'}).length === 0, missingFields(fields, data).map(f => f.id));
+}
+
+console.log('\nOperational faults use specific Repair and Maintenance sub-categories');
+{
+  const examples: Array<[string, string]> = [
+    ['Bike 6 resistance knob is not working', 'PowerCycle Bike Malfunction & Repairs'],
+    ['Studio 1 lights are flickering', 'Studio Lighting Malfunction & Repairs'],
+    ['Resistance band is torn in Strength Studio', 'Resistance Bands & Small Equipment Repairs'],
+    ['The Strength Studio weight bench is broken', 'Strength Studio Equipment Repairs'],
+    ['Wireless mic keeps cutting out', 'Audio, Mic & Headphone Malfunction'],
+    ['Housekeeping did not clean the studio floor', 'Housekeeping & Cleaning Issues'],
+    ['Guest washroom tap is leaking', 'Washroom & Plumbing Repairs'],
+  ];
+  for (const [description, expected] of examples) {
+    const route = equipmentRepairRoute({description});
+    check(`${expected} is selectable and routed`, CATEGORY_MAP['Repair and Maintenance'].includes(expected) && route?.subcategory === expected, route);
+  }
 }
 
 console.log(failed ? `\n${failed} check(s) failed` : '\nall passed');

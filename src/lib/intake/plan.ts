@@ -11,7 +11,7 @@
  */
 import planData from './plan-data.json';
 import type {TicketInput} from '../ticket-contract';
-import {PRIORITY_SLA_HOURS, type SlaHours} from '../constants';
+import {CATEGORY_MAP, PRIORITY_SLA_HOURS, type SlaHours} from '../constants';
 
 export type IntakeFieldType = 'text' | 'textarea' | 'number' | 'url' | 'datetime' | 'select' | 'multiselect' | 'radio' | 'lookup';
 export type LookupModule = 'member' | 'session' | 'ticket';
@@ -79,6 +79,20 @@ const DATA = planData as unknown as PlanData;
 
 export const PLAN_SOURCE = DATA.source;
 export const subKey = (category: string, sub: string) => `${category}|||${sub}`;
+const REPAIR_PLAN_ALIASES: Record<string, string> = {
+  'PowerCycle Bike Malfunction & Repairs': 'PowerCycle Bike Fault (Stages SC3)',
+  'Studio Lighting Malfunction & Repairs': 'Lighting Issues',
+  'Resistance Bands & Small Equipment Repairs': 'Broken Equipment Not Repaired',
+  'Strength Studio Equipment Repairs': 'Broken Equipment Not Repaired',
+  'Audio, Mic & Headphone Malfunction': 'Studio System Malfunction',
+  'Housekeeping & Cleaning Issues': 'Dust and Mold in Corners',
+  'Washroom & Plumbing Repairs': 'Plumbing Leaks',
+  'AC & Ventilation Repairs': 'AC and HVAC Issues',
+  'Electrical & Power Issues': 'General Maintenance Delays',
+  'Doors, Locks & Fixture Repairs': 'Door Lock Issues',
+  'General Studio Repairs & Maintenance': 'General Maintenance Delays',
+};
+const sourceSubKey = (category: string, sub: string) => subKey(category, category === 'Repair and Maintenance' ? REPAIR_PLAN_ALIASES[sub] || sub : sub);
 
 /* ------------------------------------------------------------------ sections */
 /** Topical groups. Every question lands in the group a desk would look for it in — money with
@@ -132,7 +146,11 @@ export const orderSections = (names: Iterable<string>) => {
 
 /* ------------------------------------------------------------------ taxonomy */
 export type HubCategory = PlanData['categories'][number];
-export function hubCategories(): HubCategory[] { return DATA.categories; }
+export function hubCategories(): HubCategory[] {
+  return DATA.categories.map(category => category.name === 'Repair and Maintenance'
+    ? {...category, subs: [...CATEGORY_MAP['Repair and Maintenance']]}
+    : category);
+}
 /** "4 h first response", from the configured hours (Settings → response hours) for a tier. */
 export function slaLabelFor(priority: string, hours: SlaHours = PRIORITY_SLA_HOURS, override?: number | null) {
   const h = override ?? hours[priority as keyof SlaHours];
@@ -141,7 +159,7 @@ export function slaLabelFor(priority: string, hours: SlaHours = PRIORITY_SLA_HOU
 /** Plan metadata for a sub-category, or null when the plan has nothing for it (an admin-added
  *  sub-category): planFields still serves it the universal block. */
 export function hubSub(category: string, sub: string, opts: {priority?: string; hours?: SlaHours; slaHours?: number | null} = {}): IntakeSubMeta | null {
-  const raw = DATA.subs[subKey(category, sub)];
+  const raw = DATA.subs[sourceSubKey(category, sub)];
   const overlay = SUB_OVERLAYS[subKey(category, sub)] || [];
   if (!raw && !overlay.length) return null;
   const defs = [...DATA.universal.map(i => DATA.defs[i]), ...(raw?.f || []).map(i => DATA.defs[i]), ...overlay];
@@ -153,7 +171,7 @@ export function hubSub(category: string, sub: string, opts: {priority?: string; 
 }
 /** The Support Hub's own tier, for drift checks only — never shown or filed. */
 export function hubTier(category: string, sub: string): string | null {
-  return DATA.subs[subKey(category, sub)]?.p ?? null;
+  return DATA.subs[sourceSubKey(category, sub)]?.p ?? null;
 }
 export function cycleIntakeQuestions() { return DATA.cycleIntake; }
 /** The controlled list a plan field answers from, by id — the class desk shares these lists
@@ -346,7 +364,7 @@ const TIME_SLOT_IDS = new Set(['current_slot', 'requested_slot', 'requested_time
 /** The full field list for a sub-category: the universal block first, then its own fields,
  *  then any Iris-specific overlay. Unknown sub-categories get the universal block. */
 export function planFields(category: string, sub: string, ctx: PlanContext, configured?: Omit<IntakeField, 'dep'>[]): IntakeField[] {
-  const raw = DATA.subs[subKey(category, sub)];
+  const raw = DATA.subs[sourceSubKey(category, sub)];
   const base = DATA.universal.map(i => materialise(DATA.defs[i], true, ctx, category));
   const own = (raw?.f || []).map(i => materialise(DATA.defs[i], false, ctx, category));
   const overlay = (SUB_OVERLAYS[subKey(category, sub)] || []).map(d => materialise(d, false, ctx, category));

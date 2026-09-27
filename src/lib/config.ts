@@ -10,7 +10,16 @@ import {configSchema,DEFAULT_CONFIG,type WorkspaceConfig} from "./settings-contr
 export {configSchema,DEFAULT_CONFIG};
 export type {WorkspaceConfig};
 /** Memoised per request with React cache(); outside a render (scripts) it simply runs each call. */
-export const getConfig=cache(async function getConfig():Promise<WorkspaceConfig>{const[row]=await db.select().from(appSettings).where(eq(appSettings.key,"workspace"));const parsed=configSchema.parse({...DEFAULT_CONFIG,aiModel:process.env.OPENAI_MODEL||DEFAULT_CONFIG.aiModel,...row?.value});const hosted='Hosted Class Feedback';return parsed.taxonomy['Brand Feedback']?.includes(hosted)?parsed:{...parsed,taxonomy:{...parsed.taxonomy,'Brand Feedback':[hosted,...(parsed.taxonomy['Brand Feedback']||[])]}};});
+export const getConfig=cache(async function getConfig():Promise<WorkspaceConfig>{
+  const[row]=await db.select().from(appSettings).where(eq(appSettings.key,"workspace"));
+  const parsed=configSchema.parse({...DEFAULT_CONFIG,aiModel:process.env.OPENAI_MODEL||DEFAULT_CONFIG.aiModel,...row?.value});
+  const hosted='Hosted Class Feedback';
+  const legacyRepairLabels=new Set(['AC and HVAC Issues','Lighting Issues','Studio System Malfunction','Plumbing Leaks','General Maintenance Delays','Door Lock Issues','Dust and Mold in Corners','Broken Equipment Not Repaired','PowerCycle Bike Fault (Stages SC3)']);
+  const configuredRepair=(parsed.taxonomy['Repair and Maintenance']||[]).filter(label=>!legacyRepairLabels.has(label));
+  const repair=[...new Set([...(CATEGORY_MAP['Repair and Maintenance']||[]),...configuredRepair])];
+  const brand=parsed.taxonomy['Brand Feedback']?.includes(hosted)?parsed.taxonomy['Brand Feedback']:[hosted,...(parsed.taxonomy['Brand Feedback']||[])];
+  return {...parsed,taxonomy:{...parsed.taxonomy,'Brand Feedback':brand,'Repair and Maintenance':repair}};
+});
 export async function getSetting(key:string){const[r]=await db.select().from(appSettings).where(eq(appSettings.key,key));return r;}
 export async function setSetting(key:string,value:Record<string,unknown>,userId?:number){await db.insert(appSettings).values({key,value,updatedBy:userId}).onConflictDoUpdate({target:appSettings.key,set:{value,updatedBy:userId,updatedAt:new Date()}});}
 export async function audit(actor:{id?:number;name:string},action:string,entity:string,detail:Record<string,unknown>={}){await db.insert(auditLogs).values({actorId:actor.id,actorName:actor.name,action,entity,detail});}

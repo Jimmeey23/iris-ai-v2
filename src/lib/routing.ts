@@ -26,9 +26,14 @@ const CRITICAL_SUBS = new Set([
 ]);
 
 const HIGH_SUBS = new Set([
-  "AC and HVAC Issues",
-  "Plumbing Leaks",
-  "Broken Equipment Not Repaired",
+  "AC & Ventilation Repairs",
+  "Washroom & Plumbing Repairs",
+  "PowerCycle Bike Malfunction & Repairs",
+  "Resistance Bands & Small Equipment Repairs",
+  "Strength Studio Equipment Repairs",
+  "Audio, Mic & Headphone Malfunction",
+  "Studio Lighting Malfunction & Repairs",
+  "Electrical & Power Issues",
   "Mic Not Working",
   "Speakers Static Noise",
   "Studio Wi-Fi Not Working",
@@ -37,7 +42,7 @@ const HIGH_SUBS = new Set([
   "Incorrect Charges on Account",
   "Payment Processing Delays",
   "CCTV Malfunction",
-  "Door Lock Issues",
+  "Doors, Locks & Fixture Repairs",
   "Steam Room Not Working",
   "TFA Malfunction",
   "Last-minute Cancellations",

@@ -121,7 +121,7 @@ const SAMPLE_TICKETS: SeedTicket[] = [
     description:
       "HVAC not cooling the main room. Front desk already called the vendor. Live classes this evening are at risk.",
     category: "Repair and Maintenance",
-    subcategory: "AC and HVAC Issues",
+    subcategory: "AC & Ventilation Repairs",
     status: "new",
     studio: "the Studio by Copper & Cloves, Bengaluru",
     classFormat: "Studio Strength Lab (Full Body)",
@@ -497,5 +497,4 @@ async function seedGmailTickets(tx: Tx) {
     }
   }
 }
-
 

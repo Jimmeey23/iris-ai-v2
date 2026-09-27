@@ -53,7 +53,7 @@ export const CLASS_SUB_CANDIDATES: [string, string][] = [
   ['Class Experience', 'Overcrowding in Class'], ['Class Experience', 'Class Flow and Pacing'], ['Class Experience', 'Class Format Satisfaction'], ['Class Experience', 'Class Duration Suitability'],
   ['Class Experience', 'Studio Temperature Too Hot/Cold'], ['Class Experience', 'Audio Issues'],
   ['Trainer Feedback', 'Trainer Punctuality Issues'], ['Trainer Feedback', 'Class Intensity Too High/Low'], ['Trainer Feedback', 'Class Ending on Time'], ['Trainer Feedback', 'Trainer Behaviour'],
-  ['Repair and Maintenance', 'Broken Equipment Not Repaired'], ['Repair and Maintenance', 'Studio System Malfunction'],
+  ['Repair and Maintenance', 'PowerCycle Bike Malfunction & Repairs'], ['Repair and Maintenance', 'Audio, Mic & Headphone Malfunction'],
 ];
 
 const personName = (p: unknown) => { const o = object(p); return String(o.name || [o.firstName, o.lastName].filter(Boolean).join(' ') || ''); };
