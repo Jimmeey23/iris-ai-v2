@@ -2628,28 +2628,44 @@ input[type="radio"] {
   .fp-wrap, .r3d-stage.is-3d .fp-wrap { transition: none; }
 }
 
-/* ---- 5.2 Trainer hero: an opaque reading panel over the corridor --------- */
+/* ---- 5.2 Trainer hero: a centred reading panel between the two rails ----- */
 .image-stream-hero { display: flex; align-items: stretch; }
-.tr-stream-hero { min-height: 330px; }
+.tr-stream-hero { min-height: 340px; }
 .tr-stream-copy {
   position: relative;
   z-index: 2;
   display: flex;
   flex-direction: column;
+  align-items: center;
   justify-content: center;
   gap: 10px;
-  width: min(600px, 62%);
-  margin: 24px;
-  padding: 26px 30px;
-  border-radius: 20px;
+  /* Centred between the rails: the stream is born just off-centre and sweeps
+     outward on both sides, so the copy owns the middle of the stage. */
+  margin: auto;
+  width: min(620px, 86%);
+  padding: 28px 34px;
+  border-radius: 22px;
   border: 1px solid var(--neu-line);
-  /* Opaque enough that the corridor never competes with the sentence. */
+  /* Opaque enough that the corridor never competes with the sentence; cards
+     emerge from behind its edges as they grow and sweep outward. */
   background: color-mix(in srgb, var(--surface) 97%, transparent);
   box-shadow: var(--neu-md), var(--neu-edge);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
+  text-align: center;
 }
-.tr-stream-copy .eyebrow { margin-bottom: 2px; }
+.tr-stream-copy .eyebrow {
+  margin-bottom: 2px;
+  justify-content: center;
+}
+/* Symmetry: the rule on the left of the label is mirrored on its right. */
+.tr-stream-copy .eyebrow::after {
+  content: "";
+  width: 20px;
+  height: 1px;
+  background: currentColor;
+  opacity: 0.85;
+}
 .tr-stream-copy h2 {
   margin: 0;
   font-family: var(--font-display);
@@ -2659,7 +2675,7 @@ input[type="radio"] {
   line-height: 1.12;
 }
 .tr-stream-copy p {
-  margin: 0;
+  margin: 0 auto;
   max-width: 520px;
   font-size: 12.5px;
   line-height: 1.65;
@@ -2668,6 +2684,7 @@ input[type="radio"] {
 .tr-stream-facts {
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   gap: 6px;
   margin-top: 6px;
   padding-top: 14px;
@@ -2677,7 +2694,7 @@ input[type="radio"] {
 .tr-stream-facts button { pointer-events: auto; }
 @media (max-width: 767px) {
   .tr-stream-copy { width: auto; margin: 14px; padding: 20px; }
-  .tr-stream-hero { min-height: 360px; }
+  .tr-stream-hero { min-height: 380px; }
 }
 
 /* ---- 5.3 Trainer cards: compact framed portraits ------------------------ */

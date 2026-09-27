@@ -94,15 +94,16 @@ export default function TrainersPage(){
         {user&&<button className="btn" disabled={syncing} onClick={()=>void syncFillout()}>{syncing?<Loader2 size={13} className="animate-spin"/>:<DownloadCloud size={14}/>}{syncing?'Syncing…':'Sync assessments'}</button>}
         <Badge tone="blue"><GraduationCap size={12}/>{trainers.length} trainers tracked</Badge>
       </div>}>
-      {/* The corridor: every trainer portrait on file rides the rails behind the
-          headline. The copy sits in its own opaque panel, so the stream is a
-          backdrop to read against — never something the headline fights. */}
+      {/* The corridor: every trainer portrait on file rides the two rails that
+          open outward from the centred copy — the headline reads from the
+          middle with the stream flowing away on both sides of it. */}
       <ImageStreamHero
         images={Object.values(TRAINER_IMAGES).map(src=>({src,alt:'Trainer portrait'}))}
         cards={9}
-        speed={26}
-        axis={52}
+        speed={23}
+        axis={50}
         className="tr-stream-hero"
+        path={{ perspective: 26, railBirth: 15, railExit: 54, fan: 2.2, turnBirth: 10, turnExit: 32 }}
       >
         <div className="tr-stream-copy">
           <span className="eyebrow">TRAINING &amp; QUALITY</span>
