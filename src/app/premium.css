@@ -1980,3 +1980,461 @@ option {
   color: var(--secondary) !important;
   background: transparent;
 }
+
+/* ========================================================================
+   MATERIAL ENFORCEMENT v4 — DEEP NEUMORPHISM
+   A stronger, dominant physical material system:
+   · Amplified shadow pairs — every surface clearly rises or recedes
+   · Light mode: a pure white canvas (ambient washes retired)
+   · Button variants restored with explicit readable ink pairs
+   · Neumorphism extended to toasts, dialogs, keys, pagination, avatars,
+     tags, tables, checkboxes, scrollbars and selection
+   ======================================================================== */
+
+/* ---- 4.1 Amplified neumorphic tokens ------------------------------------ */
+:root,
+[data-theme="dark"] {
+  --neu-line: rgb(255 255 255 / 0.08);
+  --neu-xs: 4px 4px 10px rgb(0 0 0 / 0.5), -3px -3px 9px rgb(255 255 255 / 0.045);
+  --neu-sm: 9px 9px 22px rgb(0 0 0 / 0.55), -5px -5px 15px rgb(255 255 255 / 0.05);
+  --neu-md: 16px 16px 38px rgb(0 0 0 / 0.62), -8px -8px 22px rgb(255 255 255 / 0.05);
+  --neu-lg: 26px 26px 60px rgb(0 0 0 / 0.66), -12px -12px 32px rgb(255 255 255 / 0.055);
+  --neu-in: inset 5px 5px 12px rgb(0 0 0 / 0.55), inset -4px -4px 10px rgb(255 255 255 / 0.04);
+  --neu-in-sm: inset 2px 2px 6px rgb(0 0 0 / 0.5), inset -2px -2px 5px rgb(255 255 255 / 0.035);
+  --neu-edge: inset 0 1px 0 rgb(255 255 255 / 0.07);
+  --green-text: #06231a;
+  --red-text: #ffffff;
+}
+[data-theme="light"] {
+  /* Classic white-canvas neumorphism: one colour, two lights, deep relief. */
+  --neu-line: rgb(19 34 58 / 0.12);
+  --neu-xs: 5px 5px 12px rgb(160 175 198 / 0.42), -5px -5px 12px rgb(255 255 255 / 0.95);
+  --neu-sm: 9px 9px 22px rgb(160 175 198 / 0.46), -9px -9px 20px rgb(255 255 255 / 1);
+  --neu-md: 15px 15px 34px rgb(160 175 198 / 0.52), -12px -12px 28px rgb(255 255 255 / 1);
+  --neu-lg: 22px 22px 48px rgb(160 175 198 / 0.55), -16px -16px 36px rgb(255 255 255 / 1);
+  --neu-in: inset 5px 5px 12px rgb(160 175 198 / 0.4), inset -5px -5px 12px rgb(255 255 255 / 0.95);
+  --neu-in-sm: inset 2px 2px 6px rgb(160 175 198 / 0.38), inset -2px -2px 6px rgb(255 255 255 / 0.95);
+  --neu-edge: inset 0 1px 0 rgb(255 255 255 / 0.9);
+  --green-text: #ffffff;
+  --red-text: #ffffff;
+}
+
+/* Every raised container gains the edge highlight and a deeper pair. */
+.card,
+.panel,
+.metric,
+.tickets-panel,
+.ticket-card,
+.entity-card,
+.template-card,
+.integration-card,
+.report-card,
+.asset-card,
+.form-card,
+.stat-card,
+.settings-card,
+.insights-widget,
+.help-card,
+.draft-card,
+.resolution-card,
+.context-card,
+.filter-card,
+.kpi-card,
+.data-card,
+.summary-card,
+.table-card,
+.tr-section,
+.tr-masthead,
+.td-panel,
+.td-case-file,
+.td-context-sheet,
+.report-nav,
+.radar-telemetry-banner,
+.room-inspector-drawer,
+.floorplan-heatmap-container,
+.incident-ticket-card,
+.studio-tab-card,
+.trainer-profile-card,
+.image-stream-hero,
+.r3d-top,
+.empty-state,
+.locked-page {
+  box-shadow: var(--neu-sm), var(--neu-edge) !important;
+}
+.card:hover,
+.panel:hover,
+.ticket-card:hover,
+.entity-card:hover,
+.template-card:hover,
+.integration-card:hover,
+.report-card:hover,
+.asset-card:hover,
+.form-card:hover,
+.settings-card:hover,
+.trainer-profile-card:hover {
+  box-shadow: var(--neu-md), var(--neu-edge) !important;
+}
+
+/* ---- 4.2 Light mode: a genuinely white page ----------------------------- */
+/* The ambient washes and the graph-paper grid are retired in light mode:
+   they are what kept reading as a grey cast over the white canvas. The
+   selectors match design-system.css specificity exactly so the later file
+   wins the tie. */
+:root[data-theme="light"] .workspace::before,
+:root[data-theme="light"] .workspace::after {
+  content: none;
+}
+[data-theme="light"] .workspace::before,
+[data-theme="light"] .workspace::after {
+  content: none;
+}
+[data-theme="light"] .dialog-content:has(.ticket-detail-shell) {
+  background: var(--surface);
+  box-shadow: var(--neu-lg);
+}
+[data-theme="light"] .overview-command-deck,
+[data-theme="light"] .cockpit-signal-deck {
+  border-color: var(--neu-line);
+  background: var(--surface);
+  box-shadow: var(--neu-sm), var(--neu-edge);
+}
+[data-theme="light"] .cc-overview .metric-grid-8 {
+  background: var(--neu-sunken);
+  border-color: var(--neu-line);
+  box-shadow: var(--neu-in-sm);
+}
+[data-theme="light"] .cc-overview .mc-face {
+  background: var(--surface);
+}
+[data-theme="light"] .toast {
+  background: var(--surface);
+}
+/* Recessed wells stay a whisper cooler than the page so relief reads on white. */
+[data-theme="light"] {
+  --ovc-sunken: #edf1f7;
+  --ovc-chip-bg: #edf1f7;
+}
+
+/* ---- 4.3 Button variants: every intent gets an explicit ink pair -------- */
+.btn {
+  border-radius: 12px !important;
+  box-shadow: var(--neu-xs), var(--neu-edge) !important;
+}
+.btn:hover {
+  box-shadow: var(--neu-sm), var(--neu-edge) !important;
+}
+.btn:active {
+  box-shadow: var(--neu-in-sm) !important;
+}
+.btn-primary {
+  background: var(--grad-accent) !important;
+  color: var(--accent-text) !important;
+  border-color: transparent !important;
+  box-shadow:
+    0 10px 24px -10px color-mix(in srgb, var(--accent) 75%, transparent),
+    var(--neu-edge) !important;
+}
+.btn-primary * { color: var(--accent-text) !important; }
+.btn-primary:hover {
+  box-shadow:
+    0 14px 30px -10px color-mix(in srgb, var(--accent) 80%, transparent),
+    var(--neu-edge) !important;
+}
+.btn-success {
+  background: linear-gradient(
+    168deg,
+    color-mix(in srgb, var(--green) 82%, var(--white, #fff)),
+    var(--green)
+  ) !important;
+  color: var(--green-text) !important;
+  border-color: transparent !important;
+  box-shadow:
+    0 8px 20px -8px color-mix(in srgb, var(--green) 60%, transparent),
+    inset 0 1px 0 rgb(255 255 255 / 0.28) !important;
+}
+.btn-success * { color: var(--green-text) !important; }
+.btn-success:hover {
+  filter: brightness(1.04);
+  box-shadow:
+    0 12px 26px -8px color-mix(in srgb, var(--green) 65%, transparent),
+    inset 0 1px 0 rgb(255 255 255 / 0.28) !important;
+}
+.btn-ghost {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  color: var(--secondary) !important;
+}
+.btn-ghost:hover {
+  background: color-mix(in srgb, var(--text) 6%, transparent) !important;
+  color: var(--text) !important;
+  box-shadow: none !important;
+}
+.btn-outline {
+  background: transparent !important;
+  border-color: var(--border-strong) !important;
+  box-shadow: none !important;
+  color: var(--text) !important;
+}
+.btn-outline:hover {
+  background: color-mix(in srgb, var(--accent) 8%, transparent) !important;
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent) !important;
+  color: var(--accent) !important;
+}
+.btn-soft {
+  background: color-mix(in srgb, var(--accent) 10%, transparent) !important;
+  border-color: color-mix(in srgb, var(--accent) 20%, transparent) !important;
+  color: var(--accent) !important;
+  box-shadow: var(--neu-xs) !important;
+}
+.btn-soft:hover {
+  background: color-mix(in srgb, var(--accent) 16%, transparent) !important;
+  border-color: color-mix(in srgb, var(--accent) 42%, transparent) !important;
+  color: var(--accent) !important;
+}
+.btn-danger:hover {
+  color: var(--red) !important;
+  background: color-mix(in srgb, var(--red) 16%, transparent) !important;
+  border-color: color-mix(in srgb, var(--red) 46%, transparent) !important;
+}
+/* Stray menu buttons that were falling back to the browser default. */
+.rp-export-item,
+.pagination-controls button,
+.table-pagination button {
+  border: 1px solid var(--neu-line) !important;
+  background: var(--surface-raised) !important;
+  box-shadow: var(--neu-xs) !important;
+  color: var(--text);
+  transition: transform 0.2s var(--ease-spring), box-shadow 0.2s ease, background 0.2s ease, color 0.2s ease;
+}
+.rp-export-item:hover,
+.pagination-controls button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: var(--neu-sm) !important;
+}
+.pagination-controls button.active {
+  background: var(--active-bg) !important;
+  color: var(--active-fg) !important;
+  border-color: transparent !important;
+}
+
+/* ---- 4.4 Neumorphism everywhere else ------------------------------------ */
+/* Toasts become solid raised keys — glass over arbitrary content always
+   risked a contrast accident. */
+.toast {
+  border: 1px solid var(--neu-line) !important;
+  border-radius: 16px !important;
+  background: var(--surface) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  box-shadow: var(--neu-md), var(--neu-edge) !important;
+}
+.toast:hover {
+  box-shadow: var(--neu-lg), var(--neu-edge) !important;
+}
+/* Dialogs are the highest object on the page and are lit like one. */
+.dialog-content {
+  border: 1px solid var(--neu-line) !important;
+  box-shadow: var(--neu-lg) !important;
+}
+@media (min-width: 768px) {
+  .dialog-content {
+    border-radius: 24px !important;
+  }
+}
+/* Keys recede. */
+kbd {
+  background: var(--neu-sunken) !important;
+  border: 1px solid var(--neu-line) !important;
+  border-bottom-width: 1px !important;
+  box-shadow: var(--neu-in-sm) !important;
+  color: var(--secondary) !important;
+  border-radius: 7px !important;
+}
+/* Avatars sit on the surface, slightly proud of it. */
+.avatar,
+.person-photo,
+.avatar-owner {
+  border: 1px solid var(--neu-line);
+  box-shadow: var(--neu-xs);
+}
+/* The topbar search affordance is a raised key like its siblings. */
+.topbar-search {
+  border: 1px solid var(--neu-line) !important;
+  background: var(--surface-raised) !important;
+  box-shadow: var(--neu-xs) !important;
+  border-radius: 11px !important;
+}
+.topbar-search:hover { box-shadow: var(--neu-sm) !important; }
+.topbar-search kbd {
+  background: transparent !important;
+  box-shadow: none !important;
+  border: 0 !important;
+}
+/* Checkboxes and radios follow the theme accent. */
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--accent);
+}
+/* Tags and chips get a defined edge. */
+.tag,
+.chip,
+.badge {
+  border: 1px solid var(--neu-line);
+}
+/* Tables: the wrap is the well, the header is engraved, rows hover as glass. */
+.table-wrap {
+  border-radius: 16px !important;
+  padding: 6px !important;
+  background: var(--neu-sunken) !important;
+  box-shadow: var(--neu-in-sm) !important;
+}
+.data-table th {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.data-table tbody tr {
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+.data-table tbody tr:hover {
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+  box-shadow: inset 0 0 0 1px var(--neu-line);
+}
+/* Scrollbars join the material system. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--surface-4) transparent;
+}
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--surface-4);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--border-strong);
+  background-clip: padding-box;
+}
+::selection {
+  background: color-mix(in srgb, var(--accent) 26%, transparent);
+  color: var(--text);
+}
+/* A single consistent focus ring for everything interactive. */
+:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 62%, transparent);
+  outline-offset: 2px;
+}
+
+/* ---- 4.5 Tabs: a recessed tray with a raised pressed key --------------- */
+.tabs-segment {
+  background: var(--neu-sunken) !important;
+  border: 1px solid var(--neu-line) !important;
+  box-shadow: var(--neu-in-sm) !important;
+  border-radius: 13px !important;
+}
+.tabs-segment .tabs-list {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+.tabs-segment .tabs-thumb {
+  background: var(--active-bg) !important;
+  border-radius: 10px !important;
+  box-shadow:
+    var(--active-glow),
+    inset 0 1px 0 rgb(255 255 255 / 0.24) !important;
+}
+.workspace-tabs button,
+.module-tabs button,
+.settings-nav button,
+.context-tab,
+.panel-tab-btn {
+  border-radius: 10px;
+}
+/* The nav rail's pressed key: gold (dark) / ink (light), proud of the rail. */
+.nav-link.active {
+  box-shadow:
+    var(--active-glow),
+    var(--neu-xs),
+    inset 0 1px 0 rgb(255 255 255 / 0.22) !important;
+}
+
+/* ---- 4.6 Sophistication details ----------------------------------------- */
+/* Page titles get a quiet ink gradient — expensive without being loud. */
+.page-heading h1,
+.tr-masthead h2,
+.tr-stream-copy h2 {
+  background: linear-gradient(
+    120deg,
+    var(--text) 42%,
+    color-mix(in srgb, var(--accent) 52%, var(--text))
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+/* Numerals in data stay tabular and calm. */
+.metric-number,
+.metric strong,
+.rp-metric strong,
+.ovc-kpi strong,
+.tr-kpi strong,
+.t-val,
+.d-val,
+.small-counter {
+  font-variant-numeric: tabular-nums;
+}
+/* Eyebrows: a longer rule and tighter tracking. */
+.eyebrow {
+  letter-spacing: 0.22em;
+}
+.eyebrow::before {
+  width: 20px;
+  opacity: 0.85;
+}
+/* Section heads ride slightly proud of the page. */
+.section-head {
+  border: 1px solid var(--neu-line);
+  box-shadow: var(--neu-xs), var(--neu-edge);
+}
+/* Icon buttons: crisp little keys. */
+.icon-btn {
+  border-radius: 11px !important;
+  box-shadow: var(--neu-xs), var(--neu-edge) !important;
+}
+.icon-btn:active {
+  box-shadow: var(--neu-in-sm) !important;
+}
+/* Modal overlay: deeper, quieter. */
+.dialog-overlay {
+  background: color-mix(in srgb, var(--black, #000) 52%, transparent) !important;
+  backdrop-filter: blur(6px) saturate(1.1) !important;
+  -webkit-backdrop-filter: blur(6px) saturate(1.1) !important;
+}
+/* Dropdown menus float like dialogs. */
+.rp-export-menu {
+  border-radius: 14px !important;
+  box-shadow: var(--neu-md), var(--neu-edge) !important;
+  border: 1px solid var(--neu-line) !important;
+  background: var(--surface) !important;
+}
+/* Tooltips recede. */
+[data-tip]:hover::after,
+[data-tip]:focus-visible::after {
+  background: var(--surface-4) !important;
+  color: var(--text) !important;
+  border: 1px solid var(--neu-line) !important;
+  box-shadow: var(--neu-md) !important;
+  border-radius: 8px !important;
+}
