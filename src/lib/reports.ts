@@ -66,11 +66,9 @@ export const metricSql={
   tracked:and(eq(tickets.resolutionRequired,true),isNotNull(tickets.slaDueAt),ne(tickets.status,'recorded')) as SQL,
   breachedResolved:()=>and(metricSql.tracked,gt(tickets.resolvedAt,tickets.slaDueAt)) as SQL,
   breachedOpen:(now:Date)=>and(metricSql.tracked,metricSql.open,isNull(tickets.resolvedAt),lt(tickets.slaDueAt,now)) as SQL,
-  /** Open, tracked, not breached, under `pct`% of the created→due window left.
-   *  Seconds arithmetic rather than interval subtraction: identical in Postgres,
-   *  and the in-memory preview database (pg-mem) cannot subtract timestamptz. */
+  /** Open, tracked, not breached, under `pct`% of the created→due window left. */
   dueSoon:(now:Date,pct:number)=>and(metricSql.tracked,metricSql.open,gt(tickets.slaDueAt,now),
-    sql`extract(epoch from ${tickets.slaDueAt}) - extract(epoch from ${now}::timestamptz) <= (extract(epoch from ${tickets.slaDueAt}) - extract(epoch from ${tickets.createdAt})) * ${pct/100}`) as SQL,
+    sql`${tickets.slaDueAt} - ${now}::timestamptz <= (${tickets.slaDueAt} - ${tickets.createdAt}) * ${pct/100}::float8`) as SQL,
   /** Resolved, and not imported history, a system ticket or an automatic re-check. */
   durationEligible:and(isNotNull(tickets.resolvedAt),notInArray(tickets.source,[...DURATION_EXCLUDED_SOURCES]),sql`not (${hasAnyTag(AUTO_CHECK_TAGS)})`) as SQL,
   resolutionHours:sql`extract(epoch from (${tickets.resolvedAt} - ${tickets.createdAt})) / 3600`,
@@ -139,9 +137,7 @@ export function buildReportCatalogue(ctx:CatalogueContext):ReportDef[]{
     makeSimple('negative-sentiment','Negative sentiment log','Tickets logged with a frustrated or negative sentiment — the service-recovery follow-up list.','Sentiment',inArray(tickets.sentiment,['negative','frustrated']),[{key:'member',label:'Member'},{key:'sentiment',label:'Sentiment'}],t=>({member:t.memberName||'—',sentiment:t.sentiment||'—'})),
     makeSimple('momence-linked','Momence-linked tickets','Tickets connected to a live Momence member or session record, with the member for cross-reference.','Operational',hasAnyTag(['momence-linked']),[{key:'member',label:'Member'}],t=>({member:t.memberName||'—'})),
     // The resolve flow tags each bike check `bike-recheck` (lib/tickets.ts maybeCreateRecurrenceChecks).
-    // Same case-insensitive match as the previous `title || ' ' || description ~* 'bike|powercycle'`,
-    // spelled with ILIKE so the in-memory preview database (pg-mem) can run it too.
-    makeSimple('powercycle-bikes','PowerCycle bike issues & recurrence checks',`Bike malfunction tickets and their automatic ${RECURRENCE_CHECK_LABEL} recurrence checks, with the reporting member.`,'Operational',or(hasAnyTag([BIKE_RECHECK_TAG]),sql`(${tickets.title} ilike '%bike%' or ${tickets.title} ilike '%powercycle%' or ${tickets.description} ilike '%bike%' or ${tickets.description} ilike '%powercycle%')`),[{key:'member',label:'Member'},{key:'slaDueAt',label:'Due'}],t=>({member:t.memberName||'—',slaDueAt:t.slaDueAt||'—'})),
+    makeSimple('powercycle-bikes','PowerCycle bike issues & recurrence checks',`Bike malfunction tickets and their automatic ${RECURRENCE_CHECK_LABEL} recurrence checks, with the reporting member.`,'Operational',or(hasAnyTag([BIKE_RECHECK_TAG]),sql`(${tickets.title} || ' ' || ${tickets.description}) ~* 'bike|powercycle'`),[{key:'member',label:'Member'},{key:'slaDueAt',label:'Due'}],t=>({member:t.memberName||'—',slaDueAt:t.slaDueAt||'—'})),
     makeSimple('auto-follow-ups','Automated follow-up tickets','Tickets automatically raised by the system (e.g. recurrence checks), with their follow-up target.','Operational',eq(tickets.source,'system'),[{key:'slaDueAt',label:'Due'}],t=>({slaDueAt:t.slaDueAt||'—'})),
     makeSimple('recent-7-days','Logged in the last 7 days','Everything logged in the last week, newest first — the rolling intake log.','Time-based',sql`${tickets.createdAt} >= ${weekAgo}`,[{key:'source',label:'Source'}],t=>({source:t.source||'—'})),
     makeSimple('recently-resolved','Resolved in the last 7 days','Tickets closed out in the last week with their resolution time — good for a weekly wrap-up.','Time-based',sql`${tickets.resolvedAt} >= ${weekAgo}`,[{key:'resolvedAt',label:'Resolved'},...resolutionCol],t=>({resolvedAt:t.resolvedAt||'—',...resolutionRow(t)})),

@@ -40,12 +40,11 @@
     "nodemailer": "^10.0.9",
     "openai": "^7.15.0",
     "pg": "8.20.0",
-    "pg-mem": "^3.0.14",
     "react": "19.2.6",
     "react-dom": "19.2.6",
     "sharp": "^0.35.4",
-    "xlsx": "^0.18.5",
-    "zod": "^4.6.5"
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
+    "zod": "^4.6.2"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",

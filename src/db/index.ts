@@ -2,15 +2,15 @@ import { attachDatabasePool } from "@vercel/functions";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool, type PoolConfig } from "pg";
 import * as schema from "./schema";
-import { newDb } from "pg-mem";
-import fs from "fs";
-import path from "path";
 
 const databaseUrl = process.env.DATABASE_URL;
 
+if (!databaseUrl) {
+  throw new Error("DATABASE_URL is required");
+}
+
 const globalForDb = globalThis as typeof globalThis & {
   __arenaNextJsPostgresqlPool?: Pool;
-  __arenaNextJsMemDb?: any;
 };
 
 /**
@@ -28,91 +28,6 @@ function sslConfig(url: string): PoolConfig["ssl"] {
   return undefined;
 }
 
-function createMemDbPool(): Pool {
-  if (globalForDb.__arenaNextJsMemDb) {
-    return globalForDb.__arenaNextJsMemDb.pool;
-  }
-  const mem = newDb();
-  mem.public.registerFunction({
-    name: "gen_random_uuid",
-    implementation: () => require("crypto").randomUUID(),
-  });
-  mem.public.registerFunction({
-    name: "pg_advisory_xact_lock",
-    args: [mem.public.getType("integer" as any)],
-    implementation: (_lockId: number) => null,
-  });
-  mem.public.registerFunction({
-    name: "hashtext",
-    args: [mem.public.getType("text" as any)],
-    implementation: (_text: string) => 12345,
-  });
-  mem.public.registerFunction({
-    name: "btrim",
-    args: [mem.public.getType("text" as any)],
-    implementation: (text: string) => (text ? text.trim() : text),
-  });
-  mem.public.registerFunction({
-    name: "trim",
-    args: [mem.public.getType("text" as any)],
-    implementation: (text: string) => (text ? text.trim() : text),
-  });
-  mem.public.registerFunction({
-    name: "lpad",
-    args: [
-      mem.public.getType("text" as any),
-      mem.public.getType("integer" as any),
-      mem.public.getType("text" as any),
-    ],
-    implementation: (str: string, len: number, pad: string) =>
-      String(str).padStart(len, pad),
-  });
-
-  const migrationDir = path.join(process.cwd(), "drizzle");
-  // Keep the in-memory preview schema aligned with every checked-in migration;
-  // loading only the first two left newer columns such as reporting_manager out.
-  for (const file of fs
-    .readdirSync(migrationDir)
-    .filter((name) => name.endsWith(".sql"))
-    .sort()) {
-    const sql = fs.readFileSync(path.join(migrationDir, file), "utf-8");
-    for (const statement of sql.split(/--> statement-breakpoint\s*/)) {
-      if (statement.trim()) mem.public.none(statement);
-    }
-  }
-
-  const pg = mem.adapters.createPg();
-  // Drizzle passes node-postgres' optional `types` parser object on every query.
-  // pg-mem deliberately rejects that option, so strip it only at this in-memory
-  // adapter boundary; real Postgres keeps the native parser behavior.
-  const MemoryPool = pg.Pool as any;
-  class PreviewPool extends MemoryPool {
-    async query(query: unknown, ...args: unknown[]) {
-      const arrayMode =
-        Boolean(query && typeof query === "object" && "rowMode" in query);
-      const cleanQuery =
-        query && typeof query === "object"
-          ? Object.fromEntries(
-              Object.entries(query).filter(
-                ([key]) => key !== "types" && key !== "rowMode",
-              ),
-            )
-          : query;
-      const result = await super.query(cleanQuery, ...args);
-      if (!arrayMode || !result || typeof result !== "object") return result;
-      const rows = Array.isArray((result as any).rows)
-        ? (result as any).rows.map((row: unknown) =>
-            Array.isArray(row) ? row : Object.values(row as Record<string, unknown>),
-          )
-        : (result as any).rows;
-      return { ...(result as any), rows };
-    }
-  }
-  const poolInstance = new PreviewPool() as unknown as Pool;
-  globalForDb.__arenaNextJsMemDb = { mem, pool: poolInstance };
-  return poolInstance;
-}
-
 /**
  * Serverless sizing: every Vercel function instance gets its own pool, so a small
  * per-instance cap keeps the total under the Supabase pooler's client limit even when
@@ -123,25 +38,30 @@ const poolMax = Number.parseInt(process.env.DB_POOL_MAX ?? "", 10);
 // Reuse the pool across module evaluations in dev so we don't leak connection
 // pools or keep re-registering error listeners on every Fast Refresh.
 const existingPool = globalForDb.__arenaNextJsPostgresqlPool;
-
 export const pool =
   existingPool ??
-  (!databaseUrl || databaseUrl === "memory"
-    ? createMemDbPool()
-    : new Pool({
-        connectionString: databaseUrl,
-        keepAlive: true,
-        max: Number.isFinite(poolMax) && poolMax > 0 ? poolMax : 3,
-        idleTimeoutMillis: 5000,
-        connectionTimeoutMillis: 10000,
-        ssl: sslConfig(databaseUrl),
-      }));
+  new Pool({
+    connectionString: databaseUrl,
+    keepAlive: true,
+    max: Number.isFinite(poolMax) && poolMax > 0 ? poolMax : 3,
+    // Close idle clients quickly: a suspended function should not hold pooler slots.
+    idleTimeoutMillis: 5000,
+    // Fail fast rather than letting requests queue invisibly behind an exhausted pool.
+    connectionTimeoutMillis: 10000,
+    ssl: sslConfig(databaseUrl),
+  });
 
-if (!existingPool && databaseUrl && databaseUrl !== "memory") {
+if (!existingPool) {
+  // An idle client dropped by the pooler emits `error` on the pool; without a
+  // listener Node treats it as unhandled and tears down the process. Attach it
+  // only once, when the pool is first created.
   pool.on("error", (err) => {
     console.error("[db] idle client error:", err.message);
   });
 
+  // On Vercel (Fluid compute) this keeps the instance alive just long enough to
+  // close idle clients before suspension, so connections are not leaked. It is a
+  // no-op everywhere else.
   attachDatabasePool(pool);
 
   if (process.env.NODE_ENV !== "production") {
@@ -150,9 +70,3 @@ if (!existingPool && databaseUrl && databaseUrl !== "memory") {
 }
 
 export const db = drizzle(pool, { schema });
-
-/** True when this process runs on the in-memory preview database (pg-mem).
- *  Callers use it to swap SQL that pg-mem cannot parse or execute — ordered-set
- *  percentiles, grouping sets, interval arithmetic, AT TIME ZONE — for the
- *  equivalent JS in lib/metrics, so preview numbers match production rules. */
-export const isPreviewDb = !databaseUrl || databaseUrl === "memory";

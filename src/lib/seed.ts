@@ -272,8 +272,13 @@ export async function ensureSeeded() {
         // Reference data — departments, staff, and users — is real and always seeded.
         const existing = await tx.select({ id: departments.id }).from(departments).limit(1);
         if (existing.length === 0) await tx.insert(departments).values([...DEPARTMENT_RECORDS]).onConflictDoNothing();
-        const staffExisting = await tx.select({ id: staff.id }).from(staff).limit(1);
-        if (staffExisting.length === 0) {
+        // Top up rather than all-or-nothing: the old guard skipped the insert
+        // entirely once a single row existed, so anyone added to the directory
+        // afterwards never reached the table — and a ticket assigned to them
+        // then failed on the foreign key. `onConflictDoNothing` makes this
+        // idempotent, so running it every time costs nothing and keeps the
+        // table in step with the directory.
+        {
           await tx.insert(staff).values(STAFF).onConflictDoNothing();
           for (const s of STAFF) {
             await tx.insert(appUsers).values({
@@ -289,10 +294,7 @@ export async function ensureSeeded() {
         }
       }
       if (demoDataEnabled()) await seedDemoTickets(tx);
-      // The large historical mailbox is production import data. The Arena
-      // preview only needs the curated visual demo tickets and avoids seeding
-      // records whose legacy author ids are not present in the in-memory staff set.
-      if (process.env.PREVIEW_MODE !== "true") await seedGmailTickets(tx);
+      await seedGmailTickets(tx);
       await tx.insert(appSettings).values({key:"workspace-initialized",value:{initialized:true}}).onConflictDoNothing();
     });
   })().then(() => { seeded = true; }).catch(error => { seedPromise=undefined; throw error; });
@@ -383,6 +385,33 @@ async function seedDemoTickets(tx: Tx) {
 }
 
 /** Seed all 500 comprehensive tickets extracted from the studio Gmail operations mailbox. */
+/**
+ * Resolves the workspace account to credit a seeded resolution to.
+ *
+ * `ticket_resolutions.author_user_id` is a foreign key into `app_users`, but
+ * the dataset carries *staff* ids — a different table with its own numbering.
+ * They happened to line up in the sandbox this data was generated in; against a
+ * real workspace they do not, and the insert fails on the constraint. Match the
+ * staff member's own account by email where one exists, and otherwise credit
+ * the workspace's first administrator so the row is still attributable.
+ */
+async function resolutionAuthorId(tx: Tx, email: string | null | undefined) {
+  if (email) {
+    const [own] = await tx
+      .select({ id: appUsers.id })
+      .from(appUsers)
+      .where(eq(appUsers.email, email.toLowerCase()))
+      .limit(1);
+    if (own) return own.id;
+  }
+  const [fallback] = await tx
+    .select({ id: appUsers.id })
+    .from(appUsers)
+    .orderBy(appUsers.id)
+    .limit(1);
+  return fallback?.id ?? null;
+}
+
 async function seedGmailTickets(tx: Tx) {
   const existing = await tx.select({ id: tickets.id }).from(tickets).where(eq(tickets.source, "gmail")).limit(1);
   if (existing.length > 0) return;
@@ -444,9 +473,13 @@ async function seedGmailTickets(tx: Tx) {
       .returning();
 
     if (row) {
+      const authorUserId = await resolutionAuthorId(tx, assignment.staff.email);
+      // No workspace account at all: keep the ticket and its activity, skip the
+      // resolution row rather than failing the whole seed on a not-null key.
+      if (authorUserId !== null)
       await tx.insert(ticketResolutions).values({
         ticketId: row.id,
-        authorUserId: assignment.staff.id,
+        authorUserId,
         rootCause: item.resolution.rootCause,
         actionTaken: item.resolution.actionTaken,
         preventiveAction: item.resolution.preventiveAction,
