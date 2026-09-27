@@ -6,7 +6,7 @@
  */
 process.env.DATABASE_URL ||= 'postgres://check:check@127.0.0.1:5432/check';
 
-import {envCredentials, envPrefix, mergeCredentials} from '../src/lib/config';
+import {ENV_FIRST_INTEGRATIONS, envCredentials, envPrefix, mergeCredentials} from '../src/lib/config';
 
 let pass = 0, fail = 0;
 const check = (name: string, ok: boolean, detail?: unknown) => {
@@ -60,6 +60,21 @@ check('a blank field with no environment value stays absent',
 check('a non-string saved value is ignored',
   mergeCredentials({api_key: 42 as unknown as string}, mailtrapEnv).api_key === 'env-token');
 
+section('Momence: the environment wins');
+const momenceEnv = {username: 'env-user', password: 'env-pass', username_blr: 'env-blr'};
+check('only momence is env-first',
+  [...ENV_FIRST_INTEGRATIONS].join(',') === 'momence', [...ENV_FIRST_INTEGRATIONS]);
+check('the environment overrides a saved value',
+  mergeCredentials({username: 'ui-user'}, momenceEnv, true, true).username === 'env-user',
+  mergeCredentials({username: 'ui-user'}, momenceEnv, true, true).username);
+check('a saved field the environment does not set still applies',
+  mergeCredentials({client_id: 'ui-client'}, momenceEnv, true, true).client_id === 'ui-client');
+check('the separate BLR credentials come through the same prefix',
+  envCredentials('momence', {MOMENCE_USERNAME_BLR: 'blr-user'}).username_blr === 'blr-user',
+  envCredentials('momence', {MOMENCE_USERNAME_BLR: 'blr-user'}));
+check('every other integration stays settings-first',
+  mergeCredentials({api_key: 'saved-token'}, mailtrapEnv, true, false).api_key === 'saved-token');
+
 section('The enabled flag');
 check('comes from the database row', mergeCredentials({}, mailtrapEnv, false)._enabled === 'false');
 check('an enabled row reads true', mergeCredentials({}, mailtrapEnv, true)._enabled === 'true');
@@ -67,6 +82,8 @@ check('an integration with no row defaults to enabled', mergeCredentials({}, mai
 check('the environment cannot forge the flag',
   mergeCredentials({}, {...mailtrapEnv, _enabled: 'true'}, false)._enabled === 'false',
   mergeCredentials({}, {...mailtrapEnv, _enabled: 'true'}, false)._enabled);
+check('an env-first integration cannot forge the flag either',
+  mergeCredentials({}, {_enabled: 'true'}, false, true)._enabled === 'false');
 check('a saved field cannot forge the flag',
   mergeCredentials({_enabled: 'true'}, mailtrapEnv, false)._enabled === 'false');
 

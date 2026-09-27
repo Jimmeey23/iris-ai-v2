@@ -38,15 +38,26 @@ export function envPrefix(id:string){return id==='chatgpt'?'OPENAI':id.toUpperCa
 /** The credentials an integration id can read from the environment. */
 export function envCredentials(id:string,source:Record<string,string|undefined>=process.env):Record<string,string>{const prefix=envPrefix(id)+'_';return Object.fromEntries(Object.entries(source).filter(([k,v])=>k.startsWith(prefix)&&v).map(([k,v])=>[k.slice(prefix.length).toLowerCase(),v!]));}
 /**
+ * Integrations whose credentials belong to the deployment rather than the UI, so the
+ * environment wins over anything saved in Settings.
+ *
+ * Momence is the studio's own system of record: its credentials are provisioned per
+ * environment (including the separate `_BLR` set) and every part of the app reads
+ * live data through them. A value typed into the Integrations page must not be able
+ * to repoint or break that connection.
+ */
+export const ENV_FIRST_INTEGRATIONS=new Set(['momence']);
+/**
  * Precedence: what an administrator saved in Settings wins, and the environment is
- * the fallback for anything they have not filled in.
+ * the fallback for anything they have not filled in. For the integrations in
+ * ENV_FIRST_INTEGRATIONS the order is reversed — pass `envWins`.
  *
  * A field saved blank counts as not filled in and falls back to the environment,
  * rather than blanking a working credential — clearing a box in the UI should not
  * be able to take down a connection that the deployment configures.
  */
-export function mergeCredentials(stored:Record<string,unknown>|undefined,env:Record<string,string>,enabled?:boolean|null):Record<string,string>{
+export function mergeCredentials(stored:Record<string,unknown>|undefined,env:Record<string,string>,enabled?:boolean|null,envWins=false):Record<string,string>{
   const filled=Object.fromEntries(Object.entries(stored??{}).filter(([,v])=>typeof v==='string'&&v.trim()!=='')) as Record<string,string>;
-  return{...env,...filled,_enabled:String(enabled??true)};
+  return{...(envWins?{...filled,...env}:{...env,...filled}),_enabled:String(enabled??true)};
 }
-export const credentials=cache(async function credentials(id:string):Promise<Record<string,string>>{const[row]=await db.select().from(integrations).where(eq(integrations.id,id));return mergeCredentials({...row?.config,...decryptSecrets(row?.encryptedSecrets)},envCredentials(id),row?.enabled);});
+export const credentials=cache(async function credentials(id:string):Promise<Record<string,string>>{const[row]=await db.select().from(integrations).where(eq(integrations.id,id));return mergeCredentials({...row?.config,...decryptSecrets(row?.encryptedSecrets)},envCredentials(id),row?.enabled,ENV_FIRST_INTEGRATIONS.has(id));});
