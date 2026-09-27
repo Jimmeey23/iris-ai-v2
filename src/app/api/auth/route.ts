@@ -84,8 +84,13 @@ function authError(message: string): never {
 export async function GET() {
   try {
     await ensureSeeded();
+    // currentUser() deliberately bypasses the password-change gate, so this endpoint
+    // still answers for an account that is blocked everywhere else — that is how the
+    // client learns where to send them.
+    const user = await currentUser();
     return Response.json({
-      user: await currentUser(),
+      user,
+      passwordChangeRequired: Boolean(user?.mustChangePassword),
       setupRequired: !(await configuredUsers()),
     });
   } catch (e) {

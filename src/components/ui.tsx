@@ -77,8 +77,17 @@ export async function api<T = Record<string, unknown>>(
   if (!res.ok) {
     const r = data as {
       error?: string;
+      code?: string;
       details?: { path?: string[]; message?: string }[];
     };
+    // Any endpoint may refuse an account that still holds its provisioned
+    // password. Wherever that happens, the answer is the same screen.
+    if (
+      r.code === "password_change_required" &&
+      typeof window !== "undefined" &&
+      window.location.pathname !== "/change-password"
+    )
+      window.location.replace("/change-password");
     const message = r.details?.[0]?.message
       ? `${r.details[0].path?.join(".") || "Field"}: ${r.details[0].message}`
       : r.error || "Request failed";
@@ -246,14 +255,26 @@ type PublicSettings = {
   appearanceCardStyle: "elevated" | "flat" | "glass";
 };
 
-type IdentityResponse = { user: Identity | null; setupRequired: boolean };
+type IdentityResponse = {
+  user: Identity | null;
+  setupRequired: boolean;
+  passwordChangeRequired?: boolean;
+};
 /** Loads the signed-in identity. Signed out (or the call failing) sends the person to
- *  /login; a 403 "not authorised" has already been redirected by api() with its reason. */
+ *  /login; a 403 "not authorised" has already been redirected by api() with its reason.
+ *  An account still holding its provisioned password is sent to /change-password —
+ *  every other endpoint refuses it, so rendering the app would only show failures. */
 async function fetchIdentity(): Promise<IdentityResponse | null> {
   try {
     const d = await api<IdentityResponse>("/api/auth");
     if (!d.user && window.location.pathname !== "/login")
       window.location.replace("/login");
+    if (
+      d.user &&
+      d.passwordChangeRequired &&
+      window.location.pathname !== "/change-password"
+    )
+      window.location.replace("/change-password");
     return d;
   } catch (e) {
     if (e instanceof ApiRequestError && e.status === 403) return null;

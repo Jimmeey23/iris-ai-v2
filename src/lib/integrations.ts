@@ -1,5 +1,5 @@
 import {lookup} from 'dns/promises';import {createHash} from 'crypto';import {and,asc,eq,desc,isNotNull,isNull,lt,lte,or,sql} from 'drizzle-orm';import {z} from 'zod';
-import {db} from '@/db';import {integrations,deliveryLogs} from '@/db/schema';import {credentials,audit} from './config';import {ApiError} from './auth';import {getAccessToken,obj} from './momence';import {INTEGRATION_CATALOGUE} from './integration-catalogue';
+import {db} from '@/db';import {integrations,deliveryLogs} from '@/db/schema';import {credentials,integrationCredentials,hasEnvFallback,audit} from './config';import {ApiError} from './auth';import {getAccessToken,obj} from './momence';import {INTEGRATION_CATALOGUE} from './integration-catalogue';
 function required(v:unknown,label:string){if(v===undefined||v===null||String(v).trim()==='')throw new ApiError(`${label} is required.`);return String(v);}
 function identifier(v:unknown,label:string){const id=required(v,label);if(!/^[\w.-]+$/.test(id))throw new ApiError(`${label} has invalid characters.`);return encodeURIComponent(id);}
 export function redacted(data:unknown):unknown{if(Array.isArray(data))return data.slice(0,100).map(redacted);if(data&&typeof data==='object')return Object.fromEntries(Object.entries(data).map(([k,v])=>[k,/(token|secret|password|api_key|authorization)/i.test(k)?'[redacted]':redacted(v)]));return data;}
@@ -17,7 +17,7 @@ async function sendMailtrap(c:Record<string,string>,b:{to:{email:string}[];subje
 }
 const googleCache=new Map<string,{fingerprint:string;token:string;expires:number}>();
 async function googleToken(id:string){const c={...await credentials('google'),...await credentials(id)};if(c.access_token)return c.access_token;required(c.client_id,'Google client ID');required(c.client_secret,'Google client secret');required(c.refresh_token,'Google refresh token');const fingerprint=createHash('sha256').update(c.client_id+c.client_secret+c.refresh_token).digest('hex');const cached=googleCache.get(id);if(cached?.fingerprint===fingerprint&&cached.expires>Date.now()+60000)return cached.token;const res=await fetch('https://oauth2.googleapis.com/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({grant_type:'refresh_token',client_id:c.client_id,client_secret:c.client_secret,refresh_token:c.refresh_token}),signal:AbortSignal.timeout(20000)});if(!res.ok)throw new ApiError('Google token refresh failed. Check OAuth credentials and granted scopes.',502);const j=obj(await res.json());const token=required(j.access_token,'Google access token');googleCache.set(id,{fingerprint,token,expires:Date.now()+Number(j.expires_in||3600)*1000});return token;}
-export async function runIntegration(id:string,action:string,args:Record<string,unknown>={}):Promise<unknown>{const c=await credentials(id);if(action!=='test'&&c._enabled==='false')throw new ApiError('This integration is disabled. Enable it before running actions.',409);if(id==='momence'){await getAccessToken(true);return{authenticated:true,token:'[server-side only]'};}
+export async function runIntegration(id:string,action:string,args:Record<string,unknown>={},override?:Record<string,string>):Promise<unknown>{const c=override??await credentials(id);if(action!=='test'&&c._enabled==='false')throw new ApiError('This integration is disabled. Enable it before running actions.',409);if(id==='momence'){await getAccessToken(true);return{authenticated:true,token:'[server-side only]'};}
 if(id==='chatgpt')return remote('https://api.openai.com/v1/models',required(c.api_key,'OpenAI API key'));
 if(id==='n8n'){const url=await publicWebhook(required(c.webhook_url,'n8n production webhook URL'));if(action==='test')return{configurationValid:true,message:'Webhook URL is valid. Use Trigger a workflow to verify delivery with an explicit confirmed test event.'};return remote(url,'','POST',args,{'X-Webhook-Secret':required(c.webhook_secret,'Webhook secret'),'X-IRIS-Event-Id':String(args.eventId||crypto.randomUUID())});}
 if(id==='mailtrap'){required(c.from_email,'Verified sender email');
@@ -48,7 +48,42 @@ if(id==='stripe'){const key=required(c.api_key,'Stripe secret key');const auth='
 if(id==='razorpay'){const auth='Basic '+Buffer.from(`${required(c.key_id,'Key ID')}:${required(c.key_secret,'Key secret')}`).toString('base64');if(action==='test')return remote('https://api.razorpay.com/v1/payments?count=1','','GET',undefined,{Authorization:auth});return remote('https://api.razorpay.com/v1/payments/'+identifier(args.paymentId,'Payment ID'),'','GET',undefined,{Authorization:auth});}
 if(id==='jira'){const site=required(c.site,'Jira site');const auth='Basic '+Buffer.from(`${required(c.email,'Account email')}:${required(c.api_token,'API token')}`).toString('base64');if(action==='test')return remote(`https://${site}/rest/api/3/myself`,'','GET',undefined,{Authorization:auth});return remote(`https://${site}/rest/api/3/issue`,'','POST',{fields:{project:{key:c.project_key},...obj(args).fields as object}},{Authorization:auth});}
 throw new ApiError('Unknown integration action.');}
-export async function loggedIntegration(id:string,action:string,args:Record<string,unknown>,actor:{id?:number;name:string}){const[entry]=await db.insert(deliveryLogs).values({integrationId:id,action,status:'sending',payload:redacted(args) as Record<string,unknown>,attempts:1}).returning();try{const result=await runIntegration(id,action,args);await db.update(deliveryLogs).set({status:'success',result:{data:redacted(result)},updatedAt:new Date()}).where(eq(deliveryLogs.id,entry.id));await audit(actor,'integration.executed',id,{action,deliveryId:entry.id});return result;}catch(e){await db.update(deliveryLogs).set({status:'failed',result:{error:e instanceof Error?e.message:'Provider unavailable'},updatedAt:new Date()}).where(eq(deliveryLogs.id,entry.id));throw e;}}
+/**
+ * Failures that mean "these credentials are wrong or incomplete", as opposed to
+ * "the provider is having a bad day". Only the former is retried with the
+ * environment's credentials.
+ *
+ * The distinction matters for write actions: a 401 is a request the provider
+ * refused outright, so re-sending it cannot duplicate anything, while a timeout or
+ * a 502 may mean the message went out and the response was lost. Those are left to
+ * the outbox, which knows how to retry them without changing credentials.
+ */
+export const CREDENTIAL_FAILURE=/\b(401|403)\b|unauthor|forbidden|invalid[^.]{0,24}(key|token|secret|credential|password)|authentication|is required\.|token refresh failed/i;
+/**
+ * Run an integration, falling back to the deployment's own credentials when the
+ * ones saved in Settings turn out not to work.
+ *
+ * Settings-first means a wrong value typed into the Integrations page would
+ * otherwise break a connection the environment could have served. It falls back
+ * silently, logging which credentials were used, and only when there is something
+ * different to try.
+ */
+export async function runIntegrationWithFallback(id:string,action:string,args:Record<string,unknown>={}):Promise<unknown>{
+  try{return await runIntegration(id,action,args);}
+  catch(error){
+    const message=error instanceof Error?error.message:String(error);
+    if(!hasEnvFallback(id)||!CREDENTIAL_FAILURE.test(message))throw error;
+    const fromEnv=await integrationCredentials(id,{envOnly:true});
+    const saved=await credentials(id);
+    // Nothing to gain when Settings already resolves to exactly the environment.
+    if(JSON.stringify(fromEnv)===JSON.stringify(saved))throw error;
+    console.warn(JSON.stringify({level:'warn',source:'integrations.fallback',integration:id,action,message:'Saved credentials were rejected; retrying with environment credentials.',detail:message.slice(0,200)}));
+    const result=await runIntegration(id,action,args,fromEnv);
+    console.warn(JSON.stringify({level:'warn',source:'integrations.fallback',integration:id,action,message:'Environment credentials succeeded. The values saved in Settings are stale or wrong.'}));
+    return result;
+  }
+}
+export async function loggedIntegration(id:string,action:string,args:Record<string,unknown>,actor:{id?:number;name:string}){const[entry]=await db.insert(deliveryLogs).values({integrationId:id,action,status:'sending',payload:redacted(args) as Record<string,unknown>,attempts:1}).returning();try{const result=await runIntegrationWithFallback(id,action,args);await db.update(deliveryLogs).set({status:'success',result:{data:redacted(result)},updatedAt:new Date()}).where(eq(deliveryLogs.id,entry.id));await audit(actor,'integration.executed',id,{action,deliveryId:entry.id});return result;}catch(e){await db.update(deliveryLogs).set({status:'failed',result:{error:e instanceof Error?e.message:'Provider unavailable'},updatedAt:new Date()}).where(eq(deliveryLogs.id,entry.id));throw e;}}
 /** Outbox retry policy. A failed delivery is retried with exponential backoff
  *  (2, 4, 8, 16, 32 min …, capped at 6 h) until OUTBOX_MAX_ATTEMPTS, then parked as
  *  'failed' for a human to retry from the Integrations page. */
@@ -80,7 +115,7 @@ export async function deliverPending({limit=10}:{limit?:number}={}){
     try{
       const[connection]=await db.select().from(integrations).where(eq(integrations.id,job.integrationId));
       if(!connection?.enabled)throw new Error('Integration disabled. Enable it before retrying.');
-      const result=await runIntegration(job.integrationId,job.action,{...job.payload,eventId:'iris-delivery-'+job.id});
+      const result=await runIntegrationWithFallback(job.integrationId,job.action,{...job.payload,eventId:'iris-delivery-'+job.id});
       await db.update(deliveryLogs).set({status:'success',result:{data:redacted(result)},nextAttemptAt:null,updatedAt:new Date()}).where(eq(deliveryLogs.id,job.id));
       succeeded++;
     }catch(e){

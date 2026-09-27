@@ -60,4 +60,28 @@ export function mergeCredentials(stored:Record<string,unknown>|undefined,env:Rec
   const filled=Object.fromEntries(Object.entries(stored??{}).filter(([,v])=>typeof v==='string'&&v.trim()!=='')) as Record<string,string>;
   return{...(envWins?{...filled,...env}:{...env,...filled}),_enabled:String(enabled??true)};
 }
-export const credentials=cache(async function credentials(id:string):Promise<Record<string,string>>{const[row]=await db.select().from(integrations).where(eq(integrations.id,id));return mergeCredentials({...row?.config,...decryptSecrets(row?.encryptedSecrets)},envCredentials(id),row?.enabled,ENV_FIRST_INTEGRATIONS.has(id));});
+/**
+ * Credentials for one integration.
+ *
+ * `envOnly` ignores everything saved in Settings and reads the deployment's own
+ * variables — the fallback used when the saved credentials turn out not to work.
+ *
+ * Secrets that cannot be decrypted (a rotated or missing INTEGRATION_ENCRYPTION_KEY)
+ * are treated as absent rather than fatal. Before this, one unreadable row took down
+ * every integration, because the throw escaped the whole call.
+ */
+export async function integrationCredentials(id:string,{envOnly=false}:{envOnly?:boolean}={}):Promise<Record<string,string>>{
+  const[row]=await db.select().from(integrations).where(eq(integrations.id,id));
+  let saved:Record<string,unknown>|undefined;
+  if(!envOnly){
+    let secrets:Record<string,string>={};
+    try{secrets=decryptSecrets(row?.encryptedSecrets);}
+    catch{console.error(JSON.stringify({level:'error',source:'integrations.credentials',integration:id,message:'Saved secrets could not be decrypted; falling back to environment credentials. Check INTEGRATION_ENCRYPTION_KEY.'}));}
+    saved={...row?.config,...secrets};
+  }
+  return mergeCredentials(saved,envCredentials(id),row?.enabled,ENV_FIRST_INTEGRATIONS.has(id));
+}
+export const credentials=cache(function credentials(id:string){return integrationCredentials(id);});
+/** Whether the environment could supply anything this integration does not already
+ *  have from Settings — i.e. whether a fallback attempt is worth making at all. */
+export function hasEnvFallback(id:string){return Object.keys(envCredentials(id)).length>0;}

@@ -87,5 +87,26 @@ check('an env-first integration cannot forge the flag either',
 check('a saved field cannot forge the flag',
   mergeCredentials({_enabled: 'true'}, mailtrapEnv, false)._enabled === 'false');
 
+section('Fallback only for credential failures');
+// Imported lazily: integrations.ts pulls in the database module graph.
+const {CREDENTIAL_FAILURE} = require('../src/lib/integrations') as {CREDENTIAL_FAILURE: RegExp};
+const retries = (m: string) => CREDENTIAL_FAILURE.test(m);
+for (const m of [
+  'Provider returned 401. Check credentials, permissions and payload.',
+  'Provider returned 403: forbidden',
+  'Provider returned 400: invalid api key',
+  'Verified sender email is required.',
+  'Google token refresh failed. Check OAuth credentials and granted scopes.',
+  'Unauthorized',
+]) check(`retries on: ${m.slice(0, 44)}`, retries(m), m);
+for (const m of [
+  'Provider returned 502. Check credentials, permissions and payload.',
+  'Provider returned 500',
+  'The operation was aborted due to timeout',
+  'fetch failed',
+  'Integration disabled. Enable it before retrying.',
+  'Provider returned 429',
+]) check(`does NOT retry on: ${m.slice(0, 40)}`, !retries(m), m);
+
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);

@@ -49,7 +49,10 @@ export default function LoginPage() {
     fetch("/api/auth")
       .then((r) => r.json())
       .then((d) => {
-        if (d.user) return router.replace("/dashboard");
+        if (d.user)
+          return router.replace(
+            d.passwordChangeRequired ? "/change-password" : "/dashboard",
+          );
         if (d.setupRequired) setMode("setup");
         // Only a fixed message keyed by the code is shown; no query text is rendered.
         const code = new URLSearchParams(window.location.search).get("error");
@@ -79,7 +82,10 @@ export default function LoginPage() {
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || "Unable to continue");
-      router.replace("/dashboard");
+      // A provisioned account must set its own password before it may go anywhere
+      // else; every other guard in the app refuses it until then.
+      const me = await fetch("/api/auth").then((x) => x.json()).catch(() => null);
+      router.replace(me?.passwordChangeRequired ? "/change-password" : "/dashboard");
       router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to continue");
