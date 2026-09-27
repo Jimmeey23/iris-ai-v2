@@ -1,0 +1,438 @@
+/* Trainer reviews — visual system
+ *
+ * Extracted from the `premium.css` of the reverted branch, narrowed to the
+ * rules that belong to this tab: the `.tr-*` scorecard surfaces and the
+ * `.ish-*` image-stream hero. The rest of that file — the radar floor plan,
+ * the shell and the global material overrides — is deliberately left behind,
+ * since only the trainer work was wanted back.
+ *
+ * It relies on the `--neu-*` tokens already defined in design-system.css. */
+
+/* Active state contract: medium-blue pressed surface + white text in both
+   modes. This prevents dark-on-dark tab labels and keeps selected controls
+   obvious without relying on a thin underline alone. */
+.nav-link.active,
+.sidebar .nav-link.active,
+.workspace-tabs button.active,
+.tab[aria-selected="true"],
+.module-tabs button.active,
+.settings-nav button.active,
+.report-nav-item.active,
+.panel-tab-btn.active,
+.panel-tab-btn.action-tab.active,
+.context-tab.active,
+.rw-tabs button.active,
+.rw-picks button.active,
+.view-switch button.active,
+.tf-chip-on,
+.tf-column-on,
+.form-card.active,
+.tr-review.active,
+.studio-tab-card.active,
+.operation-item.active,
+.toolbar-pill-btn.active,
+.qty-btn.active,
+.rating-buttons button.active,
+.countdown-clock.active,
+.btn.active,
+.tabs-thumb,
+.tabs-segment [aria-selected="true"] {
+  color: var(--active-fg) !important;
+  background: var(--active-bg) !important;
+  border-color: transparent !important;
+  box-shadow: 0 7px 18px -8px color-mix(in srgb, var(--active-bg) 80%, transparent), inset 0 1px 0 rgb(255 255 255 / 0.18) !important;
+}
+
+.nav-link.active .nav-label,
+.nav-link.active svg,
+.workspace-tabs button.active span,
+.tab[aria-selected="true"] *,
+.module-tabs button.active *,
+.settings-nav button.active *,
+.report-nav-item.active *,
+.panel-tab-btn.active *,
+.context-tab.active *,
+.rw-tabs button.active *,
+.rw-picks button.active *,
+.view-switch button.active *,
+.tf-chip-on *,
+.tf-column-on *,
+.form-card.active *,
+.tr-review.active *,
+.studio-tab-card.active *,
+.operation-item.active *,
+.toolbar-pill-btn.active *,
+.qty-btn.active *,
+.rating-buttons button.active * {
+  color: var(--active-fg) !important;
+}
+
+/* Sweep every remaining tab-like control into the contract, including the
+   attribute-driven ones the earlier pass missed. */
+.tr-seg button[data-active="true"],
+.r3d-view-toggle button[data-active="true"],
+.studio-tab-card.active,
+[role="tab"][aria-selected="true"],
+.tab.active,
+.pager button.active,
+.filter-chip.active,
+.seg-btn.active,
+.workspace-tabs .active,
+.module-tabs .active {
+  color: var(--active-fg) !important;
+  background: var(--active-bg) !important;
+  border-color: transparent !important;
+  box-shadow: var(--active-glow), inset 0 1px 0 rgb(255 255 255 / 0.22) !important;
+}
+
+.tr-seg button[data-active="true"] *,
+.r3d-view-toggle button[data-active="true"] *,
+.studio-tab-card.active *,
+[role="tab"][aria-selected="true"] *,
+.tab.active *,
+.pager button.active *,
+.filter-chip.active *,
+.seg-btn.active * {
+  color: var(--active-fg) !important;
+}
+
+/* The selected assessment row is a *card*, not a tab: keep its semantic badges
+   coloured instead of flattening them onto the active fill. */
+.tr-review.active {
+  color: var(--text) !important;
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface)) !important;
+  border: 1px solid color-mix(in srgb, var(--accent) 42%, transparent) !important;
+  box-shadow: var(--neu-xs), inset 3px 0 0 var(--accent) !important;
+}
+
+.tr-review.active * { color: inherit !important; }
+
+.tr-review.active .badge.green { color: var(--green) !important; }
+
+.tr-review.active .badge.red   { color: var(--red) !important; }
+
+.tr-review.active .badge.amber { color: var(--amber) !important; }
+
+.tr-review.active .badge.blue  { color: var(--blue) !important; }
+
+.tr-review.active .tr-review-score { color: var(--accent) !important; }
+
+[data-theme="light"] .tr-portrait::after {
+  background: linear-gradient(180deg, transparent 52%, rgb(255 255 255 / 0.72));
+}
+
+.tr-stream-hero { min-height: 300px; }
+
+.ish-card {
+  box-shadow: 0 24px 44px -22px rgb(0 0 0 / 0.55);
+  border: 1px solid color-mix(in srgb, var(--white, #fff) 16%, transparent);
+  background: var(--surface-3);
+}
+
+.ish-card img {
+  filter: saturate(1.06) contrast(1.03);
+}
+
+.tr-stream-copy {
+  position: relative;
+  z-index: 2;
+  height: 100%;
+  min-height: 300px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 10px;
+  max-width: 660px;
+  padding: 36px 42px;
+  pointer-events: none;
+}
+
+.tr-stream-copy .eyebrow { margin-bottom: 2px; }
+
+.tr-stream-copy h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(22px, 2.7vw, 33px);
+  font-weight: 700;
+  letter-spacing: -0.045em;
+  line-height: 1.08;
+}
+
+.tr-stream-copy p {
+  margin: 0;
+  max-width: 520px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--secondary);
+}
+
+.tr-stream-copy .badge,
+.tr-stream-copy button { pointer-events: auto; }
+
+/* Trainer report: a masthead worth framing. */
+.tr-masthead {
+  position: relative;
+  overflow: hidden;
+  border-radius: 20px;
+  border: 1px solid var(--neu-line);
+  background:
+    radial-gradient(90% 160% at 100% 0%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 55%),
+    var(--surface);
+  box-shadow: var(--neu-sm) !important;
+}
+
+.tr-masthead::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(120deg, transparent 35%, color-mix(in srgb, var(--white, #fff) 10%, transparent) 50%, transparent 65%);
+  transform: translateX(-120%);
+  animation: tr-sheen 6s var(--ease-standard) infinite;
+  pointer-events: none;
+}
+
+.tr-kpi {
+  border-radius: 16px;
+  background: var(--surface-raised-2) !important;
+  border: 1px solid var(--neu-line);
+  box-shadow: var(--neu-xs) !important;
+  transition: transform 0.25s var(--ease-spring), box-shadow 0.25s ease;
+}
+
+.tr-kpi:hover { transform: translateY(-2px); box-shadow: var(--neu-sm) !important; }
+
+.tr-section {
+  border-radius: 18px;
+  border: 1px solid var(--neu-line);
+  box-shadow: var(--neu-xs) !important;
+  overflow: hidden;
+}
+
+.tr-section-head {
+  background: var(--surface-raised-2);
+  border-bottom: 1px solid var(--neu-line);
+}
+
+.tr-index {
+  border-radius: 9px;
+  background: linear-gradient(150deg, var(--accent), color-mix(in srgb, var(--accent) 72%, var(--red)));
+  color: #171106;
+  box-shadow: 0 4px 12px -5px color-mix(in srgb, var(--accent) 70%, transparent);
+  font-weight: 800;
+}
+
+.tr-dial svg circle:first-child { stroke: var(--neu-sunken); }
+
+.tr-bar { box-shadow: var(--neu-in-sm); }
+
+.tr-seg { box-shadow: var(--neu-in-sm); border-radius: 11px; }
+
+.tr-seg button { border-radius: 8px; }
+
+.tr-note,
+.tr-alert,
+.tr-split-row,
+.tr-answers {
+  border-radius: 12px;
+  background: var(--surface-raised-2) !important;
+  box-shadow: inset 0 0 0 1px var(--neu-line);
+}
+
+.tr-review { border-radius: 14px; }
+
+.tr-review-score { font-weight: 750; }
+
+/* ---- 3.11 The rails must stay gold/blue-free until pressed --------------- */
+/* Unselected tabs never inherit an accent colour from their neighbours. */
+.tab:not([aria-selected="true"]):not(.active),
+.module-tabs button:not(.active),
+.settings-nav button:not(.active),
+.workspace-tabs button:not(.active),
+.panel-tab-btn:not(.active),
+.context-tab:not(.active),
+.report-nav-item:not(.active),
+.tr-seg button:not([data-active="true"]),
+.r3d-view-toggle button:not([data-active="true"]) {
+  color: var(--secondary) !important;
+  background: transparent;
+}
+
+/* Every raised container gains the edge highlight and a deeper pair. */
+.card,
+.panel,
+.metric,
+.tickets-panel,
+.ticket-card,
+.entity-card,
+.template-card,
+.integration-card,
+.report-card,
+.asset-card,
+.form-card,
+.stat-card,
+.settings-card,
+.insights-widget,
+.help-card,
+.draft-card,
+.resolution-card,
+.context-card,
+.filter-card,
+.kpi-card,
+.data-card,
+.summary-card,
+.table-card,
+.tr-section,
+.tr-masthead,
+.td-panel,
+.td-case-file,
+.td-context-sheet,
+.report-nav,
+.radar-telemetry-banner,
+.room-inspector-drawer,
+.floorplan-heatmap-container,
+.incident-ticket-card,
+.studio-tab-card,
+.trainer-profile-card,
+.image-stream-hero,
+.r3d-top,
+.empty-state,
+.locked-page {
+  box-shadow: var(--neu-sm), var(--neu-edge) !important;
+}
+
+.card:hover,
+.panel:hover,
+.ticket-card:hover,
+.entity-card:hover,
+.template-card:hover,
+.integration-card:hover,
+.report-card:hover,
+.asset-card:hover,
+.form-card:hover,
+.settings-card:hover,
+.trainer-profile-card:hover {
+  box-shadow: var(--neu-md), var(--neu-edge) !important;
+}
+
+/* ---- 4.6 Sophistication details ----------------------------------------- */
+/* Page titles get a quiet ink gradient — expensive without being loud. */
+.page-heading h1,
+.tr-masthead h2,
+.tr-stream-copy h2 {
+  background: linear-gradient(
+    120deg,
+    var(--text) 42%,
+    color-mix(in srgb, var(--accent) 52%, var(--text))
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Numerals in data stay tabular and calm. */
+.metric-number,
+.metric strong,
+.rp-metric strong,
+.ovc-kpi strong,
+.tr-kpi strong,
+.t-val,
+.d-val,
+.small-counter {
+  font-variant-numeric: tabular-nums;
+}
+
+.tr-stream-hero { min-height: 340px; }
+
+.tr-stream-copy {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  /* Centred between the rails: the stream is born just off-centre and sweeps
+     outward on both sides, so the copy owns the middle of the stage. */
+  margin: auto;
+  width: min(620px, 86%);
+  padding: 28px 34px;
+  border-radius: 22px;
+  border: 1px solid var(--neu-line);
+  /* Opaque enough that the corridor never competes with the sentence; cards
+     emerge from behind its edges as they grow and sweep outward. */
+  background: color-mix(in srgb, var(--surface) 97%, transparent);
+  box-shadow: var(--neu-md), var(--neu-edge);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  text-align: center;
+}
+
+.tr-stream-copy .eyebrow {
+  margin-bottom: 2px;
+  justify-content: center;
+}
+
+/* Symmetry: the rule on the left of the label is mirrored on its right. */
+.tr-stream-copy .eyebrow::after {
+  content: "";
+  width: 20px;
+  height: 1px;
+  background: currentColor;
+  opacity: 0.85;
+}
+
+.tr-stream-copy h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(21px, 2.4vw, 30px);
+  font-weight: 750;
+  letter-spacing: -0.045em;
+  line-height: 1.12;
+}
+
+.tr-stream-copy p {
+  margin: 0 auto;
+  max-width: 520px;
+  font-size: 12.5px;
+  line-height: 1.65;
+  color: var(--secondary);
+}
+
+.tr-stream-facts {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 6px;
+  padding-top: 14px;
+  border-top: 1px solid var(--neu-line);
+}
+
+.tr-stream-facts .badge,
+.tr-stream-facts button { pointer-events: auto; }
+
+/* ---- 5.3 Trainer cards: compact framed portraits ------------------------ */
+.trainer-profile-card {
+  overflow: hidden;
+}
+
+.trainer-profile-meta {
+  padding: 16px;
+  display: grid;
+  gap: 10px;
+}
+
+.trainer-profile-card:hover .tpc-photo {
+  transform: translateY(-2px) scale(1.03);
+  box-shadow: var(--neu-sm), var(--neu-edge);
+}
+
+@media (max-width: 767px) {
+  .tr-stream-copy { padding: 24px 20px; }
+  .tr-stream-hero { min-height: 340px; }
+}
+
+@media (max-width: 767px) {
+  .tr-stream-copy { width: auto; margin: 14px; padding: 20px; }
+  .tr-stream-hero { min-height: 380px; }
+}
