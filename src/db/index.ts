@@ -53,6 +53,11 @@ function createMemDbPool(): Pool {
     implementation: (text: string) => (text ? text.trim() : text),
   });
   mem.public.registerFunction({
+    name: "trim",
+    args: [mem.public.getType("text" as any)],
+    implementation: (text: string) => (text ? text.trim() : text),
+  });
+  mem.public.registerFunction({
     name: "lpad",
     args: [
       mem.public.getType("text" as any),

@@ -729,3 +729,360 @@ select:hover {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ========================================================================
+   MATERIAL ENFORCEMENT v2
+   The final contract for every surface: raised containers, recessed wells,
+   opaque chrome, and one readable active-state palette in both themes.
+   ======================================================================== */
+:root,
+[data-theme="dark"] {
+  --active-bg: #33485e;
+  --active-fg: #ffffff;
+  --surface-raised: #17212c;
+  --surface-raised-2: #1d2936;
+}
+[data-theme="light"] {
+  --active-bg: #1d58c8;
+  --active-fg: #ffffff;
+  --surface-raised: #edf2f8;
+  --surface-raised-2: #f3f7fb;
+}
+
+/* Opaque chrome. The sidebar and top bar are navigation anchors, not glass;
+   they must remain legible over every page and at every scroll position. */
+.topbar,
+.topbar[data-scrolled="true"] {
+  position: fixed;
+  background: var(--surface) !important;
+  opacity: 1;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border: 1px solid var(--neu-line) !important;
+  box-shadow: var(--neu-md), inset 0 1px 0 color-mix(in srgb, var(--text) 6%, transparent) !important;
+}
+.sidebar {
+  display: flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  background: var(--surface) !important;
+  border: 1px solid var(--neu-line) !important;
+  box-shadow: var(--neu-md), inset 0 1px 0 color-mix(in srgb, var(--text) 6%, transparent) !important;
+}
+
+/* One raised recipe for all major containers. These selectors deliberately
+   include the feature-level cards used by Settings, Reports, People, Forms,
+   Equipment, Momence and the ticket workspace. */
+.card,
+.panel,
+.metric,
+.tickets-panel,
+.ticket-card,
+.entity-card,
+.template-card,
+.integration-card,
+.report-card,
+.asset-card,
+.form-card,
+.stat-card,
+.settings-card,
+.insights-widget,
+.studio-pulse,
+.quick-templates,
+.help-card,
+.related-ticket,
+.draft-card,
+.resolution-card,
+.context-card,
+.filter-card,
+.kpi-card,
+.data-card,
+.summary-card,
+.cockpit-right-sidebar > section,
+.settings-section,
+.settings-block,
+.profile-card,
+.report-section,
+.form-section,
+.table-card,
+.table-wrap {
+  background: var(--surface) !important;
+  border: 1px solid var(--neu-line) !important;
+  box-shadow: var(--neu-sm) !important;
+}
+.card:hover,
+.panel:hover,
+.ticket-card:hover,
+.entity-card:hover,
+.template-card:hover,
+.integration-card:hover,
+.report-card:hover,
+.asset-card:hover,
+.form-card:hover,
+.related-ticket:hover,
+.settings-card:hover {
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--neu-line)) !important;
+  box-shadow: var(--neu-md) !important;
+}
+
+/* Secondary surfaces get a softer lift instead of a flat fill. */
+.surface,
+.surface-raised,
+[class~="surface"],
+.module-shell,
+.workspace-section,
+.list-section,
+.info-panel,
+.data-panel,
+.table-panel {
+  background: var(--surface-raised) !important;
+  border: 1px solid var(--neu-line) !important;
+  box-shadow: var(--neu-xs) !important;
+}
+
+/* Recessed material utilities and common wells. */
+.neu-inset,
+.inset-surface,
+.field-well,
+.search-input,
+.search-field,
+.filter-drawer,
+.filter-panel,
+.tabs-segment,
+.tabs-list,
+.progress-bar,
+.mc-breakdown-track,
+.bt-bar,
+.sla-bar,
+.ovc-volume,
+.ovc-kpi-facts,
+.table-wrap,
+.data-table-wrap {
+  background: var(--neu-sunken) !important;
+  border: 1px solid var(--neu-line) !important;
+  box-shadow: var(--neu-in) !important;
+}
+
+/* Every ordinary control is a small physical object. */
+.btn,
+.icon-btn,
+.quick-template,
+.related-ticket,
+.user-button,
+.sidebar-signout,
+.workspace-selector,
+.tf-chip,
+.tf-column,
+.toolbar-pill-btn,
+.context-tab,
+.panel-tab-btn,
+.operation-item,
+.qty-btn,
+.rating-buttons button,
+.countdown-clock,
+.ifield-skip,
+.toggle,
+button[role="tab"],
+[role="switch"] {
+  border: 1px solid var(--neu-line) !important;
+  background: var(--surface-raised) !important;
+  box-shadow: var(--neu-xs) !important;
+  color: var(--text);
+  transition: transform var(--dur-2) var(--ease-spring), box-shadow var(--dur-2) var(--ease-standard), background var(--dur-2) var(--ease-standard), color var(--dur-2) var(--ease-standard), border-color var(--dur-2) var(--ease-standard);
+}
+.btn:hover,
+.icon-btn:hover,
+.quick-template:hover,
+.related-ticket:hover,
+.user-button:hover,
+.sidebar-signout:hover,
+.workspace-selector:hover,
+.tf-chip:hover,
+.tf-column:hover,
+.toolbar-pill-btn:hover,
+.context-tab:hover,
+.panel-tab-btn:hover,
+.operation-item:hover,
+.qty-btn:hover,
+.rating-buttons button:hover,
+.countdown-clock:hover,
+.ifield-skip:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--neu-sm) !important;
+}
+.btn:active,
+.icon-btn:active,
+.quick-template:active,
+.related-ticket:active,
+.user-button:active,
+.sidebar-signout:active,
+.tf-chip:active,
+.tf-column:active,
+.toolbar-pill-btn:active,
+.context-tab:active,
+.panel-tab-btn:active,
+.operation-item:active,
+.qty-btn:active,
+.rating-buttons button:active {
+  transform: translateY(0) scale(0.985);
+  box-shadow: var(--neu-in-sm) !important;
+}
+
+/* Active state contract: medium-blue pressed surface + white text in both
+   modes. This prevents dark-on-dark tab labels and keeps selected controls
+   obvious without relying on a thin underline alone. */
+.nav-link.active,
+.sidebar .nav-link.active,
+.workspace-tabs button.active,
+.tab[aria-selected="true"],
+.module-tabs button.active,
+.settings-nav button.active,
+.report-nav-item.active,
+.panel-tab-btn.active,
+.panel-tab-btn.action-tab.active,
+.context-tab.active,
+.rw-tabs button.active,
+.rw-picks button.active,
+.view-switch button.active,
+.tf-chip-on,
+.tf-column-on,
+.form-card.active,
+.tr-review.active,
+.studio-tab-card.active,
+.operation-item.active,
+.toolbar-pill-btn.active,
+.qty-btn.active,
+.rating-buttons button.active,
+.countdown-clock.active,
+.btn.active,
+.tabs-thumb,
+.tabs-segment [aria-selected="true"] {
+  color: var(--active-fg) !important;
+  background: var(--active-bg) !important;
+  border-color: transparent !important;
+  box-shadow: 0 7px 18px -8px color-mix(in srgb, var(--active-bg) 80%, transparent), inset 0 1px 0 rgb(255 255 255 / 0.18) !important;
+}
+.nav-link.active .nav-label,
+.nav-link.active svg,
+.workspace-tabs button.active span,
+.tab[aria-selected="true"] *,
+.module-tabs button.active *,
+.settings-nav button.active *,
+.report-nav-item.active *,
+.panel-tab-btn.active *,
+.context-tab.active *,
+.rw-tabs button.active *,
+.rw-picks button.active *,
+.view-switch button.active *,
+.tf-chip-on *,
+.tf-column-on *,
+.form-card.active *,
+.tr-review.active *,
+.studio-tab-card.active *,
+.operation-item.active *,
+.toolbar-pill-btn.active *,
+.qty-btn.active *,
+.rating-buttons button.active * {
+  color: var(--active-fg) !important;
+}
+.nav-link.active::before {
+  background: var(--active-fg) !important;
+  box-shadow: 0 0 12px rgb(255 255 255 / 0.45) !important;
+}
+/* Unselected tab labels are never allowed to inherit a dark accent from a
+   neighbouring component. */
+.tab:not([aria-selected="true"]),
+.module-tabs button:not(.active),
+.settings-nav button:not(.active),
+.workspace-tabs button:not(.active),
+.panel-tab-btn:not(.active),
+.context-tab:not(.active) {
+  color: var(--secondary) !important;
+}
+
+/* Accent actions stay gold/blue, but always get an explicit readable ink. */
+.btn-primary,
+.ovc-btn-accent,
+.auth-submit,
+.toggle.on {
+  color: var(--accent-text) !important;
+  background: var(--grad-accent) !important;
+  border-color: transparent !important;
+}
+.btn-primary *,
+.ovc-btn-accent *,
+.auth-submit *,
+.toggle.on * {
+  color: var(--accent-text) !important;
+}
+
+/* Inputs and selects are always dark-ink-on-light-well or light-ink-on-dark-
+   well. This is intentionally explicit because native controls otherwise
+   inherit browser colors when a theme changes during a session. */
+input,
+textarea,
+select,
+option,
+.search-field,
+.search-input input {
+  color: var(--text) !important;
+  background: var(--neu-sunken) !important;
+}
+input::placeholder,
+textarea::placeholder {
+  color: var(--muted) !important;
+  opacity: 1;
+}
+option {
+  background: var(--surface) !important;
+  color: var(--text) !important;
+}
+
+/* Glass is reserved for editorial/insight surfaces, never navigation. */
+.glass,
+.glass-surface,
+.iris-banner,
+.overview-command-deck,
+.insights-widget,
+.reporter-lock,
+.context-bar,
+.iris-context-bar,
+.member-identity-card {
+  background: color-mix(in srgb, var(--surface) 74%, transparent) !important;
+  border: 1px solid color-mix(in srgb, var(--text) 11%, transparent) !important;
+  box-shadow: var(--neu-md), inset 0 1px 0 color-mix(in srgb, var(--white) 12%, transparent) !important;
+  backdrop-filter: blur(18px) saturate(1.22);
+  -webkit-backdrop-filter: blur(18px) saturate(1.22);
+}
+[data-theme="light"] .glass,
+[data-theme="light"] .glass-surface,
+[data-theme="light"] .iris-banner,
+[data-theme="light"] .overview-command-deck,
+[data-theme="light"] .insights-widget,
+[data-theme="light"] .reporter-lock,
+[data-theme="light"] .context-bar,
+[data-theme="light"] .iris-context-bar,
+[data-theme="light"] .member-identity-card {
+  background: rgb(255 255 255 / 0.58) !important;
+}
+
+/* Keep the left rail present on desktop preview widths. */
+@media (min-width: 768px) {
+  .sidebar {
+    display: flex !important;
+    transform: none !important;
+  }
+}
+
+/* Small screens still get a strong drawer, not a translucent ghost. */
+@media (max-width: 767px) {
+  .sidebar,
+  .sidebar.open {
+    background: var(--surface) !important;
+    box-shadow: var(--neu-md) !important;
+  }
+  .topbar,
+  .topbar[data-scrolled="true"] {
+    background: var(--surface) !important;
+  }
+}
