@@ -1,0 +1,731 @@
+/*
+ * IRIS premium surface layer
+ * ---------------------------
+ * This file is deliberately last in the global style stack. It is the
+ * product-wide material system: one canvas, one raised surface, one recessed
+ * well and one motion language. Feature styles can stay focused on layout and
+ * behavior instead of inventing a new visual treatment page by page.
+ */
+
+/* Local-first font stack: the workspace remains buildable and typographically
+   stable even when a deployment cannot reach a font CDN. */
+:root {
+  --font-outfit: "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --font-space: "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --font-mono-tech: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --font-display: var(--font-space);
+  --font-body: var(--font-outfit);
+  --font-mono: var(--font-mono-tech);
+}
+
+:root,
+[data-theme="dark"] {
+  --bg: #0c1016;
+  --surface: #121821;
+  --surface-2: #18212c;
+  --surface-3: #202b38;
+  --surface-4: #2a3746;
+  --text: #f3f6fa;
+  --muted: #8390a0;
+  --secondary: #b6c0cc;
+  --border: #263241;
+  --border-strong: #38495b;
+  --green: #62d9b0;
+  --green-bg: rgb(98 217 176 / 0.13);
+  --red: #ff7887;
+  --red-bg: rgb(255 120 135 / 0.13);
+  --purple: #b9a7ff;
+  --purple-bg: rgb(185 167 255 / 0.13);
+  --blue: #72baff;
+  --blue-bg: rgb(114 186 255 / 0.13);
+  --neu-line: rgb(255 255 255 / 0.07);
+  --neu-sunken: #0e141b;
+  --neu-xs: 3px 3px 8px rgb(0 0 0 / 0.38), -2px -2px 7px rgb(255 255 255 / 0.035);
+  --neu-sm: 7px 7px 18px rgb(0 0 0 / 0.42), -4px -4px 12px rgb(255 255 255 / 0.035);
+  --neu-md: 12px 12px 28px rgb(0 0 0 / 0.5), -6px -6px 18px rgb(255 255 255 / 0.04);
+  --neu-in: inset 4px 4px 10px rgb(0 0 0 / 0.46), inset -3px -3px 8px rgb(255 255 255 / 0.035);
+  --neu-in-sm: inset 2px 2px 6px rgb(0 0 0 / 0.42), inset -2px -2px 5px rgb(255 255 255 / 0.03);
+}
+
+[data-theme="light"] {
+  /* A cool mineral canvas gives the light theme enough contrast for a true
+     neumorphic shadow pair without adding heavy borders or grey panels. */
+  --bg: #e8edf4;
+  --surface: #edf2f8;
+  --surface-2: #e8edf4;
+  --surface-3: #e0e7f0;
+  --surface-4: #d7e0eb;
+  --text: #111b2a;
+  --muted: #718096;
+  --secondary: #425169;
+  --border: rgb(38 56 80 / 0.1);
+  --border-strong: rgb(38 56 80 / 0.2);
+  --green: #087956;
+  --green-bg: rgb(8 121 86 / 0.11);
+  --red: #bd3448;
+  --red-bg: rgb(189 52 72 / 0.11);
+  --purple: #674dcc;
+  --purple-bg: rgb(103 77 204 / 0.11);
+  --blue: #1760c9;
+  --blue-bg: rgb(23 96 201 / 0.11);
+  --neu-line: rgb(24 43 68 / 0.09);
+  --neu-sunken: #e2e8f0;
+  --neu-xs: 4px 4px 10px rgb(121 139 165 / 0.28), -4px -4px 10px rgb(255 255 255 / 0.92);
+  --neu-sm: 7px 7px 18px rgb(121 139 165 / 0.25), -7px -7px 18px rgb(255 255 255 / 0.94);
+  --neu-md: 12px 12px 28px rgb(121 139 165 / 0.3), -10px -10px 24px rgb(255 255 255 / 0.96);
+  --neu-in: inset 4px 4px 10px rgb(121 139 165 / 0.25), inset -4px -4px 10px rgb(255 255 255 / 0.94);
+  --neu-in-sm: inset 2px 2px 6px rgb(121 139 165 / 0.22), inset -2px -2px 6px rgb(255 255 255 / 0.92);
+}
+
+/* Canvas: quiet enough that the product's data remains the focus. */
+body,
+.workspace,
+.content {
+  background: var(--bg);
+}
+body {
+  color: var(--text);
+}
+.workspace {
+  --rail: 286px;
+  --bar: 68px;
+  position: relative;
+  isolation: isolate;
+}
+.workspace::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+  background:
+    radial-gradient(720px 420px at 83% -5%, color-mix(in srgb, var(--accent) 9%, transparent), transparent 68%),
+    radial-gradient(620px 420px at -6% 104%, color-mix(in srgb, var(--purple) 7%, transparent), transparent 72%);
+  opacity: 0.8;
+}
+.workspace::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.16;
+  background-image: radial-gradient(color-mix(in srgb, var(--text) 22%, transparent) 0.7px, transparent 0.7px);
+  background-size: 22px 22px;
+  mask-image: linear-gradient(145deg, black, transparent 62%);
+}
+
+/* Type hierarchy: large, calm page titles; data gets the technical face. */
+h1,
+h2,
+h3,
+h4 {
+  letter-spacing: -0.04em;
+}
+.page-heading {
+  position: relative;
+  align-items: flex-end;
+  margin-bottom: 30px;
+}
+.page-heading h1 {
+  font-size: clamp(29px, 3vw, 40px);
+  line-height: 1.02;
+  letter-spacing: -0.055em;
+}
+.page-heading .eyebrow {
+  margin-bottom: 10px;
+  font-size: 9px;
+  letter-spacing: 0.2em;
+}
+.page-heading .eyebrow::before {
+  width: 22px;
+}
+.page-footer {
+  margin-top: 42px;
+  padding-top: 16px;
+  border-top: 1px solid var(--neu-line);
+  color: var(--muted);
+}
+
+/* ---------- Floating rail and topbar ----------------------------------- */
+.sidebar {
+  inset: 18px auto 18px 18px;
+  width: 252px;
+  height: auto;
+  padding: 22px 16px 18px;
+  border: 1px solid var(--neu-line);
+  border-radius: 28px;
+  background: var(--surface);
+  box-shadow: var(--neu-md);
+}
+.sidebar .brand {
+  height: 52px;
+  margin: 0 4px 16px;
+  padding: 0 6px 18px;
+  border-bottom: 1px solid var(--neu-line);
+}
+.sidebar-scrollable {
+  padding-inline: 2px;
+}
+.nav-heading {
+  margin: 20px 0 8px;
+  padding-inline: 12px;
+  color: var(--muted);
+  font-size: 9px;
+  letter-spacing: 0.19em;
+}
+.sidebar-scrollable > .nav-heading:first-child {
+  margin-top: 6px;
+}
+.nav-link {
+  min-height: 43px;
+  margin-bottom: 6px;
+  padding: 0 13px;
+  border: 1px solid transparent;
+  border-radius: 13px;
+  color: var(--secondary);
+  font-size: 12px;
+  background: transparent;
+  transition: color var(--dur-2) var(--ease-out-expo), background var(--dur-2) var(--ease-out-expo), box-shadow var(--dur-2) var(--ease-out-expo), transform var(--dur-2) var(--ease-out-expo);
+}
+.nav-link:hover {
+  transform: translateX(2px);
+  border-color: var(--neu-line);
+  background: color-mix(in srgb, var(--surface-2) 78%, transparent);
+  box-shadow: var(--neu-xs);
+}
+.nav-link:active {
+  transform: translateX(2px) scale(0.985);
+  box-shadow: var(--neu-in-sm);
+}
+.nav-link.active {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 22%, transparent);
+  background: color-mix(in srgb, var(--accent) 9%, var(--surface));
+  box-shadow: var(--neu-in-sm);
+}
+.nav-link.active::before {
+  content: "";
+  left: 6px;
+  width: 3px;
+  height: 17px;
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 50%, transparent);
+}
+.nav-link svg {
+  width: 16px;
+  height: 16px;
+}
+.nav-link.active svg {
+  color: var(--accent);
+}
+.nav-link.locked {
+  opacity: 0.42;
+}
+
+.topbar {
+  top: 18px;
+  right: 18px;
+  left: var(--rail);
+  height: var(--bar);
+  padding: 0 20px 0 24px;
+  border: 1px solid var(--neu-line);
+  border-radius: 22px;
+  background: color-mix(in srgb, var(--surface) 91%, transparent);
+  box-shadow: var(--neu-sm);
+  backdrop-filter: blur(18px) saturate(1.3);
+  -webkit-backdrop-filter: blur(18px) saturate(1.3);
+}
+.topbar[data-scrolled="true"] {
+  background: color-mix(in srgb, var(--surface) 95%, transparent);
+  box-shadow: var(--neu-md);
+}
+.breadcrumb {
+  gap: 9px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.breadcrumb strong {
+  color: var(--text);
+  font-weight: 650;
+}
+.topbar-actions {
+  gap: 9px;
+}
+.topbar-search {
+  min-width: 270px;
+  height: 39px;
+  padding: 0 10px 0 13px;
+  border: 1px solid var(--neu-line);
+  border-radius: 12px;
+  background: var(--neu-sunken);
+  box-shadow: var(--neu-in-sm);
+  color: var(--muted);
+  font-size: 11px;
+  transition: box-shadow var(--dur-2), border-color var(--dur-2), color var(--dur-2);
+}
+.topbar-search:hover {
+  color: var(--secondary);
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--neu-line));
+  box-shadow: var(--neu-in);
+}
+.topbar-search kbd {
+  background: var(--surface);
+  border-color: var(--neu-line);
+  box-shadow: var(--neu-xs);
+}
+.topbar-divider {
+  height: 22px;
+  width: 1px;
+  background: var(--neu-line);
+}
+.topbar-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--neu-line);
+  border-radius: 11px;
+  background: var(--surface);
+  box-shadow: var(--neu-xs);
+  color: var(--secondary);
+  font-size: 10px;
+}
+.topbar-status-count {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-weight: 700;
+}
+.topbar-status-label {
+  color: var(--muted);
+}
+.icon-btn {
+  width: 38px;
+  height: 38px;
+  border: 1px solid var(--neu-line);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--neu-xs);
+}
+.icon-btn:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--accent) 32%, var(--neu-line));
+  box-shadow: var(--neu-sm);
+}
+.icon-btn:active {
+  transform: translateY(0) scale(0.96);
+  box-shadow: var(--neu-in-sm);
+}
+.topbar-avatar {
+  padding: 3px;
+  border: 1px solid var(--neu-line);
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: var(--neu-xs);
+}
+.topbar-avatar .avatar {
+  box-shadow: none;
+}
+
+.workspace-main,
+.workspace-main.sidebar-collapsed {
+  margin-left: var(--rail);
+  padding-top: calc(var(--bar) + 26px);
+  transition: margin-left 0.3s var(--ease-out-expo), padding-top 0.3s var(--ease-out-expo);
+}
+.content {
+  padding: 8px 42px 54px;
+}
+.content.content-full-width {
+  padding-inline: 34px;
+}
+
+/* Collapsed state remains a deliberate compact mode rather than a separate
+   visual language. Hovering it expands the layout without covering content. */
+.workspace.rail-collapsed {
+  --rail: 104px;
+}
+.workspace.rail-collapsed .sidebar {
+  width: 72px;
+  padding-inline: 10px;
+  border-radius: 24px;
+}
+.workspace.rail-collapsed .sidebar .brand {
+  justify-content: center;
+  margin-inline: 0;
+  padding-inline: 0;
+}
+.workspace.rail-collapsed .sidebar .iris-lockup-text,
+.workspace.rail-collapsed .sidebar .nav-heading,
+.workspace.rail-collapsed .sidebar .nav-label,
+.workspace.rail-collapsed .sidebar .help-card,
+.workspace.rail-collapsed .sidebar .user-button .grow,
+.workspace.rail-collapsed .sidebar .user-button > svg,
+.workspace.rail-collapsed .sidebar .sidebar-signout span,
+.workspace.rail-collapsed .sidebar .nav-lock,
+.workspace.rail-collapsed .sidebar .nav-count,
+.workspace.rail-collapsed .sidebar .nav-ai,
+.workspace.rail-collapsed .sidebar .nav-radar-pill {
+  display: none;
+}
+.workspace.rail-collapsed .nav-link {
+  justify-content: center;
+  width: 50px;
+  height: 46px;
+  margin-inline: auto;
+  padding: 0;
+}
+.workspace.rail-collapsed .nav-link.active::before {
+  content: none;
+}
+.workspace.rail-collapsed .sidebar .user-button,
+.workspace.rail-collapsed .sidebar .sidebar-signout {
+  justify-content: center;
+  width: 50px;
+  margin-inline: auto;
+  padding-inline: 0;
+}
+@media (min-width: 768px) {
+  .sidebar.collapsed:hover,
+  .sidebar.collapsed:focus-within {
+    width: 252px;
+    padding-inline: 16px;
+    box-shadow: var(--neu-md);
+  }
+  .sidebar.collapsed:hover ~ .topbar,
+  .sidebar.collapsed:focus-within ~ .topbar {
+    left: 286px;
+  }
+  .sidebar.collapsed:hover ~ .workspace-main,
+  .sidebar.collapsed:focus-within ~ .workspace-main {
+    margin-left: 286px;
+  }
+}
+
+/* ---------- Shared material primitives ---------------------------------- */
+.panel,
+.card,
+.metric,
+.tickets-panel,
+.insights-widget,
+.studio-pulse,
+.quick-templates,
+.settings-card,
+.entity-card,
+.template-card,
+.integration-card,
+.report-card,
+.asset-card,
+.form-card,
+.stat-card,
+.help-card,
+.cockpit-right-sidebar > section {
+  border: 1px solid var(--neu-line);
+  border-radius: 20px;
+  background: var(--surface);
+  box-shadow: var(--neu-sm);
+}
+.panel:hover,
+.card:hover,
+.entity-card:hover,
+.template-card:hover,
+.integration-card:hover,
+.report-card:hover,
+.asset-card:hover {
+  border-color: color-mix(in srgb, var(--accent) 24%, var(--neu-line));
+  box-shadow: var(--neu-md);
+}
+.section-head {
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--neu-line);
+}
+.section-head h2 {
+  font-size: 16px;
+}
+.btn {
+  min-height: 39px;
+  padding-inline: 16px;
+  border: 1px solid var(--neu-line);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--neu-xs);
+  color: var(--secondary);
+  font-size: 11.5px;
+}
+.btn:hover {
+  border-color: color-mix(in srgb, var(--accent) 25%, var(--neu-line));
+  box-shadow: var(--neu-sm);
+}
+.btn:active {
+  box-shadow: var(--neu-in-sm);
+}
+.btn-primary {
+  border-color: transparent;
+  background: var(--grad-accent);
+  box-shadow: 0 8px 22px -9px color-mix(in srgb, var(--accent) 75%, transparent), inset 0 1px 0 rgb(255 255 255 / 0.25);
+}
+.btn-primary:hover {
+  box-shadow: 0 12px 28px -8px color-mix(in srgb, var(--accent) 82%, transparent), inset 0 1px 0 rgb(255 255 255 / 0.28);
+}
+.btn-ghost {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+input,
+textarea,
+select,
+.search-field,
+.topbar-search {
+  border-color: var(--neu-line);
+  background: var(--neu-sunken);
+  box-shadow: var(--neu-in-sm);
+}
+input:focus,
+textarea:focus,
+select:focus {
+  border-color: color-mix(in srgb, var(--accent) 58%, transparent);
+  box-shadow: var(--neu-in), 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
+}
+input:hover,
+textarea:hover,
+select:hover {
+  background: var(--neu-sunken);
+}
+.badge,
+.chip,
+.tag {
+  border-color: color-mix(in srgb, currentColor 16%, var(--neu-line));
+  box-shadow: var(--neu-xs);
+}
+.badge {
+  min-height: 24px;
+}
+.progress-bar,
+.mc-breakdown-track,
+.bt-bar,
+.sla-bar {
+  background: var(--neu-sunken);
+  box-shadow: var(--neu-in-sm);
+}
+
+/* Lists and tables: less chrome, more scanability. */
+.table-wrap {
+  border: 1px solid var(--neu-line);
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: var(--neu-in-sm);
+  overflow: hidden;
+}
+.data-table thead,
+.ticket-grid thead {
+  background: color-mix(in srgb, var(--neu-sunken) 82%, var(--surface));
+}
+.data-table th,
+.ticket-grid th {
+  color: var(--muted);
+  font-size: 9px;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+.data-table tbody tr:hover,
+.ticket-grid tbody tr:hover {
+  background: color-mix(in srgb, var(--accent) 4%, transparent);
+}
+.data-table td,
+.data-table th,
+.ticket-grid td,
+.ticket-grid th {
+  border-bottom-color: var(--neu-line);
+}
+.table-pagination {
+  border-top-color: var(--neu-line);
+  background: color-mix(in srgb, var(--surface-2) 64%, transparent);
+}
+.pagination-controls button {
+  border-color: var(--neu-line);
+  border-radius: 9px;
+  background: var(--surface);
+  box-shadow: var(--neu-xs);
+}
+.pagination-controls button.active {
+  background: var(--accent-soft);
+  box-shadow: var(--neu-in-sm);
+}
+
+/* Global overlays use the same raised material as the shell. */
+.dialog-content,
+.modal-card,
+.sheet,
+.popover,
+.menu {
+  border: 1px solid var(--neu-line);
+  border-radius: 24px;
+  background: var(--surface);
+  box-shadow: var(--neu-md);
+}
+.dialog-head,
+.dialog-footer {
+  border-color: var(--neu-line);
+}
+
+/* Overview is already a composed data canvas: let it sit cleanly inside the
+   shell and keep the important metrics high contrast on both themes. */
+.cc-overview {
+  animation: premium-enter 0.55s var(--ease-out-expo) both;
+}
+.cc-overview .tickets-panel {
+  box-shadow: var(--neu-sm);
+}
+.ovc-title,
+.ovc-stats dd,
+.ovc-kpi strong {
+  letter-spacing: -0.055em;
+}
+.ovc-btn-accent {
+  box-shadow: 0 10px 26px -9px color-mix(in srgb, var(--accent) 78%, transparent), inset 0 1px 0 rgb(255 255 255 / 0.25);
+}
+
+@keyframes premium-enter {
+  from { opacity: 0; transform: translateY(9px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes premium-glow {
+  0%, 100% { box-shadow: var(--neu-sm); }
+  50% { box-shadow: var(--neu-md); }
+}
+
+/* ---------- Auth surface ------------------------------------------------- */
+.auth-page {
+  background: var(--bg);
+}
+.auth-panel {
+  background:
+    radial-gradient(480px 320px at 75% 0%, color-mix(in srgb, var(--accent) 7%, transparent), transparent 72%),
+    var(--bg);
+}
+.auth-card {
+  padding: 34px;
+  border: 1px solid var(--neu-line);
+  border-radius: 28px;
+  background: var(--surface);
+  box-shadow: var(--neu-md);
+}
+.auth-copy {
+  margin-top: 28px;
+}
+.auth-google,
+.auth-input,
+.auth-submit {
+  border-color: var(--neu-line);
+  border-radius: 13px;
+  box-shadow: var(--neu-xs);
+}
+.auth-google,
+.auth-input {
+  background: var(--surface);
+}
+.auth-google:hover {
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--neu-line));
+  box-shadow: var(--neu-sm);
+  transform: translateY(-1px);
+}
+.auth-input {
+  background: var(--neu-sunken);
+  box-shadow: var(--neu-in-sm);
+}
+.auth-input:focus-within {
+  border-color: color-mix(in srgb, var(--accent) 58%, transparent);
+  box-shadow: var(--neu-in), 0 0 0 3px color-mix(in srgb, var(--accent) 13%, transparent);
+}
+.auth-submit {
+  border: 0;
+  background: var(--grad-accent);
+  box-shadow: 0 10px 25px -9px color-mix(in srgb, var(--accent) 80%, transparent), inset 0 1px 0 rgb(255 255 255 / 0.25);
+}
+.auth-submit:hover {
+  filter: brightness(1.06);
+  transform: translateY(-1px);
+}
+.auth-note {
+  color: var(--muted);
+}
+
+/* Responsive shell. The mobile rail becomes a true bottom-safe drawer while
+   keeping the same material and spacing as desktop. */
+@media (max-width: 1200px) {
+  .content { padding-inline: 28px; }
+  .content.content-full-width { padding-inline: 24px; }
+  .topbar-search { min-width: 220px; }
+}
+@media (max-width: 1023px) {
+  .content { padding-inline: 22px; }
+  .content.content-full-width { padding-inline: 18px; }
+  .topbar-search { min-width: 190px; }
+}
+@media (max-width: 767px) {
+  .workspace { --rail: 0px; --bar: 62px; }
+  .sidebar {
+    inset: 0 auto 0 0;
+    width: min(294px, 88vw);
+    border-radius: 0 28px 28px 0;
+    padding: 22px 16px 18px;
+  }
+  .workspace.rail-collapsed .sidebar {
+    width: min(294px, 88vw);
+    padding-inline: 16px;
+  }
+  .workspace.rail-collapsed .sidebar .iris-lockup-text,
+  .workspace.rail-collapsed .sidebar .nav-heading,
+  .workspace.rail-collapsed .sidebar .nav-label,
+  .workspace.rail-collapsed .sidebar .help-card,
+  .workspace.rail-collapsed .sidebar .user-button .grow,
+  .workspace.rail-collapsed .sidebar .user-button > svg,
+  .workspace.rail-collapsed .sidebar .sidebar-signout span {
+    display: initial;
+  }
+  .workspace.rail-collapsed .nav-link {
+    justify-content: flex-start;
+    width: 100%;
+    height: 43px;
+    margin-inline: 0;
+    padding-inline: 13px;
+  }
+  .topbar,
+  .workspace.rail-collapsed .topbar {
+    top: 0;
+    right: 0;
+    left: 0;
+    height: var(--bar);
+    border-radius: 0 0 20px 20px;
+    padding-inline: 14px;
+  }
+  .workspace-main,
+  .workspace-main.sidebar-collapsed,
+  .workspace.rail-collapsed .workspace-main {
+    margin-left: 0;
+    padding-top: calc(var(--bar) + 18px);
+  }
+  .content,
+  .content.content-full-width {
+    padding: 14px 16px 38px;
+  }
+  .page-heading { margin-bottom: 22px; }
+  .page-heading h1 { font-size: 29px; }
+  .topbar-search { display: none; }
+  .topbar-divider { display: none; }
+  .topbar-status { padding-inline: 8px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}

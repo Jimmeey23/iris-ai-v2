@@ -55,8 +55,8 @@ function Counter({ value, suffix = "" }: { value: number; suffix?: string }) {
   const frame = useRef(0);
   useEffect(() => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      setShown(value);
-      return;
+      const reducedFrame = requestAnimationFrame(() => setShown(value));
+      return () => cancelAnimationFrame(reducedFrame);
     }
     const start = performance.now();
     const tick = (t: number) => {
@@ -131,7 +131,10 @@ export function OverviewCanvas({
   staleDays: number;
   onFilter: (patch: Record<string, unknown>, label: string) => void;
 }) {
-  const today = new Date().setHours(0, 0, 0, 0);
+  // Freeze the reporting window for this mounted view so charts stay stable while
+  // the rest of the shell refreshes in the background.
+  const [now] = useState(() => Date.now());
+  const today = new Date(now).setHours(0, 0, 0, 0);
 
   const loggedToday = useMemo(
     () => tickets.filter((t) => dayIndex(t.createdAt, today) === 0).length,
@@ -155,9 +158,8 @@ export function OverviewCanvas({
       const at = new Date(t.createdAt).getTime();
       if (at < first) first = at;
     }
-    const now = Date.now();
     return [Number.isFinite(first) ? first : now - 20 * 86_400_000, now];
-  }, [tickets]);
+  }, [tickets, now]);
 
   const volume = useMemo(() => bucketCounts(tickets, span), [tickets, span]);
   /** Tickets *resolved* in each bucket, keyed off `resolvedAt` rather than

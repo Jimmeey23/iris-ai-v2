@@ -136,7 +136,10 @@ export function Shell({
     router = useRouter();
   const { user, openAuth, refreshUser, notify } = useApp();
   const [mobile, setMobile] = useState(false),
-    [collapsed, setCollapsed] = useState(true),
+    // The full rail is the default: labels make the product discoverable on first use.
+    // Users can still collapse it from any secondary page, while the dashboard stays
+    // intentionally chrome-light and keeps the navigation open for orientation.
+    [collapsed, setCollapsed] = useState(false),
     [searchOpen, setSearchOpen] = useState(false),
     [notifications, setNotifications] = useState(false),
     [query, setQuery] = useState(""),
