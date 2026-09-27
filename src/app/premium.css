@@ -3443,3 +3443,285 @@ input[type="radio"] {
   .td-link-card, .ticket-detail-shell .td-aside .related-ticket { transition: none; }
   .td-link-card:hover { transform: none; }
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   MATERIAL ENFORCEMENT v8 — TICKET DETAIL AS ONE SHEET
+   The modal reads as a single document: a full-bleed header zone (masthead,
+   then a tab rail on one shared hairline), and per tab ONE bordered sheet
+   whose sections are divided by internal hairlines instead of being separate
+   cards. Tabs are pure underlines — no bar, no pills, no button chrome. One
+   button recipe inside the sheet: quiet rail peers, small raised actions, a
+   calm gold primary, ghost secondaries in the footer.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── 1. Full-bleed header zone ───────────────────────────────────────────── */
+.dialog-content:has(.ticket-detail-shell) .dialog-scroll {
+  padding: 0 0 24px;
+}
+.dialog-content .ticket-detail-shell .td-masthead {
+  padding: 18px 22px 15px;
+  border: 0;
+  border-bottom: 1px solid var(--hairline-strong);
+  border-radius: 0;
+  box-shadow: none !important;
+}
+.dialog-content .ticket-detail-shell .td-overview,
+.dialog-content .ticket-detail-shell .td-activity,
+.dialog-content .ticket-detail-shell .td-related {
+  margin-top: 0;
+}
+.dialog-content:has(.ticket-detail-shell) .error-box {
+  margin: 16px 22px 0;
+}
+
+/* ── 2. The tab rail: one hairline, pure underline tabs, quiet peers ─────── */
+.td-tabs-row {
+  margin: 0;
+  padding: 0 22px;
+  gap: 18px;
+  align-items: stretch;
+  background: none;
+  box-shadow: none;
+  border-radius: 0;
+  border-bottom: 1px solid var(--hairline-strong);
+}
+.td-tabs-row .tabs-underline {
+  border-bottom: 0;
+}
+.td-tabs-row button[role="tab"] {
+  border: 0 !important;
+  background: none !important;
+  box-shadow: none !important;
+  padding: 13px 2px 12px;
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  transform: none !important;
+}
+.td-tabs-row button[role="tab"]:hover {
+  transform: none !important;
+  box-shadow: none !important;
+}
+.td-tabs-row .tabs-underline .tabs-thumb {
+  bottom: -1px;
+}
+/* Resolution toggle and Copy link are peers of the tabs, not buttons. */
+.td-tabs-row .rail-toggle,
+.td-tabs-row .td-copy {
+  position: relative;
+  border: 0 !important;
+  background: none !important;
+  box-shadow: none !important;
+  border-radius: 0;
+  padding: 13px 2px 12px;
+  height: auto;
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 650;
+  letter-spacing: 0.015em;
+  transform: none !important;
+}
+.td-tabs-row .rail-toggle:hover,
+.td-tabs-row .td-copy:hover {
+  color: var(--text);
+  box-shadow: none !important;
+  transform: none !important;
+}
+.td-tabs-row .rail-toggle.active {
+  color: var(--accent);
+  background: none !important;
+}
+.td-tabs-row .rail-toggle.active::after {
+  content: "";
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  bottom: -1px;
+  height: 2px;
+  border-radius: 2px 2px 0 0;
+  background: linear-gradient(90deg, var(--accent-deep), var(--accent-bright));
+}
+.td-tabs-row .rail-toggle > span {
+  padding: 1px 7px;
+  border-radius: 99px;
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+.td-tabs-row .td-copy {
+  border-left: 1px solid var(--hairline) !important;
+  margin-left: 2px;
+  padding-left: 16px;
+}
+
+/* ── 3. Content column padding (the sheets live inside it) ───────────────── */
+.dialog-content .ticket-detail-shell .ticket-workspace-split {
+  padding: 18px 22px 0;
+}
+
+/* ── 4. Overview: case file + context + aside form ONE sheet ─────────────── */
+.dialog-content .ticket-detail-shell .td-overview {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 0;
+  padding: 0;
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--neu-xs) !important;
+  overflow: hidden;
+  align-items: stretch;
+}
+.td-case-file,
+.td-context-sheet {
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  background: var(--surface);
+}
+.td-case-file {
+  border-bottom: 1px solid var(--hairline) !important;
+}
+.td-context-sheet {
+  margin-top: 0;
+}
+.td-similar-details {
+  margin-top: 0;
+  border: 0 !important;
+  border-top: 1px solid var(--hairline) !important;
+  border-radius: 0 !important;
+  background: var(--surface) !important;
+  box-shadow: none !important;
+}
+.dialog-content .ticket-detail-shell .td-aside {
+  border: 0;
+  border-left: 1px solid var(--hairline-strong);
+  border-radius: 0;
+  background: var(--surface);
+  box-shadow: none;
+  overflow: visible;
+}
+/* The resolution rail replaces the aside, so the sheet collapses to one column. */
+.ticket-workspace-split.rail-open .td-overview {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* ── 5. Activity & related: one sheet each, hairline-divided ─────────────── */
+.td-activity,
+.td-related {
+  gap: 0;
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--neu-xs) !important;
+  overflow: hidden;
+}
+.td-pane {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none !important;
+  background: none;
+}
+.td-activity .td-pane + .td-pane {
+  border-left: 1px solid var(--hairline);
+}
+.td-related .td-pane + .td-pane {
+  border-top: 1px solid var(--hairline);
+}
+
+/* ── 6. Buttons: one recipe inside the sheet ─────────────────────────────── */
+.dialog-content:has(.ticket-detail-shell) .dialog-scroll .btn {
+  border-radius: 10px !important;
+  height: 31px;
+  padding: 0 13px;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.005em;
+  box-shadow: var(--neu-xs) !important;
+}
+.dialog-content:has(.ticket-detail-shell) .dialog-scroll .btn.btn-sm {
+  height: 28px;
+  padding: 0 11px;
+  font-size: 10.5px;
+  border-radius: 9px !important;
+}
+/* The primary stays gold but calms down: brand gradient, no glow halo. */
+.dialog-content:has(.ticket-detail-shell) .dialog-scroll .btn-primary {
+  background: var(--grad-accent) !important;
+  color: var(--accent-text) !important;
+  border-color: transparent !important;
+  box-shadow: var(--neu-xs) !important;
+}
+.dialog-content:has(.ticket-detail-shell) .dialog-scroll .btn-primary * {
+  color: var(--accent-text) !important;
+}
+.dialog-content:has(.ticket-detail-shell) .dialog-scroll .btn-primary:hover {
+  box-shadow: var(--neu-sm) !important;
+}
+/* Icon actions inside the sheet are ghosts until hovered. */
+.dialog-content:has(.ticket-detail-shell) .dialog-scroll .icon-btn {
+  border-color: transparent !important;
+  background: none !important;
+  box-shadow: none !important;
+  color: var(--muted);
+}
+.dialog-content:has(.ticket-detail-shell) .dialog-scroll .icon-btn:hover {
+  color: var(--red-text, #e5484d);
+  background: color-mix(in srgb, #e5484d 10%, transparent) !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+/* ── 7. Footer: quiet text actions and one primary ───────────────────────── */
+.dialog-content:has(.ticket-detail-shell) .dialog-footer {
+  border-top: 1px solid var(--hairline-strong);
+  background: var(--surface-raised-2);
+}
+.dialog-content:has(.ticket-detail-shell) .dialog-footer .btn:not(.btn-primary) {
+  border-color: transparent !important;
+  background: none !important;
+  box-shadow: none !important;
+  color: var(--secondary);
+  height: 32px;
+}
+.dialog-content:has(.ticket-detail-shell) .dialog-footer .btn:not(.btn-primary):hover {
+  color: var(--text);
+  background: color-mix(in srgb, var(--text) 6%, transparent) !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+.dialog-content:has(.ticket-detail-shell) .dialog-footer .btn-primary {
+  box-shadow: var(--neu-xs) !important;
+}
+.dialog-content:has(.ticket-detail-shell) .dialog-footer .btn-primary:hover {
+  box-shadow: var(--neu-sm) !important;
+}
+
+/* ── 8. Responsive: dividers follow the stacking ─────────────────────────── */
+@media (max-width: 980px) {
+  .dialog-content .ticket-detail-shell .td-aside {
+    border-left: 0;
+    border-top: 1px solid var(--hairline-strong);
+  }
+  .td-activity { grid-template-columns: 1fr; }
+  .td-activity .td-pane + .td-pane {
+    border-left: 0;
+    border-top: 1px solid var(--hairline);
+  }
+}
+@media (max-width: 640px) {
+  .dialog-content:has(.ticket-detail-shell) .dialog-scroll { padding: 0 0 16px; }
+  .dialog-content .ticket-detail-shell .td-masthead { padding: 14px 14px 12px; }
+  .td-tabs-row { padding: 0 14px; }
+  .dialog-content .ticket-detail-shell .ticket-workspace-split { padding: 14px 14px 0; }
+  .dialog-content:has(.ticket-detail-shell) .error-box { margin: 12px 14px 0; }
+}
+
+/* ── 9. Head and footer are zones of the same surface, not separate bands ── */
+.dialog-content:has(.ticket-detail-shell) .dialog-head,
+.dialog-content:has(.ticket-detail-shell) .dialog-footer {
+  background: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
