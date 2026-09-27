@@ -112,7 +112,7 @@ const FLOORPLANS: Record<string, FloorplanConfig> = {
   kwality: {
     src: '/radar/kwality-floorplan.png', width: 1774, height: 887,
     rooms: {
-      'Studio 1': {x: 2, y: 8, w: 42, h: 35}, 'Studio 2': {x: 2, y: 58, w: 30, h: 31},
+      'Studio 1': {x: 2, y: 8, w: 25, h: 35}, 'Studio 2': {x: 2, y: 58, w: 30, h: 31},
       'Strength Studio': {x: 60, y: 10, w: 14, h: 49}, 'PowerCycle Studio': {x: 78, y: 15, w: 20, h: 47},
       'His Space': {x: 49, y: 20, w: 13, h: 31}, 'Her Space': {x: 27, y: 2, w: 14, h: 18},
       'GUEST WASHROOM': {x: 31, y: 20, w: 11, h: 14}, 'Brain Cell': {x: 21, y: 59, w: 13, h: 24},
