@@ -14,6 +14,7 @@ import {configuredTemplates} from './template-store';
 import {indiaDate} from './display';
 import {equipmentRepairRoute} from './equipment-routing';
 import {emitTicketEvent,eventEnabled} from './ticket-events';
+import {ticketEmailBody} from './ticket-emails';
 
 type Priority='low'|'medium'|'high'|'critical';
 type Config=WorkspaceConfig;
@@ -123,9 +124,7 @@ async function queueTicketEmails(tx:Tx,ticket:{id:number;ticketNumber:string;tit
   for(const email of targets){
     const[ledger]=await tx.insert(ticketNotifications).values({ticketId:ticket.id,kind,recipientEmail:email}).onConflictDoNothing().returning({id:ticketNotifications.id});
     if(!ledger)continue;
-    const subject=kind==='assigned'?`Assigned: ${ticket.ticketNumber}`:`Due in 3 hours: ${ticket.ticketNumber}`;
-    const deadline=ticket.slaDueAt?`\nFollow-up target: ${indiaDate(ticket.slaDueAt)}.`:'';
-    const text=kind==='assigned'?`${ticket.title}\n\nThis ticket has been assigned in IRIS.${deadline}\nPlease sign in to review and update it.`:`${ticket.title}\n\nThis ticket remains unresolved and reaches its follow-up target in approximately 3 hours.${deadline}\nPlease add an update or resolve it now.`;
+    const{subject,text}=ticketEmailBody(ticket,kind);
     await tx.insert(deliveryLogs).values({integrationId:'mailtrap',action:'send',nextAttemptAt:new Date(),payload:{to:[{email}],subject,text}});queued++;
   }
   return queued;
