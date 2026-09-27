@@ -41,11 +41,22 @@ const cspDirectives = [
   "frame-ancestors 'none'",
 ];
 
-const enforcedCsp = ["frame-ancestors 'none'", "base-uri 'self'", "object-src 'none'"].join("; ");
+/* The local live preview is rendered inside Arena's preview frame. Keep the
+ * production clickjacking policy strict, but do not send a dev server response
+ * that tells the preview browser it may never be embedded. */
+const enforcedCsp = [
+  isDev ? "frame-ancestors *" : "frame-ancestors 'none'",
+  "base-uri 'self'",
+  "object-src 'none'",
+].join("; ");
 
 const securityHeaders = [
-  { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
-  { key: "X-Frame-Options", value: "DENY" },
+  ...(isDev
+    ? []
+    : [
+        { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
+        { key: "X-Frame-Options", value: "DENY" },
+      ]),
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   { key: "Permissions-Policy", value: "microphone=(self), autoplay=(self), camera=(), geolocation=()" },
@@ -54,6 +65,9 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // Arena's live preview is served from a sibling e2b.app origin. Next blocks
+  // HMR requests from that origin unless it is explicitly allow-listed.
+  allowedDevOrigins: isDev ? ["*.e2b.app", "*.e2b.dev", "localhost:3000"] : undefined,
   // `scripts/dev.mjs` gives each concurrent dev server its own dist directory so
   // they never contend for the `<distDir>/dev/lock` file lock.
   distDir: process.env.NEXT_DIST_DIR || ".next",
