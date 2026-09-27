@@ -3,6 +3,7 @@
  * Pure logic only — the API side is covered by dashboard-api-check.mjs.
  */
 import {applyFilters, slaBucketOf, isClosed} from '../src/lib/ticket-filtering';
+import {dayKey} from '../src/lib/metrics';
 import {groupTickets, groupNamesFor, groupValue, sortTickets} from '../src/lib/ticket-grouping';
 import {EMPTY_FILTERS, dashboardPrefsSchema, filterStateSchema, DEFAULT_COLUMNS, COLUMN_META, TICKET_COLUMNS} from '../src/lib/dashboard-contract';
 import type {TicketListRecord} from '../src/lib/ticket-contract';
@@ -15,8 +16,11 @@ const check = (name: string, ok: boolean, detail?: unknown) => {
 const section = (t: string) => console.log('\n' + t);
 
 const day = 86400000;
-const ago = (d: number) => new Date(Date.now() - d * day).toISOString();
-const ahead = (h: number) => new Date(Date.now() + h * 3600000).toISOString();
+// Keep every fixture and assertion on one clock. Multiple Date.now() calls made
+// the custom-date check drift by a few milliseconds and fail nondeterministically.
+const now = Date.now();
+const ago = (d: number) => new Date(now - d * day).toISOString();
+const ahead = (h: number) => new Date(now + h * 3600000).toISOString();
 
 let seq = 0;
 // `over` is loosely typed so a fixture can set a nullable column (an unassigned owner)
@@ -70,8 +74,15 @@ check('a rolling range excludes older rows', applyFilters(rows, {...EMPTY_FILTER
 check('all time includes the 45-day-old row', applyFilters(rows, {...EMPTY_FILTERS, range: 'all'}).length === rows.length);
 check('logged today is only the newest', applyFilters(rows, {...EMPTY_FILTERS, ageBucket: 'today'}).length === 1);
 check('older than 30 days is only the oldest', applyFilters(rows, {...EMPTY_FILTERS, ageBucket: 'ancient'}).length === 1);
-check('a custom from-date excludes earlier rows',
-  applyFilters(rows, {...EMPTY_FILTERS, from: new Date(Date.now() - 3 * day).toISOString().slice(0, 10)}).every((t) => Date.now() - new Date(t.createdAt).getTime() < 4 * day));
+const customFromRows = applyFilters(rows, {
+  ...EMPTY_FILTERS,
+  from: dayKey(now - 3 * day),
+});
+check(
+  'a custom from-date excludes earlier rows',
+  customFromRows.map((t) => t.id).join(',') === [rows[1].id, rows[3].id, rows[4].id].join(','),
+  customFromRows.map((t) => t.id),
+);
 check('filters combine as AND, not OR',
   applyFilters(rows, {...EMPTY_FILTERS, state: 'open', priorities: ['critical']}).length === 1);
 
