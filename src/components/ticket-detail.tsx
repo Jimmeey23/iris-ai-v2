@@ -51,7 +51,6 @@ import {
 import { ResolutionPanel, type ResolutionWorkspace } from "./resolution-panel";
 import { SlaCountdown } from "./tickets-board";
 import {
-  CategoryArt,
   SlaRing,
   PersonPhoto,
   SentimentArt,
@@ -336,6 +335,7 @@ export function TicketDialog({
             : "Loading the latest ticket details"
         }
         size="wide"
+        className="ticket-detail-dialog"
         footer={
           <>
             <span className="muted flex-row" style={{ fontSize: 10 }}>
@@ -376,10 +376,6 @@ export function TicketDialog({
                 className="td-masthead"
                 data-tone={CATEGORY_TONE[t.category] || "accent"}
               >
-                <CategoryArt
-                  category={t.category}
-                  className="td-masthead-art"
-                />
                 <div className="td-masthead-body">
                   <div className="td-identity-line">
                     <button
@@ -433,32 +429,6 @@ export function TicketDialog({
                       <Badge tone="green">Record only</Badge>
                     )}
                     {t.isEscalated && <Badge tone="red">Escalated</Badge>}
-                  </div>
-                </div>
-                <div
-                  className="td-masthead-sla"
-                  data-sla={
-                    !t.resolutionRequired || !t.slaDueAt
-                      ? "none"
-                      : ["resolved", "closed"].includes(t.status)
-                        ? "done"
-                        : slaState(t.slaDueAt, t.status, t.createdAt)
-                  }
-                >
-                  <SlaRing
-                    createdAt={t.createdAt}
-                    slaDueAt={t.slaDueAt}
-                    status={t.status}
-                    size={96}
-                  />
-                  <div className="td-sla-meta">
-                    <span className="td-sla-caption">Follow-up window</span>
-                    <SlaCountdown ticket={t as never} large />
-                    <small>
-                      {t.slaDueAt
-                        ? "Due " + indiaDate(t.slaDueAt)
-                        : "No follow-up deadline"}
-                    </small>
                   </div>
                 </div>
               </header>
@@ -534,21 +504,22 @@ export function TicketDialog({
                             <div><span className="eyebrow">CASE BRIEF</span><h3>What happened</h3></div>
                           </header>
                           <p className="td-narrative">{t.description || t.summary}</p>
-                          {(t.requestedResolution || t.impact) && (
-                            <div className="td-request-strip">
-                              <Sparkles size={15}/>
-                              <div>
-                                <strong>{t.requestedResolution ? "Requested outcome" : "Reported impact"}</strong>
-                                <p>{t.requestedResolution || t.impact}</p>
-                              </div>
-                            </div>
-                          )}
                           <div className="td-narrative-tags">
                             <span className="td-tag">{t.category}</span>
                             <span className="td-tag td-tag-sub">{t.subcategory}</span>
                             {t.impact && t.requestedResolution && <span className="td-tag td-tag-impact"><Zap size={11}/>{t.impact}</span>}
                           </div>
                         </section>
+
+                        {(t.requestedResolution || t.impact) && (
+                          <section className="td-outcome-card">
+                            <span className="td-section-icon"><Sparkles size={16}/></span>
+                            <div>
+                              <span className="eyebrow">{t.requestedResolution ? "REQUESTED OUTCOME" : "REPORTED IMPACT"}</span>
+                              <p>{t.requestedResolution || t.impact}</p>
+                            </div>
+                          </section>
+                        )}
 
                         <section className="td-context-sheet">
                           <div className="td-section-head">
@@ -633,6 +604,32 @@ export function TicketDialog({
                         </details>
                       </div>
                       <aside className="td-aside" aria-label="Ticket controls and linked context">
+                        <div
+                          className="td-resolution-summary"
+                          data-sla={
+                            !t.resolutionRequired || !t.slaDueAt
+                              ? "none"
+                              : ["resolved", "closed"].includes(t.status)
+                                ? "done"
+                                : slaState(t.slaDueAt, t.status, t.createdAt)
+                          }
+                        >
+                          <div className="td-rail-heading"><CheckCircle2 size={14}/><span>RESOLUTION</span></div>
+                          <div className="td-resolution-instrument">
+                            <SlaRing
+                              createdAt={t.createdAt}
+                              slaDueAt={t.slaDueAt}
+                              status={t.status}
+                              size={108}
+                            />
+                            <div className="td-resolution-copy">
+                              <strong>{["resolved", "closed"].includes(t.status) ? "Complete" : "In progress"}</strong>
+                              <span>Follow-up window</span>
+                              <SlaCountdown ticket={t as never} large />
+                              <small>{t.slaDueAt ? "Due " + indiaDate(t.slaDueAt) : "No follow-up deadline"}</small>
+                            </div>
+                          </div>
+                        </div>
                         <div className="td-panel">
                           <h3>Routing</h3>
                           <div className="detail-fields">

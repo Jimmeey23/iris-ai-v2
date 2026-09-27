@@ -482,6 +482,7 @@ export function Modal({
   footer,
   size = "normal",
   resetKey,
+  className,
 }: {
   open: boolean;
   onClose: () => void;
@@ -491,6 +492,7 @@ export function Modal({
   footer?: ReactNode;
   size?: "normal" | "narrow" | "wide";
   resetKey?: string;
+  className?: string;
 }) {
   const scroll = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -512,7 +514,7 @@ export function Modal({
       <Dialog.Portal>
         <Dialog.Overlay className="dialog-overlay" />
         <Dialog.Content
-          className={cn("dialog-content", size)}
+          className={cn("dialog-content", size, className)}
           onEscapeKeyDown={() =>
             window.dispatchEvent(new Event("iris:close-modals"))
           }

@@ -13,14 +13,14 @@
 ## Full-view comparison evidence
 
 - The reference HTML and CSS were inspected directly. Its defining composition is a shallow ticket identity header, slim underline tabs, a 1.55:1 content/utility split, compact bordered sections, restrained violet/cyan accents, and a shallow action footer.
-- The implementation now follows that same hierarchy while preserving the app's live ticket data, routing controls, resolution workspace, accessibility semantics, and shared light/dark theme tokens.
+- The implementation now uses an explicit ticket-dialog variant from the first loading frame. The generic visible modal header is replaced by the reference-style ticket header, requested outcome is its own accent card, and the SLA/resolution instrument leads the right rail above Routing and People.
 - Browser-rendered comparison evidence is unavailable because the required in-app browser is not available in this session.
 
 ## Focused region comparison evidence
 
-- Header: ticket ID, category/subcategory, revision, title, logged-by metadata, compact actions, status chips, and SLA readout are consolidated into one masthead.
+- Header: ticket ID, category/subcategory, revision, title, logged-by metadata, compact actions, and status chips are consolidated into one shallow masthead; the oversized legacy masthead SLA block was removed.
 - Navigation: tabs use the reference's flat divider and active underline treatment; Resolution and Copy link remain directly accessible.
-- Overview: narrative and requested outcome lead the main column; context facts use a compact two-column key/value rhythm; routing and people remain in the utility rail.
+- Overview: narrative, requested outcome, context, and similar tickets form the main column; Resolution, Routing, People, and sentiment form the continuous utility rail.
 - Footer: workspace sync state and primary actions remain visible in the modal frame.
 - A pixel-level focused comparison could not be completed without a browser-rendered implementation screenshot.
 
@@ -38,7 +38,8 @@
 
 ## Comparison history
 
-- Initial implementation pass: consolidated the duplicated dialog/masthead hierarchy and matched the reference proportions, density, tabs, cards, and action placement.
+- Initial implementation pass: consolidated the duplicated dialog/masthead hierarchy but retained too much of the legacy component structure.
+- Structural correction: added a first-paint ticket dialog variant, removed the masthead SLA block and category artwork, separated requested outcome, and rebuilt the right rail to match the reference hierarchy.
 - Post-fix visual evidence: blocked because no in-app browser is available.
 
 ## Implementation checklist
