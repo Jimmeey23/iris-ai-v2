@@ -32,6 +32,10 @@ import {
   Zap,
   Hash,
   ArrowRight,
+  Route,
+  Users,
+  HeartHandshake,
+  History,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -585,7 +589,10 @@ export function TicketDialog({
                       </div>
                       <aside className="td-aside" aria-label="Ticket controls and linked context">
                         <div className="td-panel">
-                          <h3>Routing</h3>
+                          <header className="td-panel-head">
+                            <span className="td-panel-glyph"><Route size={13} /></span>
+                            <div><span className="eyebrow">Routing</span><h3>Priority &amp; owner</h3></div>
+                          </header>
                           <div className="detail-fields">
                             <Field label="Priority">
                               <select
@@ -640,7 +647,10 @@ export function TicketDialog({
                           </p>
                         </div>
                         <div className="td-panel">
-                          <h3>People</h3>
+                          <header className="td-panel-head">
+                            <span className="td-panel-glyph"><Users size={13} /></span>
+                            <div><span className="eyebrow">People</span><h3>Who&rsquo;s involved</h3></div>
+                          </header>
                           <button
                             className="related-ticket"
                             onClick={() =>
@@ -751,129 +761,172 @@ export function TicketDialog({
                           ) : null}
                         </div>
                         <div className="td-panel td-panel-sentiment">
-                          <h3>How they felt</h3>
+                          <header className="td-panel-head">
+                            <span className="td-panel-glyph"><HeartHandshake size={13} /></span>
+                            <div><span className="eyebrow">Member signal</span><h3>How they felt</h3></div>
+                          </header>
                           <SentimentArt sentiment={t.sentiment || "neutral"} />
                         </div>
                       </aside>
                     </div>
                   )}
                   {tab === "activity" && (
-                    <div className="ticket-detail-grid">
-                      <div className="stack">
-                        <h3>Care team notes</h3>
-                        {bundle.comments.map((n) => (
-                          <div className="note-item" key={n.id}>
-                            <div className="between">
-                              <span>
-                                {n.authorName} · {n.authorRole}
-                              </span>
-                              <small>{indiaDate(n.createdAt)}</small>
-                            </div>
-                            <p>{n.body}</p>
+                    <div className="td-activity">
+                      <section className="td-pane">
+                        <header className="td-pane-head">
+                          <span className="td-section-icon"><MessageSquare size={15} /></span>
+                          <div className="grow">
+                            <span className="eyebrow">Internal</span>
+                            <h3>Care team notes</h3>
                           </div>
-                        ))}
-                        {!bundle.comments.length && (
-                          <p className="secondary" style={{ fontSize: 12 }}>
-                            No internal notes yet.
-                          </p>
-                        )}
-                        <textarea
-                          rows={3}
-                          value={note}
-                          onChange={(e) => setNote(e.target.value)}
-                          placeholder="Add context for your team. This does not send a message to the member."
-                        />
-                        <button
-                          className="btn btn-primary"
-                          disabled={busy || !note.trim()}
-                          onClick={() => void addNote()}
-                        >
-                          <Send size={13} />
-                          Post internal note
-                        </button>
-                      </div>
-                      <div>
-                        <h3 style={{ marginBottom: 22 }}>Timeline</h3>
-                        {bundle.activities.map((a) => (
-                          <div className="timeline-row" key={a.id}>
-                            <ActivityGlyph action={a.action} />
-                            <p>
-                              <strong style={{ fontWeight: 500 }}>
-                                {a.actorName}
-                              </strong>{" "}
-                              · {a.action.replaceAll(".", " ")}
+                          <Badge>{bundle.comments.length}</Badge>
+                        </header>
+                        <div className="td-notes">
+                          {bundle.comments.map((n) => (
+                            <article className="td-note" key={n.id}>
+                              <PersonPhoto name={n.authorName} size={30} />
+                              <div className="td-note-body">
+                                <div className="td-note-meta">
+                                  <strong>{n.authorName}</strong>
+                                  <span className="td-note-role">{n.authorRole}</span>
+                                  <time>{indiaDate(n.createdAt)}</time>
+                                </div>
+                                <p>{n.body}</p>
+                              </div>
+                            </article>
+                          ))}
+                          {!bundle.comments.length && (
+                            <p className="td-empty-line">
+                              No internal notes yet — add the first one below.
                             </p>
-                            <small>{a.detail}</small>
-                            <br />
-                            <small>{indiaDate(a.createdAt)}</small>
+                          )}
+                        </div>
+                        <div className="td-composer">
+                          <PersonPhoto name={user?.name || "You"} size={30} />
+                          <textarea
+                            rows={2}
+                            value={note}
+                            onChange={(e) => setNote(e.target.value)}
+                            placeholder="Add context for your team. This does not send a message to the member."
+                          />
+                          <button
+                            className="btn btn-primary btn-sm"
+                            disabled={busy || !note.trim()}
+                            onClick={() => void addNote()}
+                          >
+                            <Send size={12} />
+                            Post note
+                          </button>
+                        </div>
+                      </section>
+                      <section className="td-pane">
+                        <header className="td-pane-head">
+                          <span className="td-section-icon td-section-icon-purple"><History size={15} /></span>
+                          <div className="grow">
+                            <span className="eyebrow">Audit trail</span>
+                            <h3>Timeline</h3>
                           </div>
-                        ))}
-                      </div>
+                          <Badge>{bundle.activities.length}</Badge>
+                        </header>
+                        <ol className="td-tl">
+                          {bundle.activities.map((a) => (
+                            <li className="td-tl-item" key={a.id}>
+                              <span className="td-tl-node">
+                                <ActivityGlyph action={a.action} />
+                              </span>
+                              <div className="td-tl-body">
+                                <p>
+                                  <strong>{a.actorName}</strong>
+                                  {a.action.replaceAll(".", " ")}
+                                </p>
+                                {a.detail && <small>{a.detail}</small>}
+                                <time>{indiaDate(a.createdAt)}</time>
+                              </div>
+                            </li>
+                          ))}
+                          {!bundle.activities.length && (
+                            <p className="td-empty-line">No activity recorded yet.</p>
+                          )}
+                        </ol>
+                      </section>
                     </div>
                   )}
 
                   {tab === "related" && (
-                    <div className="stack">
-                      <div className="between">
-                        <div>
-                          <h3>Linked tickets</h3>
-                          <p className="secondary" style={{ fontSize: 12 }}>
-                            Manually connect related incidents or follow-ups.
-                          </p>
-                        </div>
-                        <button
-                          className="btn btn-primary"
-                          onClick={() => setLinkOpen(true)}
-                        >
-                          <Link2 size={13} />
-                          Link a ticket
-                        </button>
-                      </div>
-                      {bundle.linked.map((s) => (
-                        <div className="related-ticket" key={s.id}>
-                          <button
-                            onClick={() => setChildId(s.id)}
-                            className="text-btn grow"
-                            style={{ textAlign: "left", display: "block" }}
-                          >
-                            <small className="muted">{s.ticketNumber}</small>
-                            <p>{s.title}</p>
-                          </button>
-                          <Status status={s.status} />
-                          <button
-                            className="icon-btn"
-                            aria-label="Remove relationship"
-                            onClick={() => void link(s.id, true)}
-                          >
-                            <X size={13} />
-                          </button>
-                        </div>
-                      ))}
-                      {!bundle.linked.length && (
-                        <Empty
-                          art="link"
-                          title="No relationships yet"
-                          detail="Link tickets to connect context without duplicating your work."
-                        />
-                      )}
-                      <h3>Similar category & subcategory</h3>
-                      {bundle.similar.map((s) => (
-                        <div className="related-ticket" key={s.id}>
-                          <button
-                            className="text-btn grow"
-                            onClick={() => setChildId(s.id)}
-                          >
-                            {s.ticketNumber} · {s.title}
-                          </button>
-                          <button
-                            className="btn btn-sm"
-                            onClick={() => void link(s.id)}
-                          >
+                    <div className="td-related">
+                      <section className="td-pane">
+                        <header className="td-pane-head">
+                          <span className="td-section-icon"><Link2 size={15} /></span>
+                          <div className="grow">
+                            <span className="eyebrow">Relationships</span>
+                            <h3>Linked tickets</h3>
+                          </div>
+                          <button className="btn btn-sm" onClick={() => setLinkOpen(true)}>
                             <Link2 size={12} />
-                            Link
+                            Link a ticket
                           </button>
+                        </header>
+                        <p className="td-pane-sub">
+                          Manually connect related incidents or follow-ups — linked tickets share
+                          context without duplicating your work.
+                        </p>
+                        <div className="td-link-list">
+                          {bundle.linked.map((s) => (
+                            <div className="td-link-card" key={s.id}>
+                              <button className="td-link-open" onClick={() => setChildId(s.id)}>
+                                <span className="td-link-key">{s.ticketNumber}</span>
+                                <span className="td-link-title">{s.title}</span>
+                              </button>
+                              <Status status={s.status} />
+                              <button
+                                className="icon-btn"
+                                aria-label="Remove relationship"
+                                onClick={() => void link(s.id, true)}
+                              >
+                                <X size={13} />
+                              </button>
+                            </div>
+                          ))}
+                          {!bundle.linked.length && (
+                            <Empty
+                              art="link"
+                              title="No relationships yet"
+                              detail="Link tickets to connect context without duplicating your work."
+                            />
+                          )}
                         </div>
-                      ))}
+                      </section>
+                      <section className="td-pane">
+                        <header className="td-pane-head">
+                          <span className="td-section-icon td-section-icon-purple"><Repeat size={15} /></span>
+                          <div className="grow">
+                            <span className="eyebrow">Same shape</span>
+                            <h3>Similar category &amp; subcategory</h3>
+                          </div>
+                          <Badge>{bundle.similar.length}</Badge>
+                        </header>
+                        <p className="td-pane-sub">
+                          Tickets filed under the same category and subcategory as this one.
+                        </p>
+                        <div className="td-link-list">
+                          {bundle.similar.map((s) => (
+                            <div className="td-link-card" key={s.id}>
+                              <button className="td-link-open" onClick={() => setChildId(s.id)}>
+                                <span className="td-link-key">{s.ticketNumber}</span>
+                                <span className="td-link-title">{s.title}</span>
+                              </button>
+                              <Status status={s.status} />
+                              <button className="btn btn-sm" onClick={() => void link(s.id)}>
+                                <Link2 size={12} />
+                                Link
+                              </button>
+                            </div>
+                          ))}
+                          {!bundle.similar.length && (
+                            <p className="td-empty-line">This is the first ticket of its kind.</p>
+                          )}
+                        </div>
+                      </section>
                     </div>
                   )}
                 </div>
