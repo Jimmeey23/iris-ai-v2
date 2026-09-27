@@ -59,6 +59,7 @@ import {
   CATEGORY_TONE,
 } from "./ticket-art";
 import { EntityDialog, DataTree } from "./momence-tools";
+import { slaState } from "@/lib/utils";
 import { indiaDate, object, display } from "@/lib/display";
 import { STATUS_LABELS, type StaffRecord } from "@/lib/constants";
 import type { TicketRecord, TicketListRecord } from "@/lib/ticket-contract";
@@ -399,19 +400,31 @@ export function TicketDialog({
                     {t.isEscalated && <Badge tone="red">Escalated</Badge>}
                   </div>
                 </div>
-                <div className="td-masthead-sla">
+                <div
+                  className="td-masthead-sla"
+                  data-sla={
+                    !t.resolutionRequired || !t.slaDueAt
+                      ? "none"
+                      : ["resolved", "closed"].includes(t.status)
+                        ? "done"
+                        : slaState(t.slaDueAt, t.status, t.createdAt)
+                  }
+                >
                   <SlaRing
                     createdAt={t.createdAt}
                     slaDueAt={t.slaDueAt}
                     status={t.status}
                     size={96}
                   />
-                  <SlaCountdown ticket={t as never} large />
-                  <small>
-                    {t.slaDueAt
-                      ? "Due " + indiaDate(t.slaDueAt)
-                      : "No follow-up deadline"}
-                  </small>
+                  <div className="td-sla-meta">
+                    <span className="td-sla-caption">Follow-up window</span>
+                    <SlaCountdown ticket={t as never} large />
+                    <small>
+                      {t.slaDueAt
+                        ? "Due " + indiaDate(t.slaDueAt)
+                        : "No follow-up deadline"}
+                    </small>
+                  </div>
                 </div>
               </header>
               <div className="td-tabs-row">
