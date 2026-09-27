@@ -2,15 +2,15 @@ import { attachDatabasePool } from "@vercel/functions";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool, type PoolConfig } from "pg";
 import * as schema from "./schema";
-import { newDb } from "pg-mem";
-import fs from "fs";
-import path from "path";
 
 const databaseUrl = process.env.DATABASE_URL;
 
+if (!databaseUrl) {
+  throw new Error("DATABASE_URL is required");
+}
+
 const globalForDb = globalThis as typeof globalThis & {
   __arenaNextJsPostgresqlPool?: Pool;
-  __arenaNextJsMemDb?: any;
 };
 
 /**
@@ -28,65 +28,6 @@ function sslConfig(url: string): PoolConfig["ssl"] {
   return undefined;
 }
 
-function createMemDbPool(): Pool {
-  if (globalForDb.__arenaNextJsMemDb) {
-    return globalForDb.__arenaNextJsMemDb.pool;
-  }
-  const mem = newDb();
-  mem.public.registerFunction({
-    name: "gen_random_uuid",
-    implementation: () => require("crypto").randomUUID(),
-  });
-  mem.public.registerFunction({
-    name: "pg_advisory_xact_lock",
-    args: [mem.public.getType("integer" as any)],
-    implementation: (_lockId: number) => null,
-  });
-  mem.public.registerFunction({
-    name: "hashtext",
-    args: [mem.public.getType("text" as any)],
-    implementation: (_text: string) => 12345,
-  });
-  mem.public.registerFunction({
-    name: "btrim",
-    args: [mem.public.getType("text" as any)],
-    implementation: (text: string) => (text ? text.trim() : text),
-  });
-  mem.public.registerFunction({
-    name: "lpad",
-    args: [
-      mem.public.getType("text" as any),
-      mem.public.getType("integer" as any),
-      mem.public.getType("text" as any),
-    ],
-    implementation: (str: string, len: number, pad: string) =>
-      String(str).padStart(len, pad),
-  });
-
-  const cwd = process.cwd();
-  const sql0Path = path.join(cwd, "drizzle", "0000_baseline.sql");
-  const sql1Path = path.join(cwd, "drizzle", "0001_nice_random.sql");
-
-  if (fs.existsSync(sql0Path)) {
-    const sql0 = fs.readFileSync(sql0Path, "utf-8");
-    mem.public.none(sql0);
-  }
-  if (fs.existsSync(sql1Path)) {
-    const sql1 = fs.readFileSync(sql1Path, "utf-8");
-    mem.public.none(sql1);
-  }
-
-  const pg = mem.adapters.createPg();
-  (pg as any).types = {
-    getTypeParser: () => (val: unknown) => val,
-    setTypeParser: () => {},
-  };
-
-  const poolInstance = new pg.Pool() as unknown as Pool;
-  globalForDb.__arenaNextJsMemDb = { mem, pool: poolInstance };
-  return poolInstance;
-}
-
 /**
  * Serverless sizing: every Vercel function instance gets its own pool, so a small
  * per-instance cap keeps the total under the Supabase pooler's client limit even when
@@ -97,25 +38,30 @@ const poolMax = Number.parseInt(process.env.DB_POOL_MAX ?? "", 10);
 // Reuse the pool across module evaluations in dev so we don't leak connection
 // pools or keep re-registering error listeners on every Fast Refresh.
 const existingPool = globalForDb.__arenaNextJsPostgresqlPool;
-
 export const pool =
   existingPool ??
-  (!databaseUrl || databaseUrl === "memory"
-    ? createMemDbPool()
-    : new Pool({
-        connectionString: databaseUrl,
-        keepAlive: true,
-        max: Number.isFinite(poolMax) && poolMax > 0 ? poolMax : 3,
-        idleTimeoutMillis: 5000,
-        connectionTimeoutMillis: 10000,
-        ssl: sslConfig(databaseUrl),
-      }));
+  new Pool({
+    connectionString: databaseUrl,
+    keepAlive: true,
+    max: Number.isFinite(poolMax) && poolMax > 0 ? poolMax : 3,
+    // Close idle clients quickly: a suspended function should not hold pooler slots.
+    idleTimeoutMillis: 5000,
+    // Fail fast rather than letting requests queue invisibly behind an exhausted pool.
+    connectionTimeoutMillis: 10000,
+    ssl: sslConfig(databaseUrl),
+  });
 
-if (!existingPool && databaseUrl && databaseUrl !== "memory") {
+if (!existingPool) {
+  // An idle client dropped by the pooler emits `error` on the pool; without a
+  // listener Node treats it as unhandled and tears down the process. Attach it
+  // only once, when the pool is first created.
   pool.on("error", (err) => {
     console.error("[db] idle client error:", err.message);
   });
 
+  // On Vercel (Fluid compute) this keeps the instance alive just long enough to
+  // close idle clients before suspension, so connections are not leaked. It is a
+  // no-op everywhere else.
   attachDatabasePool(pool);
 
   if (process.env.NODE_ENV !== "production") {
