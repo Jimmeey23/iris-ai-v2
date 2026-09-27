@@ -3321,3 +3321,103 @@ textarea,
     grid-template-columns: 1fr;
   }
 }
+
+/* ---------- 22. Sidebar tabs: matte, carved -------------------------------
+   No tab carries a fill of its own. Every row — resting, hovered or selected —
+   stays exactly the colour of the rail behind it, and the only thing that
+   changes is the edge.
+
+   The depth is a groove rather than a bloom: a dark hairline ring with a short
+   dark shadow inside the top-left edge and a pale one inside the bottom-right,
+   which reads as the row being pressed *into* the panel. There is no outer
+   glow and no white highlight on the face, so the surface stays matte — a
+   glossy pad would put a second light source on a panel that already has one.
+
+   Selection deepens the same groove and colours the ink. Colour is the only
+   thing distinguishing it, which is why the accent marker stays: it is what
+   carries the state in the collapsed rail where no label is visible.
+   -------------------------------------------------------------------------- */
+.sidebar {
+  /* One groove, three depths. Tuned per theme because a carve on white needs a
+     far lighter touch than the same carve on near-black. */
+  --tab-edge: rgb(16 24 40 / 0.1);
+  --tab-edge-deep: rgb(16 24 40 / 0.16);
+  --tab-carve: inset 1px 1px 2px rgb(140 155 178 / 0.18),
+    inset -1px -1px 2px rgb(255 255 255 / 0.7);
+  --tab-carve-deep: inset 2px 2px 4px rgb(140 155 178 / 0.26),
+    inset -1px -1px 3px rgb(255 255 255 / 0.8);
+}
+[data-theme="dark"] .sidebar {
+  --tab-edge: rgb(255 255 255 / 0.08);
+  --tab-edge-deep: rgb(255 255 255 / 0.14);
+  --tab-carve: inset 1px 1px 2px rgb(0 0 0 / 0.5),
+    inset -1px -1px 2px rgb(255 255 255 / 0.03);
+  --tab-carve-deep: inset 2px 2px 5px rgb(0 0 0 / 0.62),
+    inset -1px -1px 3px rgb(255 255 255 / 0.04);
+}
+
+.sidebar .nav-link,
+.sidebar .nav-link:hover,
+.sidebar .nav-link:active,
+.sidebar .nav-link.active,
+.sidebar .nav-link.active:hover,
+.sidebar.collapsed .nav-link,
+.sidebar.collapsed .nav-link:hover,
+.sidebar.collapsed .nav-link.active,
+.sidebar.collapsed:hover .nav-link,
+.sidebar.collapsed:hover .nav-link:hover,
+.sidebar.collapsed:hover .nav-link.active,
+.sidebar.collapsed:focus-within .nav-link,
+.sidebar.collapsed:focus-within .nav-link.active {
+  /* The rail's own colour, at every state. */
+  background: transparent;
+}
+
+.sidebar .nav-link {
+  border: 1px solid transparent;
+  box-shadow: none;
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    color 0.18s ease;
+}
+.sidebar .nav-link:hover {
+  transform: none;
+  color: var(--text);
+  border-color: var(--tab-edge);
+  box-shadow: var(--tab-carve);
+}
+.sidebar .nav-link:active {
+  box-shadow: var(--tab-carve-deep);
+}
+.sidebar .nav-link.active,
+.sidebar .nav-link.active:hover,
+.sidebar.collapsed .nav-link.active,
+.sidebar.collapsed:hover .nav-link.active,
+.sidebar.collapsed:focus-within .nav-link.active {
+  color: var(--accent);
+  font-weight: 650;
+  border-color: var(--tab-edge-deep);
+  box-shadow: var(--tab-carve-deep);
+}
+.sidebar .nav-link.active svg {
+  color: var(--accent);
+}
+/* The account pad and sign-out share the rail's surface for the same reason. */
+.sidebar .user-button,
+.sidebar-signout {
+  background: transparent;
+  border: 1px solid transparent;
+  box-shadow: none;
+}
+.sidebar .user-button:hover,
+.sidebar-signout:hover {
+  transform: none;
+  background: transparent;
+  border-color: var(--tab-edge);
+  box-shadow: var(--tab-carve);
+}
+.sidebar .user-button:active,
+.sidebar-signout:active {
+  box-shadow: var(--tab-carve-deep);
+}

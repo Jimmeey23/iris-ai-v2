@@ -1,103 +1,39 @@
 /* Trainer reviews — visual system
  *
- * Extracted from the `premium.css` of the reverted branch, narrowed to the
- * rules that belong to this tab: the `.tr-*` scorecard surfaces and the
- * `.ish-*` image-stream hero. The rest of that file — the radar floor plan,
- * the shell and the global material overrides — is deliberately left behind,
- * since only the trainer work was wanted back.
+ * Extracted from the `premium.css` of the reverted branch and narrowed to this
+ * tab: the `.tr-*` scorecard surfaces and the `.ish-*` image-stream hero.
  *
- * It relies on the `--neu-*` tokens already defined in design-system.css. */
+ * The narrowing is per *selector*, not per rule. That file groups trainer
+ * selectors into long lists alongside global ones — one rule put
+ * `.tr-review.active` in with `.card`, `.panel` and twenty-five other app-wide
+ * controls. Keeping such a rule whole would quietly restyle the entire app
+ * from a stylesheet named after one tab, so every selector list here has had
+ * its non-trainer members removed, and rules left with none are dropped.
+ *
+ * Relies on the `--neu-*` tokens defined in design-system.css. */
 
-/* Active state contract: medium-blue pressed surface + white text in both
-   modes. This prevents dark-on-dark tab labels and keeps selected controls
-   obvious without relying on a thin underline alone. */
-.nav-link.active,
-.sidebar .nav-link.active,
-.workspace-tabs button.active,
-.tab[aria-selected="true"],
-.module-tabs button.active,
-.settings-nav button.active,
-.report-nav-item.active,
-.panel-tab-btn.active,
-.panel-tab-btn.action-tab.active,
-.context-tab.active,
-.rw-tabs button.active,
-.rw-picks button.active,
-.view-switch button.active,
-.tf-chip-on,
-.tf-column-on,
-.form-card.active,
-.tr-review.active,
-.studio-tab-card.active,
-.operation-item.active,
-.toolbar-pill-btn.active,
-.qty-btn.active,
-.rating-buttons button.active,
-.countdown-clock.active,
-.btn.active,
-.tabs-thumb,
-.tabs-segment [aria-selected="true"] {
+.tr-review.active {
   color: var(--active-fg) !important;
   background: var(--active-bg) !important;
   border-color: transparent !important;
   box-shadow: 0 7px 18px -8px color-mix(in srgb, var(--active-bg) 80%, transparent), inset 0 1px 0 rgb(255 255 255 / 0.18) !important;
 }
 
-.nav-link.active .nav-label,
-.nav-link.active svg,
-.workspace-tabs button.active span,
-.tab[aria-selected="true"] *,
-.module-tabs button.active *,
-.settings-nav button.active *,
-.report-nav-item.active *,
-.panel-tab-btn.active *,
-.context-tab.active *,
-.rw-tabs button.active *,
-.rw-picks button.active *,
-.view-switch button.active *,
-.tf-chip-on *,
-.tf-column-on *,
-.form-card.active *,
-.tr-review.active *,
-.studio-tab-card.active *,
-.operation-item.active *,
-.toolbar-pill-btn.active *,
-.qty-btn.active *,
-.rating-buttons button.active * {
+.tr-review.active * {
   color: var(--active-fg) !important;
 }
 
-/* Sweep every remaining tab-like control into the contract, including the
-   attribute-driven ones the earlier pass missed. */
-.tr-seg button[data-active="true"],
-.r3d-view-toggle button[data-active="true"],
-.studio-tab-card.active,
-[role="tab"][aria-selected="true"],
-.tab.active,
-.pager button.active,
-.filter-chip.active,
-.seg-btn.active,
-.workspace-tabs .active,
-.module-tabs .active {
+.tr-seg button[data-active="true"] {
   color: var(--active-fg) !important;
   background: var(--active-bg) !important;
   border-color: transparent !important;
   box-shadow: var(--active-glow), inset 0 1px 0 rgb(255 255 255 / 0.22) !important;
 }
 
-.tr-seg button[data-active="true"] *,
-.r3d-view-toggle button[data-active="true"] *,
-.studio-tab-card.active *,
-[role="tab"][aria-selected="true"] *,
-.tab.active *,
-.pager button.active *,
-.filter-chip.active *,
-.seg-btn.active * {
+.tr-seg button[data-active="true"] * {
   color: var(--active-fg) !important;
 }
 
-/* The selected assessment row is a *card*, not a tab: keep its semantic badges
-   coloured instead of flattening them onto the active fill. */
 .tr-review.active {
   color: var(--text) !important;
   background: color-mix(in srgb, var(--accent) 10%, var(--surface)) !important;
@@ -109,11 +45,11 @@
 
 .tr-review.active .badge.green { color: var(--green) !important; }
 
-.tr-review.active .badge.red   { color: var(--red) !important; }
+.tr-review.active .badge.red { color: var(--red) !important; }
 
 .tr-review.active .badge.amber { color: var(--amber) !important; }
 
-.tr-review.active .badge.blue  { color: var(--blue) !important; }
+.tr-review.active .badge.blue { color: var(--blue) !important; }
 
 .tr-review.active .tr-review-score { color: var(--accent) !important; }
 
@@ -169,7 +105,6 @@
 .tr-stream-copy .badge,
 .tr-stream-copy button { pointer-events: auto; }
 
-/* Trainer report: a masthead worth framing. */
 .tr-masthead {
   position: relative;
   overflow: hidden;
@@ -242,81 +177,21 @@
 
 .tr-review-score { font-weight: 750; }
 
-/* ---- 3.11 The rails must stay gold/blue-free until pressed --------------- */
-/* Unselected tabs never inherit an accent colour from their neighbours. */
-.tab:not([aria-selected="true"]):not(.active),
-.module-tabs button:not(.active),
-.settings-nav button:not(.active),
-.workspace-tabs button:not(.active),
-.panel-tab-btn:not(.active),
-.context-tab:not(.active),
-.report-nav-item:not(.active),
-.tr-seg button:not([data-active="true"]),
-.r3d-view-toggle button:not([data-active="true"]) {
+.tr-seg button:not([data-active="true"]) {
   color: var(--secondary) !important;
   background: transparent;
 }
 
-/* Every raised container gains the edge highlight and a deeper pair. */
-.card,
-.panel,
-.metric,
-.tickets-panel,
-.ticket-card,
-.entity-card,
-.template-card,
-.integration-card,
-.report-card,
-.asset-card,
-.form-card,
-.stat-card,
-.settings-card,
-.insights-widget,
-.help-card,
-.draft-card,
-.resolution-card,
-.context-card,
-.filter-card,
-.kpi-card,
-.data-card,
-.summary-card,
-.table-card,
 .tr-section,
 .tr-masthead,
-.td-panel,
-.td-case-file,
-.td-context-sheet,
-.report-nav,
-.radar-telemetry-banner,
-.room-inspector-drawer,
-.floorplan-heatmap-container,
-.incident-ticket-card,
-.studio-tab-card,
-.trainer-profile-card,
-.image-stream-hero,
-.r3d-top,
-.empty-state,
-.locked-page {
+.trainer-profile-card {
   box-shadow: var(--neu-sm), var(--neu-edge) !important;
 }
 
-.card:hover,
-.panel:hover,
-.ticket-card:hover,
-.entity-card:hover,
-.template-card:hover,
-.integration-card:hover,
-.report-card:hover,
-.asset-card:hover,
-.form-card:hover,
-.settings-card:hover,
 .trainer-profile-card:hover {
   box-shadow: var(--neu-md), var(--neu-edge) !important;
 }
 
-/* ---- 4.6 Sophistication details ----------------------------------------- */
-/* Page titles get a quiet ink gradient — expensive without being loud. */
-.page-heading h1,
 .tr-masthead h2,
 .tr-stream-copy h2 {
   background: linear-gradient(
@@ -329,15 +204,7 @@
   -webkit-text-fill-color: transparent;
 }
 
-/* Numerals in data stay tabular and calm. */
-.metric-number,
-.metric strong,
-.rp-metric strong,
-.ovc-kpi strong,
-.tr-kpi strong,
-.t-val,
-.d-val,
-.small-counter {
+.tr-kpi strong {
   font-variant-numeric: tabular-nums;
 }
 
@@ -372,7 +239,6 @@
   justify-content: center;
 }
 
-/* Symmetry: the rule on the left of the label is mirrored on its right. */
 .tr-stream-copy .eyebrow::after {
   content: "";
   width: 20px;
@@ -411,7 +277,6 @@
 .tr-stream-facts .badge,
 .tr-stream-facts button { pointer-events: auto; }
 
-/* ---- 5.3 Trainer cards: compact framed portraits ------------------------ */
 .trainer-profile-card {
   overflow: hidden;
 }
