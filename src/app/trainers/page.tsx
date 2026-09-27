@@ -6,6 +6,8 @@ import {api,SearchField,Badge,Loading,Empty,Modal,Avatar,useApp} from '@/compone
 import {TrainerReport,type Trainer} from '@/components/trainer-report';
 import {relativeTime} from '@/lib/utils';
 import {TrainerImg} from '@/components/ticket-art';
+import {ImageStreamHero} from '@/components/image-stream-hero';
+import {TRAINER_IMAGES} from '@/lib/constants';
 
 
 /** How often the tab re-reads the scorecards. Each read also queues a throttled background pull
@@ -92,21 +94,29 @@ export default function TrainersPage(){
         {user&&<button className="btn" disabled={syncing} onClick={()=>void syncFillout()}>{syncing?<Loader2 size={13} className="animate-spin"/>:<DownloadCloud size={14}/>}{syncing?'Syncing…':'Sync assessments'}</button>}
         <Badge tone="blue"><GraduationCap size={12}/>{trainers.length} trainers tracked</Badge>
       </div>}>
-      <div className="iris-banner">
-        <div className="iris-orb"><GraduationCap size={24}/></div>
-        <div className="grow">
+      {/* The corridor: every trainer portrait on file rides the rails behind the
+          headline, so the page leads with the people it reports on. */}
+      <ImageStreamHero
+        images={Object.values(TRAINER_IMAGES).map(src=>({src,alt:'Trainer portrait'}))}
+        cards={9}
+        speed={26}
+        axis={58}
+        className="tr-stream-hero"
+      >
+        <div className="tr-stream-copy">
+          <span className="eyebrow">TRAINING &amp; QUALITY</span>
           <h2>Every assessment and every piece of feedback, in one scorecard.</h2>
           <p>Weighted evaluation scores, member compliments and logged concerns — combined per trainer so coaching conversations start from evidence.</p>
-          <div className="flex-row wrap" style={{marginTop:10,gap:6}}>
+          <div className="flex-row wrap" style={{marginTop:12,gap:6}}>
             <button className="badge" onClick={()=>setListening(v=>!v)} title={listening?`Checking every ${POLL_MS/1000} seconds`:'Live updates paused'}>
               <Radio size={11} style={{color:listening?'var(--green)':'var(--muted)'}}/>{listening?'Listening for new submissions':'Live updates paused'}
             </button>
             {lastSync&&<Badge>Last synced {relativeTime(lastSync)}</Badge>}
             {sources.map(s=><Badge key={s.label}>{s.label} · {s.count}</Badge>)}
+            {orgAvg!==null&&<Badge tone={orgAvg>=80?'green':orgAvg>=65?'amber':'red'}>Org average {orgAvg}%</Badge>}
           </div>
         </div>
-        {orgAvg!==null&&<Badge tone={orgAvg>=80?'green':orgAvg>=65?'amber':'red'}>Org average {orgAvg}%</Badge>}
-      </div>
+      </ImageStreamHero>
       {ping&&<div className="info-box pop-in" style={{marginBottom:16}}>✦ {ping}</div>}
       <div style={{marginBottom:20}}><SearchField value={q} onChange={setQ} placeholder="Find a trainer…"/></div>
       {error&&<div className="error-box">{error}</div>}

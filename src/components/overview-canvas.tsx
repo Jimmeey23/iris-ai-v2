@@ -482,21 +482,34 @@ export function OverviewCanvas({
                   aria-label={`${k.label}: ${k.value}${k.suffix ?? ""}. Show detail`}
                   tabIndex={isBack ? -1 : 0}
                 >
+                  {/* An animated aurora wash behind the figures — the card is a
+                      live dial, not a printed label. */}
+                  <span className="ovc-kpi-aura" aria-hidden="true" data-tone={k.accent ? "accent" : "neutral"} />
                   <span className="ovc-kpi-top">
                     <span className={"ovc-chip " + (k.accent ? "is-accent" : "is-neutral")}>
-                      <Icon size={17} strokeWidth={2} />
+                      <Icon size={16} strokeWidth={2} />
                     </span>
+                    <span className="ovc-kpi-label">{k.label}</span>
                     <Sparkline
                       data={k.data}
                       id={k.id}
                       stroke={k.accent ? "var(--accent)" : "var(--ovc-spark-muted)"}
                     />
                   </span>
-                  <strong>
-                    <Counter value={k.value} suffix={k.suffix ?? ""} />
-                  </strong>
-                  <span className="ovc-kpi-label">{k.label}</span>
-                  <small>{k.sub}</small>
+                  <span className="ovc-kpi-value-row">
+                    <strong>
+                      <Counter value={k.value} suffix={k.suffix ?? ""} />
+                    </strong>
+                    <small>{k.sub}</small>
+                  </span>
+                  <span className="ovc-kpi-mini-facts">
+                    {k.facts.slice(0, 3).map(([label, value]) => (
+                      <span key={label}>
+                        <em>{label}</em>
+                        <b>{value}</b>
+                      </span>
+                    ))}
+                  </span>
                 </button>
 
                 <div className="ovc-card ovc-kpi ovc-kpi-back" aria-hidden={!isBack}>

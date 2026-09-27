@@ -1086,3 +1086,897 @@ option {
     background: var(--surface) !important;
   }
 }
+
+/* ========================================================================
+   MATERIAL ENFORCEMENT v3
+   The refined contract, tuned from review feedback:
+   · Active tabs: dark bg + white text (light) · gold bg + black text (dark)
+   · Light mode: pure white canvas, darker ink
+   · All form controls share the raised "Escalate" control material
+   · Locked nav items carry a red lock
+   · Radar: interactive 3D studio floor plan
+   · Leaner, information-dense overview metric cards with animated graphics
+   · Trainer stream hero + report polish, ticket-dialog polish, reports alignment
+   ======================================================================== */
+
+/* ---- 3.1 The active-state contract -------------------------------------- */
+:root,
+[data-theme="dark"] {
+  /* Gold pressed surface with near-black ink — the signature dark-mode tab. */
+  --active-bg: var(--accent);
+  --active-fg: #171106;
+  --active-glow: 0 6px 16px -6px color-mix(in srgb, var(--accent) 70%, transparent);
+}
+[data-theme="light"] {
+  /* Ink-filled pressed surface with white ink in the light theme. */
+  --active-bg: #10151f;
+  --active-fg: #ffffff;
+  --active-glow: 0 6px 16px -7px rgb(10 16 28 / 0.55);
+}
+
+/* Sweep every remaining tab-like control into the contract, including the
+   attribute-driven ones the earlier pass missed. */
+.tr-seg button[data-active="true"],
+.r3d-view-toggle button[data-active="true"],
+.studio-tab-card.active,
+[role="tab"][aria-selected="true"],
+.tab.active,
+.pager button.active,
+.filter-chip.active,
+.seg-btn.active,
+.workspace-tabs .active,
+.module-tabs .active {
+  color: var(--active-fg) !important;
+  background: var(--active-bg) !important;
+  border-color: transparent !important;
+  box-shadow: var(--active-glow), inset 0 1px 0 rgb(255 255 255 / 0.22) !important;
+}
+.tr-seg button[data-active="true"] *,
+.r3d-view-toggle button[data-active="true"] *,
+.studio-tab-card.active *,
+[role="tab"][aria-selected="true"] *,
+.tab.active *,
+.pager button.active *,
+.filter-chip.active *,
+.seg-btn.active * {
+  color: var(--active-fg) !important;
+}
+
+/* Composite studio cards keep their semantic pills legible on the active fill. */
+.studio-tab-card.active .health-tag.good { color: #0c4f36 !important; background: rgb(255 255 255 / 0.82) !important; }
+.studio-tab-card.active .health-tag.mid  { color: #7a4d05 !important; background: rgb(255 255 255 / 0.82) !important; }
+.studio-tab-card.active .health-tag.bad  { color: #8f1f2c !important; background: rgb(255 255 255 / 0.82) !important; }
+[data-theme="dark"] .studio-tab-card.active .health-tag.good { color: var(--green) !important; }
+[data-theme="dark"] .studio-tab-card.active .health-tag.mid  { color: var(--amber) !important; }
+[data-theme="dark"] .studio-tab-card.active .health-tag.bad  { color: var(--red) !important; }
+.studio-tab-card.active .studio-viewing-badge {
+  background: color-mix(in srgb, var(--active-fg) 18%, transparent) !important;
+  color: var(--active-fg) !important;
+}
+.studio-tab-card.active .studio-health-meter,
+.studio-tab-card.active .studio-health-meter i {
+  background: color-mix(in srgb, var(--active-fg) 26%, transparent) !important;
+}
+.studio-tab-card.active .studio-tab-icon,
+.studio-tab-card.active .studio-tab-city,
+.studio-tab-card.active .studio-tab-sub {
+  color: var(--active-fg) !important;
+}
+
+/* The selected assessment row is a *card*, not a tab: keep its semantic badges
+   coloured instead of flattening them onto the active fill. */
+.tr-review.active {
+  color: var(--text) !important;
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface)) !important;
+  border: 1px solid color-mix(in srgb, var(--accent) 42%, transparent) !important;
+  box-shadow: var(--neu-xs), inset 3px 0 0 var(--accent) !important;
+}
+.tr-review.active * { color: inherit !important; }
+.tr-review.active .badge.green { color: var(--green) !important; }
+.tr-review.active .badge.red   { color: var(--red) !important; }
+.tr-review.active .badge.amber { color: var(--amber) !important; }
+.tr-review.active .badge.blue  { color: var(--blue) !important; }
+.tr-review.active .tr-review-score { color: var(--accent) !important; }
+
+/* ---- 3.2 Light mode: a white page with darker ink ----------------------- */
+[data-theme="light"] {
+  --bg: #ffffff;
+  --surface: #ffffff;
+  --surface-2: #f5f7fb;
+  --surface-3: #edf1f7;
+  --surface-4: #e3e9f2;
+  --surface-raised: #ffffff;
+  --surface-raised-2: #f7f9fc;
+  --neu-sunken: #eef2f8;
+  --text: #10151f;
+  --secondary: #39435a;
+  --muted: #61708c;
+  --neu-line: rgb(19 34 58 / 0.11);
+}
+[data-theme="light"] body,
+[data-theme="light"] .workspace,
+[data-theme="light"] .content,
+[data-theme="light"] .page,
+[data-theme="light"] main {
+  background: #ffffff !important;
+  color: var(--text);
+}
+/* The ambient washes calm right down on white so cards stay crisp. */
+[data-theme="light"] .workspace::before { opacity: 0.4; }
+[data-theme="light"] .workspace::after { opacity: 0.08; }
+[data-theme="light"] .tr-portrait::after {
+  background: linear-gradient(180deg, transparent 52%, rgb(255 255 255 / 0.72));
+}
+/* Every text element that defaulted to a mid grey gets real ink in light mode. */
+[data-theme="light"] h1,
+[data-theme="light"] h2,
+[data-theme="light"] h3,
+[data-theme="light"] h4,
+[data-theme="light"] strong,
+[data-theme="light"] b,
+[data-theme="light"] th,
+[data-theme="light"] .page-heading h1,
+[data-theme="light"] .section-head,
+[data-theme="light"] .card h3 {
+  color: var(--text);
+}
+
+/* ---- 3.3 One control material: everything matches "Escalate for review" -- */
+/* The ticket dialog showed two different control materials side by side —
+   sunken selects next to a raised button. Raised wins: every field, select,
+   search box and picker now shares the exact button material. */
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+textarea,
+select,
+.option-select,
+.filter-select,
+.search-field,
+.search-input,
+.search-input input {
+  background: var(--surface-raised) !important;
+  border: 1px solid var(--neu-line) !important;
+  border-radius: 11px !important;
+  box-shadow: var(--neu-xs) !important;
+  color: var(--text) !important;
+  transition: transform var(--dur-2) var(--ease-spring), box-shadow var(--dur-2) var(--ease-standard), border-color var(--dur-2) var(--ease-standard);
+}
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):hover,
+textarea:hover,
+select:hover,
+.filter-select:hover,
+.search-field:hover,
+.search-input:hover {
+  border-color: color-mix(in srgb, var(--accent) 32%, var(--neu-line)) !important;
+}
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):focus,
+textarea:focus,
+select:focus,
+.filter-select:focus,
+.search-field:focus,
+.search-input:focus {
+  outline: none !important;
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent) !important;
+  box-shadow: var(--neu-xs), 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent) !important;
+}
+select {
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position: calc(100% - 15px) 55%, calc(100% - 10px) 55%;
+  background-size: 5px 5px;
+  background-repeat: no-repeat;
+  padding-right: 28px;
+}
+option {
+  background: var(--surface) !important;
+  color: var(--text) !important;
+}
+
+/* ---- 3.4 Locked navigation: a red lock, still legible ------------------- */
+.nav-link.locked {
+  opacity: 0.82;
+}
+.nav-link.locked:hover {
+  background: color-mix(in srgb, var(--red) 7%, transparent);
+}
+.nav-lock {
+  margin-left: auto;
+  color: var(--red) !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 7px;
+  background: var(--red-bg);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--red) 28%, transparent);
+}
+.nav-link.locked svg:first-child { color: var(--secondary); }
+.locked-page-icon {
+  color: var(--red);
+  background: var(--red-bg);
+  box-shadow: var(--neu-xs);
+}
+
+/* ---- 3.5 Radar: the interactive 3D floor plan --------------------------- */
+.r3d-stage {
+  position: relative;
+  overflow: hidden;
+  padding: 38px 30px 44px;
+  border-radius: 22px;
+  background:
+    radial-gradient(120% 90% at 50% 0%, color-mix(in srgb, var(--accent) 7%, transparent), transparent 60%),
+    linear-gradient(165deg, color-mix(in srgb, var(--surface-2) 90%, var(--accent) 6%), var(--surface-2));
+  box-shadow:
+    inset 0 0 0 1px var(--neu-line),
+    inset 0 0 60px color-mix(in srgb, var(--text) 5%, transparent),
+    var(--neu-sm);
+}
+.r3d-gridlines {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(var(--neu-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--neu-line) 1px, transparent 1px);
+  background-size: 28px 28px;
+  opacity: 0.6;
+  mask-image: radial-gradient(85% 85% at 50% 42%, black, transparent 78%);
+  pointer-events: none;
+}
+.r3d-sweep {
+  position: absolute;
+  left: 50%;
+  top: 40%;
+  width: 150%;
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: conic-gradient(
+    from 0deg,
+    color-mix(in srgb, var(--accent) 16%, transparent),
+    transparent 24%
+  );
+  mask-image: radial-gradient(circle, black 0 26%, transparent 62%);
+  opacity: 0.7;
+  animation: r3d-sweep 8s linear infinite;
+  pointer-events: none;
+}
+@keyframes r3d-sweep {
+  to { transform: translate(-50%, -50%) rotate(360deg); }
+}
+.r3d-compass {
+  position: absolute;
+  left: 18px;
+  bottom: 10px;
+  font: 700 var(--text-3xs, 9px) var(--font-mono);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted);
+  pointer-events: none;
+}
+.r3d-stage.is-3d { perspective: 1400px; }
+.r3d-board {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(212px, 1fr));
+  gap: 20px;
+  transform-style: preserve-3d;
+  transition: transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.r3d-stage.is-3d .r3d-board {
+  transform: rotateX(24deg) rotateZ(-5deg) scale(0.985);
+}
+/* The room: an extruded slab. Open work sets the lift via --lift inline. */
+.r3d-room {
+  position: relative;
+  appearance: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  transform-style: preserve-3d;
+}
+.r3d-room:focus-visible { outline: none; }
+.r3d-room:focus-visible .r3d-top {
+  outline: 3px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  outline-offset: 3px;
+}
+.r3d-top {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  min-height: 128px;
+  padding: 14px 13px 12px;
+  border-radius: 14px;
+  background: linear-gradient(155deg, var(--surface), color-mix(in srgb, var(--surface-2) 78%, var(--surface)));
+  border: 1px solid var(--neu-line);
+  box-shadow: var(--neu-sm);
+  transition:
+    transform 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.4s ease,
+    border-color 0.3s ease;
+}
+.r3d-room .environmental-sensors-row { margin-top: auto; }
+.r3d-room:hover .r3d-top {
+  transform: translateY(-5px);
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--neu-line));
+  box-shadow: var(--neu-md);
+}
+.r3d-room.selected .r3d-top {
+  transform: translateY(-8px);
+  border-color: var(--accent);
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent),
+    var(--neu-md);
+}
+.r3d-stage.is-3d .r3d-top { transform: translateZ(var(--lift, 12px)); }
+.r3d-stage.is-3d .r3d-room:hover .r3d-top { transform: translateZ(calc(var(--lift, 12px) + 12px)); }
+.r3d-stage.is-3d .r3d-room.selected .r3d-top {
+  transform: translateZ(calc(var(--lift, 12px) + 20px));
+}
+/* Extrusion walls — south and east faces of the slab. */
+.r3d-wall {
+  position: absolute;
+  border-radius: 14px;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--wall, var(--accent)) 34%, var(--surface-3)),
+    color-mix(in srgb, var(--wall, var(--accent)) 8%, var(--surface-2))
+  );
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--wall, var(--accent)) 22%, transparent);
+  opacity: 0;
+  transition: opacity 0.45s ease;
+  pointer-events: none;
+}
+.r3d-wall-s {
+  left: 3%;
+  right: 3%;
+  top: 100%;
+  height: var(--lift, 12px);
+  transform-origin: top center;
+  transform: rotateX(90deg);
+}
+.r3d-wall-e {
+  top: 4%;
+  bottom: 4%;
+  left: 100%;
+  width: var(--lift, 12px);
+  transform-origin: left center;
+  transform: rotateY(-90deg);
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--wall, var(--accent)) 26%, var(--surface-3)),
+    color-mix(in srgb, var(--wall, var(--accent)) 6%, var(--surface-2))
+  );
+}
+.r3d-stage.is-3d .r3d-wall { opacity: 1; }
+.r3d-room.optimal  { --wall: var(--green); }
+.r3d-room.warning  { --wall: var(--amber); }
+.r3d-room.critical { --wall: var(--red); }
+.r3d-room.warning .r3d-top {
+  background: linear-gradient(155deg, var(--surface), color-mix(in srgb, var(--amber-bg) 30%, var(--surface)));
+  border-left: 3px solid var(--amber);
+}
+.r3d-room.critical .r3d-top {
+  background: linear-gradient(155deg, var(--surface), color-mix(in srgb, var(--red-bg) 34%, var(--surface)));
+  border-left: 3px solid var(--red);
+}
+.r3d-room.optimal .r3d-top { border-left: 3px solid var(--green); }
+/* Floor glow under busy rooms. */
+.r3d-glow {
+  position: absolute;
+  left: 8%;
+  right: 8%;
+  bottom: -12px;
+  height: 26px;
+  border-radius: 50%;
+  background: radial-gradient(50% 50% at 50% 50%, color-mix(in srgb, var(--wall, var(--accent)) 42%, transparent), transparent 72%);
+  filter: blur(7px);
+  pointer-events: none;
+}
+.r3d-room.critical .r3d-glow { animation: r3d-breathe 1.7s ease-in-out infinite; }
+@keyframes r3d-breathe {
+  0%, 100% { opacity: 0.55; transform: scaleX(0.94); }
+  50% { opacity: 1; transform: scaleX(1.04); }
+}
+/* View toggle for the plan. */
+.r3d-view-toggle {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  margin-left: 12px;
+  border-radius: 10px;
+  background: var(--neu-sunken);
+  box-shadow: var(--neu-in-sm);
+}
+.r3d-view-toggle button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--secondary);
+  font-size: 10.5px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: color 0.2s ease, background 0.2s ease;
+}
+/* Telemetry banner and studio tabs get a lift worthy of the headline card. */
+.radar-telemetry-banner {
+  border-radius: 22px;
+  border: 1px solid var(--neu-line);
+  background:
+    radial-gradient(90% 140% at 0% 0%, color-mix(in srgb, var(--accent) 8%, transparent), transparent 55%),
+    var(--surface);
+  box-shadow: var(--neu-sm);
+}
+.telemetry-metric-box {
+  background: var(--surface-raised-2);
+  border: 1px solid var(--neu-line);
+  border-radius: 14px;
+  box-shadow: var(--neu-xs);
+}
+.studio-tab-card {
+  border-radius: 16px;
+  background: var(--surface-raised-2);
+  border: 1px solid var(--neu-line);
+  box-shadow: var(--neu-xs);
+  transition: transform 0.22s var(--ease-spring), box-shadow 0.22s ease, background 0.22s ease, border-color 0.22s ease;
+}
+.studio-tab-card:hover { transform: translateY(-2px); box-shadow: var(--neu-sm); }
+.room-inspector-drawer {
+  border-radius: 22px;
+  border: 1px solid var(--neu-line);
+  background: var(--surface);
+  box-shadow: var(--neu-sm);
+}
+.incident-ticket-card {
+  border-radius: 14px;
+  border: 1px solid var(--neu-line);
+  background: var(--surface-raised-2);
+  box-shadow: var(--neu-xs);
+}
+.countdown-clock {
+  border-radius: 10px;
+  border: 1px solid var(--neu-line);
+  background: var(--surface-raised-2);
+  box-shadow: var(--neu-xs);
+}
+
+/* ---- 3.6 Overview metric cards: lean, dense, alive ----------------------- */
+.ovc-kpis { gap: 1px; }
+.ovc-kpi {
+  position: relative;
+  overflow: hidden;
+  padding: 13px 16px 12px;
+}
+.ovc-kpi-top { gap: 8px; }
+.ovc-kpi-top .ovc-kpi-label {
+  flex: 1 1 auto;
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+.ovc-kpi .ovc-chip { width: 30px; height: 30px; border-radius: 10px; }
+.ovc-kpi-value-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 8px;
+}
+.ovc-kpi-value-row strong {
+  margin: 0;
+  font-size: 25px;
+}
+.ovc-kpi-value-row small {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
+}
+.ovc-kpi small { font-size: 10.5px; }
+/* Three facts ride the face itself, set into a sunken strip. */
+.ovc-kpi-mini-facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  margin-top: 10px;
+  padding: 6px 7px;
+  border-radius: 10px;
+  background: var(--neu-sunken);
+  box-shadow: var(--neu-in-sm);
+}
+.ovc-kpi-mini-facts span {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.ovc-kpi-mini-facts em {
+  font-style: normal;
+  font-size: 8.5px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ovc-kpi-mini-facts b {
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+/* Animated aurora behind the figures. */
+.ovc-kpi-aura {
+  position: absolute;
+  top: -55%;
+  right: -18%;
+  width: 78%;
+  height: 150%;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--accent) 26%, transparent),
+    transparent 70%
+  );
+  filter: blur(24px);
+  opacity: 0.55;
+  animation: ovc-aura 8s ease-in-out infinite alternate;
+  pointer-events: none;
+}
+.ovc-kpi-aura[data-tone="neutral"] {
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--purple) 22%, transparent),
+    transparent 70%
+  );
+}
+@keyframes ovc-aura {
+  from { transform: translate3d(-6%, -4%, 0) scale(1); }
+  to { transform: translate3d(-26%, 10%, 0) scale(1.18); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ovc-kpi-aura, .r3d-sweep, .r3d-glow { animation: none; }
+}
+
+/* ---- 3.7 Shared metric-card upgrade (reports, analytics, dashboards) ----- */
+.rp-metric,
+.metric,
+.kpi-card,
+.stat-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 16px !important;
+  transition: transform 0.25s var(--ease-spring), box-shadow 0.25s ease, border-color 0.25s ease;
+}
+.rp-metric:hover,
+.metric:hover,
+.kpi-card:hover,
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--neu-md) !important;
+}
+/* A quiet light sweep across the card on hover. */
+.rp-metric::after,
+.metric::after,
+.kpi-card::after,
+.stat-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(105deg, transparent 30%, color-mix(in srgb, var(--white, #fff) 14%, transparent) 48%, transparent 62%);
+  transform: translateX(-120%);
+  transition: transform 0.9s var(--ease-standard);
+  pointer-events: none;
+}
+.rp-metric:hover::after,
+.metric:hover::after,
+.kpi-card:hover::after,
+.stat-card:hover::after {
+  transform: translateX(120%);
+}
+.metric-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 9px;
+  background: var(--neu-sunken);
+  box-shadow: var(--neu-in-sm);
+}
+.metric-icon.green { color: var(--green); }
+.metric-icon.amber { color: var(--amber); }
+.metric-icon.red { color: var(--red); }
+.metric-icon.purple { color: var(--purple); }
+.metric-icon.blue { color: var(--blue); }
+.rp-metric strong {
+  font-size: 22px;
+  background: linear-gradient(120deg, var(--text), color-mix(in srgb, var(--accent) 55%, var(--text)));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+[data-theme="light"] .rp-metric strong {
+  background: linear-gradient(120deg, var(--text), color-mix(in srgb, var(--blue) 55%, var(--text)));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* ---- 3.8 Reports library alignment -------------------------------------- */
+.report-shell {
+  align-items: stretch;
+  gap: 18px;
+}
+.report-nav {
+  top: calc(var(--bar, 68px) + 22px);
+  max-height: calc(100dvh - var(--bar, 68px) - 44px);
+  border-radius: 18px;
+  box-shadow: var(--neu-sm) !important;
+}
+.report-nav-item {
+  margin-bottom: 2px;
+  border-radius: 11px;
+  font-weight: 550;
+  transition: color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
+}
+.report-nav-item.active {
+  font-weight: 700;
+}
+.rp-head,
+.rp-metrics,
+.card:has(> .ticket-toolbar) {
+  border-radius: 18px;
+}
+.rp-metrics { gap: 10px; }
+.rp-head { align-items: center; }
+.rp-insights { gap: 12px; padding: 16px; }
+.chart-card { border-radius: 16px; }
+.report-bars .progress-bar { height: 7px; }
+.report-bars .progress-bar > span {
+  animation: rp-grow 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes rp-grow {
+  from { width: 0 !important; }
+}
+.chart-svg { overflow: visible; }
+.chart-svg path[stroke="var(--accent)"] {
+  stroke-dasharray: 1200;
+  stroke-dashoffset: 1200;
+  animation: rp-draw 1.4s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+@keyframes rp-draw {
+  to { stroke-dashoffset: 0; }
+}
+
+/* ---- 3.9 Trainer stream hero + report ----------------------------------- */
+.image-stream-hero {
+  position: relative;
+  overflow: hidden;
+  border-radius: 24px;
+  border: 1px solid var(--neu-line);
+  background:
+    radial-gradient(110% 130% at 85% -10%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 55%),
+    radial-gradient(90% 120% at 0% 110%, color-mix(in srgb, var(--purple) 9%, transparent), transparent 60%),
+    var(--surface);
+  box-shadow: var(--neu-sm);
+  margin-bottom: 22px;
+}
+.tr-stream-hero { min-height: 300px; }
+.ish-card {
+  box-shadow: 0 24px 44px -22px rgb(0 0 0 / 0.55);
+  border: 1px solid color-mix(in srgb, var(--white, #fff) 16%, transparent);
+  background: var(--surface-3);
+}
+.ish-card img {
+  filter: saturate(1.06) contrast(1.03);
+}
+.tr-stream-copy {
+  position: relative;
+  z-index: 2;
+  height: 100%;
+  min-height: 300px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 10px;
+  max-width: 660px;
+  padding: 36px 42px;
+  pointer-events: none;
+}
+.tr-stream-copy .eyebrow { margin-bottom: 2px; }
+.tr-stream-copy h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(22px, 2.7vw, 33px);
+  font-weight: 700;
+  letter-spacing: -0.045em;
+  line-height: 1.08;
+}
+.tr-stream-copy p {
+  margin: 0;
+  max-width: 520px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--secondary);
+}
+.tr-stream-copy .badge,
+.tr-stream-copy button { pointer-events: auto; }
+@media (max-width: 767px) {
+  .tr-stream-copy { padding: 24px 20px; }
+  .tr-stream-hero { min-height: 340px; }
+}
+/* Trainer report: a masthead worth framing. */
+.tr-masthead {
+  position: relative;
+  overflow: hidden;
+  border-radius: 20px;
+  border: 1px solid var(--neu-line);
+  background:
+    radial-gradient(90% 160% at 100% 0%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 55%),
+    var(--surface);
+  box-shadow: var(--neu-sm) !important;
+}
+.tr-masthead::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(120deg, transparent 35%, color-mix(in srgb, var(--white, #fff) 10%, transparent) 50%, transparent 65%);
+  transform: translateX(-120%);
+  animation: tr-sheen 6s var(--ease-standard) infinite;
+  pointer-events: none;
+}
+@keyframes tr-sheen {
+  0%, 55% { transform: translateX(-120%); }
+  85%, 100% { transform: translateX(120%); }
+}
+.tr-kpi {
+  border-radius: 16px;
+  background: var(--surface-raised-2) !important;
+  border: 1px solid var(--neu-line);
+  box-shadow: var(--neu-xs) !important;
+  transition: transform 0.25s var(--ease-spring), box-shadow 0.25s ease;
+}
+.tr-kpi:hover { transform: translateY(-2px); box-shadow: var(--neu-sm) !important; }
+.tr-section {
+  border-radius: 18px;
+  border: 1px solid var(--neu-line);
+  box-shadow: var(--neu-xs) !important;
+  overflow: hidden;
+}
+.tr-section-head {
+  background: var(--surface-raised-2);
+  border-bottom: 1px solid var(--neu-line);
+}
+.tr-index {
+  border-radius: 9px;
+  background: linear-gradient(150deg, var(--accent), color-mix(in srgb, var(--accent) 72%, var(--red)));
+  color: #171106;
+  box-shadow: 0 4px 12px -5px color-mix(in srgb, var(--accent) 70%, transparent);
+  font-weight: 800;
+}
+.tr-dial svg circle:first-child { stroke: var(--neu-sunken); }
+.tr-bar { box-shadow: var(--neu-in-sm); }
+.tr-seg { box-shadow: var(--neu-in-sm); border-radius: 11px; }
+.tr-seg button { border-radius: 8px; }
+.tr-note,
+.tr-alert,
+.tr-split-row,
+.tr-answers {
+  border-radius: 12px;
+  background: var(--surface-raised-2) !important;
+  box-shadow: inset 0 0 0 1px var(--neu-line);
+}
+.tr-review { border-radius: 14px; }
+.tr-review-score { font-weight: 750; }
+
+/* ---- 3.10 Ticket detail dialog: structured and sophisticated ------------- */
+.ticket-detail-shell { gap: 14px; }
+.ticket-detail-shell .td-masthead {
+  position: relative;
+  overflow: hidden;
+  border-radius: 20px;
+  border: 1px solid var(--neu-line);
+  box-shadow: var(--neu-sm) !important;
+}
+.td-tabs-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px;
+  border-radius: 16px;
+  background: var(--neu-sunken);
+  box-shadow: var(--neu-in-sm);
+}
+.td-tabs-row .tabs-segment {
+  background: transparent !important;
+  box-shadow: none !important;
+  border: 0 !important;
+}
+.rail-toggle,
+.td-copy {
+  border-radius: 11px;
+  border: 1px solid var(--neu-line);
+  background: var(--surface-raised);
+  color: var(--text);
+  box-shadow: var(--neu-xs);
+  transition: transform 0.2s var(--ease-spring), box-shadow 0.2s ease, color 0.2s ease, background 0.2s ease;
+}
+.rail-toggle:hover,
+.td-copy:hover { transform: translateY(-1px); box-shadow: var(--neu-sm); }
+.td-panel {
+  border-radius: 16px;
+  border: 1px solid var(--neu-line);
+  background: var(--surface);
+  box-shadow: var(--neu-xs) !important;
+}
+.td-fact-tile {
+  border-radius: 12px;
+  background: var(--surface-raised-2);
+  border: 1px solid var(--neu-line);
+  box-shadow: var(--neu-in-sm);
+}
+.td-fact-icon {
+  background: var(--surface-raised);
+  border-radius: 10px;
+  box-shadow: var(--neu-xs);
+  color: var(--accent);
+}
+.td-case-file,
+.td-context-sheet {
+  border-radius: 18px;
+  border: 1px solid var(--neu-line);
+  box-shadow: var(--neu-xs) !important;
+}
+.td-request-strip {
+  border-radius: 12px;
+  box-shadow: var(--neu-in-sm);
+}
+.td-similar-details,
+.td-block {
+  border-radius: 16px;
+  border: 1px solid var(--neu-line);
+  box-shadow: var(--neu-xs);
+}
+.dialog-content:has(.ticket-detail-shell) {
+  border-radius: 24px;
+  border: 1px solid var(--neu-line);
+  box-shadow: var(--neu-md);
+}
+.dialog-content:has(.ticket-detail-shell) .dialog-head {
+  border-bottom: 1px solid var(--neu-line);
+  background: var(--surface-raised-2);
+}
+
+/* ---- 3.11 The rails must stay gold/blue-free until pressed --------------- */
+/* Unselected tabs never inherit an accent colour from their neighbours. */
+.tab:not([aria-selected="true"]):not(.active),
+.module-tabs button:not(.active),
+.settings-nav button:not(.active),
+.workspace-tabs button:not(.active),
+.panel-tab-btn:not(.active),
+.context-tab:not(.active),
+.report-nav-item:not(.active),
+.tr-seg button:not([data-active="true"]),
+.r3d-view-toggle button:not([data-active="true"]) {
+  color: var(--secondary) !important;
+  background: transparent;
+}

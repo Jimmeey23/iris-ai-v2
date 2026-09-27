@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback, useRef, useSyncExternalStore } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef, useSyncExternalStore, type CSSProperties } from 'react';
 import Link from 'next/link';
 import {
   Radio,
@@ -22,6 +22,8 @@ import {
   UserCheck,
   Eye,
   MapPin,
+  Box,
+  LayoutGrid,
 } from 'lucide-react';
 import { Badge, Loading, useApp, api } from './ui';
 import { indiaDate } from '@/lib/display';
@@ -180,6 +182,9 @@ export function StudioOpsRadar({ initialStudio = 'kwality' }: { initialStudio?: 
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
   const [resolvingId, setResolvingId] = useState<number | null>(null);
+  /** The floor plan renders as a tilted 3D board by default; `false` gives a
+   *  flat plan for anyone who prefers to read it head-on. */
+  const [tilt3d, setTilt3d] = useState(true);
   const seq = useRef(0);
 
   // Only the latest request may write state, so a slow poll never overwrites a newer studio.
@@ -409,71 +414,95 @@ export function StudioOpsRadar({ initialStudio = 'kwality' }: { initialStudio?: 
               <span className="legend-item optimal"><i /> No open tickets</span>
               <span className="legend-item warning"><i /> Open tickets</span>
               <span className="legend-item critical"><i /> Needs attention</span>
+              <div className="r3d-view-toggle" role="group" aria-label="Floor plan view">
+                <button type="button" data-active={tilt3d} onClick={() => setTilt3d(true)}>
+                  <Box size={11} /> 3D
+                </button>
+                <button type="button" data-active={!tilt3d} onClick={() => setTilt3d(false)}>
+                  <LayoutGrid size={11} /> Flat
+                </button>
+              </div>
             </div>
           </div>
 
-          <div className="floorplan-stage">
-          <div className="rooms-schematic-grid">
-            {activeStudio.rooms.map((room) => {
-              const isSelected = selectedRoom?.id === room.id;
-              const hasCritical = room.status === 'critical';
-              const hasWarning = room.status === 'warning';
-              const statusText = hasCritical ? 'needs attention' : hasWarning ? `${room.openTicketsCount} open` : 'no open tickets';
+          <div className={`floorplan-stage r3d-stage${tilt3d ? ' is-3d' : ''}`}>
+            {/* A slow radar sweep behind the plan: the page reads as live telemetry
+                even when every room happens to be quiet. */}
+            <span className="r3d-sweep" aria-hidden />
+            <span className="r3d-gridlines" aria-hidden />
+            <div className="r3d-board">
+              {activeStudio.rooms.map((room) => {
+                const isSelected = selectedRoom?.id === room.id;
+                const hasCritical = room.status === 'critical';
+                const hasWarning = room.status === 'warning';
+                const statusText = hasCritical ? 'needs attention' : hasWarning ? `${room.openTicketsCount} open` : 'no open tickets';
+                // Open work lifts the room: more tickets, taller slab. Capped so a
+                // very busy room never dwarfs its neighbours off the stage.
+                const lift = 10 + Math.min(room.openTicketsCount * 5, 26);
 
-              return (
-                <button
-                  type="button"
-                  key={room.id}
-                  className={`room-radar-card ${room.category} ${room.status} ${isSelected ? 'selected' : ''}`}
-                  aria-pressed={isSelected}
-                  aria-label={`${room.name}, ${statusText}${isSelected ? ', selected' : ''}`}
-                  onClick={() => setSelectedRoomId(room.id)}
-                >
-                  {isSelected && <span className="room-selected-flag"><MapPin size={10}/> Selected</span>}
-                  {hasCritical && <span className="room-pulse-ring" />}
+                return (
+                  <button
+                    type="button"
+                    key={room.id}
+                    className={`r3d-room ${room.category} ${room.status} ${isSelected ? 'selected' : ''}`}
+                    style={{ '--lift': `${lift}px` } as CSSProperties}
+                    aria-pressed={isSelected}
+                    aria-label={`${room.name}, ${statusText}${isSelected ? ', selected' : ''}`}
+                    onClick={() => setSelectedRoomId(room.id)}
+                  >
+                    {/* Extruded walls — the slab the room card sits on. */}
+                    <span className="r3d-wall r3d-wall-s" aria-hidden />
+                    <span className="r3d-wall r3d-wall-e" aria-hidden />
+                    <span className="r3d-glow" aria-hidden />
 
-                  <div className="room-card-head">
-                    <div className="room-title-wrap">
-                      <strong>{room.name}</strong>
-                      <span className={`room-category-badge ${room.category}`}>{room.category}</span>
-                    </div>
-                    {hasCritical ? (
-                      <span className="room-alert-badge critical"><Flame size={11} />Attention</span>
-                    ) : hasWarning ? (
-                      <span className="room-alert-badge warning"><AlertTriangle size={11} />Open</span>
-                    ) : (
-                      <span className="room-alert-badge optimal"><CheckCircle2 size={11} />Clear</span>
-                    )}
-                  </div>
+                    <div className="r3d-top">
+                      {isSelected && <span className="room-selected-flag"><MapPin size={10}/> Selected</span>}
+                      {hasCritical && <span className="room-pulse-ring" />}
 
-                  {/* Planned capacity and open equipment reports — counts of tickets, not sensor readings. */}
-                  <div className="environmental-sensors-row">
-                    <div className="sensor-item" title={room.paxCapacity ? `Planned capacity: ${room.paxCapacity}` : 'No planned capacity on the room plan'}>
-                      <Users size={11} />
-                      <span>{room.paxCapacity ?? '—'}</span>
-                    </div>
-                    {EQUIPMENT_LABELS.map(({ key, label, short, icon: Icon }) => {
-                      const n = room.openEquipmentReports[key];
-                      return (
-                        <div key={key} className={`sensor-item ${n ? 'alert' : ''}`} title={`${label}: ${reportsText(n)}`}>
-                          <Icon size={11} />
-                          <span>{n ? `${short} ${n}` : short}</span>
+                      <div className="room-card-head">
+                        <div className="room-title-wrap">
+                          <strong>{room.name}</strong>
+                          <span className={`room-category-badge ${room.category}`}>{room.category}</span>
                         </div>
-                      );
-                    })}
-                  </div>
+                        {hasCritical ? (
+                          <span className="room-alert-badge critical"><Flame size={11} />Attention</span>
+                        ) : hasWarning ? (
+                          <span className="room-alert-badge warning"><AlertTriangle size={11} />Open</span>
+                        ) : (
+                          <span className="room-alert-badge optimal"><CheckCircle2 size={11} />Clear</span>
+                        )}
+                      </div>
 
-                  {room.openTicketsCount > 0 && (
-                    <div className={`room-sla-countdown-footer ${hasCritical ? 'critical' : 'warning'}`}>
-                      <Clock size={11} />
-                      <span>{room.slaLabel}</span>
-                      <span className="tickets-badge">{room.openTicketsCount} open</span>
+                      {/* Planned capacity and open equipment reports — counts of tickets, not sensor readings. */}
+                      <div className="environmental-sensors-row">
+                        <div className="sensor-item" title={room.paxCapacity ? `Planned capacity: ${room.paxCapacity}` : 'No planned capacity on the room plan'}>
+                          <Users size={11} />
+                          <span>{room.paxCapacity ?? '—'}</span>
+                        </div>
+                        {EQUIPMENT_LABELS.map(({ key, label, short, icon: Icon }) => {
+                          const n = room.openEquipmentReports[key];
+                          return (
+                            <div key={key} className={`sensor-item ${n ? 'alert' : ''}`} title={`${label}: ${reportsText(n)}`}>
+                              <Icon size={11} />
+                              <span>{n ? `${short} ${n}` : short}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {room.openTicketsCount > 0 && (
+                        <div className={`room-sla-countdown-footer ${hasCritical ? 'critical' : 'warning'}`}>
+                          <Clock size={11} />
+                          <span>{room.slaLabel}</span>
+                          <span className="tickets-badge">{room.openTicketsCount} open</span>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </button>
-              );
-            })}
-          </div>
+                  </button>
+                );
+              })}
+            </div>
+            <span className="r3d-compass" aria-hidden>N · Mumbai floor plate · live</span>
           </div>
         </div>
 

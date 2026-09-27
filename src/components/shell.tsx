@@ -208,7 +208,6 @@ export function Shell({
     (path === "/" ? "Overview" : title);
   const openItems = items.filter(isOpen);
   /** The Overview is deliberately chrome-free: no drawer or collapse controls. */
-  const isOverview = path === "/dashboard" || path === "/";
   async function signOut() {
     try {
       await api("/api/auth", {
@@ -312,25 +311,23 @@ export function Shell({
       </aside>
       <header className="topbar" ref={topbarRef}>
           <div className="flex-row">
-            {!isOverview && (
-              <>
-                <button
-                  className="icon-btn mobile-menu"
-                  onClick={() => setMobile(true)}
-                  aria-label="Open navigation"
-                >
-                  <Menu size={19} />
-                </button>
-                <button
-                  className="icon-btn desktop-sidebar-toggle"
-                  onClick={() => setCollapsed((value) => !value)}
-                  aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
-                  aria-pressed={collapsed}
-                >
-                  <PanelLeft size={17} />
-                </button>
-              </>
-            )}
+            {/* The rail toggle lives on every page — including the Overview, so
+                a collapsed rail can always be opened again from wherever you are. */}
+            <button
+              className="icon-btn mobile-menu"
+              onClick={() => setMobile(true)}
+              aria-label="Open navigation"
+            >
+              <Menu size={19} />
+            </button>
+            <button
+              className="icon-btn desktop-sidebar-toggle"
+              onClick={() => setCollapsed((value) => !value)}
+              aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
+              aria-pressed={collapsed}
+            >
+              <PanelLeft size={17} />
+            </button>
             <div className="breadcrumb">
               <PanelLeft size={15} />
               <span>Workspace</span>
