@@ -1,16 +1,153 @@
 import { NextRequest } from "next/server";
 import { and, asc, desc, eq, ilike, or, sql, type SQL } from "drizzle-orm";
-import { db } from "@/db";
+import { db, isPreviewDb } from "@/db";
 import { departments, tickets } from "@/db/schema";
 import { requireWorkspace, errorResponse, ApiError } from "@/lib/auth";
 import { getConfig } from "@/lib/config";
 import { buildReportCatalogue, metricSql, type TicketLike } from "@/lib/reports";
 import { ticketScope } from "@/lib/tickets";
-import { dayBuckets, round1, slaCompliance, zonedDayEnd, zonedDayStart } from "@/lib/metrics";
+import {
+  dayBuckets, dayKey, isBreachedOpen, isOpen, isRecordOnly, isResolved, isSlaTracked,
+  median, percentile, resolutionHours, round1, slaCompliance, zonedDayEnd, zonedDayStart,
+} from "@/lib/metrics";
 export const dynamic = "force-dynamic";
 
 const iso = (d: Date | null) => (d ? d.toISOString() : null);
 const n = (label: string, where: SQL) => sql<number>`count(*) filter (where ${where})::int`.as(label);
+
+/* ── Preview (pg-mem) computation ──────────────────────────────────────────
+ * The in-memory preview database cannot execute the report's aggregate SQL —
+ * no ordered-set percentiles, no GROUPING SETS, no timestamptz arithmetic, no
+ * AT TIME ZONE. Rather than fork the numbers, the preview derives every figure
+ * from the full matching row set using the shared JS definitions in
+ * lib/metrics — the exact rules the production SQL mirrors — and returns them
+ * in the same shapes the route's downstream code expects. */
+type PreviewRow = {
+  id: number; ticketNumber: string; title: string; category: string; subcategory: string;
+  status: string; priority: string; studio: string | null; classFormat: string | null;
+  trainer: string | null; assignedStaffName: string | null; slaDueAt: Date | null;
+  resolvedAt: Date | null; createdAt: Date; resolutionRequired: boolean | null;
+  source: string | null; tags: string[] | null; isEscalated: boolean | null;
+  sentiment: string | null; kind: string | null; departmentName: string | null;
+};
+type PreviewMetrics = {
+  total: number; open: number; resolved: number; recorded: number; critical: number;
+  high: number; escalated: number; tracked: number; breachedOpen: number;
+  breachedResolved: number; avg: number | null; median: number | null; p90: number | null;
+  oldestOpen: Date | null; last7: number; prev7: number;
+};
+type PreviewGroup = { rolled: string; total: number; open: number; resolved: number; overdue: number; [dim: string]: string | number | null };
+type DayCount = { day: string; count: number };
+type ReportFetch = [PreviewRow[], [PreviewMetrics], PreviewGroup[], DayCount[], DayCount[]];
+
+/** Which row field each breakdown dimension reads (mirrors `dims` below). */
+const DIM_FIELD: Record<string, keyof PreviewRow> = {
+  status: "status", priority: "priority", studio: "studio", category: "category",
+  subcategory: "subcategory", department: "departmentName", source: "source",
+  sentiment: "sentiment", kind: "kind", owner: "assignedStaffName",
+};
+
+async function computePreviewReport(opts: {
+  where: SQL | undefined;
+  dimNames: string[];
+  now: Date;
+  tz: string;
+  trendFrom: Date;
+  page: number;
+  pageSize: number;
+  exportAll: boolean;
+}): Promise<ReportFetch> {
+  const { where, dimNames, now, tz, trendFrom, page, pageSize, exportAll } = opts;
+  const all = (await db.select({
+    id: tickets.id, ticketNumber: tickets.ticketNumber, title: tickets.title,
+    category: tickets.category, subcategory: tickets.subcategory, status: tickets.status,
+    priority: tickets.priority, studio: tickets.studio, classFormat: tickets.classFormat,
+    trainer: tickets.trainer, assignedStaffName: tickets.assignedStaffName,
+    slaDueAt: tickets.slaDueAt, resolvedAt: tickets.resolvedAt, createdAt: tickets.createdAt,
+    resolutionRequired: tickets.resolutionRequired, source: tickets.source, tags: tickets.tags,
+    isEscalated: tickets.isEscalated, sentiment: tickets.sentiment, kind: tickets.kind,
+    departmentName: tickets.departmentName,
+  }).from(tickets).where(where).orderBy(desc(tickets.createdAt))) as unknown as PreviewRow[];
+
+  const nowMs = now.getTime();
+  let open = 0, resolved = 0, recordOnly = 0, tracked = 0, breachedOpen = 0, breachedResolved = 0;
+  let critical = 0, high = 0, escalated = 0, last7 = 0, prev7 = 0;
+  const durations: number[] = [];
+  let oldestOpen: Date | null = null;
+  const breakdown: Record<string, Record<string, { total: number; open: number; resolved: number; overdue: number }>> =
+    Object.fromEntries(dimNames.map((k) => [k, {}]));
+  const createdBy = new Map<string, number>();
+  const resolvedBy = new Map<string, number>();
+  const weekMs = 7 * 864e5;
+
+  for (const t of all) {
+    if (isOpen(t)) open++;
+    if (isResolved(t)) resolved++;
+    if (isRecordOnly(t)) recordOnly++;
+    if (isSlaTracked(t)) {
+      tracked++;
+      if (t.resolvedAt && t.resolvedAt > (t.slaDueAt as Date)) breachedResolved++;
+      else if (isBreachedOpen(t, nowMs)) breachedOpen++;
+    }
+    if (t.priority === "critical") critical++;
+    if (t.priority === "high") high++;
+    if (t.isEscalated) escalated++;
+    const h = resolutionHours(t);
+    if (h !== null) durations.push(h);
+    if (isOpen(t) && (!oldestOpen || t.createdAt < oldestOpen)) oldestOpen = t.createdAt;
+    const age = nowMs - t.createdAt.getTime();
+    if (age < weekMs) last7++;
+    else if (age < 2 * weekMs) prev7++;
+    if (t.createdAt >= trendFrom) {
+      const k = dayKey(t.createdAt, tz);
+      createdBy.set(k, (createdBy.get(k) || 0) + 1);
+    }
+    if (t.resolvedAt && t.resolvedAt >= trendFrom) {
+      const k = dayKey(t.resolvedAt, tz);
+      resolvedBy.set(k, (resolvedBy.get(k) || 0) + 1);
+    }
+    // One bucket per (dimension, value), carrying the owner counts the
+    // leaderboard needs; `rolled` places the "0" at this dimension's index
+    // exactly as the production GROUPING SETS pass would.
+    for (const dim of dimNames) {
+      const key = String(t[DIM_FIELD[dim]] ?? "") || "Unassigned";
+      const b = (breakdown[dim][key] ??= { total: 0, open: 0, resolved: 0, overdue: 0 });
+      b.total++;
+      if (isOpen(t)) b.open++;
+      if (isResolved(t)) b.resolved++;
+      if (isBreachedOpen(t, nowMs)) b.overdue++;
+    }
+  }
+
+  const m: PreviewMetrics = {
+    total: all.length, open, resolved, recorded: recordOnly, critical, high, escalated, tracked,
+    breachedOpen, breachedResolved,
+    avg: durations.length ? durations.reduce((a, b) => a + b, 0) / durations.length : null,
+    median: median(durations),
+    p90: percentile(durations, 0.9),
+    oldestOpen, last7, prev7,
+  };
+
+  const groups: PreviewGroup[] = [];
+  for (const [dim, values] of Object.entries(breakdown)) {
+    const i = dimNames.indexOf(dim);
+    const rolled = dimNames.map((_, j) => (j === i ? "0" : "1")).join("");
+    for (const [key, b] of Object.entries(values)) {
+      const row: PreviewGroup = { rolled, total: b.total, open: b.open, resolved: b.resolved, overdue: b.overdue };
+      for (const d of dimNames) row[d] = d === dim ? key : null;
+      groups.push(row);
+    }
+  }
+
+  const pageRows = exportAll ? all : all.slice(page * pageSize, page * pageSize + pageSize);
+  return [
+    pageRows,
+    [m],
+    groups,
+    [...createdBy.entries()].map(([day, count]) => ({ day, count })),
+    [...resolvedBy.entries()].map(([day, count]) => ({ day, count })),
+  ];
+}
 
 export async function GET(req: NextRequest) {
   try {
@@ -81,7 +218,9 @@ export async function GET(req: NextRequest) {
     const dimNames = Object.keys(dims) as (keyof typeof dims)[];
     const dimCols = Object.values(dims);
 
-    const [pageRows, [m], groups, createdTrend, resolvedTrend] = await Promise.all([
+    const [pageRows, [m], groups, createdTrend, resolvedTrend]: ReportFetch = isPreviewDb
+      ? await computePreviewReport({ where, dimNames, now, tz, trendFrom, page, pageSize, exportAll })
+      : (await Promise.all([
       exportAll ? rowQuery : rowQuery.limit(pageSize).offset(page * pageSize),
       db.select({
         total: sql<number>`count(*)::int`,
@@ -117,7 +256,7 @@ export async function GET(req: NextRequest) {
         .where(and(where, sql`${tickets.createdAt} >= ${trendFrom}`)).groupBy(sql`1`),
       db.select({ day: resolvedDay, count: sql<number>`count(*)::int` }).from(tickets)
         .where(and(where, sql`${tickets.resolvedAt} >= ${trendFrom}`)).groupBy(sql`1`),
-    ]);
+      ]) as unknown as ReportFetch);
 
     const breakdown: Record<string, Record<string, number>> = Object.fromEntries(dimNames.map((k) => [k, {}]));
     const ownerAgg: Record<string, { name: string; total: number; open: number; resolved: number; overdue: number }> = {};

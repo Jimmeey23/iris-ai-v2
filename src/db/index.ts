@@ -150,3 +150,9 @@ if (!existingPool && databaseUrl && databaseUrl !== "memory") {
 }
 
 export const db = drizzle(pool, { schema });
+
+/** True when this process runs on the in-memory preview database (pg-mem).
+ *  Callers use it to swap SQL that pg-mem cannot parse or execute — ordered-set
+ *  percentiles, grouping sets, interval arithmetic, AT TIME ZONE — for the
+ *  equivalent JS in lib/metrics, so preview numbers match production rules. */
+export const isPreviewDb = !databaseUrl || databaseUrl === "memory";
