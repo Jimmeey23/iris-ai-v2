@@ -5,7 +5,7 @@ import {db,type Tx} from '@/db';
 import {tickets,staff,departments,assets,appSettings,ticketActivities,ticketComments,ticketLinks,ticketResolutions,ticketResolutionSteps,ticketFollowUps,ticketContactLog,ticketResolutionAttachments,deliveryLogs,ticketNotifications} from '@/db/schema';
 import {ticketInputSchema,publicTicketInputSchema,type TicketInput,type AdvancedDraft} from './ticket-contract';
 import {getConfig,type WorkspaceConfig} from './config';
-import {ApiError,canAccessTicket,currentUser,requireTicketAccess,type Identity} from './auth';
+import {ApiError,canAccessTicket,coveredStudios,currentUser,requireTicketAccess,type Identity} from './auth';
 import {CITY_OWNERS,cityOf,inferPriority,inferSeverity,studioIdsFor} from './routing';
 import {buildTemplate} from './templates';
 import {ticketNumberFor,slugify} from './utils';
@@ -162,13 +162,16 @@ const LIST_COLUMNS={id:tickets.id,ticketNumber:tickets.ticketNumber,title:ticket
  *  the tickets bearing their own name. An agent with no studio recorded still
  *  sees only their own. */
 export function ticketScope(user?:Identity):SQL|undefined{
-  return !user||user.role==='admin'?undefined:user.role==='agent'
+  if(!user||user.role==='admin')return undefined;
+  const studios=coveredStudios(user);
+  const inStudios=studios.length?inArray(tickets.studio,studios):undefined;
+  return user.role==='agent'
     ? or(
         user.staffId===null?undefined:eq(tickets.assignedStaffId,user.staffId),
         eq(tickets.createdByUserId,user.id),
-        user.studio?eq(tickets.studio,user.studio):undefined,
+        inStudios,
       )
-    : and(user.department?eq(tickets.departmentName,user.department):undefined,user.studio?eq(tickets.studio,user.studio):undefined,user.department||user.studio?undefined:sql`false`);
+    : and(user.department?eq(tickets.departmentName,user.department):undefined,inStudios,user.department||studios.length?undefined:sql`false`);
 }
 /**
  * Whether the app may send the automatic "assigned to you" email on ticket

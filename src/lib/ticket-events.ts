@@ -12,7 +12,7 @@
 import {eq} from 'drizzle-orm';
 import {randomUUID} from 'crypto';
 import type {Tx} from '@/db';
-import {integrations, deliveryLogs, tickets} from '@/db/schema';
+import {integrations, deliveryLogs, staff, tickets} from '@/db/schema';
 import {getConfig, type WorkspaceConfig} from './config';
 
 export const TICKET_EVENTS = [
@@ -73,14 +73,37 @@ function appOrigin(): string | null {
 
 export type TicketEventChanges = Record<string, {from: unknown; to: unknown}>;
 
+/** The assigned owner, resolved for the payload. Phone comes from the staff record;
+ *  name and email are denormalised onto the ticket and used when staff has no row. */
+export type TicketEventOwner = {
+  staffId: number | null;
+  name: string | null;
+  email: string | null;
+  phone: string | null;
+  department: string | null;
+};
+
+export function ownerOf(ticket: TicketRow, phone: string | null = null): TicketEventOwner | null {
+  if (!ticket.assignedStaffId && !ticket.assignedStaffName) return null;
+  return {
+    staffId: ticket.assignedStaffId,
+    name: ticket.assignedStaffName,
+    email: ticket.assignedStaffEmail,
+    phone,
+    department: ticket.departmentName,
+  };
+}
+
 export function buildTicketEvent(input: {
   type: TicketEventType;
   ticket: TicketRow;
   cfg: WorkspaceConfig;
   actor?: {id?: number | null; name: string};
   changes?: TicketEventChanges;
+  owner?: TicketEventOwner | null;
 }) {
   const origin = appOrigin();
+  const url = origin ? `${origin}/tickets/${input.ticket.id}` : null;
   return {
     event: input.type,
     eventId: randomUUID(),
@@ -88,8 +111,11 @@ export function buildTicketEvent(input: {
     workspace: input.cfg.workspaceName,
     ...(input.actor ? {actor: {id: input.actor.id ?? null, name: input.actor.name}} : {}),
     ...(input.changes && Object.keys(input.changes).length ? {changes: input.changes} : {}),
-    ticket: ticketSnapshot(input.ticket),
-    ...(origin ? {links: {ticket: `${origin}/tickets/${input.ticket.id}`}} : {}),
+    ...(input.owner ? {owner: input.owner} : {}),
+    // The link is repeated inside `ticket` so a workflow that only forwards the
+    // ticket object still carries somewhere to click.
+    ticket: {...ticketSnapshot(input.ticket), ...(url ? {url} : {})},
+    ...(url ? {links: {ticket: url}} : {}),
   };
 }
 
@@ -121,13 +147,19 @@ export async function emitTicketEvent(tx: Tx, input: {
   if (!eventEnabled(cfg, input.type)) return false;
   const [connection] = await tx.select({enabled: integrations.enabled}).from(integrations).where(eq(integrations.id, 'n8n'));
   if (!connection?.enabled) return false;
+  // One small read for the owner's phone, which the ticket row does not carry.
+  let phone: string | null = null;
+  if (input.ticket.assignedStaffId !== null) {
+    const [row] = await tx.select({phone: staff.phone}).from(staff).where(eq(staff.id, input.ticket.assignedStaffId));
+    phone = row?.phone ?? null;
+  }
   await tx.insert(deliveryLogs).values({
     integrationId: 'n8n',
     action: 'webhook',
     // Must be set: releaseStuckDeliveries() only requeues interrupted rows that
     // carry one, and treats a null as an interactive write never to be replayed.
     nextAttemptAt: new Date(),
-    payload: buildTicketEvent({type: input.type, ticket: input.ticket, cfg, actor: input.actor, changes: input.changes}),
+    payload: buildTicketEvent({type: input.type, ticket: input.ticket, cfg, actor: input.actor, changes: input.changes, owner: ownerOf(input.ticket, phone)}),
   });
   return true;
 }

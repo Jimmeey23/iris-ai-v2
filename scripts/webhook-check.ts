@@ -13,7 +13,7 @@ process.env.DATABASE_URL ||= 'postgres://check:check@127.0.0.1:5432/check';
 process.env.NEXT_PUBLIC_APP_URL ||= 'https://iris.example';
 
 import {DEFAULT_CONFIG, type WorkspaceConfig} from '../src/lib/settings-contract';
-import {buildTicketEvent, emitTicketEvent, eventEnabled, TICKET_EVENTS, ticketSnapshot} from '../src/lib/ticket-events';
+import {buildTicketEvent, emitTicketEvent, eventEnabled, ownerOf, TICKET_EVENTS, ticketSnapshot} from '../src/lib/ticket-events';
 import type {Tx} from '../src/db';
 
 let pass = 0, fail = 0;
@@ -72,6 +72,23 @@ check('carries the actor', JSON.stringify((created as {actor?: unknown}).actor) 
 check('builds an absolute ticket link', (created as {links?: {ticket: string}}).links?.ticket === 'https://iris.example/tickets/1284', (created as {links?: unknown}).links);
 check('two events get different ids', created.eventId !== buildTicketEvent({type: 'ticket.created', ticket: ticket(), cfg: allOn}).eventId);
 check('actor omitted for system events', !('actor' in buildTicketEvent({type: 'ticket.overdue', ticket: ticket(), cfg: allOn})));
+
+section('Owner and link');
+const withOwner = buildTicketEvent({type: 'ticket.created', ticket: ticket(), cfg: allOn, owner: ownerOf(ticket(), '+919137261245')});
+const owner = (withOwner as {owner?: Record<string, unknown>}).owner ?? {};
+check('carries the owner name', owner.name === 'Shifa Ali', owner);
+check('carries the owner email', owner.email === 's@example.com', owner);
+check('carries the owner phone', owner.phone === '+919137261245', owner);
+check('carries the owner staff id and department', owner.staffId === 3 && owner.department === 'Operations', owner);
+check('an unassigned ticket has no owner block',
+  ownerOf(ticket({assignedStaffId: null, assignedStaffName: null})) === null);
+check('an owner with no phone on file reports null, not missing',
+  ownerOf(ticket())?.phone === null, ownerOf(ticket())?.phone);
+check('the ticket object also carries the link',
+  (withOwner.ticket as {url?: string}).url === 'https://iris.example/tickets/1284',
+  (withOwner.ticket as {url?: string}).url);
+check('links.ticket still present for existing workflows',
+  (withOwner as {links?: {ticket: string}}).links?.ticket === 'https://iris.example/tickets/1284');
 
 section('Ticket snapshot');
 const snap = created.ticket as Record<string, unknown>;

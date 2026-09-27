@@ -14,8 +14,12 @@ export type Identity = {
   role: "agent" | "manager" | "admin";
   staffId: number | null;
   department: string | null;
+  /** The primary studio, for display and for defaulting a new ticket. */
   studio: string | null;
+  /** Every studio this person covers. Access is judged against this, not `studio`. */
+  studios: string[];
   avatarUrl: string | null;
+  mustChangePassword: boolean;
 };
 
 export class ApiError extends Error {
@@ -35,7 +39,13 @@ const digest = (value: string) =>
  *  with a generic message, so driver errors, SQL and stack detail never leak. */
 export function errorResponse(error: unknown) {
   if (error instanceof ApiError)
-    return Response.json({ error: error.message }, { status: error.status });
+    return Response.json(
+      {
+        error: error.message,
+        ...("code" in error && error.code ? { code: error.code } : {}),
+      },
+      { status: error.status },
+    );
   if (error && typeof error === "object" && "issues" in error)
     return Response.json(
       { error: validationMessage(error) },
@@ -67,7 +77,9 @@ const PROFILE = {
   staffId: appUsers.staffId,
   department: appUsers.department,
   studio: appUsers.studio,
+  studios: appUsers.studios,
   avatarUrl: appUsers.avatarUrl,
+  mustChangePassword: appUsers.mustChangePassword,
   active: appUsers.active,
   supabaseUserId: appUsers.supabaseUserId,
 };
@@ -134,7 +146,9 @@ type ProfileRow = {
   staffId: number | null;
   department: string | null;
   studio: string | null;
+  studios: string[];
   avatarUrl: string | null;
+  mustChangePassword: boolean;
   active: boolean;
   supabaseUserId: string | null;
 };
@@ -278,11 +292,34 @@ export async function currentUser(): Promise<Identity | null> {
  *  message the person can act on. Signed out entirely: 401. */
 async function requireSession(signedOutMessage: string): Promise<Identity> {
   const s = await session();
-  if (s.identity) return s.identity;
+  if (s.identity) {
+    // A provisioned account is authenticated but may do nothing except set its own
+    // password. Every guard routes through here, so there is one place to enforce it.
+    if (s.identity.mustChangePassword) throw new PasswordChangeRequiredError();
+    return s.identity;
+  }
   if (s.reason === "not_authorised")
     throw new ApiError(NOT_AUTHORISED_MESSAGE, 403);
   if (s.reason === "inactive") throw new ApiError(INACTIVE_MESSAGE, 403);
   throw new ApiError(signedOutMessage, 401);
+}
+
+/** Raised when a signed-in account still holds its provisioned password. The client
+ *  reads `code` to send the person to the change-password screen rather than the
+ *  sign-in screen, which they have already completed. */
+export const PASSWORD_CHANGE_REQUIRED = "password_change_required";
+export class PasswordChangeRequiredError extends ApiError {
+  readonly code = PASSWORD_CHANGE_REQUIRED;
+  constructor() {
+    super("Set a new password before continuing.", 403);
+  }
+}
+
+/** The signed-in identity, bypassing the password-change gate. Only the
+ *  change-password path may use this — everything else goes through requireSession. */
+export async function sessionAwaitingPasswordChange(): Promise<Identity | null> {
+  const s = await session();
+  return s.identity;
 }
 
 export async function configuredUsers() {
@@ -338,6 +375,16 @@ export async function requireWorkspace(): Promise<Identity> {
   return requireSession("Sign in to your workspace account to view this.");
 }
 
+/** Every studio a person covers: the explicit list, falling back to the single
+ *  primary studio for a profile provisioned before multi-studio cover existed. */
+export function coveredStudios(user: Pick<Identity, "studio" | "studios">): string[] {
+  const list = (user.studios ?? []).filter(
+    (s): s is string => typeof s === "string" && s.trim() !== "",
+  );
+  if (list.length) return list;
+  return user.studio ? [user.studio] : [];
+}
+
 export function canAccessTicket(
   user: Identity,
   ticket: {
@@ -355,15 +402,17 @@ export function canAccessTicket(
   // their own tickets. Keep this in step with `ticketScope` in lib/tickets.ts —
   // the two answer the same question, one row at a time and one query at a
   // time, and they must never disagree.
+  const studios = coveredStudios(user);
   if (user.role === "agent")
     return (
       (user.staffId !== null && ticket.assignedStaffId === user.staffId) ||
       ticket.createdByUserId === user.id ||
-      (!!user.studio && ticket.studio === user.studio)
+      (!!ticket.studio && studios.includes(ticket.studio))
     );
   const checks: boolean[] = [];
   if (user.department) checks.push(ticket.departmentName === user.department);
-  if (user.studio) checks.push(ticket.studio === user.studio);
+  if (studios.length)
+    checks.push(!!ticket.studio && studios.includes(ticket.studio));
   return checks.length > 0 && checks.every(Boolean);
 }
 

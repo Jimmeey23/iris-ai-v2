@@ -12,6 +12,7 @@ import {
   errorResponse,
   sameOrigin,
   resolveProfile,
+  sessionAwaitingPasswordChange,
   canSelfProvision,
   allowedDomainsLabel,
   INACTIVE_MESSAGE,
@@ -27,9 +28,10 @@ import { audit } from "@/lib/config";
 export const dynamic = "force-dynamic";
 
 const input = z.object({
-  action: z.enum(["login", "signup", "setup", "invite", "logout", "update"]),
+  action: z.enum(["login", "signup", "setup", "invite", "logout", "update", "change-password"]),
   email: z.string().email().optional(),
   password: z.string().min(12).max(200).optional(),
+  newPassword: z.string().min(12).max(200).optional(),
   name: z.string().min(2).max(80).optional(),
   staffId: z.number().int().positive().nullable().optional(),
   role: z.enum(["admin", "manager", "agent"]).optional(),
@@ -100,6 +102,27 @@ export async function POST(req: Request) {
 
     if (b.action === "logout") {
       await logout();
+      return Response.json({ ok: true });
+    }
+
+    // Self-service password change. Deliberately reads the session through
+    // sessionAwaitingPasswordChange, because an account still holding its
+    // provisioned password is blocked from every other guard — this is the one
+    // thing it is allowed to do.
+    if (b.action === "change-password") {
+      const me = await sessionAwaitingPasswordChange();
+      if (!me) throw new ApiError("Sign in to change your password.", 401);
+      if (!b.newPassword)
+        throw new ApiError("A new password of at least 12 characters is required.");
+      if (b.password && b.password === b.newPassword)
+        throw new ApiError("Choose a password you have not used before.");
+      const { error } = await supabase.auth.updateUser({ password: b.newPassword });
+      if (error) authError(error.message);
+      await db
+        .update(appUsers)
+        .set({ mustChangePassword: false })
+        .where(eq(appUsers.id, me.id));
+      await audit({ id: me.id, name: me.name }, "account.password_changed", "user:" + me.id);
       return Response.json({ ok: true });
     }
 
