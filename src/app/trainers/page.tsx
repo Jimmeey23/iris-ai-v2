@@ -95,19 +95,20 @@ export default function TrainersPage(){
         <Badge tone="blue"><GraduationCap size={12}/>{trainers.length} trainers tracked</Badge>
       </div>}>
       {/* The corridor: every trainer portrait on file rides the rails behind the
-          headline, so the page leads with the people it reports on. */}
+          headline. The copy sits in its own opaque panel, so the stream is a
+          backdrop to read against — never something the headline fights. */}
       <ImageStreamHero
         images={Object.values(TRAINER_IMAGES).map(src=>({src,alt:'Trainer portrait'}))}
         cards={9}
         speed={26}
-        axis={58}
+        axis={52}
         className="tr-stream-hero"
       >
         <div className="tr-stream-copy">
           <span className="eyebrow">TRAINING &amp; QUALITY</span>
           <h2>Every assessment and every piece of feedback, in one scorecard.</h2>
           <p>Weighted evaluation scores, member compliments and logged concerns — combined per trainer so coaching conversations start from evidence.</p>
-          <div className="flex-row wrap" style={{marginTop:12,gap:6}}>
+          <div className="tr-stream-facts">
             <button className="badge" onClick={()=>setListening(v=>!v)} title={listening?`Checking every ${POLL_MS/1000} seconds`:'Live updates paused'}>
               <Radio size={11} style={{color:listening?'var(--green)':'var(--muted)'}}/>{listening?'Listening for new submissions':'Live updates paused'}
             </button>
@@ -125,17 +126,21 @@ export default function TrainersPage(){
           {filtered.map(t=>{
             return (
             <button key={t.name} className="trainer-profile-card" onClick={()=>setActiveName(t.name)}>
-              <TrainerImg name={t.name} className="trainer-photo-card" fallback={
-                <div style={{width:'100%',aspectRatio:'1/1',display:'grid',placeItems:'center',background:'linear-gradient(135deg,var(--surface-2),var(--accent-soft))'}}>
-                  <Avatar name={t.name} large tone={t.bandTone==='green'?'green':t.bandTone==='amber'?'amber':''}/>
-                </div>
-              }/>
+              {/* Compact portrait row: a small framed headshot beside the name,
+                  so the card leads with identity and data, not a photo wall. */}
               <div className="trainer-profile-meta">
-                <div className="between">
-                  <h3>{t.name}</h3>
+                <div className="tpc-head">
+                  <span className="tpc-photo">
+                    <TrainerImg name={t.name} className="tpc-photo-img" fallback={
+                      <Avatar name={t.name} large tone={t.bandTone==='green'?'green':t.bandTone==='amber'?'amber':''}/>
+                    }/>
+                  </span>
+                  <span className="tpc-id">
+                    <h3>{t.name}</h3>
+                    <p>{t.band||'Awaiting a formal assessment'}</p>
+                  </span>
                   {t.avgScore!==null?<Badge tone={t.bandTone}>{t.avgScore}%</Badge>:<Badge>No assessments</Badge>}
                 </div>
-                <p>{t.band||'Awaiting a formal assessment'}</p>
                 <div className="flex-row wrap" style={{marginTop:12,gap:6}}>
                   <span className="tag"><Star size={10}/>{t.assessmentCount} assessments</span>
                   <span className="tag"><Heart size={10}/>{t.complimentCount} compliments</span>

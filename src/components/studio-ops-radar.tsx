@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback, useRef, useSyncExternalStore, type CSSProperties } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef, useSyncExternalStore } from 'react';
 import Link from 'next/link';
 import {
   Radio,
@@ -10,7 +10,6 @@ import {
   AlertTriangle,
   CheckCircle2,
   Building2,
-  Users,
   Wind,
   Volume2,
   Lightbulb,
@@ -21,7 +20,6 @@ import {
   Activity,
   UserCheck,
   Eye,
-  MapPin,
   Box,
   LayoutGrid,
 } from 'lucide-react';
@@ -430,78 +428,11 @@ export function StudioOpsRadar({ initialStudio = 'kwality' }: { initialStudio?: 
                 even when every room happens to be quiet. */}
             <span className="r3d-sweep" aria-hidden />
             <span className="r3d-gridlines" aria-hidden />
-            <div className="r3d-board">
-              {activeStudio.rooms.map((room) => {
-                const isSelected = selectedRoom?.id === room.id;
-                const hasCritical = room.status === 'critical';
-                const hasWarning = room.status === 'warning';
-                const statusText = hasCritical ? 'needs attention' : hasWarning ? `${room.openTicketsCount} open` : 'no open tickets';
-                // Open work lifts the room: more tickets, taller slab. Capped so a
-                // very busy room never dwarfs its neighbours off the stage.
-                const lift = 10 + Math.min(room.openTicketsCount * 5, 26);
-
-                return (
-                  <button
-                    type="button"
-                    key={room.id}
-                    className={`r3d-room ${room.category} ${room.status} ${isSelected ? 'selected' : ''}`}
-                    style={{ '--lift': `${lift}px` } as CSSProperties}
-                    aria-pressed={isSelected}
-                    aria-label={`${room.name}, ${statusText}${isSelected ? ', selected' : ''}`}
-                    onClick={() => setSelectedRoomId(room.id)}
-                  >
-                    {/* Extruded walls — the slab the room card sits on. */}
-                    <span className="r3d-wall r3d-wall-s" aria-hidden />
-                    <span className="r3d-wall r3d-wall-e" aria-hidden />
-                    <span className="r3d-glow" aria-hidden />
-
-                    <div className="r3d-top">
-                      {isSelected && <span className="room-selected-flag"><MapPin size={10}/> Selected</span>}
-                      {hasCritical && <span className="room-pulse-ring" />}
-
-                      <div className="room-card-head">
-                        <div className="room-title-wrap">
-                          <strong>{room.name}</strong>
-                          <span className={`room-category-badge ${room.category}`}>{room.category}</span>
-                        </div>
-                        {hasCritical ? (
-                          <span className="room-alert-badge critical"><Flame size={11} />Attention</span>
-                        ) : hasWarning ? (
-                          <span className="room-alert-badge warning"><AlertTriangle size={11} />Open</span>
-                        ) : (
-                          <span className="room-alert-badge optimal"><CheckCircle2 size={11} />Clear</span>
-                        )}
-                      </div>
-
-                      {/* Planned capacity and open equipment reports — counts of tickets, not sensor readings. */}
-                      <div className="environmental-sensors-row">
-                        <div className="sensor-item" title={room.paxCapacity ? `Planned capacity: ${room.paxCapacity}` : 'No planned capacity on the room plan'}>
-                          <Users size={11} />
-                          <span>{room.paxCapacity ?? '—'}</span>
-                        </div>
-                        {EQUIPMENT_LABELS.map(({ key, label, short, icon: Icon }) => {
-                          const n = room.openEquipmentReports[key];
-                          return (
-                            <div key={key} className={`sensor-item ${n ? 'alert' : ''}`} title={`${label}: ${reportsText(n)}`}>
-                              <Icon size={11} />
-                              <span>{n ? `${short} ${n}` : short}</span>
-                            </div>
-                          );
-                        })}
-                      </div>
-
-                      {room.openTicketsCount > 0 && (
-                        <div className={`room-sla-countdown-footer ${hasCritical ? 'critical' : 'warning'}`}>
-                          <Clock size={11} />
-                          <span>{room.slaLabel}</span>
-                          <span className="tickets-badge">{room.openTicketsCount} open</span>
-                        </div>
-                      )}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
+            <FloorPlanSvg
+              rooms={activeStudio.rooms}
+              selectedRoomId={selectedRoom?.id ?? null}
+              onSelect={(roomId) => setSelectedRoomId(roomId)}
+            />
             <span className="r3d-compass" aria-hidden>N · Mumbai floor plate · live</span>
           </div>
         </div>
@@ -633,6 +564,201 @@ export function StudioOpsRadar({ initialStudio = 'kwality' }: { initialStudio?: 
           )}
         </aside>
       </div>
+    </div>
+  );
+}
+
+/* ── Architectural floor plan ─────────────────────────────────────────────
+ * The room plan renders as a true blueprint: one building outline, interior
+ * walls, a central circulation spine, and every room drawn to its place on
+ * the plate — coloured by its live ticket status. Workout studios take the
+ * deep bays along the top; wellness, amenity and admin rooms line the bottom.
+ * Each room is a keyboard-reachable button that drives the inspector drawer.
+ * ───────────────────────────────────────────────────────────────────────── */
+
+type PlannedRoom = RoomData & {
+  x: number; y: number; w: number; h: number;
+  /** Which edge meets the corridor — where the door is drawn. */
+  doorEdge: 'top' | 'bottom' | null;
+};
+
+const FP = {
+  W: 1000,
+  H: 660,
+  pad: 16,
+  wall: 7,
+  corridor: 58,
+};
+
+function planLayout(rooms: RoomData[]): PlannedRoom[] {
+  const innerW = FP.W - FP.pad * 2;
+  const corridorY = (FP.H - FP.corridor) / 2;
+  const topH = corridorY - FP.pad - FP.wall;
+  const botY = corridorY + FP.corridor + FP.wall;
+  const botH = FP.H - FP.pad - botY;
+
+  const workout = rooms.filter(r => r.category === 'workout');
+  const others = rooms.filter(r => r.category !== 'workout');
+  const top = workout.length ? workout : others.slice(0, Math.ceil(others.length / 2));
+  const bottom = workout.length ? others : others.slice(Math.ceil(others.length / 2));
+
+  /** Lay a list out in one or two rows inside the given band. Rooms in the
+   *  row nearest the corridor get a door onto it. */
+  const place = (list: RoomData[], x: number, y: number, w: number, h: number, nearCorridor: 'bottom' | 'top'): PlannedRoom[] => {
+    if (!list.length) return [];
+    const rows = list.length > 4 ? 2 : 1;
+    const perRow = Math.ceil(list.length / rows);
+    const rowH = (h - FP.wall * (rows - 1)) / rows;
+    const out: PlannedRoom[] = [];
+    for (let r = 0; r < rows; r++) {
+      const rowRooms = list.slice(r * perRow, (r + 1) * perRow);
+      const rw = (w - FP.wall * (rowRooms.length - 1)) / rowRooms.length;
+      const adjacent = rows === 1 || r === rows - 1;
+      rowRooms.forEach((room, i) => {
+        out.push({
+          ...room,
+          x: x + i * (rw + FP.wall),
+          y: y + r * (rowH + FP.wall),
+          w: rw,
+          h: rowH,
+          doorEdge: adjacent ? nearCorridor : null,
+        });
+      });
+    }
+    return out;
+  };
+
+  return [
+    ...place(top, FP.pad, FP.pad, innerW, topH, 'bottom'),
+    ...place(bottom, FP.pad, botY, innerW, botH, 'top'),
+  ];
+}
+
+function FloorPlanSvg({
+  rooms,
+  selectedRoomId,
+  onSelect,
+}: {
+  rooms: RoomData[];
+  selectedRoomId: string | null;
+  onSelect: (roomId: string) => void;
+}) {
+  const planned = useMemo(() => planLayout(rooms), [rooms]);
+  const corridorY = (FP.H - FP.corridor) / 2;
+  const innerW = FP.W - FP.pad * 2;
+
+  if (!planned.length) {
+    return (
+      <div className="fp-empty">No rooms are on the plan for this studio yet.</div>
+    );
+  }
+
+  return (
+    <div className="fp-wrap">
+      <svg
+        className="fp-svg"
+        viewBox={`0 0 ${FP.W} ${FP.H}`}
+        role="group"
+        aria-label="Studio floor plan, coloured by open tickets"
+      >
+        <defs>
+          <pattern id="fp-hatch" width="7" height="7" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
+            <line x1="0" y1="0" x2="0" y2="7" className="fp-hatch-line" />
+          </pattern>
+        </defs>
+
+        {/* Building outline — the plate the rooms sit on. */}
+        <rect x={4} y={4} width={FP.W - 8} height={FP.H - 8} rx={14} className="fp-plate" />
+
+        {/* Central circulation spine. */}
+        <rect x={FP.pad} y={corridorY} width={innerW} height={FP.corridor} className="fp-corridor" />
+        <line x1={FP.pad} y1={corridorY + FP.corridor / 2} x2={FP.W - FP.pad} y2={corridorY + FP.corridor / 2} className="fp-corridor-dash" />
+        <text x={FP.W / 2} y={corridorY + FP.corridor / 2 - 7} textAnchor="middle" className="fp-corridor-label">
+          CENTRAL CIRCULATION
+        </text>
+
+        {planned.map(room => {
+          const isSelected = room.id === selectedRoomId;
+          const hasCritical = room.status === 'critical';
+          const hasWarning = room.status === 'warning';
+          const statusText = hasCritical
+            ? 'needs attention'
+            : hasWarning ? `${room.openTicketsCount} open` : 'no open tickets';
+          const cx = room.x + room.w / 2;
+          // Labels sized to the bay: a narrow room gets smaller type, not overflow.
+          const nameSize = Math.max(11, Math.min(19, room.w / 8.5));
+          const maxChars = Math.max(6, Math.floor(room.w / (nameSize * 0.58)));
+          const name = room.name.length > maxChars ? room.name.slice(0, maxChars - 1).trimEnd() + '…' : room.name;
+          const sub = `${room.category} · pax ${room.paxCapacity ?? '—'}`;
+
+          // Door: an opening in the corridor-facing wall with a swing arc.
+          const doorW = 34;
+          const dx = cx - doorW / 2;
+          const edgeY = room.doorEdge === 'bottom' ? room.y + room.h : room.y;
+          const door = room.doorEdge ? (
+            <g className="fp-door">
+              <line x1={dx} y1={edgeY} x2={dx + doorW} y2={edgeY} className="fp-door-cut" />
+              {room.doorEdge === 'bottom' ? (
+                <path d={`M ${dx} ${edgeY} L ${dx} ${edgeY - 26} A 26 26 0 0 1 ${dx + 26} ${edgeY}`} className="fp-door-arc" />
+              ) : (
+                <path d={`M ${dx} ${edgeY} L ${dx} ${edgeY + 26} A 26 26 0 0 0 ${dx + 26} ${edgeY}`} className="fp-door-arc" />
+              )}
+            </g>
+          ) : null;
+
+          return (
+            <g
+              key={room.id}
+              className={`fp-room ${room.status} ${room.category}${isSelected ? ' selected' : ''}`}
+              role="button"
+              tabIndex={0}
+              aria-pressed={isSelected}
+              aria-label={`${room.name}, ${statusText}${isSelected ? ', selected' : ''}`}
+              onClick={() => onSelect(room.id)}
+              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(room.id); } }}
+            >
+              <rect x={room.x} y={room.y} width={room.w} height={room.h} rx={8} className="fp-floor" />
+              {room.category === 'workout' && (
+                <rect x={room.x} y={room.y} width={room.w} height={room.h} rx={8} className="fp-floor-hatch" fill="url(#fp-hatch)" />
+              )}
+              {door}
+              {isSelected && (
+                <rect x={room.x + 2.5} y={room.y + 2.5} width={room.w - 5} height={room.h - 5} rx={6} className="fp-select-ring" />
+              )}
+
+              <text x={cx} y={room.y + room.h / 2 - 8} textAnchor="middle" className="fp-name" style={{ fontSize: nameSize }}>
+                {name}
+              </text>
+              <text x={cx} y={room.y + room.h / 2 + 10} textAnchor="middle" className="fp-sub">
+                {sub}
+              </text>
+
+              {/* Live status: a lamp with the open count, or a quiet all-clear. */}
+              <g className="fp-lamp" transform={`translate(${room.x + room.w - 20}, ${room.y + 14})`}>
+                <circle r={11} className={`fp-lamp-dot ${room.status}`} />
+                {room.openTicketsCount > 0 && (
+                  <text y={3.5} textAnchor="middle" className="fp-lamp-count">{room.openTicketsCount}</text>
+                )}
+                {hasCritical && <circle r={17} className="fp-lamp-pulse" />}
+              </g>
+            </g>
+          );
+        })}
+
+        {/* Compass rose and scale bar — the furniture of a real drawing. */}
+        <g className="fp-rose" transform={`translate(${FP.W - 46}, 44)`}>
+          <circle r={17} className="fp-rose-ring" />
+          <path d="M 0 -13 L 4.5 4 L 0 0.5 L -4.5 4 Z" className="fp-rose-needle" />
+          <text y={-21} textAnchor="middle" className="fp-rose-n">N</text>
+        </g>
+        <g className="fp-scale" transform={`translate(${FP.W - 118}, ${FP.H - 22})`}>
+          <line x1={0} y1={0} x2={80} y2={0} className="fp-scale-bar" />
+          <line x1={0} y1={-4} x2={0} y2={4} className="fp-scale-bar" />
+          <line x1={40} y1={-3} x2={40} y2={3} className="fp-scale-bar" />
+          <line x1={80} y1={-4} x2={80} y2={4} className="fp-scale-bar" />
+          <text x={40} y={-7} textAnchor="middle" className="fp-scale-label">10 m</text>
+        </g>
+      </svg>
     </div>
   );
 }
