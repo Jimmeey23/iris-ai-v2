@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback, useRef, useSyncExternalStore } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef, useSyncExternalStore, type CSSProperties } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import {
   Radio,
   Flame,
@@ -10,7 +11,6 @@ import {
   AlertTriangle,
   CheckCircle2,
   Building2,
-  Users,
   Wind,
   Volume2,
   Lightbulb,
@@ -102,6 +102,53 @@ interface RadarApiResponse {
 }
 
 const POLL_MS = 12000;
+
+type FloorplanSpot = { x: number; y: number; w: number; h: number };
+type FloorplanConfig = { src: string; width: number; height: number; rooms: Record<string, FloorplanSpot> };
+
+/** Percent-based hotspots sit on the rendered architectural plan, so live ticket
+ * state stays interactive without painting over the reference-quality floorplan. */
+const FLOORPLANS: Record<string, FloorplanConfig> = {
+  kwality: {
+    src: '/radar/kwality-floorplan.png', width: 1774, height: 887,
+    rooms: {
+      'Studio 1': {x: 2, y: 8, w: 42, h: 35}, 'Studio 2': {x: 2, y: 58, w: 30, h: 31},
+      'Strength Studio': {x: 60, y: 10, w: 14, h: 49}, 'PowerCycle Studio': {x: 78, y: 15, w: 20, h: 47},
+      'His Space': {x: 49, y: 20, w: 13, h: 31}, 'Her Space': {x: 27, y: 2, w: 14, h: 18},
+      'GUEST WASHROOM': {x: 31, y: 20, w: 11, h: 14}, 'Brain Cell': {x: 21, y: 59, w: 13, h: 24},
+      Pantry: {x: 31, y: 39, w: 12, h: 13}, 'Lobby / Reception': {x: 2, y: 43, w: 30, h: 17},
+    },
+  },
+  supreme: {
+    src: '/radar/supreme-floorplan.png', width: 1969, height: 799,
+    rooms: {
+      'Studio 1': {x: 51, y: 7, w: 24, h: 39}, 'Studio 2': {x: 10, y: 8, w: 22, h: 34},
+      'PowerCycle Studio': {x: 34, y: 7, w: 15, h: 35}, 'Lobby / Reception': {x: 8, y: 42, w: 68, h: 34},
+      'Lockers & Changing': {x: 84, y: 10, w: 12, h: 39}, Washrooms: {x: 84, y: 57, w: 14, h: 30},
+    },
+  },
+  kenkere: {
+    src: '/radar/kenkere-floorplan.png', width: 1672, height: 941,
+    rooms: {
+      'Studio 1': {x: 4, y: 7, w: 39, h: 45}, 'Studio 2': {x: 50, y: 7, w: 39, h: 45},
+      'Lobby / Reception': {x: 8, y: 59, w: 53, h: 27}, 'Washroom & Changing': {x: 68, y: 57, w: 23, h: 30},
+    },
+  },
+  courtside: {
+    src: '/radar/courtside-floorplan.png', width: 1672, height: 941,
+    rooms: {
+      'Main Studio Floor': {x: 4, y: 7, w: 58, h: 47}, 'Reception / Lobby': {x: 6, y: 61, w: 33, h: 24},
+      'Member Lounge': {x: 48, y: 60, w: 43, h: 26},
+    },
+  },
+  copper: {
+    src: '/radar/copper-floorplan.png', width: 1672, height: 941,
+    rooms: {
+      'Main Studio Floor': {x: 4, y: 7, w: 61, h: 48}, Reception: {x: 7, y: 61, w: 38, h: 25},
+      'Changing Area': {x: 68, y: 55, w: 24, h: 32},
+    },
+  },
+};
 
 // Humanise an SLA delta given in minutes. Long-overdue tickets are common in
 // seeded data, so anything past a day collapses to whole days — "-1272130m" is
@@ -284,6 +331,7 @@ export function StudioOpsRadar({ initialStudio = 'kwality' }: { initialStudio?: 
 
   const activeStudio = data.activeStudio;
   const globalRadar = data.globalRadar;
+  const floorplan = FLOORPLANS[activeStudio.id] || FLOORPLANS.kwality;
 
   return (
     <div className="studio-ops-radar-container">
@@ -412,64 +460,44 @@ export function StudioOpsRadar({ initialStudio = 'kwality' }: { initialStudio?: 
             </div>
           </div>
 
-          <div className="floorplan-stage">
-          <div className="rooms-schematic-grid">
+          <div className="floorplan-stage floorplan-architectural-stage">
+          <div className="floorplan-model" style={{aspectRatio: `${floorplan.width} / ${floorplan.height}`}}>
+            <Image
+              src={floorplan.src}
+              alt={`Bird’s-eye architectural floor plan of ${activeStudio.name}`}
+              fill
+              priority
+              sizes="(max-width: 1150px) 100vw, 70vw"
+              className="floorplan-render"
+            />
             {activeStudio.rooms.map((room) => {
               const isSelected = selectedRoom?.id === room.id;
               const hasCritical = room.status === 'critical';
               const hasWarning = room.status === 'warning';
               const statusText = hasCritical ? 'needs attention' : hasWarning ? `${room.openTicketsCount} open` : 'no open tickets';
+              const spot = floorplan.rooms[room.name];
+              if (!spot) return null;
+              const spotStyle = {'--room-x': `${spot.x}%`, '--room-y': `${spot.y}%`, '--room-w': `${spot.w}%`, '--room-h': `${spot.h}%`} as CSSProperties;
 
               return (
                 <button
                   type="button"
                   key={room.id}
-                  className={`room-radar-card ${room.category} ${room.status} ${isSelected ? 'selected' : ''}`}
+                  className={`floorplan-room-hotspot ${room.category} ${room.status} ${isSelected ? 'selected' : ''}`}
+                  style={spotStyle}
                   aria-pressed={isSelected}
                   aria-label={`${room.name}, ${statusText}${isSelected ? ', selected' : ''}`}
                   onClick={() => setSelectedRoomId(room.id)}
                 >
-                  {isSelected && <span className="room-selected-flag"><MapPin size={10}/> Selected</span>}
-                  {hasCritical && <span className="room-pulse-ring" />}
-
-                  <div className="room-card-head">
-                    <div className="room-title-wrap">
-                      <strong>{room.name}</strong>
-                      <span className={`room-category-badge ${room.category}`}>{room.category}</span>
-                    </div>
-                    {hasCritical ? (
-                      <span className="room-alert-badge critical"><Flame size={11} />Attention</span>
-                    ) : hasWarning ? (
-                      <span className="room-alert-badge warning"><AlertTriangle size={11} />Open</span>
-                    ) : (
-                      <span className="room-alert-badge optimal"><CheckCircle2 size={11} />Clear</span>
-                    )}
-                  </div>
-
-                  {/* Planned capacity and open equipment reports — counts of tickets, not sensor readings. */}
-                  <div className="environmental-sensors-row">
-                    <div className="sensor-item" title={room.paxCapacity ? `Planned capacity: ${room.paxCapacity}` : 'No planned capacity on the room plan'}>
-                      <Users size={11} />
-                      <span>{room.paxCapacity ?? '—'}</span>
-                    </div>
-                    {EQUIPMENT_LABELS.map(({ key, label, short, icon: Icon }) => {
-                      const n = room.openEquipmentReports[key];
-                      return (
-                        <div key={key} className={`sensor-item ${n ? 'alert' : ''}`} title={`${label}: ${reportsText(n)}`}>
-                          <Icon size={11} />
-                          <span>{n ? `${short} ${n}` : short}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {room.openTicketsCount > 0 && (
-                    <div className={`room-sla-countdown-footer ${hasCritical ? 'critical' : 'warning'}`}>
-                      <Clock size={11} />
-                      <span>{room.slaLabel}</span>
-                      <span className="tickets-badge">{room.openTicketsCount} open</span>
-                    </div>
-                  )}
+                  <span className="floorplan-room-focus" aria-hidden />
+                  <span className="floorplan-room-label">
+                    <strong>{room.name}</strong>
+                    <small>{hasCritical ? 'Needs attention' : hasWarning ? `${room.openTicketsCount} open · ${room.slaLabel}` : 'Clear'}</small>
+                  </span>
+                  <span className={`floorplan-status-beacon ${room.status}`} aria-hidden>
+                    {hasCritical ? <Flame size={12}/> : hasWarning ? <AlertTriangle size={12}/> : <CheckCircle2 size={12}/>}
+                  </span>
+                  {isSelected && <span className="floorplan-selected-tag"><MapPin size={11}/> Viewing</span>}
                 </button>
               );
             })}
