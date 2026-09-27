@@ -382,11 +382,46 @@ export function TicketDialog({
                 />
                 <div className="td-masthead-body">
                   <div className="td-identity-line">
-                    <span className="td-ticket-key">{t.ticketNumber}</span>
+                    <button
+                      type="button"
+                      className="td-ticket-key"
+                      title="Copy ticket ID"
+                      onClick={() => {
+                        void navigator.clipboard
+                          .writeText(t.ticketNumber)
+                          .then(() => notify("Ticket ID copied."))
+                          .catch(() => notify("Your browser blocked clipboard access.", "error"));
+                      }}
+                    >
+                      {t.ticketNumber}
+                      <Copy size={11} />
+                    </button>
                     <span>{t.category} / {t.subcategory}</span>
                     <span className="td-rev">
                       Revision {t.version} · updated {indiaDate(t.updatedAt)}
                     </span>
+                  </div>
+                  <div className="td-title-row">
+                    <div>
+                      <h2 className="td-modal-title">{t.title}</h2>
+                      <div className="td-created-meta">
+                        <Clock3 size={12} />
+                        <span>Logged {indiaDate(t.createdAt)}</span>
+                        <i aria-hidden="true" />
+                        <span>by {t.memberName}</span>
+                      </div>
+                    </div>
+                    <div className="td-head-actions">
+                      <button type="button" className="icon-btn" onClick={() => void load()} aria-label="Refresh ticket" title="Refresh ticket">
+                        <RefreshCw size={16} />
+                      </button>
+                      <button type="button" className="icon-btn" disabled={busy} onClick={() => void duplicate()} aria-label="Duplicate ticket" title="Duplicate ticket">
+                        <Copy size={16} />
+                      </button>
+                      <button type="button" className="icon-btn" onClick={onClose} aria-label="Close ticket" title="Close ticket">
+                        <X size={17} />
+                      </button>
+                    </div>
                   </div>
                   <p className="td-summary td-summary-primary">{t.summary}</p>
                   <div className="td-chips">
