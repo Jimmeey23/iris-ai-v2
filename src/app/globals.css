@@ -6694,6 +6694,7 @@ small {
 
 /* Forms board */
 .forms-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 26px;
 }
 .forms-grid > .card {
@@ -6712,6 +6713,7 @@ small {
 }
 @media (max-width: 760px) {
   .forms-grid {
+    grid-template-columns: 1fr;
     gap: 18px;
   }
   .form-card,
@@ -6736,14 +6738,14 @@ small {
   position: relative;
   display: block;
   width: 100%;
-  aspect-ratio: 5 / 4;
+  aspect-ratio: 4 / 3;
   overflow: hidden;
   margin-bottom: 16px;
-  background: var(--surface-3);
+  background: var(--surface-2);
 }
 .form-card-art img {
-  object-fit: cover;
-  object-position: center bottom;
+  object-fit: contain;
+  object-position: center;
   transition: transform 420ms var(--ease-out-expo);
 }
 .form-card.has-art:hover .form-card-art img {
