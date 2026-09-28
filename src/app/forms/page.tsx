@@ -1,10 +1,18 @@
 "use client";
 import {useEffect,useState} from 'react';
+import Image from 'next/image';
 import {ClipboardList,Plus,Trash2,Loader2,ExternalLink,Search} from 'lucide-react';
 import {Shell} from '@/components/shell';
 import {api,Badge,Field,Modal,Loading,Empty,SearchField,useApp} from '@/components/ui';
 import {FilloutEmbed} from '@/components/fillout-embed';
 import type {EmbeddedForm} from '@/lib/forms';
+
+const FORM_ART:Record<string,string>={
+  strength:'/evaluation-forms/strength.jpg',
+  cycle:'/evaluation-forms/cycle.jpg',
+  barre:'/evaluation-forms/barre.jpg',
+  nontechnical:'/evaluation-forms/nontechnical.jpg',
+};
 
 const RUBRICS=['General','Barre','powerCycle','Strength Lab','Yoga','Mat 57','HIIT'];
 
@@ -93,9 +101,14 @@ export default function FormsPage(){
       ):(
         <div className="entity-grid forms-grid rise-stagger" style={{marginBottom:32}}>
           {filtered.map(f=>(
-            <button key={f.key} className={'card entity-card form-card'+(active?.key===f.key?' active':'')} onClick={()=>setActive(f)}>
+            <button key={f.key} className={'card entity-card form-card'+(FORM_ART[f.key]?' has-art':'')+(active?.key===f.key?' active':'')} onClick={()=>setActive(f)}>
+              {FORM_ART[f.key]&&(
+                <span className="form-card-art">
+                  <Image src={FORM_ART[f.key]} alt={f.name} fill sizes="(max-width: 760px) 100vw, 33vw"/>
+                </span>
+              )}
               <div className="between">
-                <span className="form-card-icon">{f.icon}</span>
+                {!FORM_ART[f.key]&&<span className="form-card-icon">{f.icon}</span>}
                 <Badge tone={f.apiPollable?'green':''}>{f.apiPollable?'API + webhook':'Webhook'}</Badge>
               </div>
               <h3>{f.name}</h3>

@@ -6726,6 +6726,51 @@ small {
   border-color: var(--accent);
   box-shadow: 0 10px 30px -14px color-mix(in srgb, var(--accent) 45%, transparent);
 }
+.form-card.has-art {
+  overflow: hidden;
+  padding-top: 0;
+  padding-left: 0;
+  padding-right: 0;
+}
+.form-card-art {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 5 / 4;
+  overflow: hidden;
+  margin-bottom: 16px;
+  background: var(--surface-3);
+}
+.form-card-art img {
+  object-fit: cover;
+  object-position: center bottom;
+  transition: transform 420ms var(--ease-out-expo);
+}
+.form-card.has-art:hover .form-card-art img {
+  transform: scale(1.04);
+}
+.form-card.has-art > .between,
+.form-card.has-art > h3,
+.form-card.has-art > p,
+.form-card.has-art > .entity-foot {
+  padding-right: 24px;
+  padding-left: 24px;
+}
+.form-card.has-art > .between {
+  justify-content: flex-end;
+}
+@media (max-width: 760px) {
+  .form-card.has-art > .between,
+  .form-card.has-art > h3,
+  .form-card.has-art > p,
+  .form-card.has-art > .entity-foot {
+    padding-right: 18px;
+    padding-left: 18px;
+  }
+  .form-card-art {
+    margin-bottom: 14px;
+  }
+}
 .form-card-icon {
   display: grid;
   place-items: center;
