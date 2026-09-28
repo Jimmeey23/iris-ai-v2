@@ -1,0 +1,451 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   FEEDBACK TAB — the edge tab and its drawer, present on every page.
+
+   Everything here consumes the design tokens in globals.css, so the widget
+   follows the theme, the accent preset and the corner-radius slider like the
+   rest of the product rather than looking like a bolted-on support badge.
+   ════════════════════════════════════════════════════════════════════════ */
+
+.feedback-tab {
+  position: fixed;
+  right: 0;
+  top: 50%;
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  transform: translateY(-50%) translateX(calc(100% - 40px)) rotate(0deg);
+  transform-origin: right center;
+  writing-mode: vertical-rl;
+  border: 1px solid var(--border-strong);
+  border-right: none;
+  border-radius: var(--radius-md) 0 0 var(--radius-md);
+  background: linear-gradient(180deg, var(--surface-3), var(--surface-2));
+  color: var(--text);
+  font:
+    600 12px/1 var(--font-display);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  box-shadow: var(--shadow-3);
+  transition:
+    transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    background 220ms ease,
+    color 220ms ease;
+}
+.feedback-tab svg {
+  rotate: 90deg;
+  color: var(--accent);
+  transition: color 200ms ease;
+}
+.feedback-tab:hover,
+.feedback-tab:focus-visible {
+  transform: translateY(-50%) translateX(0);
+  background: var(--accent);
+  color: var(--accent-text);
+  outline: none;
+}
+.feedback-tab:hover svg,
+.feedback-tab:focus-visible svg {
+  color: var(--accent-text);
+}
+/* On a phone the vertical tab has nowhere to live: it becomes a small round
+   button above the thumb, clear of the bottom navigation. */
+@media (max-width: 720px) {
+  .feedback-tab {
+    top: auto;
+    bottom: 84px;
+    right: 14px;
+    transform: none;
+    writing-mode: horizontal-tb;
+    border-radius: var(--radius-pill);
+    border-right: 1px solid var(--border-strong);
+    padding: 10px 14px;
+    letter-spacing: 0.04em;
+  }
+  .feedback-tab svg {
+    rotate: none;
+  }
+  .feedback-tab:hover,
+  .feedback-tab:focus-visible {
+    transform: none;
+  }
+}
+
+.feedback-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 79;
+  background: color-mix(in srgb, var(--bg) 72%, transparent);
+  backdrop-filter: blur(3px);
+  animation: feedback-fade 180ms ease both;
+}
+@keyframes feedback-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+.feedback-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  z-index: 80;
+  display: flex;
+  flex-direction: column;
+  width: min(560px, 100vw);
+  height: 100dvh;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  box-shadow: var(--shadow-4);
+  transform: translateX(102%);
+  visibility: hidden;
+  transition:
+    transform 280ms cubic-bezier(0.22, 1, 0.36, 1),
+    visibility 280ms;
+}
+.feedback-panel.open {
+  transform: none;
+  visibility: visible;
+}
+@media (prefers-reduced-motion: reduce) {
+  .feedback-panel,
+  .feedback-tab {
+    transition: none;
+  }
+}
+
+.feedback-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 20px 22px 16px;
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(180deg, var(--surface-2), var(--surface));
+}
+.feedback-head h2 {
+  margin: 0;
+  font: 600 18px/1.25 var(--font-display);
+  color: var(--text);
+}
+.feedback-head p {
+  margin: 6px 0 0;
+  font: 13px/1.5 var(--font-body);
+  color: var(--muted);
+}
+.feedback-head strong {
+  color: var(--secondary);
+}
+.feedback-close {
+  margin-left: auto;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-3);
+  color: var(--muted);
+  cursor: pointer;
+}
+.feedback-close:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+
+.feedback-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 18px 22px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.feedback-choices {
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+.feedback-choices legend {
+  padding: 0;
+  margin-bottom: 8px;
+  font: 600 11px/1 var(--font-body);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.feedback-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.feedback-chip {
+  padding: 7px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--secondary);
+  font: 500 12.5px/1.2 var(--font-body);
+  cursor: pointer;
+  transition:
+    border-color 160ms ease,
+    background 160ms ease,
+    color 160ms ease;
+}
+.feedback-chip:hover {
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+.feedback-chip.on {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--text);
+}
+.feedback-chip.sev-blocker.on {
+  background: var(--red-bg);
+  border-color: var(--red);
+}
+.feedback-chip.sev-high.on {
+  background: var(--amber-bg);
+  border-color: var(--amber);
+}
+
+.feedback-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.feedback-field > span {
+  font: 600 11px/1 var(--font-body);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.feedback-field input,
+.feedback-field textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text);
+  font: 14px/1.55 var(--font-body);
+  resize: vertical;
+}
+.feedback-field input:focus,
+.feedback-field textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.feedback-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+@media (max-width: 520px) {
+  .feedback-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.feedback-more {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--accent);
+  font: 500 12.5px/1.4 var(--font-body);
+  text-align: left;
+  cursor: pointer;
+}
+.feedback-more svg {
+  transition: transform 180ms ease;
+}
+.feedback-more.open svg {
+  transform: rotate(180deg);
+}
+.feedback-extra {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+}
+
+.feedback-drop {
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-md);
+  padding: 14px;
+  background: var(--surface-2);
+  transition:
+    border-color 160ms ease,
+    background 160ms ease;
+}
+.feedback-drop.dragging {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.feedback-drop-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.feedback-hint {
+  font: 12px/1.4 var(--font-body);
+  color: var(--muted);
+}
+.feedback-files {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.feedback-files li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+.feedback-files img {
+  width: 46px;
+  height: 34px;
+  object-fit: cover;
+  border-radius: var(--radius-2xs);
+  border: 1px solid var(--border);
+}
+.feedback-file-icon {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 34px;
+  border-radius: var(--radius-2xs);
+  background: var(--surface-3);
+  color: var(--muted);
+}
+.feedback-file-name {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  font: 13px/1.3 var(--font-body);
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.feedback-file-name em {
+  font: 400 11px/1.4 var(--font-mono);
+  color: var(--muted);
+  font-style: normal;
+}
+.feedback-files button {
+  border: none;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 4px;
+}
+.feedback-files button:hover {
+  color: var(--red);
+}
+
+.feedback-switch {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font: 13px/1.4 var(--font-body);
+  color: var(--secondary);
+}
+
+.feedback-context {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  padding: 10px 12px;
+}
+.feedback-context summary {
+  cursor: pointer;
+  font: 500 12.5px/1.4 var(--font-body);
+  color: var(--muted);
+}
+.feedback-context dl {
+  margin: 10px 0 0;
+  display: grid;
+  gap: 4px;
+  font: 11.5px/1.5 var(--font-mono);
+}
+.feedback-context div {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  gap: 10px;
+}
+.feedback-context dt {
+  color: var(--muted);
+}
+.feedback-context dd {
+  margin: 0;
+  color: var(--secondary);
+  word-break: break-word;
+}
+
+.feedback-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px 22px;
+  border-top: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.feedback-done {
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 10px;
+  color: var(--secondary);
+}
+.feedback-done svg {
+  color: var(--green);
+}
+.feedback-done h3 {
+  margin: 0;
+  font: 600 17px/1.3 var(--font-display);
+  color: var(--text);
+}
+.feedback-done p {
+  margin: 0;
+  max-width: 44ch;
+  font: 13.5px/1.6 var(--font-body);
+}
+
+.spin {
+  animation: feedback-spin 900ms linear infinite;
+}
+@keyframes feedback-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media print {
+  .feedback-tab,
+  .feedback-panel,
+  .feedback-scrim {
+    display: none !important;
+  }
+}

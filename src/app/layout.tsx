@@ -1,10 +1,12 @@
 import type {Metadata,Viewport} from 'next';
 import {Outfit,Space_Grotesk,JetBrains_Mono} from 'next/font/google';
 import {AppProvider} from '@/components/ui';
+import {FeedbackTab} from '@/components/feedback-tab';
 import './globals.css';
 import './design-system.css';
 import './intake.css';
 import './trainers.css';
+import './feedback.css';
 const outfit=Outfit({subsets:['latin'],variable:'--font-outfit',display:'swap'});
 const spaceGrotesk=Space_Grotesk({subsets:['latin'],variable:'--font-space',display:'swap',weight:['500','600','700']});
 const jetbrainsMono=JetBrains_Mono({subsets:['latin'],variable:'--font-mono-tech',display:'swap',weight:['400','500','600']});
@@ -25,4 +27,4 @@ export const viewport:Viewport={
  *  nothing to mismatch on hydration); this sets it from the saved preference, or on
  *  a first visit from the OS setting, so nobody sees a flash of the wrong theme. */
 const THEME_SCRIPT="try{var t=localStorage.getItem('iris-theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia&&window.matchMedia('(prefers-color-scheme: light)').matches?'light':'dark'}document.documentElement.dataset.theme=t}catch(e){document.documentElement.dataset.theme='dark'}";
-export default function RootLayout({children}:{children:React.ReactNode}){return <html lang="en" suppressHydrationWarning><head><script dangerouslySetInnerHTML={{__html:THEME_SCRIPT}}/></head><body className={outfit.variable+' '+spaceGrotesk.variable+' '+jetbrainsMono.variable} suppressHydrationWarning><AppProvider>{children}</AppProvider></body></html>;}
+export default function RootLayout({children}:{children:React.ReactNode}){return <html lang="en" suppressHydrationWarning><head><script dangerouslySetInnerHTML={{__html:THEME_SCRIPT}}/></head><body className={outfit.variable+' '+spaceGrotesk.variable+' '+jetbrainsMono.variable} suppressHydrationWarning><AppProvider>{children}<FeedbackTab/></AppProvider></body></html>;}

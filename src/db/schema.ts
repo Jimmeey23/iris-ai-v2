@@ -197,3 +197,48 @@ export const auditLogs = pgTable("audit_logs", {
 export const importRuns = pgTable("import_runs", {
   id: serial("id").primaryKey(), source: text("source").notNull(), imported: integer("imported").notNull().default(0), skipped: integer("skipped").notNull().default(0), errors: jsonb("errors").$type<string[]>().notNull().default([]), createdAt: timestamp("created_at",{withTimezone:true}).defaultNow().notNull(),
 });
+
+/** Product feedback filed from the in-app Feedback tab. This is developer-facing
+ *  bug and suggestion reporting — deliberately separate from `tickets`, which is
+ *  the studio operations log. A row here is emailed straight to the developer. */
+export const productFeedback = pgTable("product_feedback", {
+  id: text("id").primaryKey(),
+  reference: text("reference").notNull().unique(),
+  kind: text("kind").notNull(),
+  severity: text("severity").notNull().default("normal"),
+  title: text("title").notNull(),
+  details: text("details").notNull(),
+  stepsToReproduce: text("steps_to_reproduce"),
+  expected: text("expected"),
+  actual: text("actual"),
+  /** The page the tab was opened on, plus the label shown in the nav. */
+  pagePath: text("page_path").notNull(),
+  pageLabel: text("page_label"),
+  /** Browser, viewport, theme, recent console errors and anything else the widget
+   *  collected automatically, so the developer does not have to ask for it. */
+  context: jsonb("context").$type<Record<string, unknown>>().notNull().default({}),
+  reporterUserId: integer("reporter_user_id").references(():AnyPgColumn => appUsers.id,{onDelete:"set null"}),
+  reporterName: text("reporter_name").notNull(),
+  reporterEmail: text("reporter_email"),
+  contactBack: boolean("contact_back").notNull().default(false),
+  /** queued → sent → failed: whether the developer email actually went out. */
+  emailStatus: text("email_status").notNull().default("queued"),
+  emailError: text("email_error"),
+  status: text("status").notNull().default("open"),
+  createdAt: timestamp("created_at",{withTimezone:true}).defaultNow().notNull(),
+},(t)=>[index("product_feedback_created_idx").on(t.createdAt),index("product_feedback_status_idx").on(t.status)]);
+
+/** Screenshots and files attached to one feedback report. Bytes live in the
+ *  database for the same reason ticket attachments do — no object store here. */
+export const productFeedbackAttachments = pgTable("product_feedback_attachments", {
+  id: text("id").primaryKey(),
+  feedbackId: text("feedback_id").notNull().references(()=>productFeedback.id,{onDelete:"cascade"}),
+  fileName: text("file_name").notNull(),
+  fileType: text("file_type").notNull(),
+  fileSize: integer("file_size").notNull(),
+  /** 'screenshot' for an in-app page capture, 'upload' for a file the reporter chose. */
+  origin: text("origin").notNull().default("upload"),
+  data: bytea("data").notNull(),
+  checksum: text("checksum").notNull(),
+  createdAt: timestamp("created_at",{withTimezone:true}).defaultNow().notNull(),
+},(t)=>[index("product_feedback_attachments_feedback_idx").on(t.feedbackId)]);

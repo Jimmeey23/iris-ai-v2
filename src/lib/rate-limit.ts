@@ -37,6 +37,9 @@ export const LIMITS = {
   login: {max: 10, windowSeconds: 300},
   /** Public self-sign-up, keyed by IP and email to slow down abuse of allowed domains. */
   signup: {max: 5, windowSeconds: 300},
+  /** In-app feedback reports. Generous for a person, tight against a script that
+   *  would otherwise turn the developer's inbox into a mailbomb. */
+  feedback: {max: 10, windowSeconds: 600},
   /** A forced trainer-review sync walks every Fillout page. */
   trainerSync: {max: 3, windowSeconds: 600},
 } satisfies Record<string, Limit>;
