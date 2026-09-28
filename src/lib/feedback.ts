@@ -177,6 +177,40 @@ function mailAttachments(files: FeedbackFile[]): MailAttachment[] {
   return out;
 }
 
+/** Builds the developer's message for one stored report. Shared by the initial
+ *  send and by a resend from the feedback console, so the two can never drift. */
+function developerMessage(
+  row: Parameters<typeof feedbackEmail>[0] & {reporterEmail: string | null; contactBack: boolean},
+  files: FeedbackFile[],
+) {
+  return {
+    to: [{email: DEVELOPER_EMAIL}],
+    ...feedbackEmail(row, files),
+    ...(row.reporterEmail && row.contactBack ? {reply_to: {email: row.reporterEmail}} : {}),
+    attachments: mailAttachments(files),
+  };
+}
+
+/**
+ * Sends a stored report to the developer again — for when the first attempt was
+ * lost, or the mail credentials were fixed after the fact. Rebuilds the message
+ * from the stored row and its attachments, so nothing is re-typed.
+ */
+export async function resendFeedbackEmail(id: string) {
+  const [row] = await db.select().from(productFeedback).where(eq(productFeedback.id, id));
+  if (!row) throw new Error('That feedback report no longer exists.');
+  const stored = await db.select().from(productFeedbackAttachments).where(eq(productFeedbackAttachments.feedbackId, id));
+  const files: FeedbackFile[] = stored.map((a) => ({
+    fileName: a.fileName,
+    fileType: a.fileType,
+    origin: a.origin === 'screenshot' ? 'screenshot' : 'upload',
+    bytes: a.data,
+  }));
+  await runIntegration('mailtrap', 'send', developerMessage({...row, context: row.context}, files));
+  const [updated] = await db.update(productFeedback).set({emailStatus: 'sent', emailError: null}).where(eq(productFeedback.id, id)).returning();
+  return updated;
+}
+
 /**
  * Stores the report, then emails the developer immediately. A delivery failure never
  * loses the report: the row is saved first, the failure is recorded on it, and the
@@ -232,12 +266,7 @@ export async function fileFeedback(
     return saved;
   });
 
-  const message = {
-    to: [{email: DEVELOPER_EMAIL}],
-    ...feedbackEmail({...row, context: row.context}, files),
-    ...(reporterEmail && input.contactBack ? {reply_to: {email: reporterEmail}} : {}),
-    attachments: mailAttachments(files),
-  };
+  const message = developerMessage({...row, context: row.context}, files);
 
   if (!emailSendingEnabled()) {
     await db.update(productFeedback).set({emailStatus: 'skipped', emailError: 'Email sending is disabled on this deployment.'}).where(eq(productFeedback.id, id));

@@ -3,7 +3,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Shell } from "@/components/shell";
 import { api, useApp } from "@/components/ui";
-import { ShieldCheck, LogOut } from "lucide-react";
+import { ShieldCheck, LogOut, Compass } from "lucide-react";
+import { startGuidedTour } from "@/components/guided-tour";
 export default function ProfilePage() {
   const router = useRouter();
   const { user, refreshUser, notify } = useApp();
@@ -102,6 +103,14 @@ export default function ProfilePage() {
             {busy ? "Saving…" : "Save profile"}
           </button>
           <div className="profile-signout">
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={() => startGuidedTour()}
+            >
+              <Compass size={16} />
+              Replay the guided tour
+            </button>
             <button
               type="button"
               className="btn btn-ghost"

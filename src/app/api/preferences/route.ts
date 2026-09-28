@@ -26,6 +26,13 @@ const patchSchema = z.object({
   views: z.array(savedViewSchema).max(40).optional(),
   /** Partial: the client sends only what changed, and it is merged over what is stored. */
   dashboard: dashboardPatchSchema.optional(),
+  /** First-run walkthrough. `version` is what the client last completed or skipped;
+   *  the tour runs again only when the shipped TOUR_VERSION moves past it. */
+  tour: z.object({
+    version: z.number().int().min(0).max(1000),
+    completedAt: z.string().max(40).optional(),
+    completed: z.boolean().optional(),
+  }).optional(),
 });
 
 export async function GET() {

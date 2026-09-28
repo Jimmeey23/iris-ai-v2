@@ -1,0 +1,169 @@
+/* ── Guided tour ─────────────────────────────────────────────────────────────
+   The first-run walkthrough (components/guided-tour.tsx). The dimmed page is a
+   single huge box-shadow spread from the spotlight box rather than four masking
+   panels: one element to move, and it cannot leave seams between the panes as
+   the highlight travels around the chrome. */
+.tour-root {
+  position: fixed;
+  inset: 0;
+  z-index: 260;
+  pointer-events: none;
+}
+.tour-scrim,
+.tour-spotlight {
+  position: fixed;
+  pointer-events: auto;
+  animation: tour-fade 0.22s ease both;
+}
+.tour-scrim {
+  inset: 0;
+  background: color-mix(in srgb, var(--bg) 78%, transparent);
+  backdrop-filter: blur(2px);
+}
+.tour-spotlight {
+  border-radius: calc(12px * var(--ui-radius, 1));
+  box-shadow:
+    0 0 0 9999px color-mix(in srgb, var(--bg) 78%, transparent),
+    0 0 0 2px var(--accent),
+    0 0 26px color-mix(in srgb, var(--accent) 45%, transparent);
+  transition:
+    top 0.26s cubic-bezier(0.22, 1, 0.36, 1),
+    left 0.26s cubic-bezier(0.22, 1, 0.36, 1),
+    width 0.26s cubic-bezier(0.22, 1, 0.36, 1),
+    height 0.26s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.tour-card {
+  position: fixed;
+  width: 340px;
+  max-width: calc(100vw - 24px);
+  pointer-events: auto;
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  border-radius: calc(16px * var(--ui-radius, 1));
+  padding: 18px;
+  box-shadow: 0 24px 60px -18px rgb(0 0 0 / 0.55);
+  animation: tour-rise 0.24s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.tour-card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+/* The opening and closing cards point at nothing, so they sit in the middle. */
+.tour-card-centred {
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 420px;
+}
+.tour-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.tour-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: 600 10px/1 var(--font-mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  border-radius: 999px;
+  padding: 5px 9px;
+}
+.tour-close {
+  background: none;
+  border: 0;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 8px;
+  display: inline-flex;
+}
+.tour-close:hover {
+  color: var(--text);
+  background: var(--surface-3);
+}
+.tour-card h3 {
+  font-family: var(--font-display);
+  font-size: 17px;
+  margin: 0 0 6px;
+}
+.tour-card p {
+  color: var(--secondary);
+  font-size: 13.5px;
+  line-height: 1.55;
+  margin: 0;
+}
+.tour-progress {
+  display: flex;
+  gap: 5px;
+  margin: 16px 0 12px;
+}
+.tour-progress i {
+  height: 3px;
+  flex: 1;
+  border-radius: 2px;
+  background: var(--surface-4);
+}
+.tour-progress i.done {
+  background: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.tour-progress i.on {
+  background: var(--accent);
+}
+.tour-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.tour-count {
+  font: 500 11px var(--font-mono);
+  color: var(--muted);
+  white-space: nowrap;
+}
+.tour-buttons {
+  display: flex;
+  gap: 6px;
+}
+.tour-buttons .btn {
+  padding: 7px 12px;
+  font-size: 12.5px;
+}
+@keyframes tour-fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes tour-rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+.tour-card-centred {
+  animation: none;
+}
+@media (max-width: 720px) {
+  /* Anchored placement has nowhere to go on a phone: dock the card instead. */
+  .tour-card {
+    top: auto !important;
+    left: 12px !important;
+    right: 12px;
+    bottom: 12px;
+    width: auto;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tour-spotlight,
+  .tour-card,
+  .tour-scrim {
+    animation: none;
+    transition: none;
+  }
+}

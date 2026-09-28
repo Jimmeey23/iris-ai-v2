@@ -28,6 +28,7 @@ import {
   Radar,
   Drill,
   Palette,
+  MessageSquareWarning,
   Lock,
   LogOut,
 } from "lucide-react";
@@ -41,6 +42,7 @@ import {
   Badge,
 } from "./ui";
 import { IrisLockup } from "./iris-mark";
+import { GuidedTour } from "./guided-tour";
 import { isOpen } from "@/lib/metrics";
 /** The rail carries labels only — no AI / LIVE / count badges. The open-ticket
  *  figure still appears in the top bar, which is where a changing number
@@ -70,12 +72,13 @@ const org: NavItem[] = [
 ];
 /** Internal reference pages: administrators only, and never part of the everyday nav. */
 const developer: NavItem[] = [
+  { href: "/feedback", label: "Feedback console", icon: MessageSquareWarning },
   { href: "/design-system", label: "Design system", icon: Palette },
 ];
 /** Every tab is listed for everyone; these open for administrators only. (Each
  *  of these screens is readable by any workspace role through its API, so no
  *  item is hidden outright — the lock explains itself instead.) */
-const ADMIN_ONLY = ["/settings", "/integrations", "/staff", "/trainers"];
+const ADMIN_ONLY = ["/settings", "/integrations", "/staff", "/trainers", "/feedback"];
 const lockedFor = (href: string, role?: string) =>
   role !== "admin" &&
   ADMIN_ONLY.some((h) => href === h || href.startsWith(h + "/"));
@@ -250,6 +253,7 @@ export function Shell({
                 title={collapsed ? n.label : undefined}
                 data-tip={collapsed ? n.label : undefined}
                 data-tip-pos="right"
+                data-tour={"nav" + n.href.replace(/\//g, "-")}
                 onClick={() => setMobile(false)}
               >
                 <Icon size={16} />
@@ -340,6 +344,7 @@ export function Shell({
           <div className="topbar-actions">
             <button
               className="topbar-search"
+              data-tour="topbar-search"
               onClick={() => setSearchOpen(true)}
             >
               <Search size={14} />
@@ -349,6 +354,7 @@ export function Shell({
             <span className="topbar-divider" />
             <span
               className="topbar-status"
+              data-tour="topbar-open-count"
               title={openItems.length + " open tickets"}
             >
               <span className="live-label">
@@ -358,9 +364,12 @@ export function Shell({
               <span className="topbar-status-label">open</span>
             </span>
             <span className="topbar-divider" />
-            <ThemeToggle />
+            <span data-tour="topbar-theme" className="flex-row">
+              <ThemeToggle />
+            </span>
             <button
               className="icon-btn"
+              data-tour="topbar-notifications"
               aria-label="Open notifications"
               onClick={() => setNotifications(true)}
               style={{ position: "relative" }}
@@ -373,6 +382,7 @@ export function Shell({
             <span className="topbar-divider" />
             <button
               className="topbar-avatar"
+              data-tour="topbar-avatar"
               onClick={() => (user ? router.push("/profile") : openAuth())}
               aria-label="Account"
             >
@@ -519,6 +529,7 @@ export function Shell({
           ) && <p className="secondary">No urgent tickets need attention.</p>}
         </div>
       </Modal>
+      <GuidedTour />
     </div>
   );
 }
