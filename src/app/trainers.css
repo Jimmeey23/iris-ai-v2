@@ -454,8 +454,8 @@
 .dialog-content:has(.tr-report) .tr-section,
 .dialog-content:has(.tr-report) .tr-kpi { box-shadow: 0 2px 8px rgb(15 23 42 / 0.055) !important; }
 .dialog-content:has(.tr-report) .tr-kpi:hover { transform: none; box-shadow: 0 2px 8px rgb(15 23 42 / 0.075) !important; }
-[data-theme="dark"] .trainer-profile-card,
-[data-theme="dark"] .trainer-profile-card:hover,
-[data-theme="dark"] .dialog-content:has(.tr-report) .tr-masthead,
-[data-theme="dark"] .dialog-content:has(.tr-report) .tr-section,
-[data-theme="dark"] .dialog-content:has(.tr-report) .tr-kpi { box-shadow: 0 4px 14px rgb(0 0 0 / 0.2) !important; }
+:root:not([data-theme="light"]) .trainer-profile-card,
+:root:not([data-theme="light"]) .trainer-profile-card:hover,
+:root:not([data-theme="light"]) .dialog-content:has(.tr-report) .tr-masthead,
+:root:not([data-theme="light"]) .dialog-content:has(.tr-report) .tr-section,
+:root:not([data-theme="light"]) .dialog-content:has(.tr-report) .tr-kpi { box-shadow: 0 4px 14px rgb(0 0 0 / 0.2) !important; }

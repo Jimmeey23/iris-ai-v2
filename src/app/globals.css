@@ -3024,7 +3024,7 @@ small {
 [data-theme="light"] .iris-mark-dark {
   display: none;
 }
-[data-theme="dark"] .iris-mark-light {
+:root:not([data-theme="light"]) .iris-mark-light {
   display: none;
 }
 .iris-lockup-text {
@@ -13507,7 +13507,7 @@ small {
   background: color-mix(in srgb, var(--surface) 96%, transparent);
   box-shadow: 0 40px 120px -28px rgb(0 0 0 / 0.58), inset 0 1px 0 color-mix(in srgb, var(--text) 7%, transparent);
 }
-[data-theme="dark"] .dialog-content:has(.ticket-detail-shell) {
+:root:not([data-theme="light"]) .dialog-content:has(.ticket-detail-shell) {
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 94%, #171b30 6%), var(--surface));
 }
 .dialog-content:has(.ticket-detail-shell)::before {

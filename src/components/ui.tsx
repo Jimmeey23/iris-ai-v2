@@ -381,6 +381,12 @@ function AppStateProvider({ children }: { children: ReactNode }) {
     [applyIdentity],
   );
   useEffect(() => {
+    // Belt and braces for the pre-paint theme script: if `data-theme` is missing
+    // for any reason (the script blocked, the attribute lost on hydration), the
+    // stylesheets fall back to their own defaults, and any rule scoped to
+    // `[data-theme="dark"]` silently stops matching. Re-assert it once on mount.
+    if (!document.documentElement.dataset.theme)
+      document.documentElement.dataset.theme = readTheme();
     void fetchIdentity().then(applyIdentity);
     // A choice saved on this device always wins. Without one, adopt an explicit theme
     // from the server; if there is none, keep what the layout script picked from the OS.

@@ -1758,6 +1758,26 @@ textarea:focus-visible,
    the accent mean something when it does appear.
    -------------------------------------------------------------------------- */
 .ovc {
+  --ovc-line: rgb(255 255 255 / 0.07);
+  --ovc-ink: #f2efe6;
+  --ovc-muted: #a09a89;
+  --ovc-faint: #6e695c;
+  --ovc-surface: #131315;
+  --ovc-sunken: #0e0e10;
+  --ovc-spark-muted: #6e695c;
+  --ovc-chip-bg: #1c1d20;
+  --ovc-chip-ink: #c9c3b4;
+
+  --ovc-neu-sm: 4px 4px 12px rgb(0 0 0 / 0.5), -2px -2px 8px rgb(255 255 255 / 0.03);
+  --ovc-neu-md: 7px 7px 20px rgb(0 0 0 / 0.55), -3px -3px 10px rgb(255 255 255 / 0.03);
+  --ovc-neu-xs: 2px 2px 7px rgb(0 0 0 / 0.5), -1px -1px 5px rgb(255 255 255 / 0.03);
+  --ovc-neu-in: inset 3px 3px 9px rgb(0 0 0 / 0.6), inset -2px -2px 7px rgb(255 255 255 / 0.04);
+  --ovc-neu-in-sm: inset 2px 2px 5px rgb(0 0 0 / 0.55), inset -1px -1px 4px rgb(255 255 255 / 0.035);
+
+  display: grid;
+  gap: 20px;
+}
+[data-theme="light"] .ovc {
   --ovc-line: rgb(16 24 40 / 0.08);
   --ovc-ink: #101828;
   --ovc-muted: #667085;
@@ -1775,26 +1795,6 @@ textarea:focus-visible,
   /* Pressed: the same pair turned inward. */
   --ovc-neu-in: inset 3px 3px 8px rgb(174 186 204 / 0.22), inset -3px -3px 8px rgb(255 255 255 / 0.95);
   --ovc-neu-in-sm: inset 2px 2px 5px rgb(174 186 204 / 0.2), inset -2px -2px 5px rgb(255 255 255 / 0.95);
-
-  display: grid;
-  gap: 20px;
-}
-[data-theme="dark"] .ovc {
-  --ovc-line: rgb(255 255 255 / 0.07);
-  --ovc-ink: #f2efe6;
-  --ovc-muted: #a09a89;
-  --ovc-faint: #6e695c;
-  --ovc-surface: #131315;
-  --ovc-sunken: #0e0e10;
-  --ovc-spark-muted: #6e695c;
-  --ovc-chip-bg: #1c1d20;
-  --ovc-chip-ink: #c9c3b4;
-
-  --ovc-neu-sm: 4px 4px 12px rgb(0 0 0 / 0.5), -2px -2px 8px rgb(255 255 255 / 0.03);
-  --ovc-neu-md: 7px 7px 20px rgb(0 0 0 / 0.55), -3px -3px 10px rgb(255 255 255 / 0.03);
-  --ovc-neu-xs: 2px 2px 7px rgb(0 0 0 / 0.5), -1px -1px 5px rgb(255 255 255 / 0.03);
-  --ovc-neu-in: inset 3px 3px 9px rgb(0 0 0 / 0.6), inset -2px -2px 7px rgb(255 255 255 / 0.04);
-  --ovc-neu-in-sm: inset 2px 2px 5px rgb(0 0 0 / 0.55), inset -1px -1px 4px rgb(255 255 255 / 0.035);
 }
 
 /* --- The card --- */
@@ -1806,7 +1806,7 @@ textarea:focus-visible,
   box-shadow: var(--ovc-neu-sm);
   color: var(--ovc-ink);
 }
-[data-theme="dark"] .ovc-card {
+:root:not([data-theme="light"]) .ovc-card {
   background: linear-gradient(170deg, #151618 0%, #111214 100%);
 }
 
@@ -1919,7 +1919,7 @@ textarea:focus-visible,
   font-weight: 600;
   box-shadow: var(--ovc-neu-xs);
 }
-[data-theme="dark"] .ovc-btn-soft {
+:root:not([data-theme="light"]) .ovc-btn-soft {
   background: #1c1d20;
 }
 .ovc-btn-soft:hover {
@@ -2143,7 +2143,7 @@ textarea:focus-visible,
   color: var(--ovc-chip-ink);
   box-shadow: var(--ovc-neu-xs);
 }
-[data-theme="dark"] .ovc-chip.is-neutral {
+:root:not([data-theme="light"]) .ovc-chip.is-neutral {
   border-color: rgb(255 255 255 / 0.06);
 }
 .ovc-spark {
@@ -3275,7 +3275,7 @@ textarea,
   box-shadow: none;
   background: var(--ovc-surface);
 }
-[data-theme="dark"] .ovc .ovc-card {
+:root:not([data-theme="light"]) .ovc .ovc-card {
   background: linear-gradient(170deg, #151618 0%, #111214 100%);
 }
 .ovc-hero {
@@ -3362,20 +3362,20 @@ textarea,
 .sidebar {
   /* One groove, three depths. Tuned per theme because a carve on white needs a
      far lighter touch than the same carve on near-black. */
-  --tab-edge: rgb(16 24 40 / 0.1);
-  --tab-edge-deep: rgb(16 24 40 / 0.16);
-  --tab-carve: inset 1px 1px 2px rgb(140 155 178 / 0.18),
-    inset -1px -1px 2px rgb(255 255 255 / 0.7);
-  --tab-carve-deep: inset 2px 2px 4px rgb(140 155 178 / 0.26),
-    inset -1px -1px 3px rgb(255 255 255 / 0.8);
-}
-[data-theme="dark"] .sidebar {
   --tab-edge: rgb(255 255 255 / 0.08);
   --tab-edge-deep: rgb(255 255 255 / 0.14);
   --tab-carve: inset 1px 1px 2px rgb(0 0 0 / 0.5),
     inset -1px -1px 2px rgb(255 255 255 / 0.03);
   --tab-carve-deep: inset 2px 2px 5px rgb(0 0 0 / 0.62),
     inset -1px -1px 3px rgb(255 255 255 / 0.04);
+}
+[data-theme="light"] .sidebar {
+  --tab-edge: rgb(16 24 40 / 0.1);
+  --tab-edge-deep: rgb(16 24 40 / 0.16);
+  --tab-carve: inset 1px 1px 2px rgb(140 155 178 / 0.18),
+    inset -1px -1px 2px rgb(255 255 255 / 0.7);
+  --tab-carve-deep: inset 2px 2px 4px rgb(140 155 178 / 0.26),
+    inset -1px -1px 3px rgb(255 255 255 / 0.8);
 }
 
 .sidebar .nav-link,

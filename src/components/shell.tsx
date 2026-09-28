@@ -42,7 +42,7 @@ import {
   Badge,
 } from "./ui";
 import { IrisLockup } from "./iris-mark";
-import { GuidedTour } from "./guided-tour";
+import { GuidedTour, signalTour } from "./guided-tour";
 import { isOpen } from "@/lib/metrics";
 /** The rail carries labels only — no AI / LIVE / count badges. The open-ticket
  *  figure still appears in the top bar, which is where a changing number
@@ -186,6 +186,15 @@ export function Shell({
       .then((d) => setItems(d.tickets))
       .catch(() => {});
   }, [user]);
+  /** The guided tour gates two of its steps on these panels actually opening,
+   *  and it cannot tell from the outside: both are React state, not a URL or a
+   *  DOM flag. The shell says so directly. */
+  useEffect(() => {
+    if (searchOpen) signalTour("search");
+  }, [searchOpen]);
+  useEffect(() => {
+    if (notifications) signalTour("notifications");
+  }, [notifications]);
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {

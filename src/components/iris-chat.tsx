@@ -956,6 +956,7 @@ export function IrisChat({ presetCategory, presetSubcategory }: { presetCategory
           {turn?.phase !== 'complete' && (
             <form
               className="chat-compose"
+              data-tour="iris-composer"
               onSubmit={(e) => {
                 e.preventDefault();
                 if (text.trim() || attachments.length > 0) void send(text.trim());
