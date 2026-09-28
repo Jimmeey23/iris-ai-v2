@@ -91,7 +91,7 @@ export default function FormsPage(){
       {busy?<Loading variant="card"/>:!filtered.length?(
         <Empty art="clipboard" title="No matching forms" detail="Try a broader search, or add a form with its embed code."/>
       ):(
-        <div className="entity-grid rise-stagger" style={{marginBottom:24}}>
+        <div className="entity-grid forms-grid rise-stagger" style={{marginBottom:32}}>
           {filtered.map(f=>(
             <button key={f.key} className={'card entity-card form-card'+(active?.key===f.key?' active':'')} onClick={()=>setActive(f)}>
               <div className="between">

@@ -6693,10 +6693,34 @@ small {
 }
 
 /* Forms board */
+.forms-grid {
+  gap: 26px;
+}
+.forms-grid > .card {
+  border-radius: 18px;
+}
 .form-card {
   display: flex;
   flex-direction: column;
-  gap: 0;
+  gap: 4px;
+  min-height: 178px;
+  padding: 26px 24px;
+}
+.form-card .entity-foot {
+  margin-top: auto;
+  padding-top: 16px;
+}
+@media (max-width: 760px) {
+  .forms-grid {
+    gap: 18px;
+  }
+  .form-card,
+  .form-card-add {
+    padding: 20px 18px;
+  }
+}
+.form-card-add {
+  padding: 26px 24px;
 }
 .form-card.active {
   border-color: var(--accent);
