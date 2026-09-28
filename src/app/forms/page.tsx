@@ -1,7 +1,7 @@
 "use client";
 import {useEffect,useState} from 'react';
 import Image from 'next/image';
-import {ClipboardList,Plus,Trash2,Loader2,ExternalLink,Search} from 'lucide-react';
+import {ClipboardList,Plus,Trash2,Loader2,ExternalLink,Search,ArrowLeft} from 'lucide-react';
 import {Shell} from '@/components/shell';
 import {api,Badge,Field,Modal,Loading,Empty,SearchField,useApp} from '@/components/ui';
 import {FilloutEmbed} from '@/components/fillout-embed';
@@ -64,7 +64,7 @@ export default function FormsPage(){
   const{user,notify}=useApp();
 
   const load=()=>api<{forms:EmbeddedForm[]}>('/api/forms')
-    .then(d=>{setForms(d.forms);setActive(a=>d.forms.find(f=>f.key===a?.key)||d.forms[0]);})
+    .then(d=>{setForms(d.forms);setActive(a=>a?d.forms.find(f=>f.key===a.key):undefined);})
     .catch(e=>setError((e as Error).message))
     .finally(()=>setBusy(false));
   useEffect(()=>{void load();},[]);
@@ -81,6 +81,7 @@ export default function FormsPage(){
 
   return (
     <Shell title="Fill it in where the work happens." eyebrow="EVALUATION FORMS" action={<div className="flex-row">{user?.role==='admin'&&<button className="btn" onClick={()=>setAddOpen(true)}><Plus size={14}/>Add form</button>}<Badge tone="blue"><ClipboardList size={12}/>{forms.length} forms</Badge></div>}>
+      {!active&&<>
       <div className="iris-banner">
         <div className="iris-orb"><ClipboardList size={23}/></div>
         <div className="grow">
@@ -101,7 +102,7 @@ export default function FormsPage(){
       ):(
         <div className="entity-grid forms-grid rise-stagger" style={{marginBottom:32}}>
           {filtered.map(f=>(
-            <button key={f.key} className={'card entity-card form-card'+(FORM_ART[f.key]?' has-art':'')+(active?.key===f.key?' active':'')} onClick={()=>setActive(f)}>
+            <button key={f.key} className={'card entity-card form-card'+(FORM_ART[f.key]?' has-art':'')} onClick={()=>setActive(f)}>
               {FORM_ART[f.key]&&(
                 <span className="form-card-art">
                   <Image src={FORM_ART[f.key]} alt={f.name} fill sizes="(max-width: 760px) 100vw, 33vw"/>
@@ -132,9 +133,14 @@ export default function FormsPage(){
           )}
         </div>
       )}
+      </>}
 
       {active&&(
-        <section className="card">
+        <section className="card form-stage">
+          <div className="form-stage-nav">
+            <button className="btn" onClick={()=>setActive(undefined)}><ArrowLeft size={14}/>All forms</button>
+            <span className="muted" style={{fontSize:10.5}}>Viewing {active.name}</span>
+          </div>
           <div className="between card-pad" style={{paddingBottom:14,marginBottom:0}}>
             <div>
               <h3 style={{fontSize:15}}>{active.name}</h3>
@@ -147,6 +153,7 @@ export default function FormsPage(){
             </div>
           </div>
           <FilloutEmbed key={active.embedId} embedId={active.embedId} kind={active.embedKind} height={active.height}/>
+          <button className="form-stage-back" onClick={()=>setActive(undefined)} aria-label="Back to all forms"><ArrowLeft size={15}/><span>All forms</span></button>
         </section>
       )}
 
