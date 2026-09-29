@@ -28,6 +28,7 @@ import {
 import { Badge, Loading, useApp, api } from './ui';
 import { indiaDate } from '@/lib/display';
 import { isBreachedOpen } from '@/lib/metrics';
+import { FLOORPLANS, type FloorplanSpot } from '@/lib/radar-floorplans';
 
 interface RoomTicket {
   id: number;
@@ -104,55 +105,6 @@ interface RadarApiResponse {
 }
 
 const POLL_MS = 12000;
-
-type FloorplanSpot = { x: number; y: number; w: number; h: number };
-type FloorplanConfig = { src: string; width: number; height: number; rooms: Record<string, FloorplanSpot> };
-
-/** Percent-based hotspots sit on the rendered architectural plan, so live ticket
- * state stays interactive without painting over the reference-quality floorplan. */
-const FLOORPLANS: Record<string, FloorplanConfig> = {
-  kwality: {
-    src: '/radar/kwality-floorplan.png', width: 1774, height: 887,
-    rooms: {
-      'Studio 1': {x: 2, y: 8, w: 25, h: 35}, 'Studio 2': {x: 2, y: 58, w: 30, h: 31},
-      'Strength Studio': {x: 60, y: 10, w: 14, h: 49}, 'PowerCycle Studio': {x: 78, y: 15, w: 20, h: 47},
-      'His Space': {x: 49, y: 20, w: 13, h: 31}, 'Her Space': {x: 27, y: 2, w: 14, h: 18},
-      'GUEST WASHROOM': {x: 31, y: 20, w: 11, h: 14}, 'Brain Cell': {x: 21, y: 59, w: 13, h: 24},
-      Pantry: {x: 31, y: 39, w: 12, h: 13}, 'Lobby / Reception': {x: 2, y: 43, w: 30, h: 17},
-    },
-  },
-  supreme: {
-    src: '/radar/supreme-floorplan.png', width: 1969, height: 799,
-    rooms: {
-      'Strength Lab': {x: 9, y: 7, w: 24, h: 33}, 'PowerCycle Studio': {x: 33, y: 7, w: 17, h: 33},
-      'Barre Studio': {x: 50, y: 7, w: 21, h: 33}, 'Brain Cell': {x: 71, y: 22, w: 7, h: 30},
-      'Her Space': {x: 83, y: 7, w: 14, h: 30}, 'His Space': {x: 83, y: 52, w: 14, h: 28},
-      'Front Desk': {x: 8, y: 41, w: 23, h: 23}, Pantry: {x: 35, y: 64, w: 36, h: 20},
-      Boutique: {x: 8, y: 64, w: 23, h: 22},
-    },
-  },
-  kenkere: {
-    src: '/radar/kenkere-floorplan.png', width: 1672, height: 941,
-    rooms: {
-      'Studio 1': {x: 4, y: 7, w: 39, h: 45}, 'Studio 2': {x: 50, y: 7, w: 39, h: 45},
-      'Lobby / Reception': {x: 8, y: 59, w: 53, h: 27}, 'Washroom & Changing': {x: 68, y: 57, w: 23, h: 30},
-    },
-  },
-  courtside: {
-    src: '/radar/courtside-floorplan.png', width: 1672, height: 941,
-    rooms: {
-      'Main Studio Floor': {x: 4, y: 7, w: 58, h: 47}, 'Reception / Lobby': {x: 6, y: 61, w: 33, h: 24},
-      'Member Lounge': {x: 48, y: 60, w: 43, h: 26},
-    },
-  },
-  copper: {
-    src: '/radar/copper-floorplan.png', width: 1672, height: 941,
-    rooms: {
-      'Main Studio Floor': {x: 4, y: 7, w: 61, h: 48}, Reception: {x: 7, y: 61, w: 38, h: 25},
-      'Changing Area': {x: 68, y: 55, w: 24, h: 32},
-    },
-  },
-};
 
 // Humanise an SLA delta given in minutes. Long-overdue tickets are common in
 // seeded data, so anything past a day collapses to whole days — "-1272130m" is
@@ -239,6 +191,10 @@ export function StudioOpsRadar({ initialStudio = 'kwality' }: { initialStudio?: 
    *  shipped reference photo until one has been regenerated. */
   const [layoutImages, setLayoutImages] = useState<Record<string, string>>({});
   const [regenerating, setRegenerating] = useState(false);
+  /** Rooms actually dragged since the plan image was last regenerated (or reset), per
+   *  studio — so a regenerate call only asks the AI to move what changed, not redraw
+   *  the whole building. */
+  const [movedRooms, setMovedRooms] = useState<Record<string, Record<string, {before: FloorplanSpot; after: FloorplanSpot}>>>({});
   const [arranging, setArranging] = useState(false);
   /** Degrees of tilt. Zero is the plan seen from directly above. */
   const [tilt, setTilt] = useState(0);
@@ -386,8 +342,16 @@ export function StudioOpsRadar({ initialStudio = 'kwality' }: { initialStudio?: 
     dragRef.current = null;
     if (!d) return;
     const rooms = {...spots, ...(layout[activeStudio.id] || {})};
+    const after = rooms[d.room];
     try {
       await api('/api/ops/radar/layout', {method: 'PUT', body: JSON.stringify({studio: activeStudio.id, rooms})});
+      setMovedRooms(m => {
+        const forStudio = m[activeStudio.id] || {};
+        // Keep the very first "before" if this room was already nudged this session,
+        // so the regenerate prompt describes the whole move, not the last pixel of it.
+        const before = forStudio[d.room]?.before ?? d.origin;
+        return {...m, [activeStudio.id]: {...forStudio, [d.room]: {before, after}}};
+      });
       notify(`${d.room} moved. Everyone now sees it here.`);
     } catch (e) {
       // The optimistic move above only lives in this tab's state — if the save failed,
@@ -397,14 +361,21 @@ export function StudioOpsRadar({ initialStudio = 'kwality' }: { initialStudio?: 
     }
   };
   const regenerateImage = async () => {
+    const changes = movedRooms[activeStudio.id] || {};
+    const changedRooms = Object.entries(changes).map(([room, c]) => ({room, before: c.before, after: c.after}));
+    if (!changedRooms.length) {
+      notify('Move a room first — regenerating redraws only what changed.', 'error');
+      return;
+    }
     setRegenerating(true);
     try {
       const res = await api<{imageUrl: string}>('/api/ops/radar/layout/regenerate', {
         method: 'POST',
-        body: JSON.stringify({studio: activeStudio.id, studioName: activeStudio.name, rooms: spots}),
+        body: JSON.stringify({studio: activeStudio.id, studioName: activeStudio.name, changedRooms, allRooms: Object.keys(spots)}),
       });
       setLayoutImages(m => ({...m, [activeStudio.id]: res.imageUrl}));
-      notify('The floor plan has been redrawn to match the new arrangement.');
+      setMovedRooms(m => ({...m, [activeStudio.id]: {}}));
+      notify('The floor plan has been redrawn — only the moved rooms changed.');
     } catch (e) {
       notify(e instanceof Error ? e.message : 'The plan could not be regenerated', 'error');
     } finally {
@@ -416,6 +387,7 @@ export function StudioOpsRadar({ initialStudio = 'kwality' }: { initialStudio?: 
       const res = await api<{layout: Record<string, unknown>; images: Record<string, string>}>('/api/ops/radar/layout', {method: 'DELETE', body: JSON.stringify({studio: activeStudio.id})});
       setLayout(l => { const next = {...l}; delete next[activeStudio.id]; return next; });
       setLayoutImages(res.images || {});
+      setMovedRooms(m => ({...m, [activeStudio.id]: {}}));
       notify('Room positions restored to the original plan.');
     } catch (e) {
       notify(e instanceof Error ? e.message : 'Could not restore the plan', 'error');
@@ -601,13 +573,13 @@ export function StudioOpsRadar({ initialStudio = 'kwality' }: { initialStudio?: 
                 >
                   <Move size={13} /> {arranging ? 'Done arranging' : 'Arrange rooms'}
                 </button>
-                {arranging && layout[activeStudio.id] && (
+                {arranging && Object.keys(movedRooms[activeStudio.id] || {}).length > 0 && (
                   <button
                     type="button"
                     className="fp-tool"
                     onClick={() => void regenerateImage()}
                     disabled={regenerating}
-                    title="Ask the AI to redraw the plan image to match this arrangement"
+                    title="Ask the AI to redraw only the rooms that moved, keeping the rest of the plan identical"
                   >
                     <Sparkles size={13} className={regenerating ? 'animate-pulse' : ''} /> {regenerating ? 'Redrawing…' : 'Regenerate plan'}
                   </button>

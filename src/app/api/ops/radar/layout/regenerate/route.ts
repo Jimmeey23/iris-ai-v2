@@ -1,11 +1,14 @@
 import {z} from 'zod';
-import OpenAI from 'openai';
+import OpenAI, {toFile} from 'openai';
+import {readFile} from 'node:fs/promises';
+import path from 'node:path';
 import {sql} from 'drizzle-orm';
 import {db} from '@/db';
 import {appSettings} from '@/db/schema';
 import {errorResponse, requireAdmin, sameOrigin, ApiError} from '@/lib/auth';
 import {getSetting, credentials} from '@/lib/config';
 import {enforceRateLimit} from '@/lib/rate-limit';
+import {FLOORPLANS, type FloorplanSpot} from '@/lib/radar-floorplans';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,12 +23,13 @@ const spot = z.object({
 const payload = z.object({
   studio: z.string().min(1).max(60),
   studioName: z.string().min(1).max(120),
-  rooms: z.record(z.string().min(1).max(80), spot).refine(r => Object.keys(r).length >= 1 && Object.keys(r).length <= 40, 'Need at least one room'),
+  changedRooms: z.array(z.object({room: z.string().min(1).max(80), before: spot, after: spot})).min(1).max(10),
+  allRooms: z.array(z.string().min(1).max(80)).max(40),
 });
 
 /** A room's coarse position on the plan, in words a model can draw from — the exact
  *  percentages mean nothing to it, but "top-left" next to "centre" reliably does. */
-function zoneOf(s: z.infer<typeof spot>): string {
+function zoneOf(s: FloorplanSpot): string {
   const cx = s.x + s.w / 2;
   const cy = s.y + s.h / 2;
   const h = cx < 34 ? 'left' : cx > 66 ? 'right' : 'centre';
@@ -38,18 +42,32 @@ export async function POST(req: Request) {
     sameOrigin(req);
     await requireAdmin();
     await enforceRateLimit('radarLayoutImage');
-    const {studio, studioName, rooms} = payload.parse(await req.json());
+    const {studio, studioName, changedRooms, allRooms} = payload.parse(await req.json());
     const c = await credentials('chatgpt');
     if (!c.api_key) throw new ApiError('Connect OpenAI in Integrations to regenerate the floor plan.', 503);
 
-    const roomLines = Object.entries(rooms)
-      .map(([name, s]) => `- ${name}: ${zoneOf(s)} of the plan`)
-      .join('\n');
-    const prompt = `A clean bird's-eye architectural floor plan rendering of a boutique fitness studio named "${studioName}", isometric perspective, warm wood-toned flooring, soft interior lighting, no people, no text watermarks. Label each room clearly with its name printed on the floor. Arrange the rooms at these positions on the plan:\n${roomLines}\nKeep walls, doorways and circulation paths architecturally plausible given this arrangement. Style: realistic 3D architectural visualization, top-down isometric, consistent line weight, neutral cream and wood palette.`;
+    const base = FLOORPLANS[studio] || FLOORPLANS.kwality;
+    const images = ((await getSetting(IMAGE_KEY))?.value ?? {}) as Record<string, string>;
+    const currentSrc = images[studio];
+    // Edit whatever is on screen right now — a previous AI render if one exists, otherwise
+    // the shipped reference photo — so a second move never throws away the first one.
+    const imageBuffer = currentSrc?.startsWith('data:')
+      ? Buffer.from(currentSrc.slice(currentSrc.indexOf(',') + 1), 'base64')
+      : await readFile(path.join(process.cwd(), 'public', base.src));
 
-    const client = new OpenAI({apiKey: c.api_key, timeout: 60000, maxRetries: 1});
-    const image = await client.images.generate({
+    const moved = changedRooms
+      .filter(({before, after}) => zoneOf(before) !== zoneOf(after))
+      .map(({room, before, after}) => `- "${room}": move from the ${zoneOf(before)} to the ${zoneOf(after)} of the plan, keeping its footprint, label style and finish exactly as drawn`);
+    if (!moved.length) throw new ApiError('None of the moved rooms changed position enough to redraw.', 400);
+
+    const unchanged = allRooms.filter(r => !changedRooms.some(c => c.room === r));
+    const prompt = `This is the existing architectural floor plan render for "${studioName}". Make the smallest possible edit: relocate ONLY the following room(s), nothing else:\n${moved.join('\n')}\n\nEvery other room — ${unchanged.join(', ')} — must stay in exactly the same place, size, shape and appearance as in the source image. Do not change the camera angle, perspective, lighting, color palette, wall style, flooring texture, or any label on an unlisted room. Do not add or remove any room. This is a targeted edit of a real building's plan, not a new design.`;
+
+    const client = new OpenAI({apiKey: c.api_key, timeout: 90000, maxRetries: 1});
+    const file = await toFile(imageBuffer, 'floorplan.png', {type: 'image/png'});
+    const image = await client.images.edit({
       model: 'gpt-image-1',
+      image: file,
       prompt,
       size: '1536x1024',
       n: 1,
@@ -58,8 +76,7 @@ export async function POST(req: Request) {
     if (!b64) throw new ApiError('The image model did not return a render. Try again.', 502);
     const dataUrl = `data:image/png;base64,${b64}`;
 
-    const current = ((await getSetting(IMAGE_KEY))?.value ?? {}) as Record<string, string>;
-    const next = {...current, [studio]: dataUrl};
+    const next = {...images, [studio]: dataUrl};
     await db
       .insert(appSettings)
       .values({key: IMAGE_KEY, value: next})
