@@ -9,7 +9,7 @@ import {TicketDialog} from '../ticket-detail';
 import {inferPriority} from '@/lib/routing';
 import {object} from '@/lib/display';
 import type {AdvancedDraft} from '@/lib/ticket-contract';
-import {MEMBER_LOOKUP_IDS, autoTitle, composeWriteup, encodeLookup, filled, gatingFor, isSkipped, linkedLookup, localDateTime, missingFields, priorityInputs, seedData, toTicketInput, visibleFields, type ClassSnapshot, type IntakeData, type IntakeValue, type TicketKind} from '@/lib/intake/plan';
+import {MEMBER_LOOKUP_IDS, autoTitle, composeWriteup, encodeLookup, filled, gatingFor, isSkipped, linkedLookup, localDateTime, missingFields, prefillFor, priorityInputs, seedData, toTicketInput, visibleFields, type ClassSnapshot, type IntakeData, type IntakeValue, type TicketKind} from '@/lib/intake/plan';
 import {matchStudio, sessionFacts, sessionSnapshot, type RosterEntry, type SessionDetail} from '@/lib/intake/class-desk';
 import {FormEngine, IntakeContextHeader, SECTION_META, SectionNav, groupSections, headerIds, sectionSlug, withInjected, type InjectedSection} from './form-engine';
 import {HOSTED_FLAGS, HostedRoster, type HostedRow} from './hosted-roster';
@@ -172,6 +172,20 @@ export function IntakeFlow({presetCategory, presetSubcategory, presetDesk, onLeg
   const fields = useMemo(() => (plan?.fields || [])
     .filter(f => !KIND_HIDDEN[kind].has(f.id))
     .map(f => praise && PRAISE_OPTIONAL.has(f.id) ? {...f, required: false} : f), [plan, praise, kind]);
+  // What the sub-category already implies — the equipment a mic or AC ticket is about — is
+  // filled in as soon as the plan arrives, and never over an answer already given.
+  // Adjusted during render rather than in an effect: the plan arrives asynchronously, and a
+  // field that flashes empty before an effect fills it is a field somebody starts answering.
+  const prefillKey = fields.filter(f => f.prefill).map(f => `${f.id}=${f.prefill}`).join('|');
+  const [prefilled, setPrefilled] = useState('');
+  if (prefillKey && prefillKey !== prefilled) {
+    setPrefilled(prefillKey);
+    setData(d => {
+      const add = Object.entries(prefillFor(fields)).filter(([id]) => !filled(d[id]));
+      return add.length ? {...d, ...Object.fromEntries(add)} : d;
+    });
+  }
+
   // A linked member fills the contact block from Momence — never over an answer already typed.
   // Runs for a member picked in the form and for one the class desk flagged alike.
   const memberRef = MEMBER_LOOKUP_IDS.map(id => linkedLookup(data[id])).find(Boolean) || null;

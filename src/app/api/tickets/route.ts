@@ -7,6 +7,7 @@ import {makeDraft,createTicketFromDraft,listTicketsPage,searchTickets,applyEscal
 import {getConfig} from '@/lib/config';
 import {ensureSeeded} from '@/lib/seed';
 import {errorResponse,intakeActor,requireWorkspace,sameOrigin} from '@/lib/auth';
+import {enforceRateLimit} from '@/lib/rate-limit';
 export const dynamic='force-dynamic';
 /** `GET /api/tickets` — `{tickets, nextCursor}`, newest first. `?limit=` (default 500, max 2000)
  *  and `?cursor=` (the previous page's `nextCursor`) page through the list; `nextCursor` is
@@ -24,7 +25,7 @@ export async function GET(req:NextRequest){try{
   const rows=cfg.maskMemberContact&&user.role!=='admin'?page.tickets.map(t=>({...t,memberName:maskMemberName(t.memberName)})):page.tickets;
   return Response.json({tickets:rows,nextCursor:page.nextCursor});
 }catch(e){return errorResponse(e);}}
-export async function POST(req:NextRequest){try{sameOrigin(req);const actor=await intakeActor();await ensureSeeded();const body=await req.json();
+export async function POST(req:NextRequest){try{sameOrigin(req);const actor=await intakeActor();await enforceRateLimit('ticketCreate');await ensureSeeded();const body=await req.json();
 // Untrusted: the public schema refuses `history`/`system` sources, reserved customFields are
 // stripped and a supplied priority can only raise the inferred one — see makeDraft.
 const draft=await makeDraft(body);if(req.nextUrl.searchParams.get('preview')==='true')return Response.json({draft});// The form-based intake files through here too; `channel` only labels the row — routing,

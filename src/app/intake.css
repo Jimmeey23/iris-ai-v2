@@ -4127,3 +4127,25 @@ input.hroster-name-input {
   border-top: 1px solid var(--hairline);
   padding-top: 12px;
 }
+
+/* ── "Something else" ────────────────────────────────────────────────────────
+   A closed list with a way out: the dropdown keeps its place in the grid and
+   the free-text box appears beneath it, indented under the list it belongs to
+   rather than floating as a separate question. */
+.intake-choice {
+  display: grid;
+  gap: 8px;
+}
+.intake-other {
+  width: 100%;
+  animation: intake-other-in 0.18s ease both;
+}
+.intake-choice.is-open .intake-other {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+}
+@keyframes intake-other-in {
+  from { opacity: 0; transform: translateY(-3px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .intake-other { animation: none; }
+}

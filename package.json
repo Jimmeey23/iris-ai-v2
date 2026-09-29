@@ -23,6 +23,7 @@
     "check:labels": "npx tsx --tsconfig tsconfig.checks.json scripts/label-check.ts",
     "tickets:relabel": "npx tsx scripts/relabel-tickets.mjs",
     "tickets:repair-routing": "npx tsx scripts/backfill-repair-routing.mjs",
+    "check:forms": "npx tsx scripts/forms-check.mjs",
     "check:dashboard": "npx tsx --tsconfig tsconfig.checks.json scripts/dashboard-check.ts",
     "check:dashboard:api": "npx tsx --tsconfig tsconfig.checks.json scripts/dashboard-api-check.mjs",
     "check:webhooks": "npx tsx --tsconfig tsconfig.checks.json scripts/webhook-check.ts",
@@ -30,7 +31,7 @@
     "check:credentials": "npx tsx --tsconfig tsconfig.checks.json scripts/credentials-check.ts",
     "check:access": "npx tsx --tsconfig tsconfig.checks.json scripts/access-check.ts",
     "accounts:import": "npx tsx --tsconfig tsconfig.checks.json scripts/import-staff-accounts.ts",
-    "test": "npm run check:intake && npm run check:labels && npm run check:dashboard && npm run check:webhooks && npm run check:emails && npm run check:credentials && npm run check:access && npm run check:iris"
+    "test": "npm run check:intake && npm run check:forms && npm run check:labels && npm run check:dashboard && npm run check:webhooks && npm run check:emails && npm run check:credentials && npm run check:access && npm run check:iris"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.23",

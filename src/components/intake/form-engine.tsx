@@ -2,7 +2,7 @@
 import {useEffect, useMemo, useRef, useState, type ReactNode} from 'react';
 import {Activity, Building2, CalendarClock, CalendarDays, Check, ChevronDown, Clock3, ClipboardList, EyeOff, GitBranch, GraduationCap, HeartHandshake, IndianRupee, Layers, LockKeyhole, MapPin, Megaphone, Minus, MonitorCog, PackageSearch, Paperclip, PenLine, Plus, ShieldAlert, Sparkles, UserRound, UsersRound, Wrench, X, type LucideIcon} from 'lucide-react';
 import {studioAreasFor} from '@/lib/constants';
-import {ENRICH_GROUP_LABEL, MEMBER_LOOKUP_IDS, fieldRank, filled, isSkipped, isVisible, localDateTime, orderSections, skipKey, type IntakeData, type IntakeField, type IntakeValue, type LookupRef} from '@/lib/intake/plan';
+import {ENRICH_GROUP_LABEL, MEMBER_LOOKUP_IDS, OTHER_OPTION, fieldRank, filled, isSkipped, isVisible, localDateTime, orderSections, skipKey, type IntakeData, type IntakeField, type IntakeValue, type LookupRef} from '@/lib/intake/plan';
 import {LookupField} from './lookup-field';
 import {OptionSelect} from './option-select';
 
@@ -55,6 +55,52 @@ function DateTime({id, value, invalid, onChange}: {id: string; value: string; in
   </div>;
 }
 
+/**
+ * A list with a way out.
+ *
+ * Every closed list used to end at whatever the plan happened to foresee, so anything else
+ * went into the summary as prose, if it was recorded at all. Picking "Something else" opens
+ * a box, and what gets typed *is* the answer — the sentinel is never stored, so reports and
+ * routing see an ordinary value and need to know nothing about this control.
+ */
+function ChoiceField({f, id, options, value, onChange, multi = false, invalid}: {
+  f: IntakeField; id: string; options: string[]; value: IntakeValue; onChange: (v: IntakeValue) => void; multi?: boolean; invalid: boolean;
+}) {
+  const list = useMemo(() => f.allowOther ? [...options, OTHER_OPTION] : options, [options, f.allowOther]);
+  const chosen = useMemo(() => multi ? (Array.isArray(value) ? value.map(String) : value ? String(value).split(/\s*\|\s*/).filter(Boolean) : []) : value == null || value === '' ? [] : [String(value)], [value, multi]);
+  // An answer that is not on the list is one somebody typed here before.
+  const custom = chosen.filter(c => c !== OTHER_OPTION && !options.includes(c));
+  const [typing, setTyping] = useState(custom.length > 0 || chosen.includes(OTHER_OPTION));
+  const open = f.allowOther && (typing || chosen.includes(OTHER_OPTION) || custom.length > 0);
+
+  const pick = (v: string | string[]) => {
+    const picked = Array.isArray(v) ? v : [v];
+    setTyping(picked.includes(OTHER_OPTION) || picked.some(x => !options.includes(x)));
+    onChange(v);
+  };
+  // What is typed replaces the sentinel, so the stored answer is only ever the real words.
+  const write = (text: string) => {
+    const kept = chosen.filter(c => c !== OTHER_OPTION && options.includes(c));
+    const next = text.trim() ? [...kept, text] : [...kept, OTHER_OPTION];
+    onChange(multi ? next : next[next.length - 1]);
+  };
+  return (
+    <div className={open ? 'intake-choice is-open' : 'intake-choice'}>
+      <OptionSelect id={id} options={list} value={multi ? [...chosen] : chosen[0] ?? ''} onChange={pick} multi={multi} invalid={invalid} />
+      {open && (
+        <input
+          type="text"
+          className="intake-other"
+          value={custom[0] ?? ''}
+          placeholder={'Tell us — ' + f.label.toLowerCase()}
+          aria-label={f.label + ' — something else'}
+          onChange={e => write(e.target.value)}
+        />
+      )}
+    </div>
+  );
+}
+
 function FieldControl({f, value, onChange, invalid, studio, onLookupPick}: {f: IntakeField; value: IntakeValue; onChange: (v: IntakeValue) => void; invalid: boolean; studio?: string; onLookupPick?: (f: IntakeField, ref: LookupRef, raw?: Record<string, unknown>) => void}) {
   const id = 'f-' + f.id;
   const options = f.id === 'area' ? studioAreasFor(studio) : f.options || [];
@@ -83,10 +129,10 @@ function FieldControl({f, value, onChange, invalid, studio, onLookupPick}: {f: I
     case 'lookup':
       return <LookupField id={id} module={f.module || 'member'} value={value} multi={Boolean(f.multi)} studio={studio} invalid={invalid} onChange={onChange} onPick={(ref, raw) => onLookupPick?.(f, ref, raw)} />;
     case 'multiselect':
-      return <OptionSelect id={id} options={options} value={value} onChange={onChange} multi invalid={invalid} />;
+      return <ChoiceField f={f} id={id} options={options} value={value} onChange={onChange} multi invalid={invalid} />;
     case 'radio':
     case 'select':
-      return <OptionSelect id={id} options={options} value={value} onChange={onChange} invalid={invalid}/>;
+      return <ChoiceField f={f} id={id} options={options} value={value} onChange={onChange} invalid={invalid} />;
     default:
       return <input id={id} type="text" value={String(value ?? '')} placeholder={f.placeholder || ''} maxLength={f.id === 'title' ? 240 : undefined} aria-invalid={invalid || undefined} onChange={e => onChange(e.target.value)} />;
   }

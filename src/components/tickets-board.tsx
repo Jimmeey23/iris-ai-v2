@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useCallback, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   CalendarDays,
   Ticket,
@@ -369,8 +370,11 @@ export function TicketTable({
   selected?: number[];
   onToggle?: (id: number) => void;
 }) {
+  // Client navigation: `window.location.assign` threw the whole app away and
+  // rebooted it — a full document load for a route Next already has.
+  const router = useRouter();
   const open = (id: number) =>
-    onSelect ? onSelect(id) : window.location.assign("/tickets/" + id);
+    onSelect ? onSelect(id) : router.push("/tickets/" + id);
   return (
     <div className="table-wrap">
       <table className="data-table data-table-rich">
@@ -486,14 +490,13 @@ export function TicketCard({
   onSelect?: (id: number) => void;
   fields?: KanbanField[];
 }) {
+  const router = useRouter();
   const age = ageOf(t);
   const has = (f: KanbanField) => fields.includes(f);
   return (
     <button
       className={"ticket-card priority-edge priority-edge-" + t.priority}
-      onClick={() =>
-        onSelect ? onSelect(t.id) : window.location.assign("/tickets/" + t.id)
-      }
+      onClick={() => (onSelect ? onSelect(t.id) : router.push("/tickets/" + t.id))}
     >
       <div className="between">
         <span className="accent mono" style={{ fontSize: 10 }}>

@@ -38,6 +38,11 @@ export type IntakeField = {
   /** Optional regex (source) the dependency's answer must match for this field to show. Plain
    *  conditional fields only need the dependency answered; this narrows it to particular answers. */
   when?: string;
+  /** Answer to start from when the sub-category already implies it — a mic fault is about a
+   *  microphone, so nobody should have to say so. Always editable. */
+  prefill?: string;
+  /** Whether the list carries a "Something else" escape with a free-text box behind it. */
+  allowOther?: boolean;
   section: string;
 };
 
@@ -59,7 +64,7 @@ export type IntakeSubMeta = {
 type RawDef = {
   id: string; label: string; type: IntakeFieldType; desc?: string; required?: boolean; conditional?: boolean;
   dependsOn?: string; condText?: string; placeholder?: string; o?: number; options?: string[]; module?: LookupModule; multi?: boolean; enrich?: string;
-  when?: string;
+  when?: string; prefill?: string; allowOther?: boolean;
   /** Overlay questions can name their group when the shared id means something else here. */
   section?: string;
 };
@@ -182,6 +187,16 @@ export function fieldOptions(id: string): string[] {
 }
 
 /* ------------------------------------------------------------------ fields */
+/** The answer that opens a free-text box. Stored only while the box is empty: once the
+ *  person types, their own words are the answer, so nothing downstream ever has to know
+ *  this sentinel existed. */
+export const OTHER_OPTION = 'Something else…';
+const CHOICE_TYPES = new Set<IntakeFieldType>(['select', 'multiselect', 'radio']);
+/** Lists that already carry an escape of their own, in whatever wording. */
+const ESCAPE_OPTION = /other|something else|not listed|unsure|don't know|prefer not|none of/i;
+/** Studio is the one list that must stay closed: routing, access scoping and the SLA clock
+ *  are all keyed off it, and a typed-in studio belongs to no team. */
+const NO_OTHER = new Set(['studio']);
 export type PlanContext = {studios: string[]; formats: string[]; trainers: string[]; memberships?: string[]};
 
 function materialise(def: RawDef, universal: boolean, ctx: PlanContext, category?: string): Omit<IntakeField, 'dep'> {
@@ -196,6 +211,7 @@ function materialise(def: RawDef, universal: boolean, ctx: PlanContext, category
   if (def.multi) f.multi = true;
   if (def.enrich) f.enrich = def.enrich;
   if (def.when) f.when = def.when;
+  if (def.prefill) f.prefill = def.prefill;
   // Iris owns the workspace directories; the Hub's copies are replaced at build time.
   if (def.id === 'studio') f.options = ctx.studios;
   else if (def.id === 'class_format') f.options = ctx.formats;
@@ -204,6 +220,8 @@ function materialise(def: RawDef, universal: boolean, ctx: PlanContext, category
   else if (def.id === 'area') f.options = []; // per studio, see areasFor in the form
   else if (Array.isArray(def.options) && def.options.length) f.options = def.options;
   else if (typeof def.o === 'number') f.options = DATA.opts[def.o];
+  if (def.allowOther !== undefined) f.allowOther = def.allowOther;
+  else if (CHOICE_TYPES.has(f.type) && f.options?.length && !NO_OTHER.has(f.id) && !f.options.some(o => ESCAPE_OPTION.test(o))) f.allowOther = true;
   return f;
 }
 
@@ -238,6 +256,53 @@ const MEMBER_LOOKUP_DEF: RawDef = {
  *  after the Hub plan so a rebuild of plan-data.json does not wipe them. */
 const CLASS_LEVELS = ['Beginner', 'Intermediate', 'Advanced', 'All levels'];
 const DAYS_OF_WEEK = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+/**
+ * Equipment a sub-category already names.
+ *
+ * "Mic Not Working" is a microphone ticket before anyone has typed a word, yet the asset
+ * question was either absent or blank — so the owner received a repair ticket that did not
+ * say what was broken. Each entry names the asset the sub-category is about; the field is
+ * still a normal dropdown, so a mis-set default takes one click to correct.
+ *
+ * Keys are matched against `category|||sub`, values against the `asset_type` option list.
+ */
+const EQUIPMENT_PREFILL: Record<string, string> = {
+  'Tech Issues|||Mic Not Working': 'Microphone',
+  'Tech Issues|||Speakers Static Noise': 'Speaker',
+  'Tech Issues|||Studio Music Preferences': 'Music system',
+  'Class Experience|||Audio Issues': 'Music system',
+  'Repair and Maintenance|||AC and HVAC Issues': 'Air conditioning system',
+  'Repair and Maintenance|||Lighting Issues': 'Studio lighting rig',
+  'Repair and Maintenance|||PowerCycle Bike Fault (Stages SC3)': 'PowerCycle bike',
+  'Safety and Security|||CCTV Malfunction': 'TFA system',
+  'Miscellaneous|||Lighting Preferences': 'Studio lighting rig',
+};
+/** The asset question, added where the sub-category names equipment but the plan left it out. */
+const ASSET_TYPE_DEF: RawDef = {
+  id: 'asset_type', label: 'Equipment / asset type', type: 'select', section: 'Equipment & facility',
+  desc: 'Set from the sub-category. Change it if the fault is with something else.',
+  options: [],
+};
+function equipmentOverlay(category: string, sub: string, presentIds: string[]): RawDef[] {
+  const asset = EQUIPMENT_PREFILL[subKey(category, sub)];
+  if (!asset) return [];
+  // Already on the plan: nothing to add, `applyPrefill` sets the value.
+  if (presentIds.includes('asset_type')) return [];
+  return [{...ASSET_TYPE_DEF, options: fieldOptions('asset_type'), prefill: asset}];
+}
+
+/** Who was affected, asked only once a count says somebody was.
+ *
+ * `affected_count` was universal while the member picker sat on 60 of 296 plans and hung off
+ * the class lookup, so "3 members affected" routinely reached the owner with no names on it.
+ * This picker follows the count instead: answer more than zero and it appears. */
+const MEMBERS_AFFECTED_DEF: RawDef = {
+  id: 'members_affected', label: 'Which members were affected', type: 'lookup', module: 'member', multi: true,
+  section: 'Who this is about', conditional: true, dependsOn: 'affected_count', when: '^\\s*[1-9]',
+  condText: 'Yes — when one or more members were affected',
+  desc: 'Pick them from Momence so the ticket carries their records. The count above says how many; this says who.',
+};
 
 const SUB_OVERLAYS: Record<string, RawDef[]> = {
   'Brand Feedback|||Hosted Class Feedback': [
@@ -367,14 +432,26 @@ export function planFields(category: string, sub: string, ctx: PlanContext, conf
   const raw = DATA.subs[sourceSubKey(category, sub)];
   const base = DATA.universal.map(i => materialise(DATA.defs[i], true, ctx, category));
   const own = (raw?.f || []).map(i => materialise(DATA.defs[i], false, ctx, category));
-  const overlay = (SUB_OVERLAYS[subKey(category, sub)] || []).map(d => materialise(d, false, ctx, category));
+  const planIds = [...DATA.universal, ...(raw?.f || [])].map(i => DATA.defs[i].id);
+  const overlay = [
+    ...(SUB_OVERLAYS[subKey(category, sub)] || []),
+    ...equipmentOverlay(category, sub, planIds),
+    // The count is universal, so the picker that names those members belongs everywhere the
+    // roster-based one is not already asking.
+    ...(planIds.includes('affected_count') && !planIds.includes('attendees_affected') ? [MEMBERS_AFFECTED_DEF] : []),
+  ].map(d => materialise(d, false, ctx, category));
   const seen = new Set<string>();
   const merged = [...base, ...own, ...overlay].filter(f => { if (seen.has(f.id)) return false; seen.add(f.id); return true; });
   // Irrelevant questions go, and so does anything that only followed on from one of them —
   // otherwise its condition could never be met and it would show unconditionally.
   const dropped = new Set(merged.filter(f => !relevant(f.id, category, sub)).map(f => f.id));
   for (let changed = true; changed;) { changed = false; for (const f of merged) if (!dropped.has(f.id) && f.dependsOn && dropped.has(f.dependsOn)) { dropped.add(f.id); changed = true; } }
-  const generated = merged.filter(f => !dropped.has(f.id)).map(f => WHEN[f.id] && !f.when ? {...f, when: WHEN[f.id]} : f);
+  const asset = EQUIPMENT_PREFILL[subKey(category, sub)];
+  const generated = merged
+    .filter(f => !dropped.has(f.id))
+    .map(f => WHEN[f.id] && !f.when ? {...f, when: WHEN[f.id]} : f)
+    // Set on the plan the form already had, as well as on the one just injected.
+    .map(f => asset && f.id === 'asset_type' && !f.prefill ? {...f, prefill: asset} : f);
   // A published builder plan replaces the generated plan for this sub-category. It is a full
   // snapshot on purpose: administrators can remove irrelevant inherited fields as well as add
   // questions, while Reset can always return to the source-backed generated version.
@@ -384,10 +461,17 @@ export function planFields(category: string, sub: string, ctx: PlanContext, conf
   if (all.some(f => f.id === 'occurred_at')) all = all.filter(f => f.id !== 'occurred_relative');
   // Scheduling preferences are sets, not prose. A shared option bank makes them filterable and
   // lets a member legitimately choose more than one usable window.
-  all = all.map(f => TIME_SLOT_IDS.has(f.id) ? {...f, type: 'multiselect' as const, options: TIME_SLOT_OPTIONS, placeholder: undefined} : f);
+  // `allowOther` is re-decided here because the type and the options both change: these
+  // start life as free text and only become a list at this point.
+  all = all.map(f => TIME_SLOT_IDS.has(f.id) ? {...f, type: 'multiselect' as const, options: TIME_SLOT_OPTIONS, placeholder: undefined, allowOther: true} : f);
   // These two counts are semantically identical on scheduling requests. Retain the more specific
   // request count and drop the generic impact count wherever both were inherited.
-  if (all.some(f => f.id === 'members_requesting_change')) all = all.filter(f => f.id !== 'affected_count');
+  if (all.some(f => f.id === 'members_requesting_change')) {
+    all = all.filter(f => f.id !== 'affected_count');
+    // The picker asks who those members are, so it has to follow whichever count survived —
+    // left pointing at the dropped one it could never appear.
+    all = all.map(f => f.id === 'members_affected' ? {...f, dependsOn: 'members_requesting_change'} : f);
+  }
   // Always offer a member lookup if the plan does not already have one.
   if (!all.some(f => f.type === 'lookup' && f.module === 'member' && MEMBER_LOOKUP_IDS.includes(f.id))) all.push(materialise(MEMBER_LOOKUP_DEF, true, ctx, category));
   // Prompt for the exact spot inside the chosen room/area.
@@ -496,6 +580,13 @@ export function relativeFor(iso?: string, now = new Date()): string | undefined 
   return undefined;
 }
 /** What a fresh form starts with. Only ever fills blanks, so a studio the desk chose stays. */
+/** The answers a plan starts with — currently the equipment a sub-category names. Applied
+ *  when the form is built and whenever the sub-category changes, never over something the
+ *  person has already answered. */
+export function prefillFor(fields: IntakeField[]): IntakeData {
+  return Object.fromEntries(fields.filter(f => f.prefill).map(f => [f.id, f.prefill as IntakeValue]));
+}
+
 export function seedData(prev: IntakeData, reporter?: {name?: string; email?: string}): IntakeData {
   return {
     occurred_relative: 'Just now',

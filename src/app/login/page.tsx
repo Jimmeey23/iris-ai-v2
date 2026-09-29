@@ -14,6 +14,7 @@ import {
   Building2,
 } from "lucide-react";
 import { IrisLockup } from "@/components/iris-mark";
+import { useApp } from "@/components/ui";
 import { STUDIOS, DEPARTMENT_RECORDS } from "@/lib/constants";
 import "./login.css";
 
@@ -33,6 +34,7 @@ const ERROR_MESSAGES: Record<string, string> = {
 
 export default function LoginPage() {
   const router = useRouter();
+  const { refreshUser } = useApp();
   const [mode, setMode] = useState<"login" | "signup" | "setup">("login"),
     [setupToken, setSetupToken] = useState(""),
     [email, setEmail] = useState(""),
@@ -85,6 +87,12 @@ export default function LoginPage() {
       // A provisioned account must set its own password before it may go anywhere
       // else; every other guard in the app refuses it until then.
       const me = await fetch("/api/auth").then((x) => x.json()).catch(() => null);
+      // Refresh the shared identity, not just this component's copy. Signing in
+      // is a client-side navigation, so the app context survives it — and while
+      // it still held `null`, the shell rendered every administrator page as
+      // locked and anything keyed on the signed-in user never ran, until the
+      // person happened to reload.
+      await refreshUser().catch(() => {});
       router.replace(me?.passwordChangeRequired ? "/change-password" : "/dashboard");
       router.refresh();
     } catch (e) {

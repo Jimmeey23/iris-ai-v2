@@ -20,10 +20,11 @@ const isDev = process.env.NODE_ENV !== "production";
  * stricter but forces every page to render dynamically; revisit if that trade-off
  * changes. 'unsafe-eval' is only needed by React's dev tooling.
  *
- * The full policy ships as Report-Only first because the Fillout runtime can pull in
- * further origins we cannot audit from this repo. The directives that cannot break
- * anything (frame-ancestors, base-uri, object-src) are enforced right away. Once the
- * browser console is clean in production, rename the header to Content-Security-Policy.
+ * The policy is now enforced. It shipped Report-Only first because the Fillout runtime
+ * can pull in origins we cannot audit from this repo; the production console stayed
+ * clean, so the same directive list is served as Content-Security-Policy. Report-Only
+ * is kept alongside it — with no `report-uri` it costs nothing, and flipping a single
+ * header back is the fastest rollback if an embed starts failing.
  */
 const cspDirectives = [
   "default-src 'self'",
@@ -41,7 +42,7 @@ const cspDirectives = [
   "frame-ancestors 'none'",
 ];
 
-const enforcedCsp = ["frame-ancestors 'none'", "base-uri 'self'", "object-src 'none'"].join("; ");
+const csp = cspDirectives.join("; ");
 
 const securityHeaders = [
   { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
@@ -49,8 +50,8 @@ const securityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   { key: "Permissions-Policy", value: "microphone=(self), autoplay=(self), camera=(), geolocation=()" },
-  { key: "Content-Security-Policy", value: enforcedCsp },
-  { key: "Content-Security-Policy-Report-Only", value: cspDirectives.join("; ") },
+  { key: "Content-Security-Policy", value: csp },
+  { key: "Content-Security-Policy-Report-Only", value: csp },
 ];
 
 const nextConfig: NextConfig = {

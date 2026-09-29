@@ -40,6 +40,12 @@ export const LIMITS = {
   /** In-app feedback reports. Generous for a person, tight against a script that
    *  would otherwise turn the developer's inbox into a mailbomb. */
   feedback: {max: 10, windowSeconds: 600},
+  /** Filing a ticket. A person raising several in a row is normal; a script
+   *  filling the queue (and firing an integration delivery per row) is not. */
+  ticketCreate: {max: 20, windowSeconds: 60},
+  /** Comments and status updates on a ticket — cheap, but each one can fan out
+   *  to email and the integration outbox. */
+  ticketWrite: {max: 60, windowSeconds: 60},
   /** A forced trainer-review sync walks every Fillout page. */
   trainerSync: {max: 3, windowSeconds: 600},
 } satisfies Record<string, Limit>;

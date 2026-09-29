@@ -29,6 +29,7 @@ import {
 import { getConfig } from "@/lib/config";
 import { emitTicketEvent } from "@/lib/ticket-events";
 import { inferSeverity } from "@/lib/routing";
+import { enforceRateLimit } from "@/lib/rate-limit";
 export const dynamic = "force-dynamic";
 type Ctx = { params: Promise<{ id: string }> };
 export async function GET(_req: Request, ctx: Ctx) {
@@ -52,6 +53,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
   try {
     sameOrigin(req);
     const actor = await requireAgent();
+    await enforceRateLimit("ticketWrite");
     const id = z.coerce
       .number()
       .int()

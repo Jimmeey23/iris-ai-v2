@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { ticketComments, ticketActivities, tickets } from "@/db/schema";
 import { ApiError, requireAgent, requireTicketAccess, errorResponse, sameOrigin } from "@/lib/auth";
+import { enforceRateLimit } from "@/lib/rate-limit";
 export async function POST(
   req: Request,
   ctx: { params: Promise<{ id: string }> },
@@ -10,6 +11,7 @@ export async function POST(
   try {
     sameOrigin(req);
     const actor = await requireAgent();
+    await enforceRateLimit("ticketWrite");
     const id = z.coerce
       .number()
       .int()

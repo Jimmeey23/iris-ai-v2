@@ -25,13 +25,25 @@ import { api, useApp } from "./ui";
  * account cannot open — is dropped before the tour starts instead of
  * spotlighting empty space.
  *
- * Completion is stored per identity in `/api/preferences` (keyed by workspace
- * user, falling back to the browser cookie), so someone who has taken the tour
- * on the studio iPad is not shown it again on their laptop. Bumping
- * TOUR_VERSION re-runs it for everyone — use that only when the chrome itself
- * changes enough that the old walkthrough would mislead.
+ * **It runs once per account, ever.** The record is written to
+ * `/api/preferences` the moment the tour *opens* rather than when it ends, so a
+ * refresh, a crash, a closed tab or a skip all count as having seen it — the
+ * failure everyone has met is the welcome tour that returns every morning.
+ * Preferences are keyed by workspace identity, so taking it on the studio iPad
+ * also settles it on a laptop. Anyone who wants it again has the replay button
+ * on their profile.
+ *
+ * `TOUR_VERSION` is recorded for reference but deliberately does NOT re-trigger
+ * the tour: raising it must never push a walkthrough back onto people who have
+ * already been through one.
  */
 export const TOUR_VERSION = 2;
+/** Mirrors the server record on this device, so a failed PATCH (offline, 500)
+ *  cannot turn into the tour reopening on every reload. */
+const SEEN_KEY = "iris-tour-seen";
+/** Module scope, so it survives the remount that `router.refresh()` causes after
+ *  sign-in: the first-run check runs once per page load, not once per mount. */
+let firstRunChecked = false;
 const START_EVENT = "iris:start-tour";
 /** Shell tells the tour when a panel it asked for has actually opened. */
 export const TOUR_SIGNAL = "iris:tour-signal";
@@ -176,6 +188,21 @@ function usableSteps(): Step[] {
   return STEPS.filter((s) => !s.anchor || s.require?.kind === "route" || rectOf(s.anchor) || s.id === "iris-compose");
 }
 
+function markSeenLocally() {
+  try {
+    localStorage.setItem(SEEN_KEY, "1");
+  } catch {
+    /* Private browsing: the server record is the real one anyway. */
+  }
+}
+function seenLocally() {
+  try {
+    return localStorage.getItem(SEEN_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
 type Progress = { ids: string[]; index: number };
 function readProgress(): Progress | null {
   try {
@@ -283,16 +310,28 @@ export function GuidedTour() {
   const step = running ? steps[index] : null;
   const gate = step?.require;
 
-  const begin = useCallback(() => {
+  const begin = useCallback((record = true) => {
     const usable = usableSteps();
     setIndex(0);
     setSatisfied(false);
     setSteps(usable);
     writeProgress({ ids: usable.map((s) => s.id), index: 0 });
+    // Written on open, not on finish: whatever happens next — a refresh, a
+    // closed tab, a skip — this account has now been offered the tour.
+    if (!record) return;
+    markSeenLocally();
+    void api("/api/preferences", {
+      method: "PATCH",
+      body: JSON.stringify({
+        tour: { version: TOUR_VERSION, startedAt: new Date().toISOString() },
+      }),
+    }).catch(() => {});
   }, []);
 
   useEffect(() => {
-    const handler = () => begin();
+    // A deliberate replay: the account has already been counted as having seen
+    // the tour, so there is nothing new to record.
+    const handler = () => begin(false);
     window.addEventListener(START_EVENT, handler);
     return () => window.removeEventListener(START_EVENT, handler);
   }, [begin]);
@@ -314,28 +353,48 @@ export function GuidedTour() {
     return () => window.clearTimeout(t);
   }, []);
 
-  /** First run: ask the server whether this person has already been shown it. */
+  /** First login, and only the first: any stored tour record at all — started,
+   *  skipped or finished — means this account has had its turn.
+   *
+   *  Two things here look odd and are deliberate. The check is keyed on the
+   *  user's id rather than the identity object, which is replaced on every
+   *  poll; and neither the in-flight request nor the timer is cancelled when
+   *  this instance goes away. Signing in ends with `router.refresh()`, which
+   *  remounts the shell — and cancelling on unmount meant the first-run check
+   *  was aborted precisely once per login, so the tour never opened for anyone
+   *  arriving the normal way. `begin()` writes its progress to sessionStorage
+   *  before it touches state, so even when it lands on an instance that is
+   *  going away, the one that replaces it resumes from that record. */
+  const signedIn = Boolean(user);
   useEffect(() => {
-    if (!user || readProgress()) return;
-    let cancelled = false;
+    if (!signedIn || firstRunChecked) return;
+    if (readProgress() || seenLocally()) {
+      firstRunChecked = true;
+      return;
+    }
+    firstRunChecked = true;
     void api<{ tour?: { version?: number } }>("/api/preferences")
       .then((p) => {
-        if (cancelled) return;
-        if ((p.tour?.version ?? 0) >= TOUR_VERSION) return;
+        if (p.tour) {
+          markSeenLocally();
+          return;
+        }
         // A beat of grace so the shell has painted and the anchors measure true.
         window.setTimeout(begin, 600);
       })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [user, begin]);
+      .catch(() => {
+        // The check could not be made; let the next page load try again rather
+        // than showing a tour we cannot record.
+        firstRunChecked = false;
+      });
+  }, [signedIn, begin]);
 
   const close = useCallback(
     (completed: boolean) => {
       setSteps(null);
       setRect(null);
       writeProgress(null);
+      markSeenLocally();
       void api("/api/preferences", {
         method: "PATCH",
         body: JSON.stringify({

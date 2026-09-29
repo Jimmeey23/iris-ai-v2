@@ -30,6 +30,8 @@ const patchSchema = z.object({
    *  the tour runs again only when the shipped TOUR_VERSION moves past it. */
   tour: z.object({
     version: z.number().int().min(0).max(1000),
+    /** Written when the tour opens, which is what makes it once-per-account. */
+    startedAt: z.string().max(40).optional(),
     completedAt: z.string().max(40).optional(),
     completed: z.boolean().optional(),
   }).optional(),
@@ -69,8 +71,16 @@ export async function PATCH(req: Request) {
 
     // `dashboard` is merged one level deep. A jsonb `||` merge replaces the whole nested
     // object, so a client saving just `{dashboard:{groupBy}}` would wipe its own columns.
-    const {dashboard, ...top} = body;
+    const {dashboard, tour, ...top} = body;
     const merged: Record<string, unknown> = {...top};
+    if (tour) {
+      // jsonb `||` replaces a nested object wholesale, so a completion patch
+      // carrying only `completedAt` would erase the `startedAt` that marks this
+      // account as having seen the tour. Merge it over what is stored.
+      const existing = ((await getSetting(key))?.value ?? {}) as Record<string, unknown>;
+      const current = (typeof existing.tour === 'object' && existing.tour ? existing.tour : {}) as Record<string, unknown>;
+      merged.tour = {...current, ...tour};
+    }
     if (dashboard) {
       const existing = ((await getSetting(key))?.value ?? {}) as Record<string, unknown>;
       const current = (typeof existing.dashboard === 'object' && existing.dashboard ? existing.dashboard : {}) as Record<string, unknown>;
