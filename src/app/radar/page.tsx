@@ -14,7 +14,7 @@ export default async function RadarPage({
     <Shell
       title="Studio ops radar"
       eyebrow="OPERATIONS"
-      banner={<IrisMarquee />}
+      banner={<IrisMarquee page="radar" />}
     >
       <StudioOpsRadar initialStudio={p.studio || 'kwality'} />
     </Shell>

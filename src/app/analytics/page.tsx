@@ -15,6 +15,7 @@ import { Shell } from "@/components/shell";
 import { api, useApp, Badge, Loading, Avatar } from "@/components/ui";
 import { STUDIOS, DEPARTMENT_RECORDS } from "@/lib/constants";
 import { csvDownload, indiaDate } from "@/lib/display";
+import { IrisMarquee } from '@/components/iris-marquee';
 type Report = {
   totals: {
     all: number;
@@ -44,8 +45,15 @@ type Report = {
     overdue: number;
   }[];
   ownerLeaderboard: {name: string; assigned: number; open: number; closed: number; overdue: number; critical: number; medianHours: number | null}[];
+  recurrence: {kind: string; subject: string; count: number; open: number; days: number; firstSeen: string; lastSeen: string; examples: string[]; note: string}[];
   computedAt: string;
 };
+/** How each cluster is introduced in the list. */
+const RECURRENCE_LABEL: Record<string, string> = {
+  equipment: 'Equipment', member: 'Member', trainer: 'Trainer',
+  location: 'Room', theme: 'Theme', owner: 'Owner',
+};
+
 export default function AnalyticsPage() {
   const { notify } = useApp();
   const [data, setData] = useState<Report>(),
@@ -104,6 +112,7 @@ export default function AnalyticsPage() {
   return (
     <Shell
       title="The bigger picture, beautifully clear."
+      banner={<IrisMarquee page="analytics" />}
       eyebrow="REPORTS & ANALYTICS"
       action={
         <div className="flex-row">
@@ -296,6 +305,36 @@ export default function AnalyticsPage() {
               values={data.bySource}
             />
           </div>
+          {data.recurrence?.length > 0 && (
+            <section className="card recurrence-card" style={{ marginTop: 24 }}>
+              <div className="section-head">
+                <div>
+                  <h2>What keeps coming back</h2>
+                  <p>The same unit, member, trainer, room or theme, reported more than once on more than one day. Each of these was handled as a set of separate tickets.</p>
+                </div>
+                <Badge tone="amber">{data.recurrence.length} patterns</Badge>
+              </div>
+              <ul className="recurrence-list">
+                {data.recurrence.slice(0, 12).map((r) => (
+                  <li key={r.kind + r.subject}>
+                    <span className={"recurrence-kind kind-" + r.kind}>{RECURRENCE_LABEL[r.kind] || r.kind}</span>
+                    <div className="recurrence-body">
+                      <strong>{r.subject}</strong>
+                      <p>{r.note}</p>
+                      <small>
+                        {r.examples.join(' · ')}
+                        {r.examples.length < r.count ? ` +${r.count - r.examples.length} more` : ''}
+                      </small>
+                    </div>
+                    <div className="recurrence-figures">
+                      <span className="recurrence-count">{r.count}</span>
+                      {r.open > 0 && <span className="recurrence-open">{r.open} still open</span>}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
           <section className="card" style={{ marginTop: 24 }}>
             <div className="section-head">
               <div>

@@ -16,6 +16,7 @@ import {
   ChevronRight,
   Search,
   Bell,
+  BellRing,
   Menu,
   PanelLeft,
   Landmark,
@@ -137,7 +138,8 @@ export function Shell({
 }) {
   const path = usePathname(),
     router = useRouter();
-  const { user, openAuth, refreshUser, notify } = useApp();
+  const { user, openAuth, refreshUser, notify, pollSeconds } = useApp();
+  const [notices, setNotices] = useState<{id: number; title: string; body: string | null; fromName: string | null; readAt: string | null; ticketId: number | null; ticketNumber: string | null}[]>([]);
   const [mobile, setMobile] = useState(false),
     [collapsed, setCollapsed] = useState(true),
     [searchOpen, setSearchOpen] = useState(false),
@@ -195,6 +197,26 @@ export function Shell({
   useEffect(() => {
     if (notifications) signalTour("notifications");
   }, [notifications]);
+  /** The bell's own contents. Polled rather than pushed, on the workspace's poll interval. */
+  useEffect(() => {
+    if (!user) return;
+    const load = () => {
+      void api<{notifications: typeof notices}>("/api/notifications")
+        .then(d => setNotices(d.notifications))
+        .catch(() => {});
+    };
+    load();
+    const timer = window.setInterval(load, Math.max(15, pollSeconds) * 1000);
+    return () => window.clearInterval(timer);
+  }, [user, pollSeconds]);
+
+  const unread = notices.filter(n => !n.readAt);
+  const markRead = () => {
+    if (!unread.length) return;
+    setNotices(list => list.map(n => ({...n, readAt: n.readAt ?? new Date().toISOString()})));
+    void api("/api/notifications", {method: "PATCH", body: JSON.stringify({all: true})}).catch(() => {});
+  };
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
@@ -215,6 +237,21 @@ export function Shell({
   const activeName =
     routes.find((n) => path.startsWith(n.href))?.label ||
     (path === "/" ? "Overview" : title);
+  /** Heartbeat: says who is here and what they are looking at. Twenty seconds is inside the
+   *  fifty the API counts as present, so one dropped beat does not make somebody vanish. */
+  useEffect(() => {
+    if (!user) return;
+    const beat = () => {
+      void api("/api/presence", {
+        method: "POST",
+        body: JSON.stringify({ path, label: activeName }),
+      }).catch(() => {});
+    };
+    beat();
+    const timer = window.setInterval(beat, 20000);
+    return () => window.clearInterval(timer);
+  }, [user, path, activeName]);
+
   const openItems = items.filter(isOpen);
   /** The Overview is deliberately chrome-free: no drawer or collapse controls. */
   const isOverview = path === "/dashboard" || path === "/";
@@ -380,12 +417,14 @@ export function Shell({
               className="icon-btn"
               data-tour="topbar-notifications"
               aria-label="Open notifications"
-              onClick={() => setNotifications(true)}
+              onClick={() => { setNotifications(true); markRead(); }}
               style={{ position: "relative" }}
             >
               <Bell size={17} />
-              {openItems.some((t) => t.priority === "critical") && (
-                <i className="notif-dot" />
+              {(unread.length > 0 || openItems.some((t) => t.priority === "critical")) && (
+                <i className={"notif-dot" + (unread.length ? " notif-dot-count" : "")}>
+                  {unread.length > 0 && <span>{unread.length > 9 ? "9+" : unread.length}</span>}
+                </i>
               )}
             </button>
             <span className="topbar-divider" />
@@ -510,11 +549,32 @@ export function Shell({
       <Modal
         open={notifications}
         onClose={() => setNotifications(false)}
-        title="Priority tickets"
-        description="Open critical and high-priority tickets in the workspace."
+        title="Notifications"
+        description="Reminders addressed to you, then the workspace's urgent tickets."
         size="narrow"
       >
         <div className="stack">
+          {notices.length > 0 && (
+            <>
+              <div className="nav-heading" style={{ paddingLeft: 0 }}>FOR YOU</div>
+              {notices.slice(0, 8).map((n) => (
+                <Link
+                  key={n.id}
+                  href={n.ticketId ? "/tickets/" + n.ticketId : "/dashboard"}
+                  onClick={() => setNotifications(false)}
+                  className={"related-ticket" + (n.readAt ? "" : " is-unread")}
+                >
+                  <div>
+                    <small>{n.ticketNumber || "IRIS"}</small>
+                    <p>{n.title}</p>
+                    {n.body && <small className="secondary">{n.body}</small>}
+                  </div>
+                  <BellRing size={14} />
+                </Link>
+              ))}
+              <div className="nav-heading" style={{ paddingLeft: 0 }}>URGENT IN THE WORKSPACE</div>
+            </>
+          )}
           {openItems
             .filter((t) => ["critical", "high"].includes(t.priority))
             .map((t) => (

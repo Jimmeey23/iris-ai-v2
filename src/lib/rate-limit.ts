@@ -46,6 +46,9 @@ export const LIMITS = {
   /** Comments and status updates on a ticket — cheap, but each one can fan out
    *  to email and the integration outbox. */
   ticketWrite: {max: 60, windowSeconds: 60},
+  /** A reminder to a colleague. One per ticket per hour, keyed to sender and ticket: a nudge
+   *  that can be repeated at will stops being a nudge. */
+  nudge: {max: 1, windowSeconds: 3600},
   /** A forced trainer-review sync walks every Fillout page. */
   trainerSync: {max: 3, windowSeconds: 600},
 } satisfies Record<string, Limit>;

@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import {
+  BellRing,
   Copy,
   Link2,
   LockKeyhole,
@@ -269,6 +270,24 @@ export function TicketDialog({
       setBusy(false);
     }
   }
+  /** A private reminder to the one person who owns this. Deliberately quiet: a toast to the
+   *  sender, an in-app notification to the owner, a line on the activity log, and nothing
+   *  else — no email, no manager copied in. */
+  const [nudging, setNudging] = useState(false);
+  async function nudge() {
+    if (!t) return;
+    setNudging(true);
+    try {
+      const d = await api<{notified: string}>(`/api/tickets/${t.id}/nudge`, {method: 'POST', body: JSON.stringify({})});
+      notify(`Nudged ${d.notified}. They will see it in the app.`);
+      await load();
+    } catch (e) {
+      notify(e instanceof Error ? e.message : 'Could not send the nudge', 'error');
+    } finally {
+      setNudging(false);
+    }
+  }
+
   async function duplicate() {
     setBusy(true);
     try {
@@ -414,6 +433,18 @@ export function TicketDialog({
                       <button type="button" className="icon-btn" disabled={busy} onClick={() => void duplicate()} aria-label="Duplicate ticket" title="Duplicate ticket">
                         <Copy size={16} />
                       </button>
+                      {t.assignedStaffId ? (
+                        <button
+                          type="button"
+                          className="icon-btn"
+                          disabled={nudging}
+                          onClick={() => void nudge()}
+                          aria-label={"Nudge " + (t.assignedStaffName || "the owner")}
+                          title={"Nudge " + (t.assignedStaffName || "the owner") + " about this ticket"}
+                        >
+                          <BellRing size={16} />
+                        </button>
+                      ) : null}
                       <button type="button" className="icon-btn" onClick={onClose} aria-label="Close ticket" title="Close ticket">
                         <X size={17} />
                       </button>

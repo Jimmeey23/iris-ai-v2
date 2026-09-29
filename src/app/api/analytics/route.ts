@@ -7,6 +7,7 @@ import { getConfig } from "@/lib/config";
 import { metricSql } from "@/lib/reports";
 import { ticketScope } from "@/lib/tickets";
 import { dayBuckets, round1, slaCompliance, zonedDayEnd, zonedDayStart } from "@/lib/metrics";
+import { findRecurrence } from "@/lib/recurrence";
 export const dynamic = "force-dynamic";
 
 const n = (label: string, where: SQL) => sql<number>`count(*) filter (where ${where})::int`.as(label);
@@ -127,6 +128,9 @@ export async function GET(req: NextRequest) {
       byAssignee: by.assignedStaffName,
       bySource: by.source,
       owners: owners.sort((a, b) => b.total - a.total),
+      // What keeps coming back: the same unit, member, trainer, room or theme. Computed over
+      // the same window and scope as everything else on the page.
+      recurrence: await findRecurrence(null, new Date(to), where),
       ownerLeaderboard: ownerLifetime.map(o => ({...o, name: o.name || 'Unassigned', medianHours: round1(o.medianHours === null ? null : Number(o.medianHours))})).sort((a, b) => b.closed - a.closed || b.assigned - a.assigned),
       scope: {
         from: from ? new Date(from).toISOString() : null,

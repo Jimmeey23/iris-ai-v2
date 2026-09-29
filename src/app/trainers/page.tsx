@@ -8,6 +8,7 @@ import {relativeTime} from '@/lib/utils';
 import {TrainerImg} from '@/components/ticket-art';
 import {ImageStreamHero} from '@/components/image-stream-hero';
 import {TRAINER_IMAGES} from '@/lib/constants';
+import { IrisMarquee } from '@/components/iris-marquee';
 
 
 /** How often the tab re-reads the scorecards. Each read also queues a throttled background pull
@@ -99,7 +100,7 @@ export default function TrainersPage(){
   const orgAvg=withScores.length?Math.round(withScores.reduce((n,t)=>n+(t.avgScore||0),0)/withScores.length):null;
 
   return (
-    <Shell title="Trainer reviews, consolidated." eyebrow="TRAINING & QUALITY" action={
+    <Shell title="Trainer reviews, consolidated." eyebrow="TRAINING & QUALITY" banner={<IrisMarquee page="trainers" />} action={
       <div className="flex-row">
         {user&&<button className="btn" disabled={syncing} onClick={()=>void syncFillout()}>{syncing?<Loader2 size={13} className="animate-spin"/>:<DownloadCloud size={14}/>}{syncing?'Syncing…':'Sync assessments'}</button>}
         <Badge tone="blue"><GraduationCap size={12}/>{trainers.length} trainers tracked</Badge>

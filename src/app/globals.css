@@ -17340,3 +17340,142 @@ small {
   .ticket-detail-dialog .td-resolution-instrument { grid-template-columns: 86px minmax(0, 1fr); }
   .ticket-detail-dialog .td-resolution-instrument .sla-ring { width: 86px !important; height: 86px !important; }
 }
+
+/* ── Presence, nudges ────────────────────────────────────────────────────────
+   Who else is in the workspace, and the reminders addressed to you. Both are
+   quiet by design: presence is context, not a leaderboard, and a nudge that
+   shouts is not a nudge. */
+.presence-strip {
+  border: 1px solid var(--neu-line);
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: var(--neu-sm);
+  padding: 14px 16px;
+  margin-bottom: 14px;
+}
+.presence-strip header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.presence-strip h3 {
+  margin: 0;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 700;
+}
+.presence-strip ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.presence-strip li {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+.presence-strip li div {
+  display: grid;
+  min-width: 0;
+}
+.presence-strip strong {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+}
+.presence-strip small {
+  font-size: 11.5px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* An unread reminder carries a rule down its leading edge rather than a fill:
+   the row stays the same weight as the ones around it and still reads first. */
+.related-ticket.is-unread {
+  border-left: 3px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+/* The bell's badge becomes a count once a notification is addressed to you. */
+.notif-dot-count {
+  display: grid;
+  place-items: center;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 3px;
+  border-radius: 999px;
+  background: var(--red);
+  font: 700 9px/1 var(--font-mono);
+  color: #fff;
+}
+
+/* ── Repeat occurrences ──────────────────────────────────────────────────────
+   One row per pattern, ranked by what is still open rather than by raw volume.
+   The count sits on the right at display size: the number is the reason the row
+   is there, and it should be readable while scanning the column. */
+.recurrence-list {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+.recurrence-list li {
+  display: grid;
+  grid-template-columns: 78px 1fr auto;
+  align-items: center;
+  gap: 14px;
+  padding: 13px 4px;
+  border-bottom: 1px solid var(--hairline);
+}
+.recurrence-list li:last-child { border-bottom: 0; }
+.recurrence-kind {
+  font: 700 9.5px/1 var(--font-mono);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  text-align: center;
+  padding: 5px 0;
+  border-radius: 999px;
+  background: var(--surface-3);
+  color: var(--muted);
+}
+.recurrence-kind.kind-equipment { background: var(--red-bg); color: var(--red); }
+.recurrence-kind.kind-member { background: var(--accent-soft); color: var(--accent); }
+.recurrence-kind.kind-trainer { background: var(--purple-bg, var(--surface-3)); color: var(--purple); }
+.recurrence-body { min-width: 0; }
+.recurrence-body strong { display: block; font-size: 14px; color: var(--text); }
+.recurrence-body p { margin: 2px 0 0; font-size: 12.5px; color: var(--secondary); }
+.recurrence-body small {
+  display: block;
+  margin-top: 4px;
+  font: 500 11px var(--font-mono);
+  color: var(--muted);
+}
+.recurrence-figures { text-align: right; }
+.recurrence-count {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--text);
+}
+.recurrence-open {
+  display: block;
+  margin-top: 3px;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--red);
+}
+@media (max-width: 720px) {
+  .recurrence-list li { grid-template-columns: 1fr auto; }
+  .recurrence-kind { display: none; }
+}

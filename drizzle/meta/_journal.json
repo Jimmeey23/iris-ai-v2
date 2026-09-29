@@ -43,6 +43,13 @@
       "when": 1790596309610,
       "tag": "0005_colorful_swarm",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790656136203,
+      "tag": "0006_needy_red_hulk",
+      "breakpoints": true
     }
   ]
 }

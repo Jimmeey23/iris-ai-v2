@@ -191,6 +191,35 @@ export const ticketNotifications = pgTable("ticket_notifications", {
   recipientEmail: text("recipient_email").notNull(),
   createdAt: timestamp("created_at",{withTimezone:true}).defaultNow().notNull(),
 },(t)=>[uniqueIndex("ticket_notifications_unique_idx").on(t.ticketId,t.kind,t.recipientEmail),index("ticket_notifications_ticket_idx").on(t.ticketId)]);
+/** In-app notifications addressed to one person.
+ *
+ * Distinct from `ticketNotifications`, which is an idempotency ledger for outbound email and
+ * webhooks. This is what the bell in the top bar reads: a nudge reaches the ticket's owner
+ * and nobody else, so it is stored per recipient rather than broadcast and filtered. */
+export const userNotifications = pgTable("user_notifications", {
+  id: serial("id").primaryKey(),
+  /** Recipient, as an app_users row — the person who signs in, not the staff directory entry. */
+  userId: integer("user_id").notNull().references(()=>appUsers.id,{onDelete:"cascade"}),
+  ticketId: integer("ticket_id").references(()=>tickets.id,{onDelete:"cascade"}),
+  kind: text("kind").notNull(),
+  title: text("title").notNull(),
+  body: text("body"),
+  fromName: text("from_name"),
+  readAt: timestamp("read_at",{withTimezone:true}),
+  createdAt: timestamp("created_at",{withTimezone:true}).defaultNow().notNull(),
+},(t)=>[index("user_notifications_user_idx").on(t.userId,t.readAt),index("user_notifications_created_idx").on(t.createdAt)]);
+
+/** Who is in the app right now, and where.
+ *
+ * One row per person, overwritten by their heartbeat — presence is a current fact, not a
+ * history, so there is nothing to prune beyond rows that have gone stale. */
+export const userPresence = pgTable("user_presence", {
+  userId: integer("user_id").primaryKey().references(()=>appUsers.id,{onDelete:"cascade"}),
+  path: text("path").notNull(),
+  label: text("label"),
+  seenAt: timestamp("seen_at",{withTimezone:true}).defaultNow().notNull(),
+},(t)=>[index("user_presence_seen_idx").on(t.seenAt)]);
+
 export const auditLogs = pgTable("audit_logs", {
   id: serial("id").primaryKey(), actorId: integer("actor_id"), actorName: text("actor_name").notNull(), action: text("action").notNull(), entity: text("entity").notNull(), detail: jsonb("detail").$type<Record<string,unknown>>().notNull().default({}), createdAt: timestamp("created_at",{withTimezone:true}).defaultNow().notNull(),
 });

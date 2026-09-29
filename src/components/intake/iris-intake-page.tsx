@@ -33,7 +33,7 @@ export function IrisIntakePage({presetCategory, presetSubcategory, presetMode, p
 
   if (mode === 'chat') {
     return (
-      <Shell hideHeading hideFooter fullHeight banner={<IrisMarquee />}>
+      <Shell hideHeading hideFooter fullHeight banner={<IrisMarquee page="iris" />}>
         <div className="intake-legacy-bar" role="status">
           <span className="badge amber"><MessageSquareText size={10} /> Legacy chat intake</span>
           <span>The conversational flow is kept for reference; new tickets should go through the form.</span>
@@ -44,7 +44,7 @@ export function IrisIntakePage({presetCategory, presetSubcategory, presetMode, p
     );
   }
   return (
-    <Shell hideHeading hideFooter banner={<IrisMarquee />}>
+    <Shell hideHeading hideFooter banner={<IrisMarquee page="iris" />}>
       <IntakeFlow presetCategory={presetCategory} presetSubcategory={presetSubcategory} presetDesk={presetDesk} onLegacy={isAdmin ? () => choose('chat') : undefined} />
     </Shell>
   );
