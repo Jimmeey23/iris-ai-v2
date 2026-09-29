@@ -18056,3 +18056,36 @@ small {
   .ticket-detail-dialog .ticket-detail-shell .td-masthead { padding: 18px 16px 16px; }
   .ticket-detail-dialog .ticket-detail-shell .td-overview { padding: 12px; }
 }
+
+/* Resolution replaces the overview's right context rail; it must never resize
+   the primary case column. `display: contents` lets the existing left column
+   and the resolution rail participate in the same two-column grid. */
+@media (min-width: 1101px) {
+  .ticket-detail-dialog .ticket-workspace-split.rail-open:has(.td-overview) {
+    grid-template-columns: minmax(0, 1.55fr) minmax(290px, 1fr);
+    gap: 20px;
+    padding: 22px;
+  }
+  .ticket-detail-dialog .ticket-workspace-split.rail-open:has(.td-overview) > .ticket-workspace-main,
+  .ticket-detail-dialog .ticket-workspace-split.rail-open:has(.td-overview) .td-overview {
+    display: contents;
+  }
+  .ticket-detail-dialog .ticket-workspace-split.rail-open:has(.td-overview) .td-column {
+    grid-column: 1;
+    min-width: 0;
+  }
+  .ticket-detail-dialog .ticket-workspace-split.rail-open:has(.td-overview) .td-aside {
+    display: none;
+  }
+  .ticket-detail-dialog .ticket-workspace-split.rail-open:has(.td-overview) > .resolution-v2.rw {
+    grid-column: 2;
+    align-self: start;
+    width: 100%;
+    min-width: 0;
+    min-height: calc(94dvh - 155px);
+    max-height: calc(94dvh - 155px);
+    border: 1px solid var(--hairline-strong);
+    border-radius: 16px;
+    box-shadow: 0 14px 34px -28px rgba(0, 0, 0, .5);
+  }
+}
