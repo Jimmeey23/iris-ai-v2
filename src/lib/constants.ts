@@ -106,6 +106,9 @@ export const STUDIO_AREAS = [
   "Lockers & Changing",
   "Washrooms",
   "Washroom & Changing",
+  "Strength Lab",
+  "Barre Studio",
+  "Front Desk",
 ] as const;
 
 export type StudioRoom = {
@@ -134,12 +137,15 @@ export const STUDIO_LAYOUTS: Record<string, { studioName: string; rooms: StudioR
   supreme: {
     studioName: "Supreme HQ, Bandra",
     rooms: [
-      { name: "Studio 1", capacity: 13, category: "studio", description: "Studio 1 (capacity: 13 pax)" },
-      { name: "Studio 2", capacity: 13, category: "studio", description: "Studio 2 (capacity: 13 pax)" },
+      { name: "Strength Lab", capacity: 10, category: "studio", description: "Strength Lab (capacity: 10 pax)" },
       { name: "PowerCycle Studio", capacity: 13, category: "studio", description: "PowerCycle Studio (capacity: 13 pax)" },
-      { name: "Lobby / Reception", category: "common", description: "Lobby & Reception desk" },
-      { name: "Lockers & Changing", category: "washroom", description: "Lockers & shower rooms" },
-      { name: "Washrooms", category: "washroom", description: "Studio washrooms" },
+      { name: "Barre Studio", capacity: 22, category: "studio", description: "Barre Studio (capacity: 22 pax)" },
+      { name: "Brain Cell", category: "workspace", description: "Brain Cell (office space)" },
+      { name: "Her Space", category: "washroom", description: "Her Space (women's washroom & changing)" },
+      { name: "His Space", category: "washroom", description: "His Space (men's washroom & changing)" },
+      { name: "Front Desk", category: "common", description: "Front desk & reception" },
+      { name: "Pantry", category: "workspace", description: "Pantry (staff kitchen)" },
+      { name: "Boutique", category: "common", description: "Retail boutique" },
     ],
   },
   kenkere: {
@@ -196,12 +202,10 @@ export const AREA_ALIASES: Record<string, string> = {
   "cycle studio": "PowerCycle Studio",
   "spin studio": "PowerCycle Studio",
   "cycle room": "PowerCycle Studio",
-  "strength lab": "Strength Studio",
   "strength lab floor": "Strength Studio",
   "main floor": "Main studio floor",
   "reception": "Reception / lobby",
   "reception / lobby": "Reception / lobby",
-  "front desk": "Reception / lobby",
   "locker rooms": "Locker room",
   "changing room": "Lockers & Changing",
   "changing rooms": "Lockers & Changing",

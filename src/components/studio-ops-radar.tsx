@@ -124,9 +124,11 @@ const FLOORPLANS: Record<string, FloorplanConfig> = {
   supreme: {
     src: '/radar/supreme-floorplan.png', width: 1969, height: 799,
     rooms: {
-      'Studio 1': {x: 51, y: 7, w: 24, h: 39}, 'Studio 2': {x: 10, y: 8, w: 22, h: 34},
-      'PowerCycle Studio': {x: 34, y: 7, w: 15, h: 35}, 'Lobby / Reception': {x: 8, y: 42, w: 68, h: 34},
-      'Lockers & Changing': {x: 84, y: 10, w: 12, h: 39}, Washrooms: {x: 84, y: 57, w: 14, h: 30},
+      'Strength Lab': {x: 9, y: 7, w: 24, h: 33}, 'PowerCycle Studio': {x: 33, y: 7, w: 17, h: 33},
+      'Barre Studio': {x: 50, y: 7, w: 21, h: 33}, 'Brain Cell': {x: 71, y: 22, w: 7, h: 30},
+      'Her Space': {x: 83, y: 7, w: 14, h: 30}, 'His Space': {x: 83, y: 52, w: 14, h: 28},
+      'Front Desk': {x: 8, y: 41, w: 23, h: 23}, Pantry: {x: 35, y: 64, w: 36, h: 20},
+      Boutique: {x: 8, y: 64, w: 23, h: 22},
     },
   },
   kenkere: {

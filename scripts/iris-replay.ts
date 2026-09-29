@@ -145,7 +145,8 @@ async function main() {
   section('Rooms offered are the rooms that studio has');
 
   const supreme = studioAreasFor('Supreme HQ, Bandra');
-  check('Kwality-only rooms are not offered at Bandra', !supreme.includes('Brain Cell') && !supreme.includes('His Space'), supreme);
+  check('Kwality-only rooms are not offered at Bandra', !supreme.includes('GUEST WASHROOM') && !supreme.includes('Studio 1'), supreme);
+  check('Bandra rooms are its own — Brain Cell and His Space exist there too', supreme.includes('Brain Cell') && supreme.includes('His Space'), supreme);
   check('the PowerCycle studio is offered', supreme.includes('PowerCycle Studio'), supreme);
   check('the two spellings of the cycle studio are one room',
     studioAreasFor('Supreme HQ, Bandra').filter(a => /cycle/i.test(a)).length === 1,
