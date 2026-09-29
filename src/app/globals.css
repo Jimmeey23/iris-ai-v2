@@ -8561,10 +8561,10 @@ small {
 
 .drawer-iris-shortcut-card {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
+  align-items: stretch;
   gap: 10px;
-  padding: 10px 12px;
+  padding: 12px;
   background: var(--accent-soft);
   border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
   border-radius: var(--radius-md);
@@ -8572,19 +8572,28 @@ small {
 }
 .shortcut-text {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
+  min-width: 0;
 }
 .shortcut-text strong {
   display: block;
   font-size: 11.5px;
   color: var(--text);
   font-weight: 600;
+  line-height: 1.35;
 }
 .shortcut-text span {
   display: block;
+  margin-top: 2px;
   font-size: var(--text-3xs);
+  line-height: 1.4;
   color: var(--secondary);
+}
+.drawer-iris-shortcut-card .btn {
+  align-self: flex-start;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 .btn-open-iris-link {
   display: inline-flex;
