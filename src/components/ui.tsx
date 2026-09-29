@@ -125,6 +125,52 @@ type Toast = {
   type: "success" | "error";
   leaving: boolean;
 };
+export type DirectoryPerson = {
+  name: string; role?: string; avatarUrl: string | null; colour?: string | null;
+  userId: number | null; online: boolean; viewing?: string | null;
+};
+/**
+ * Faces and presence, fetched once and shared.
+ *
+ * `Avatar` reads this by name, so every surface that already renders a person's name — a
+ * ticket's owner, a session's trainer, a review's author — gets their photo and their live
+ * dot without its own fetch and without changing how it calls Avatar.
+ */
+const DirectoryContext = createContext<{people: Map<string, DirectoryPerson>; online: DirectoryPerson[]}>({
+  people: new Map(),
+  online: [],
+});
+export const useDirectory = () => useContext(DirectoryContext);
+/** One person by name, matched case- and spacing-insensitively. */
+export function usePerson(name?: string | null) {
+  const {people} = useDirectory();
+  if (!name) return undefined;
+  return people.get(name.trim().toLowerCase());
+}
+
+function DirectoryProvider({children}: {children: ReactNode}) {
+  const [people, setPeople] = useState<Map<string, DirectoryPerson>>(new Map());
+  const [online, setOnline] = useState<DirectoryPerson[]>([]);
+  useEffect(() => {
+    let stop = false;
+    const load = () => {
+      void api<{people: DirectoryPerson[]}>("/api/directory")
+        .then((d) => {
+          if (stop) return;
+          setPeople(new Map(d.people.map((p) => [p.name.trim().toLowerCase(), p])));
+          setOnline(d.people.filter((p) => p.online));
+        })
+        .catch(() => {});
+    };
+    load();
+    // Matches the heartbeat in the shell, so a dot is at most one beat behind the truth.
+    const timer = window.setInterval(load, 20000);
+    return () => { stop = true; window.clearInterval(timer); };
+  }, []);
+  const value = useMemo(() => ({people, online}), [people, online]);
+  return <DirectoryContext.Provider value={value}>{children}</DirectoryContext.Provider>;
+}
+
 const AppContext = createContext<AppContextType | null>(null);
 /** Toasts get their own context: showing one re-renders only the toast stack, never
  *  every screen that happens to read the app context. */
@@ -352,7 +398,9 @@ function ToastProvider({ children }: { children: ReactNode }) {
 export function AppProvider({ children }: { children: ReactNode }) {
   return (
     <ToastProvider>
-      <AppStateProvider>{children}</AppStateProvider>
+      <AppStateProvider>
+        <DirectoryProvider>{children}</DirectoryProvider>
+      </AppStateProvider>
     </ToastProvider>
   );
 }
@@ -883,29 +931,60 @@ export function Avatar({
   large = false,
   emptyDark = false,
   owner = false,
+  showPresence,
 }: {
   name: string;
   tone?: string;
   large?: boolean;
   emptyDark?: boolean;
   owner?: boolean;
+  /** Defaults to on for owner avatars; pass false where a dot would be noise. */
+  showPresence?: boolean;
 }) {
+  // Looked up by name, so every caller gets the photo without passing one.
+  const person = usePerson(name);
+  const photo = person?.avatarUrl || null;
+  // The dot used to be painted on every owner avatar regardless, which made it decoration.
+  // It now means what it says: this person is in the app right now.
+  const presence = (showPresence ?? owner) && person?.online;
+  const label = person?.online ? `${name} — online now${person.viewing ? `, viewing ${person.viewing}` : ""}` : name;
+
   if (emptyDark)
     return (
       <span
         className={cn("avatar", "avatar-empty-dark", large && "lg")}
         aria-label={name || "Unassigned owner"}
       >
-        <UserRound size={large ? 17 : 13} />
+        {photo ? (
+          // A 26px avatar from an arbitrary provider CDN: next/image would bill an
+          // optimisation request per face for an image already smaller than its own
+          // overhead, and needs every provider host allow-listed to render at all.
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={photo} alt="" loading="lazy" />
+        ) : (
+          <UserRound size={large ? 17 : 13} aria-hidden="true" />
+        )}
       </span>
     );
   const palette = owner
     ? String([...name].reduce((sum, char) => sum + char.charCodeAt(0), 0) % 6)
     : undefined;
   return (
-    <span className={cn("avatar", tone, owner && "avatar-owner", large && "lg")} data-palette={palette} aria-label={owner ? `${name}, ticket owner` : undefined}>
-      {owner ? <UserRound size={large ? 17 : 13} aria-hidden="true" /> : initials(name || "IRIS")}
-      {owner && <i className="avatar-presence" aria-hidden="true"/>}
+    <span
+      className={cn("avatar", tone, owner && "avatar-owner", large && "lg", photo && "has-photo")}
+      data-palette={palette}
+      title={presence ? label : undefined}
+      aria-label={owner ? `${label}, ticket owner` : undefined}
+    >
+      {photo ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={photo} alt="" loading="lazy" />
+      ) : owner ? (
+        <UserRound size={large ? 17 : 13} aria-hidden="true" />
+      ) : (
+        initials(name || "IRIS")
+      )}
+      {presence && <i className="avatar-presence" aria-hidden="true" />}
     </span>
   );
 }

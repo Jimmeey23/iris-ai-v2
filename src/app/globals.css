@@ -17647,3 +17647,98 @@ small {
   .sc-cell { min-height: 68px; }
   .sc-chip span { display: none; }
 }
+
+/* ── Avatars: faces, fallbacks and real presence ─────────────────────────────
+   The placeholder person sat off-centre for two compounding reasons: an inline
+   SVG still sits on the text baseline inside a centred box, and — the larger
+   one — `.avatar` is a grid, so the presence dot counted as a second grid item
+   and opened a second row, pushing the icon a third of its height upwards.
+   Every child is now placed in the same single cell, and the dot is taken out
+   of flow entirely, so the icon is centred whether or not a dot is present. */
+.avatar > svg,
+.avatar > img,
+.avatar > span {
+  grid-area: 1 / 1;
+  place-self: center;
+}
+.avatar > svg {
+  display: block;
+  flex: none;
+  line-height: 0;
+}
+.avatar {
+  line-height: 1;
+  aspect-ratio: 1;
+  position: relative;
+  /* The real cause of the low icon: in some contexts `.avatar` is a *column*
+     flex container, where `align-items`/`align-self: center` centre across the
+     inline axis only — the icon was left sitting at the top of the block axis.
+     Setting both axes centres it whichever direction the container ends up in,
+     and `place-items` covers the grid case in the same declaration. */
+  justify-content: center;
+  align-items: center;
+  place-items: center;
+}
+/* A real photograph needs none of the placeholder's tint or inner shadow. */
+.avatar.has-photo {
+  background: var(--surface-3);
+  color: transparent;
+}
+.avatar.has-photo > img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  border-radius: inherit;
+}
+.avatar.has-photo::before { display: none; }
+
+/* Presence now means presence, so it is worth seeing anywhere an avatar appears
+   rather than only inside the ticket grid. */
+.avatar .avatar-presence {
+  /* Absolute, so it never becomes a grid item and never moves the face. */
+  position: absolute;
+  grid-area: 1 / 1;
+  right: -1px;
+  bottom: -1px;
+  width: 9px;
+  height: 9px;
+  border: 2px solid var(--surface);
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--green) 65%, transparent);
+  animation: avatar-breathe 2.6s ease-in-out infinite;
+}
+.avatar.lg .avatar-presence { width: 12px; height: 12px; }
+@keyframes avatar-breathe {
+  50% { box-shadow: 0 0 10px color-mix(in srgb, var(--green) 85%, transparent); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .avatar .avatar-presence { animation: none; }
+}
+
+/* Live presence in the top bar: a few faces and a count, so who is about is
+   visible from every page rather than only the overview. */
+.topbar-presence {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.topbar-presence-faces {
+  display: inline-flex;
+}
+.topbar-presence-faces .avatar {
+  height: 22px;
+  width: 22px;
+  font-size: 9px;
+  margin-left: -7px;
+  box-shadow: 0 0 0 2px var(--surface);
+}
+.topbar-presence-faces .avatar:first-child { margin-left: 0; }
+.topbar-presence-count {
+  font: 700 12px var(--font-mono);
+  color: var(--green);
+}
+@media (max-width: 1100px) {
+  .topbar-presence-faces { display: none; }
+}

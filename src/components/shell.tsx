@@ -41,6 +41,7 @@ import {
   api,
   SearchField,
   Badge,
+  useDirectory,
 } from "./ui";
 import { IrisLockup } from "./iris-mark";
 import { GuidedTour, signalTour } from "./guided-tour";
@@ -139,6 +140,8 @@ export function Shell({
   const path = usePathname(),
     router = useRouter();
   const { user, openAuth, refreshUser, notify, pollSeconds } = useApp();
+  /** Live presence, shared with every avatar in the app — one poll, one truth. */
+  const { online } = useDirectory();
   const [notices, setNotices] = useState<{id: number; title: string; body: string | null; fromName: string | null; readAt: string | null; ticketId: number | null; ticketNumber: string | null}[]>([]);
   const [mobile, setMobile] = useState(false),
     [collapsed, setCollapsed] = useState(true),
@@ -409,6 +412,20 @@ export function Shell({
               <span className="topbar-status-count">{openItems.length}</span>
               <span className="topbar-status-label">open</span>
             </span>
+            {online.length > 1 && (
+              <>
+                <span className="topbar-divider" />
+                <span className="topbar-presence" title={online.map((p) => p.name + (p.viewing ? ` — ${p.viewing}` : "")).join("\n")}>
+                  <span className="topbar-presence-faces">
+                    {online.slice(0, 3).map((p) => (
+                      <Avatar key={p.userId ?? p.name} name={p.name} tone="purple" showPresence={false} />
+                    ))}
+                  </span>
+                  <span className="topbar-presence-count">{online.length}</span>
+                  <span className="topbar-status-label">online</span>
+                </span>
+              </>
+            )}
             <span className="topbar-divider" />
             <span data-tour="topbar-theme" className="flex-row">
               <ThemeToggle />
