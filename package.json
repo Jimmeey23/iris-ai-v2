@@ -23,6 +23,7 @@
     "check:labels": "npx tsx --tsconfig tsconfig.checks.json scripts/label-check.ts",
     "tickets:relabel": "npx tsx scripts/relabel-tickets.mjs",
     "tickets:repair-routing": "npx tsx scripts/backfill-repair-routing.mjs",
+    "check:routing": "npx tsx scripts/routing-check.mjs",
     "check:forms": "npx tsx scripts/forms-check.mjs",
     "check:dashboard": "npx tsx --tsconfig tsconfig.checks.json scripts/dashboard-check.ts",
     "check:dashboard:api": "npx tsx --tsconfig tsconfig.checks.json scripts/dashboard-api-check.mjs",

@@ -6,7 +6,7 @@ import {tickets,staff,departments,assets,appSettings,ticketActivities,ticketComm
 import {ticketInputSchema,publicTicketInputSchema,type TicketInput,type AdvancedDraft} from './ticket-contract';
 import {getConfig,type WorkspaceConfig} from './config';
 import {ApiError,canAccessTicket,coveredStudios,currentUser,requireTicketAccess,type Identity} from './auth';
-import {CITY_OWNERS,cityOf,inferPriority,inferSeverity,studioIdsFor} from './routing';
+import {CITY_OWNERS,ESCALATION_OWNERS,ROUND_ROBIN_DEPARTMENTS,cityOf,inferPriority,inferSeverity,studioIdsFor} from './routing';
 import {buildTemplate} from './templates';
 import {ticketNumberFor,slugify} from './utils';
 import {scoreAssessment} from './guided-templates';
@@ -62,7 +62,21 @@ if(cfg.autoAssign&&city&&named&&!subRule?.ownerId){const candidates=named.map(re
   if(candidates.length===1)cityOwner=candidates[0];
   else if(candidates.length>1){const load=await db.select({id:tickets.assignedStaffId,n:sql<number>`count(*)::int`}).from(tickets).where(and(inArray(tickets.assignedStaffId,candidates.map(c=>c.id)),sql`${tickets.status} not in ('resolved','closed','recorded')`)).groupBy(tickets.assignedStaffId);
     const open=(id:number)=>load.find(l=>l.id===id)?.n||0;cityOwner=[...candidates].sort((a,b)=>open(a.id)-open(b.id))[0];}}
-const owner=cfg.autoAssign?(cityOwner||people.find(p=>p.id===override)||people.sort((a,b)=>{const score=(p:typeof a)=>(p.categories.includes(category)?10:0)+(p.studioId&&ids.includes(p.studioId)?8:0)+(/Head|Coordinator|Ops Manager|Chief/.test(p.role)?3:0);return score(b)-score(a);})[0]):{id:null,name:'Unassigned',email:'',role:'Department queue'};if(!owner)throw new ApiError('No active owner is available in the routing department.');
+// Shared out in turn: whoever on this studio's team has gone longest without a ticket takes
+// the next one. Ties and never-assigned people sort first, so a new associate starts working
+// straight away rather than waiting for the rota to reach them.
+let rotaOwner:typeof people[number]|undefined;
+if(cfg.autoAssign&&!cityOwner&&!subRule?.ownerId&&!override&&ROUND_ROBIN_DEPARTMENTS.has(departmentId)){
+  const team=people.filter(p=>p.studioId&&ids.includes(p.studioId));
+  const pool=team.length?team:people.filter(p=>cityOf(p.location)===city);
+  if(pool.length){
+    const last=await db.select({id:tickets.assignedStaffId,at:sql<string|null>`max(${tickets.createdAt})`}).from(tickets)
+      .where(inArray(tickets.assignedStaffId,pool.map(p=>p.id))).groupBy(tickets.assignedStaffId);
+    const lastAt=(id:number)=>{const row=last.find(l=>l.id===id);return row?.at?new Date(row.at).getTime():0;};
+    rotaOwner=[...pool].sort((a,b)=>lastAt(a.id)-lastAt(b.id)||a.id-b.id)[0];
+  }
+}
+const owner=cfg.autoAssign?(cityOwner||rotaOwner||people.find(p=>p.id===override)||people.sort((a,b)=>{const score=(p:typeof a)=>(p.categories.includes(category)?10:0)+(p.studioId&&ids.includes(p.studioId)?8:0)+(/Head|Coordinator|Ops Manager|Chief/.test(p.role)?3:0);return score(b)-score(a);})[0]):{id:null,name:'Unassigned',email:'',role:'Department queue'};if(!owner)throw new ApiError('No active owner is available in the routing department.');
 return{departmentId,dept,owner,ids,override};}
 /** Builds a ticket draft. Callers default to untrusted — the public endpoint and the chat —
  *  where the source is restricted, reserved customFields are stripped, a supplied priority
@@ -118,14 +132,17 @@ async function notificationRecipients(tx:Tx,ownerId:number|null,ownerEmail:strin
   if(ownerId){const[owner]=await tx.select({manager:staff.manager}).from(staff).where(eq(staff.id,ownerId));if(owner?.manager){const[manager]=await tx.select({email:staff.email}).from(staff).where(and(eq(staff.isActive,true),ilike(staff.name,owner.manager.trim())));if(manager?.email)emails.add(manager.email.trim().toLowerCase());}}
   return[...emails].filter(Boolean);
 }
-async function queueTicketEmails(tx:Tx,ticket:{id:number;ticketNumber:string;title:string;assignedStaffId:number|null;assignedStaffEmail:string|null;slaDueAt:Date|null},kind:'assigned'|'sla-3h',recipients?:string[]){
+/** Where the ticket lives, for the button in the email. Falls back to a relative path when
+ *  the deployment URL is not configured — better a broken-looking link than a wrong domain. */
+const ticketUrl=(id:number)=>{const base=process.env.NEXT_PUBLIC_APP_URL||(process.env.VERCEL_PROJECT_PRODUCTION_URL?`https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`:'');return base?`${base.replace(/\/$/,'')}/tickets/${id}`:'';};
+async function queueTicketEmails(tx:Tx,ticket:{id:number;ticketNumber:string;title:string;assignedStaffId:number|null;assignedStaffEmail:string|null;slaDueAt:Date|null;priority?:string|null;category?:string|null;subcategory?:string|null;studio?:string|null;memberName?:string|null;assignedStaffName?:string|null;summary?:string|null},kind:'assigned'|'sla-3h',recipients?:string[]){
   const targets=recipients||await notificationRecipients(tx,ticket.assignedStaffId,ticket.assignedStaffEmail);
   let queued=0;
   for(const email of targets){
     const[ledger]=await tx.insert(ticketNotifications).values({ticketId:ticket.id,kind,recipientEmail:email}).onConflictDoNothing().returning({id:ticketNotifications.id});
     if(!ledger)continue;
-    const{subject,text}=ticketEmailBody(ticket,kind);
-    await tx.insert(deliveryLogs).values({integrationId:'mailtrap',action:'send',nextAttemptAt:new Date(),payload:{to:[{email}],subject,text}});queued++;
+    const{subject,text,html}=ticketEmailBody({...ticket,appUrl:ticketUrl(ticket.id)},kind);
+    await tx.insert(deliveryLogs).values({integrationId:'mailtrap',action:'send',nextAttemptAt:new Date(),payload:{to:[{email}],subject,text,html}});queued++;
   }
   return queued;
 }
@@ -186,7 +203,7 @@ export function emailSendingEnabled(){return (process.env.SEND_EMAILS??'true').t
 export async function queueSlaReminderEmails(now=new Date()){
   if(!emailSendingEnabled())return 0;const cfg=await getConfig();if(!cfg.assignmentEmail)return 0;
   const dueBefore=new Date(now.getTime()+3*3600_000);
-  const rows=await db.select({id:tickets.id,ticketNumber:tickets.ticketNumber,title:tickets.title,assignedStaffId:tickets.assignedStaffId,assignedStaffEmail:tickets.assignedStaffEmail,slaDueAt:tickets.slaDueAt}).from(tickets).where(and(sql`${tickets.status} not in ('resolved','closed','recorded')`,gt(tickets.slaDueAt,now),lte(tickets.slaDueAt,dueBefore)));
+  const rows=await db.select({id:tickets.id,ticketNumber:tickets.ticketNumber,title:tickets.title,assignedStaffId:tickets.assignedStaffId,assignedStaffEmail:tickets.assignedStaffEmail,slaDueAt:tickets.slaDueAt,priority:tickets.priority,category:tickets.category,subcategory:tickets.subcategory,studio:tickets.studio,memberName:tickets.memberName,assignedStaffName:tickets.assignedStaffName,summary:tickets.summary}).from(tickets).where(and(sql`${tickets.status} not in ('resolved','closed','recorded')`,gt(tickets.slaDueAt,now),lte(tickets.slaDueAt,dueBefore)));
   let queued=0;for(const ticket of rows)queued+=await db.transaction(tx=>queueTicketEmails(tx,ticket,'sla-3h'));return queued;
 }
 /**
@@ -279,6 +296,17 @@ export async function applyEscalations(){
         sql`${tickets.slaDueAt} is not null and ${tickets.slaDueAt} < ${cutoff}`,
       )).returning();
     if(rows.length)await tx.insert(ticketActivities).values(rows.map(r=>({ticketId:r.id,actorName:'IRIS',action:'escalated',detail:`Raised to critical — more than ${hours}h past the follow-up target.`})));
+    // Raising the priority on its own leaves the ticket with the person who has already missed
+    // the target. Hand it to the department's escalation owner, and say so on the ticket.
+    for(const row of rows){
+      const pattern=row.departmentId?ESCALATION_OWNERS[row.departmentId]:undefined;
+      if(!pattern)continue;
+      const candidates=await tx.select().from(staff).where(and(eq(staff.isActive,true),eq(staff.department,row.departmentName||'')));
+      const to=candidates.find(p=>pattern.test(p.name));
+      if(!to||to.id===row.assignedStaffId)continue;
+      await tx.update(tickets).set({assignedStaffId:to.id,assignedStaffName:to.name,assignedStaffEmail:to.email,version:sql`${tickets.version} + 1`}).where(eq(tickets.id,row.id));
+      await tx.insert(ticketActivities).values({ticketId:row.id,actorName:'IRIS',action:'assigned',detail:`Escalation owner for ${row.departmentName}: reassigned from ${row.assignedStaffName||'Unassigned'} to ${to.name}.`});
+    }
     // No `changes` block: RETURNING gives the post-update row, so the prior priority is
     // not knowable here, and a half-true diff is worse than none.
     for(const row of rows)await emitTicketEvent(tx,{type:'ticket.escalated',ticket:row,cfg});

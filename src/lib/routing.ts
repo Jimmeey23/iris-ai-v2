@@ -70,10 +70,33 @@ export function studioRegion(studioName?: string | null) {
  *  tickets takes it. Patterns match the staff directory's display names; a city with no named
  *  owner in the directory is left empty and falls back to the department's own scoring. */
 export const CITY_OWNERS: Record<string, {mumbai: RegExp[]; bengaluru: RegExp[]}> = {
-  marketing: {mumbai: [], bengaluru: [/^saachi shetty jr\b/i]},
+  marketing: {mumbai: [/^shaina\b/i], bengaluru: [/^saachi shetty jr\b/i]},
   training: {mumbai: [/^mrigakshi\b/i, /^vivaran\b/i], bengaluru: [/^pushyank\b/i]},
   operations: {mumbai: [/^zahur\b/i], bengaluru: [/^shifa\b/i]},
 };
+
+/** Where a breached ticket goes when nobody has moved it.
+ *
+ * Escalation used to raise the priority and stop there, which left the same person holding
+ * the ticket they had already missed the target on. These are the people who pick it up:
+ * brand and marketing work goes to the marketing lead, operations to the ops manager. The
+ * owner is not replaced silently — the reassignment is written to the ticket's activity. */
+export const ESCALATION_OWNERS: Record<string, RegExp> = {
+  marketing: /^reyna\b/i,
+  operations: /^saachi shetty$/i,
+  training: /^anisha\b/i,
+  'sales-client-servicing': /^jimmeey\b/i,
+  'customer-service': /^jimmeey\b/i,
+  accounts: /^sachin\b/i,
+};
+
+/** Departments whose work is shared out in turn rather than scored.
+ *
+ * Sales and client servicing have no natural "right" owner for a given ticket — any associate
+ * on that studio's team can take it — so the fair rule is the next person up, by who has gone
+ * longest without one. Scoring by seniority, as the fallback does, sent everything to the
+ * same two people. */
+export const ROUND_ROBIN_DEPARTMENTS = new Set(['sales-client-servicing', 'customer-service']);
 export const cityOf = (studioName?: string | null) => !studioName ? null : /bengaluru|bangalore/i.test(studioName) ? 'bengaluru' as const : 'mumbai' as const;
 
 /** Directory ids that place a staff member at this studio. Courtside and Copper & Cloves reuse
