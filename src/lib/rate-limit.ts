@@ -54,6 +54,9 @@ export const LIMITS = {
   momencePii: {max: 5, windowSeconds: 300},
   /** A forced trainer-review sync walks every Fillout page. */
   trainerSync: {max: 3, windowSeconds: 600},
+  /** Regenerating a studio floor plan render — image generation is the most expensive
+   *  call in the app, and it's admin-only already, so this just stops a mis-click loop. */
+  radarLayoutImage: {max: 6, windowSeconds: 600},
 } satisfies Record<string, Limit>;
 
 /**

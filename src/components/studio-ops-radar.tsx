@@ -235,6 +235,10 @@ export function StudioOpsRadar({ initialStudio = 'kwality' }: { initialStudio?: 
   const [alsoSelected, setAlsoSelected] = useState<string[]>([]);
   /** Corrections to where rooms sit, shared by the whole workspace. */
   const [layout, setLayout] = useState<Record<string, Record<string, FloorplanSpot>>>({});
+  /** AI-rendered plan images matching a saved layout, per studio id. Falls back to the
+   *  shipped reference photo until one has been regenerated. */
+  const [layoutImages, setLayoutImages] = useState<Record<string, string>>({});
+  const [regenerating, setRegenerating] = useState(false);
   const [arranging, setArranging] = useState(false);
   /** Degrees of tilt. Zero is the plan seen from directly above. */
   const [tilt, setTilt] = useState(0);
@@ -291,8 +295,8 @@ export function StudioOpsRadar({ initialStudio = 'kwality' }: { initialStudio?: 
   }, [selectedStudioId, load]);
 
   useEffect(() => {
-    void api<{layout: Record<string, Record<string, FloorplanSpot>>}>('/api/ops/radar/layout')
-      .then(d => setLayout(d.layout || {}))
+    void api<{layout: Record<string, Record<string, FloorplanSpot>>; images: Record<string, string>}>('/api/ops/radar/layout')
+      .then(d => { setLayout(d.layout || {}); setLayoutImages(d.images || {}); })
       .catch(() => {});
   }, []);
 
@@ -355,6 +359,7 @@ export function StudioOpsRadar({ initialStudio = 'kwality' }: { initialStudio?: 
   /** The plan as drawn, with any corrections laid over it. Plain object rather than a memo:
    *  this sits after an early return, where a hook cannot go. */
   const spots: Record<string, FloorplanSpot> = {...floorplan.rooms, ...(layout[activeStudio.id] || {})};
+  const floorplanSrc = layoutImages[activeStudio.id] || floorplan.src;
 
   /** Dragging writes straight into `layout`, so the room follows the pointer; the save
    *  happens once on release rather than on every frame. */
@@ -391,10 +396,26 @@ export function StudioOpsRadar({ initialStudio = 'kwality' }: { initialStudio?: 
       notify(e instanceof Error ? e.message : 'The new position could not be saved', 'error');
     }
   };
+  const regenerateImage = async () => {
+    setRegenerating(true);
+    try {
+      const res = await api<{imageUrl: string}>('/api/ops/radar/layout/regenerate', {
+        method: 'POST',
+        body: JSON.stringify({studio: activeStudio.id, studioName: activeStudio.name, rooms: spots}),
+      });
+      setLayoutImages(m => ({...m, [activeStudio.id]: res.imageUrl}));
+      notify('The floor plan has been redrawn to match the new arrangement.');
+    } catch (e) {
+      notify(e instanceof Error ? e.message : 'The plan could not be regenerated', 'error');
+    } finally {
+      setRegenerating(false);
+    }
+  };
   const resetLayout = async () => {
     try {
-      await api('/api/ops/radar/layout', {method: 'DELETE', body: JSON.stringify({studio: activeStudio.id})});
+      const res = await api<{layout: Record<string, unknown>; images: Record<string, string>}>('/api/ops/radar/layout', {method: 'DELETE', body: JSON.stringify({studio: activeStudio.id})});
       setLayout(l => { const next = {...l}; delete next[activeStudio.id]; return next; });
+      setLayoutImages(res.images || {});
       notify('Room positions restored to the original plan.');
     } catch (e) {
       notify(e instanceof Error ? e.message : 'Could not restore the plan', 'error');
@@ -581,6 +602,17 @@ export function StudioOpsRadar({ initialStudio = 'kwality' }: { initialStudio?: 
                   <Move size={13} /> {arranging ? 'Done arranging' : 'Arrange rooms'}
                 </button>
                 {arranging && layout[activeStudio.id] && (
+                  <button
+                    type="button"
+                    className="fp-tool"
+                    onClick={() => void regenerateImage()}
+                    disabled={regenerating}
+                    title="Ask the AI to redraw the plan image to match this arrangement"
+                  >
+                    <Sparkles size={13} className={regenerating ? 'animate-pulse' : ''} /> {regenerating ? 'Redrawing…' : 'Regenerate plan'}
+                  </button>
+                )}
+                {arranging && layout[activeStudio.id] && (
                   <button type="button" className="fp-tool" onClick={() => void resetLayout()}>Reset</button>
                 )}
               </div>
@@ -599,10 +631,11 @@ export function StudioOpsRadar({ initialStudio = 'kwality' }: { initialStudio?: 
           >
           <div className="floorplan-model" style={{aspectRatio: `${floorplan.width} / ${floorplan.height}`}}>
             <Image
-              src={floorplan.src}
+              src={floorplanSrc}
               alt={`Bird’s-eye architectural floor plan of ${activeStudio.name}`}
               fill
               priority
+              unoptimized={floorplanSrc.startsWith('data:')}
               sizes="(max-width: 1150px) 100vw, 70vw"
               className="floorplan-render"
             />
