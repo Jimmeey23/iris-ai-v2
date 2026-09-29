@@ -13235,7 +13235,7 @@ small {
 .draft-signal-grid u { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg,var(--accent),var(--purple)); text-decoration: none; }
 
 /* A contiguous architectural plan: rooms share walls and a central circulation spine. */
-.floorplan-stage { padding: 30px; border: 1px solid var(--hairline-strong); background-color: var(--surface-2); }
+.floorplan-stage { padding: 30px; border: 1px solid var(--hairline-strong); background-color: transparent; }
 .rooms-schematic-grid { position: relative; gap: 3px; padding: 3px; border: 2px solid color-mix(in srgb, var(--text) 28%, transparent); border-radius: 10px; background: color-mix(in srgb, var(--text) 22%, transparent); }
 .rooms-schematic-grid:after { content: 'CENTRAL CIRCULATION'; position: absolute; left: 18%; right: 18%; top: 50%; z-index: 0; height: 24px; transform: translateY(-50%); display: grid; place-items: center; border-block: 1px dashed color-mix(in srgb, var(--text) 18%, transparent); background: color-mix(in srgb, var(--surface) 92%, transparent); color: var(--muted); font-size: 8px; letter-spacing: .16em; pointer-events: none; }
 .room-radar-card { z-index: 1; border-radius: 5px; min-height: 142px; box-shadow: none; }
@@ -13781,7 +13781,7 @@ small {
   overflow: auto;
   border: 0;
   border-radius: calc(var(--radius-xl) - 2px);
-  background: #f4f1ed;
+  background: transparent;
   box-shadow: inset 0 0 0 1px rgba(40, 35, 30, 0.08);
   perspective: none;
   scrollbar-width: thin;
@@ -13796,7 +13796,7 @@ small {
   min-width: 690px;
   overflow: hidden;
   isolation: isolate;
-  background: #f4f1ed;
+  background: transparent;
 }
 .floorplan-render {
   z-index: 0;
