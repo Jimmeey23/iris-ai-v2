@@ -7,10 +7,17 @@ import {Modal} from './ui';
  *  on a shared desk; publishing is still checked on the server. */
 const DESIGN_PASSCODE = '9818';
 
-export function PasscodeDialog({open, onClose, onUnlock, title = 'Enter the designer passcode', description = 'The form designer changes the live form for every studio.'}: {open: boolean; onClose: () => void; onUnlock: () => void; title?: string; description?: string}) {
+export function PasscodeDialog({open, onClose, onUnlock, onCode, title = 'Enter the designer passcode', description = 'The form designer changes the live form for every studio.'}: {
+  open: boolean; onClose: () => void; onUnlock: () => void;
+  /** Hands the typed code to the caller instead of checking it here — for gates the server
+   *  verifies, where comparing in the browser would be theatre. */
+  onCode?: (code: string) => void;
+  title?: string; description?: string;
+}) {
   const [code, setCode] = useState('');
   const [wrong, setWrong] = useState(false);
   const submit = () => {
+    if (onCode) { onCode(code); setCode(''); return; }
     if (code === DESIGN_PASSCODE) { setCode(''); setWrong(false); onUnlock(); return; }
     setWrong(true); setCode('');
   };

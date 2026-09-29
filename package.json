@@ -23,6 +23,7 @@
     "check:labels": "npx tsx --tsconfig tsconfig.checks.json scripts/label-check.ts",
     "tickets:relabel": "npx tsx scripts/relabel-tickets.mjs",
     "tickets:repair-routing": "npx tsx scripts/backfill-repair-routing.mjs",
+    "check:momence": "npx tsx scripts/momence-privacy-check.mjs",
     "check:nudge": "npx tsx scripts/nudge-check.mjs",
     "check:routing": "npx tsx scripts/routing-check.mjs",
     "check:forms": "npx tsx scripts/forms-check.mjs",

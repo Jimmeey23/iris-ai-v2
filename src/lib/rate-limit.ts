@@ -49,6 +49,9 @@ export const LIMITS = {
   /** A reminder to a colleague. One per ticket per hour, keyed to sender and ticket: a nudge
    *  that can be repeated at will stops being a nudge. */
   nudge: {max: 1, windowSeconds: 3600},
+  /** Attempts at the Momence contact-details passcode. Four digits is only meaningful while
+   *  guessing is slow. */
+  momencePii: {max: 5, windowSeconds: 300},
   /** A forced trainer-review sync walks every Fillout page. */
   trainerSync: {max: 3, windowSeconds: 600},
 } satisfies Record<string, Limit>;

@@ -507,6 +507,40 @@ function scoreStaff(person: StaffRecord, category: string, studioName?: string) 
 
 /** Owner for a seeded ticket, from the static directory. Live tickets route through
  *  resolveRouting in lib/tickets.ts against the staff table. */
+/**
+ * Who a new joiner in each department reports to.
+ *
+ * Derived from the directory rather than written out again: the head of a department is the
+ * person in it whom nobody else in it manages. That way a promotion or a transfer updates
+ * this by updating the directory, which is the only place anybody maintains.
+ */
+export function departmentHeads(): Record<string, string> {
+  const byDept = new Map<string, StaffRecord[]>();
+  for (const person of STAFF) {
+    if (person.isActive === false) continue;
+    byDept.set(person.department, [...(byDept.get(person.department) || []), person]);
+  }
+  const heads: Record<string, string> = {};
+  const seniority = /owner|chief|head|lead|manager|principal/i;
+  for (const [dept, people] of byDept) {
+    // Ranked rather than picked: several people in a department can report outside it, so
+    // "reports outside" alone chose whoever happened to be listed first. The head is the
+    // one others actually report to, with the job title as the tie-break.
+    const reports = (name: string) => people.filter(p => p.manager === name).length;
+    const scored = [...people].sort((a, b) =>
+      reports(b.name) - reports(a.name) ||
+      Number(seniority.test(b.role)) - Number(seniority.test(a.role)) ||
+      a.name.localeCompare(b.name));
+    if (scored[0]) heads[dept] = scored[0].name;
+  }
+  return heads;
+}
+
+/** The manager to offer a new joiner in `department`, or an empty string when unknown. */
+export function reportingManagerFor(department: string): string {
+  return departmentHeads()[department] || '';
+}
+
 export function assignTicket(category: string, studioName?: string) {
   const departmentId = CATEGORY_DEPARTMENT[category] ?? "operations";
   const department = DEPARTMENT_RECORDS.find((d) => d.id === departmentId);

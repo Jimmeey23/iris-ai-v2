@@ -16,7 +16,28 @@ import {
   requireWorkspace,
   sameOrigin,
 } from "@/lib/auth";
+import {maskDeep, piiUnlocked} from "@/lib/momence-privacy";
+import {STUDIOS} from "@/lib/constants";
 export const dynamic = "force-dynamic";
+
+/**
+ * Who may browse the member and sales directories in the Momence tab.
+ *
+ * Administrators, and nobody else — not managers. These directories are the whole member
+ * base and the whole sales ledger in one scrollable list, which is a different thing from
+ * the single record a person opens while working a ticket. Everyone else reaches a member
+ * through a ticket instead, which is the context their work actually has.
+ */
+/** Commercial ledgers: administrators only, whatever anybody's department is. */
+const RESTRICTED_MODULES = new Set(["sales", "memberships"]);
+/** The client-servicing team work member records daily, so the member directory is theirs
+ *  too — but only their own city's, enforced below rather than trusted from the request. */
+const CITY_SCOPED_DEPARTMENTS = /sales|client servicing|customer service/i;
+const canBrowseMemberData = (user: {role: string}) => user.role === "admin";
+const canBrowseMembersInCity = (user: {role: string; department?: string | null}) =>
+  user.role === "admin" || user.role === "manager" || CITY_SCOPED_DEPARTMENTS.test(user.department || "");
+/** Mumbai and Bandra are one city for this purpose; Bengaluru is the other. */
+const cityKey = (studio?: string | null) => (/bengaluru|bangalore/i.test(studio || "") ? "bengaluru" : "mumbai");
 
 type Rec = { id: string; name: string; subtitle: string; kind: string; raw: Record<string, unknown> };
 const pick = (r: unknown, keys: string[]) => {
@@ -74,21 +95,67 @@ export async function GET(req: NextRequest) {
     const elevated = user.role === "admin" || user.role === "manager";
     if (!elevated && (moduleName === "sales" || moduleName === "memberships"))
       throw new ApiError("A manager or administrator is required to view Momence " + moduleName + ".", 403);
+
+    /**
+     * Two very different callers share this endpoint.
+     *
+     * `surface=browse` is the Momence tab: a directory somebody is reading. Everything else
+     * is the member and session lookup inside a ticket form, which asks for one record the
+     * person is already working on and needs its contact fields to file the ticket.
+     *
+     * So the tab is the thing that gets locked down and masked; intake keeps working exactly
+     * as before. Gating the endpoint outright would have broken ticket creation for every
+     * non-sales member of staff.
+     */
+    const browsing = req.nextUrl.searchParams.get("surface") === "browse";
+    // Only the directories holding member and commercial data are restricted. Sessions and
+    // studios are the timetable — everyone on the floor needs them.
+    if (browsing && RESTRICTED_MODULES.has(moduleName) && !canBrowseMemberData(user))
+      throw new ApiError(
+        "The Momence membership and sales directories are open to administrators only.",
+        403,
+      );
+    if (browsing && moduleName === "members" && !canBrowseMembersInCity(user))
+      throw new ApiError(
+        "The Momence member directory is open to administrators and the client-servicing team.",
+        403,
+      );
+    // Contact details are masked in the tab until somebody enters the passcode there.
+    const reveal = !browsing || (await piiUnlocked(user.id));
+    const shield = <T,>(payload: T): T => (reveal ? payload : (maskDeep(payload) as T));
     const id = req.nextUrl.searchParams.get("id");
     if (id) {
       const detail = await detailMomence(moduleName, id, page, user.studio);
       return Response.json(
-        !elevated && moduleName === "members" ? minimalMemberDetail(detail) : detail,
+        shield(!elevated && moduleName === "members" ? minimalMemberDetail(detail) : detail),
       );
     }
     const sp = req.nextUrl.searchParams;
     // A studio name is resolved to its Momence location id server-side; a studio with no Momence
     // location resolves to undefined and the listing stays unfiltered rather than coming back empty.
-    const locationId = z
+    const requestedLocation = z
       .string()
       .regex(/^\d{1,18}$/)
       .optional()
       .parse(sp.get("locationId") || momenceLocationFor(sp.get("studio"))?.toString());
+    /**
+     * Whose city this listing may cover.
+     *
+     * Administrators see everything. Everyone else browsing the directory sees their own
+     * city, and the restriction is applied here rather than by trusting the `studio` or
+     * `locationId` the page happened to send — a query parameter is a request, not a
+     * permission. A location outside their city is replaced by their own, so the tab shows
+     * their city's records rather than an error.
+     */
+    const cityLocations = STUDIOS.filter(
+      (st) => cityKey(st.name) === cityKey(user.studio) && st.momenceLocationId,
+    ).map((st) => String(st.momenceLocationId));
+    const cityBound = browsing && user.role !== "admin";
+    const locationId = cityBound
+      ? requestedLocation && cityLocations.includes(requestedLocation)
+        ? requestedLocation
+        : (momenceLocationFor(user.studio)?.toString() ?? cityLocations[0])
+      : requestedLocation;
     const requestedTypes = [...sp.getAll("types[]"), ...sp.getAll("type")];
     const sessionTypes = z
       .array(
@@ -121,9 +188,11 @@ export async function GET(req: NextRequest) {
         user.studio,
       );
     return Response.json(
-      !elevated && moduleName === "members"
-        ? { ...listing, items: listing.items.map(minimalMember) }
-        : listing,
+      shield(
+        !elevated && moduleName === "members"
+          ? { ...listing, items: listing.items.map(minimalMember) }
+          : listing,
+      ),
     );
   } catch (e) {
     return errorResponse(e);

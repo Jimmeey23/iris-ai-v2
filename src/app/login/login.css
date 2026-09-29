@@ -301,3 +301,67 @@
 .auth-visual .auth-story > p {
   color: color-mix(in srgb, var(--white) 82%, transparent);
 }
+
+/* ── Sign-up form ────────────────────────────────────────────────────────────
+   The dropdowns used to keep their native chrome inside the styled shell, so a
+   select sat a few pixels off from the input above it and carried the operating
+   system's own arrow. They are now the same control as every other field, with
+   one chevron drawn by us. */
+.auth-input select {
+  appearance: none;
+  -webkit-appearance: none;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0 18px 0 0;
+  cursor: pointer;
+}
+/* A native menu inherits nothing from the page, so the list itself is given the
+   surface colours explicitly — otherwise dark mode opens a white menu. */
+.auth-input select option {
+  background: var(--surface);
+  color: var(--text);
+}
+.auth-input select:invalid,
+.auth-input select option[value=""] {
+  color: var(--muted);
+}
+.auth-input-select {
+  position: relative;
+}
+.auth-input-select::after {
+  content: "";
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  width: 7px;
+  height: 7px;
+  border-right: 1.6px solid var(--muted);
+  border-bottom: 1.6px solid var(--muted);
+  transform: translateY(-70%) rotate(45deg);
+  pointer-events: none;
+}
+.auth-input-select:focus-within::after {
+  border-color: var(--accent);
+}
+/* Studio, department and manager belong together and read as one block; on a
+   roomy screen the first two share a row rather than making the form taller. */
+.auth-hint {
+  display: block;
+  margin-top: 5px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+@media (min-width: 560px) {
+  .auth-form .auth-signup-pair {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+}

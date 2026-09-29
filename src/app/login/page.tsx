@@ -11,11 +11,13 @@ import {
   Mail,
   Sparkles,
   User,
+  Users2,
   Building2,
 } from "lucide-react";
 import { IrisLockup } from "@/components/iris-mark";
 import { useApp } from "@/components/ui";
 import { STUDIOS, DEPARTMENT_RECORDS } from "@/lib/constants";
+import { reportingManagerFor } from "@/lib/staff-directory";
 import "./login.css";
 
 /** Fixed copy for every error code the auth routes redirect with. Anything
@@ -32,9 +34,46 @@ const ERROR_MESSAGES: Record<string, string> = {
   oauth_failed: "Sign-in could not be completed. Please try again.",
 };
 
+/**
+ * The films behind the sign-in panel.
+ *
+ * Two are theme-matched — the dark and light cuts of the intro — and the rest are studio
+ * films that read well against either. One is chosen per page load, so the page is not the
+ * same picture every morning, and the theme-matched pair is weighted so the panel usually
+ * suits the theme somebody is already in.
+ */
+const AUTH_CLIPS = [
+  {src: '/video/iris-intro-dark.mp4', poster: '/video/iris-intro-dark.webp', theme: 'dark'},
+  {src: '/video/iris-intro-light.mp4', poster: '/video/iris-intro-light.webp', theme: 'light'},
+  {src: '/video/iris-intro-light1.mp4', poster: '/video/iris-intro-light.webp', theme: 'light'},
+  {src: '/video/create_a_cinematic_and_impactf.mp4', poster: '/video/iris-intro-dark.webp', theme: 'any'},
+  {src: '/video/b_create_a_cinematic_a.mp4', poster: '/video/iris-intro-dark.webp', theme: 'any'},
+  {src: '/video/b_the_agent_must_look_.mp4', poster: '/video/iris-intro-dark.webp', theme: 'any'},
+  {src: '/video/retry_this_is_a_support_assi.mp4', poster: '/video/iris-intro-dark.webp', theme: 'any'},
+] as const;
+
+/** Picks a film for this visit: one that suits the current theme, or a theme-neutral one. */
+function pickClip(theme: string) {
+  const suited = AUTH_CLIPS.filter(c => c.theme === theme || c.theme === 'any');
+  const pool = suited.length ? suited : AUTH_CLIPS;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
 export default function LoginPage() {
   const router = useRouter();
-  const { refreshUser } = useApp();
+  const { refreshUser, theme } = useApp();
+  /**
+   * Chosen after mount rather than during render: picking at render time would make the
+   * server and the browser disagree about which film to show, and React would replace it
+   * mid-fade on hydration. The poster covers the moment before the choice lands, and a
+   * reload picks again — which is what makes it change on every visit.
+   */
+  const [pickedFor, setPickedFor] = useState<string | null>(null);
+  const [clip, setClip] = useState<{src: string; poster: string}>(AUTH_CLIPS[0]);
+  if (typeof window !== 'undefined' && pickedFor !== theme) {
+    setPickedFor(theme);
+    setClip(pickClip(theme));
+  }
   const [mode, setMode] = useState<"login" | "signup" | "setup">("login"),
     [setupToken, setSetupToken] = useState(""),
     [email, setEmail] = useState(""),
@@ -105,26 +144,16 @@ export default function LoginPage() {
     <main className="auth-page">
       <section className="auth-visual" aria-label="IRIS operations workspace">
         <video
+          key={clip.src}
           autoPlay
           muted
           loop
           playsInline
           preload="metadata"
-          poster="/video/iris-intro-dark.webp"
-          className="auth-video auth-video-dark"
+          poster={clip.poster}
+          className="auth-video"
         >
-          <source src="/video/iris-intro-dark.mp4" type="video/mp4" />
-        </video>
-        <video
-          autoPlay
-          muted
-          loop
-          playsInline
-          preload="metadata"
-          poster="/video/iris-intro-light.webp"
-          className="auth-video auth-video-light"
-        >
-          <source src="/video/iris-intro-light.mp4" type="video/mp4" />
+          <source src={clip.src} type="video/mp4" />
         </video>
         <div className="auth-veil" />
         <div className="auth-story">
@@ -224,9 +253,10 @@ export default function LoginPage() {
                 again against the same records. */}
             {mode === "signup" && (
               <>
+                <div className="auth-signup-pair">
                 <label>
                   Studio
-                  <div className="auth-input">
+                  <div className="auth-input auth-input-select">
                     <Building2 />
                     <select
                       required
@@ -246,12 +276,22 @@ export default function LoginPage() {
                 </label>
                 <label>
                   Department
-                  <div className="auth-input">
-                    <Building2 />
+                  <div className="auth-input auth-input-select">
+                    <Users2 />
                     <select
                       required
                       value={department}
-                      onChange={(e) => setDepartment(e.target.value)}
+                      onChange={(e) => {
+                        const next = e.target.value;
+                        setDepartment(next);
+                        // Filled in from the directory, and only while the field is either
+                        // empty or still showing the previous department's suggestion —
+                        // a name somebody typed themselves is never overwritten.
+                        const suggested = reportingManagerFor(next);
+                        if (suggested && (!reportingManager || reportingManager === reportingManagerFor(department))) {
+                          setReportingManager(suggested);
+                        }
+                      }}
                     >
                       <option value="" disabled>
                         Select your department
@@ -264,6 +304,7 @@ export default function LoginPage() {
                     </select>
                   </div>
                 </label>
+                </div>
                 <label>
                   Reporting manager
                   <div className="auth-input">
@@ -277,6 +318,9 @@ export default function LoginPage() {
                       placeholder="Who you report to"
                     />
                   </div>
+                  {department && reportingManager === reportingManagerFor(department) && (
+                    <small className="auth-hint">Filled in from the {department} team — change it if you report to someone else.</small>
+                  )}
                 </label>
               </>
             )}
