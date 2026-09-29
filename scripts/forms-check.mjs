@@ -54,7 +54,18 @@ ok(!alreadyHad || !alreadyHad.allowOther, 'a list that already had its own escap
 console.log(OTHER_OPTION === 'Something else…' ? 'PASS  sentinel is the expected string' : 'FAIL  sentinel');
 
 
-// 4. coverage across every sub-category in the plan, not just the sampled ones.
+// 4. questions that should not be asked of everybody.
+{
+  const f = planFields('Tech Issues', 'Mic Not Working', ctx);
+  const g = (id) => f.find(x => x.id === id);
+  const shows = (id, data) => isVisible(g(id), data);
+  ok(!shows('report_channel', {reporter_type: 'Member'}), 'report_channel: not asked when the member raises it (the app already knows)');
+  ok(shows('report_channel', {reporter_type: 'Front desk / associate'}), 'report_channel: asked when staff relay it from elsewhere');
+  ok(!shows('affected_count', {member_impact: 'No impact'}), 'affected_count: not asked when nobody was affected');
+  ok(shows('affected_count', {member_impact: 'Could not proceed as normal'}), 'affected_count: asked when somebody was');
+}
+
+// 5. coverage across every sub-category in the plan, not just the sampled ones.
 import planData from '../src/lib/intake/plan-data.json' with {type: 'json'};
 let lists = 0, escapes = 0, prefilled = 0, pickers = 0, forms = 0;
 for (const key of Object.keys(planData.subs)) {
@@ -79,6 +90,22 @@ console.log(`\n${forms} forms · ${lists} closed lists`);
 ok(escapes === lists, `every closed list has a way out (${escapes}/${lists})`);
 ok(pickers === forms, `every form that counts affected members can name them (${pickers}/${forms})`);
 console.log(`   equipment pre-filled on ${prefilled} forms`);
+
+// 6. nothing may be required behind a condition that can never be satisfied, or the form
+//    cannot be submitted at all.
+{
+  const stuck = [];
+  let visible = 0, n = 0;
+  for (const key of Object.keys(planData.subs)) {
+    const [c, s2] = key.split('|||');
+    const f = planFields(c, s2, ctx);
+    n++;
+    visible += f.filter(x => isVisible(x, {})).length;
+    for (const x of f) if (x.required && x.conditional && x.dep && !f.some(y => y.id === x.dep)) stuck.push(`${key} :: ${x.id}`);
+  }
+  ok(stuck.length === 0, `no required field is hidden behind an unreachable condition${stuck.length ? ' — ' + stuck[0] : ''}`);
+  console.log(`   ${(visible / n).toFixed(1)} questions visible before the first answer`);
+}
 
 console.log(fail ? `\n${fail} FAILED` : '\nall passed');
 process.exit(fail ? 1 : 0);

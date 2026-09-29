@@ -400,6 +400,35 @@ const relevant = (id: string, category: string, sub: string) => RELEVANCE.every(
   return false;
 });
 
+/**
+ * Universal questions that should not be universal.
+ *
+ * The block every form inherits is mostly conditional already — the class questions sit
+ * behind the "Involves a session" switch, contact preferences behind the reporter, churn
+ * behind sentiment. These two were the ones still asked of everybody:
+ *
+ *  - `report_channel` is recorded automatically. Every ticket is stamped with the surface it
+ *    came from (`channel=form|chat|workspace`), so asking the desk to re-enter it is asking
+ *    for something already known. It stays for staff relaying from somewhere the app cannot
+ *    see — WhatsApp, Instagram, a phone call — which is the only case where the answer adds
+ *    anything.
+ *  - `affected_count` follows the impact question. "How many members were affected" has one
+ *    sensible answer when the impact is "No impact", and nobody should have to type it.
+ */
+const UNIVERSAL_CONDITIONS: Record<string, {dependsOn: string; when: string; condText: string}> = {
+  report_channel: {
+    dependsOn: 'reporter_type',
+    // Anyone other than the member or prospect in front of you is relaying it from elsewhere.
+    when: '^(?!member|prospect)',
+    condText: 'Yes — when staff are relaying this from somewhere else',
+  },
+  affected_count: {
+    dependsOn: 'member_impact',
+    when: '^(?!no impact)',
+    condText: 'Yes — when members were actually affected',
+  },
+};
+
 /** Follow-ups the Hub asks on *any* answer to their parent, narrowed to the answers their own
  *  condition text describes ("if injury_occurred is not 'No'"). */
 const WHEN: Record<string, string> = {
@@ -450,6 +479,15 @@ export function planFields(category: string, sub: string, ctx: PlanContext, conf
   const generated = merged
     .filter(f => !dropped.has(f.id))
     .map(f => WHEN[f.id] && !f.when ? {...f, when: WHEN[f.id]} : f)
+    // Only where the field it depends on is actually on this form; dependencyOf falls back to
+    // "always visible" otherwise, so a form without the parent keeps asking as it did.
+    .map(f => {
+      const c = UNIVERSAL_CONDITIONS[f.id];
+      // `conditional` alone is not enough to skip: several fields carry the flag with no
+      // dependency to resolve it against, which makes them permanently visible.
+      if (!c || f.dependsOn || !merged.some(x => x.id === c.dependsOn)) return f;
+      return {...f, conditional: true, dependsOn: c.dependsOn, when: c.when, condText: c.condText};
+    })
     // Set on the plan the form already had, as well as on the one just injected.
     .map(f => asset && f.id === 'asset_type' && !f.prefill ? {...f, prefill: asset} : f);
   // A published builder plan replaces the generated plan for this sub-category. It is a full
