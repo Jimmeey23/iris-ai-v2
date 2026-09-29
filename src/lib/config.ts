@@ -38,25 +38,28 @@ export function envPrefix(id:string){return id==='chatgpt'?'OPENAI':id.toUpperCa
 /** The credentials an integration id can read from the environment. */
 export function envCredentials(id:string,source:Record<string,string|undefined>=process.env):Record<string,string>{const prefix=envPrefix(id)+'_';return Object.fromEntries(Object.entries(source).filter(([k,v])=>k.startsWith(prefix)&&v).map(([k,v])=>[k.slice(prefix.length).toLowerCase(),v!]));}
 /**
- * Integrations whose credentials belong to the deployment rather than the UI, so the
- * environment wins over anything saved in Settings.
+ * Integrations whose credentials belong to the deployment rather than the UI.
  *
- * Momence is the studio's own system of record: its credentials are provisioned per
- * environment (including the separate `_BLR` set) and every part of the app reads
- * live data through them. A value typed into the Integrations page must not be able
- * to repoint or break that connection.
+ * This is now every integration: the environment is the source of truth for secrets, and
+ * Settings is the fallback for whatever the deployment has not provided. Rotating a key
+ * should mean changing it in one place — the deployment — and having the change take
+ * effect, rather than being silently overridden by a value someone pasted into the UI
+ * months ago. The set is kept as a named export because the precedence is a decision worth
+ * being able to point at, and because a future integration may need the opposite rule.
  */
-export const ENV_FIRST_INTEGRATIONS=new Set(['momence']);
+export const ENV_FIRST_INTEGRATIONS=new Set(['*']);
+/** True for every integration while the set holds the wildcard. */
+export const envWinsFor=(id:string)=>ENV_FIRST_INTEGRATIONS.has('*')||ENV_FIRST_INTEGRATIONS.has(id);
 /**
- * Precedence: what an administrator saved in Settings wins, and the environment is
- * the fallback for anything they have not filled in. For the integrations in
- * ENV_FIRST_INTEGRATIONS the order is reversed — pass `envWins`.
+ * Precedence: the environment wins, and what an administrator saved in Settings fills in
+ * whatever the deployment does not supply.
  *
- * A field saved blank counts as not filled in and falls back to the environment,
- * rather than blanking a working credential — clearing a box in the UI should not
- * be able to take down a connection that the deployment configures.
+ * `envCredentials` already drops empty variables, so an unset or blank environment value
+ * counts as absent and the saved one is used — the deployment cannot blank out a working
+ * connection by declaring an empty variable. The same rule applies in reverse: a field
+ * saved blank in the UI is not "filled in" either.
  */
-export function mergeCredentials(stored:Record<string,unknown>|undefined,env:Record<string,string>,enabled?:boolean|null,envWins=false):Record<string,string>{
+export function mergeCredentials(stored:Record<string,unknown>|undefined,env:Record<string,string>,enabled?:boolean|null,envWins=true):Record<string,string>{
   const filled=Object.fromEntries(Object.entries(stored??{}).filter(([,v])=>typeof v==='string'&&v.trim()!=='')) as Record<string,string>;
   return{...(envWins?{...filled,...env}:{...env,...filled}),_enabled:String(enabled??true)};
 }
@@ -70,7 +73,7 @@ export function mergeCredentials(stored:Record<string,unknown>|undefined,env:Rec
  * are treated as absent rather than fatal. Before this, one unreadable row took down
  * every integration, because the throw escaped the whole call.
  */
-export async function integrationCredentials(id:string,{envOnly=false}:{envOnly?:boolean}={}):Promise<Record<string,string>>{
+export async function integrationCredentials(id:string,{envOnly=false,settingsOnly=false}:{envOnly?:boolean;settingsOnly?:boolean}={}):Promise<Record<string,string>>{
   const[row]=await db.select().from(integrations).where(eq(integrations.id,id));
   let saved:Record<string,unknown>|undefined;
   if(!envOnly){
@@ -79,9 +82,17 @@ export async function integrationCredentials(id:string,{envOnly=false}:{envOnly?
     catch{console.error(JSON.stringify({level:'error',source:'integrations.credentials',integration:id,message:'Saved secrets could not be decrypted; falling back to environment credentials. Check INTEGRATION_ENCRYPTION_KEY.'}));}
     saved={...row?.config,...secrets};
   }
-  return mergeCredentials(saved,envCredentials(id),row?.enabled,ENV_FIRST_INTEGRATIONS.has(id));
+  if(settingsOnly)return mergeCredentials(saved,{},row?.enabled,false);
+  return mergeCredentials(saved,envCredentials(id),row?.enabled,envWinsFor(id));
 }
 export const credentials=cache(function credentials(id:string){return integrationCredentials(id);});
 /** Whether the environment could supply anything this integration does not already
  *  have from Settings — i.e. whether a fallback attempt is worth making at all. */
 export function hasEnvFallback(id:string){return Object.keys(envCredentials(id)).length>0;}
+/** Whether Settings holds anything the environment does not — i.e. whether a retry with the
+ *  saved credentials could possibly behave differently. */
+export async function hasSettingsFallback(id:string){
+  const saved=await integrationCredentials(id,{settingsOnly:true});
+  const env=envCredentials(id);
+  return Object.entries(saved).some(([k,v])=>k!=='_enabled'&&v&&v!==env[k]);
+}

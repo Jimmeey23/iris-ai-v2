@@ -17479,3 +17479,92 @@ small {
   .recurrence-list li { grid-template-columns: 1fr auto; }
   .recurrence-kind { display: none; }
 }
+
+/* ── Radar: 3D tilt, arranging, multi-select ─────────────────────────────────
+   The tilt is a CSS transform on the plan itself, not a rendered scene: the
+   same DOM, the same hotspots, the same accessibility tree, viewed at an angle.
+   Labels are counter-rotated so they stay readable rather than lying down with
+   the floor. */
+.floorplan-architectural-stage.is-tilted {
+  perspective: 1400px;
+  perspective-origin: 50% 40%;
+  padding: 18px 0 44px;
+}
+.floorplan-architectural-stage.is-tilted .floorplan-model {
+  transform: rotateX(var(--fp-tilt, 0deg)) rotateZ(var(--fp-spin, 0deg)) scale(0.88);
+  transform-style: preserve-3d;
+  transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+  box-shadow: 0 60px 80px -50px rgb(0 0 0 / 0.55);
+}
+/* Each room lifts off the floor, so depth reads as depth rather than as blur. */
+.floorplan-architectural-stage.is-tilted .floorplan-room-hotspot {
+  transform: translateZ(14px);
+  transform-style: preserve-3d;
+}
+.floorplan-architectural-stage.is-tilted .floorplan-room-hotspot.critical { transform: translateZ(34px); }
+.floorplan-architectural-stage.is-tilted .floorplan-room-hotspot.warning { transform: translateZ(24px); }
+.floorplan-architectural-stage.is-tilted .floorplan-room-label,
+.floorplan-architectural-stage.is-tilted .floorplan-selected-tag {
+  transform: rotateZ(calc(-1 * var(--fp-spin, 0deg))) rotateX(calc(-1 * var(--fp-tilt, 0deg)));
+  transform-origin: center;
+}
+/* While arranging, a room is something you pick up. */
+.floorplan-architectural-stage.is-arranging .floorplan-room-hotspot {
+  cursor: grab;
+  outline: 1px dashed color-mix(in srgb, var(--accent) 60%, transparent);
+  outline-offset: -2px;
+}
+.floorplan-architectural-stage.is-arranging .floorplan-room-hotspot:active { cursor: grabbing; }
+
+.floorplan-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 0 4px 10px;
+}
+.fp-tool-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px;
+  border: 1px solid var(--neu-line);
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+.fp-tool {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 11px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--secondary);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.fp-tool:hover { color: var(--text); background: var(--surface-3); }
+.fp-tool.is-on { background: var(--accent); color: var(--accent-text); }
+.fp-sliders { padding: 4px 10px; gap: 10px; }
+.fp-sliders input[type="range"] { width: 92px; accent-color: var(--accent); }
+.fp-selection-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--accent);
+}
+.fp-selection-note button {
+  border: 0;
+  background: none;
+  color: var(--muted);
+  text-decoration: underline;
+  cursor: pointer;
+  font-size: 11.5px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .floorplan-architectural-stage.is-tilted .floorplan-model { transition: none; }
+}

@@ -4,6 +4,8 @@ import { useState, useEffect, useMemo, useCallback, useRef, useSyncExternalStore
 import Link from 'next/link';
 import Image from 'next/image';
 import {
+  Box,
+  Move,
   Radio,
   Flame,
   Clock,
@@ -218,7 +220,7 @@ async function postRadar(body: Record<string, unknown>) {
 }
 
 export function StudioOpsRadar({ initialStudio = 'kwality' }: { initialStudio?: string }) {
-  const { notify } = useApp();
+  const { notify, user } = useApp();
   const [selectedStudioId, setSelectedStudioId] = useState(initialStudio);
   const [data, setData] = useState<RadarApiResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -226,6 +228,16 @@ export function StudioOpsRadar({ initialStudio = 'kwality' }: { initialStudio?: 
   const [error, setError] = useState('');
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
+  /** Rooms compared side by side. The first click selects; ⌘/Ctrl or shift adds. Kept apart
+   *  from `selectedRoomId` so the single-room drawer keeps working exactly as it did. */
+  const [alsoSelected, setAlsoSelected] = useState<string[]>([]);
+  /** Corrections to where rooms sit, shared by the whole workspace. */
+  const [layout, setLayout] = useState<Record<string, Record<string, FloorplanSpot>>>({});
+  const [arranging, setArranging] = useState(false);
+  /** Degrees of tilt. Zero is the plan seen from directly above. */
+  const [tilt, setTilt] = useState(0);
+  const [spin, setSpin] = useState(0);
+  const dragRef = useRef<{room: string; startX: number; startY: number; origin: FloorplanSpot; box: DOMRect} | null>(null);
   const [resolvingId, setResolvingId] = useState<number | null>(null);
   const seq = useRef(0);
 
@@ -275,6 +287,12 @@ export function StudioOpsRadar({ initialStudio = 'kwality' }: { initialStudio?: 
     document.addEventListener('visibilitychange', onVisibility);
     return () => { stop(); document.removeEventListener('visibilitychange', onVisibility); };
   }, [selectedStudioId, load]);
+
+  useEffect(() => {
+    void api<{layout: Record<string, Record<string, FloorplanSpot>>}>('/api/ops/radar/layout')
+      .then(d => setLayout(d.layout || {}))
+      .catch(() => {});
+  }, []);
 
   const selectedRoom = useMemo(() => {
     if (!data || !selectedRoomId) return null;
@@ -332,6 +350,60 @@ export function StudioOpsRadar({ initialStudio = 'kwality' }: { initialStudio?: 
   const activeStudio = data.activeStudio;
   const globalRadar = data.globalRadar;
   const floorplan = FLOORPLANS[activeStudio.id] || FLOORPLANS.kwality;
+  /** The plan as drawn, with any corrections laid over it. Plain object rather than a memo:
+   *  this sits after an early return, where a hook cannot go. */
+  const spots: Record<string, FloorplanSpot> = {...floorplan.rooms, ...(layout[activeStudio.id] || {})};
+
+  /** Dragging writes straight into `layout`, so the room follows the pointer; the save
+   *  happens once on release rather than on every frame. */
+  const startDrag = (roomName: string, e: React.PointerEvent<HTMLElement>) => {
+    if (!arranging) return;
+    const model = (e.currentTarget as HTMLElement).closest('.floorplan-model');
+    if (!model) return;
+    e.preventDefault();
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    dragRef.current = {room: roomName, startX: e.clientX, startY: e.clientY, origin: spots[roomName], box: model.getBoundingClientRect()};
+  };
+  const onDrag = (e: React.PointerEvent<HTMLElement>) => {
+    const d = dragRef.current;
+    if (!d) return;
+    const dx = ((e.clientX - d.startX) / d.box.width) * 100;
+    const dy = ((e.clientY - d.startY) / d.box.height) * 100;
+    // Clamped so a room cannot be dragged off the plan and lost.
+    const x = Math.max(-2, Math.min(100 - d.origin.w + 2, d.origin.x + dx));
+    const y = Math.max(-2, Math.min(100 - d.origin.h + 2, d.origin.y + dy));
+    setLayout(l => ({...l, [activeStudio.id]: {...(l[activeStudio.id] || {}), [d.room]: {...d.origin, x, y}}}));
+  };
+  const endDrag = async () => {
+    const d = dragRef.current;
+    dragRef.current = null;
+    if (!d) return;
+    const rooms = {...spots, ...(layout[activeStudio.id] || {})};
+    try {
+      await api('/api/ops/radar/layout', {method: 'PUT', body: JSON.stringify({studio: activeStudio.id, rooms})});
+    } catch (e) {
+      notify(e instanceof Error ? e.message : 'The new position could not be saved', 'error');
+    }
+  };
+  const resetLayout = async () => {
+    try {
+      await api('/api/ops/radar/layout', {method: 'DELETE', body: JSON.stringify({studio: activeStudio.id})});
+      setLayout(l => { const next = {...l}; delete next[activeStudio.id]; return next; });
+      notify('Room positions restored to the original plan.');
+    } catch (e) {
+      notify(e instanceof Error ? e.message : 'Could not restore the plan', 'error');
+    }
+  };
+
+  /** Click selects; ⌘/Ctrl or shift adds to the comparison. */
+  const pickRoom = (roomId: string, e: React.MouseEvent) => {
+    if (e.metaKey || e.ctrlKey || e.shiftKey) {
+      setAlsoSelected(list => list.includes(roomId) ? list.filter(r => r !== roomId) : [...list, roomId]);
+      return;
+    }
+    setAlsoSelected([]);
+    setSelectedRoomId(roomId);
+  };
 
   return (
     <div className="studio-ops-radar-container">
@@ -460,7 +532,65 @@ export function StudioOpsRadar({ initialStudio = 'kwality' }: { initialStudio?: 
             </div>
           </div>
 
-          <div className="floorplan-stage floorplan-architectural-stage">
+          <div className="floorplan-tools">
+            <div className="fp-tool-group" role="group" aria-label="Plan view">
+              <button
+                type="button"
+                className={"fp-tool" + (tilt === 0 ? " is-on" : "")}
+                onClick={() => { setTilt(0); setSpin(0); }}
+                aria-pressed={tilt === 0}
+              >
+                Flat
+              </button>
+              <button
+                type="button"
+                className={"fp-tool" + (tilt > 0 ? " is-on" : "")}
+                onClick={() => setTilt(t => (t > 0 ? 0 : 52))}
+                aria-pressed={tilt > 0}
+              >
+                <Box size={13} /> 3D
+              </button>
+            </div>
+            {tilt > 0 && (
+              <div className="fp-tool-group fp-sliders">
+                <label>
+                  <span className="sr-only">Tilt</span>
+                  <input type="range" min={10} max={70} value={tilt} onChange={e => setTilt(Number(e.target.value))} aria-label="Tilt the plan" />
+                </label>
+                <label>
+                  <span className="sr-only">Rotate</span>
+                  <input type="range" min={-45} max={45} value={spin} onChange={e => setSpin(Number(e.target.value))} aria-label="Rotate the plan" />
+                </label>
+              </div>
+            )}
+            {user?.role === 'admin' && (
+              <div className="fp-tool-group">
+                <button
+                  type="button"
+                  className={"fp-tool" + (arranging ? " is-on" : "")}
+                  onClick={() => setArranging(v => !v)}
+                  aria-pressed={arranging}
+                  title="Drag rooms to match the real building. Everyone sees the same plan."
+                >
+                  <Move size={13} /> {arranging ? 'Done arranging' : 'Arrange rooms'}
+                </button>
+                {arranging && layout[activeStudio.id] && (
+                  <button type="button" className="fp-tool" onClick={() => void resetLayout()}>Reset</button>
+                )}
+              </div>
+            )}
+            {alsoSelected.length > 0 && (
+              <span className="fp-selection-note">
+                {alsoSelected.length + 1} rooms compared
+                <button type="button" onClick={() => setAlsoSelected([])}>clear</button>
+              </span>
+            )}
+          </div>
+
+          <div
+            className={"floorplan-stage floorplan-architectural-stage" + (tilt > 0 ? " is-tilted" : "") + (arranging ? " is-arranging" : "")}
+            style={{'--fp-tilt': `${tilt}deg`, '--fp-spin': `${spin}deg`} as CSSProperties}
+          >
           <div className="floorplan-model" style={{aspectRatio: `${floorplan.width} / ${floorplan.height}`}}>
             <Image
               src={floorplan.src}
@@ -471,11 +601,11 @@ export function StudioOpsRadar({ initialStudio = 'kwality' }: { initialStudio?: 
               className="floorplan-render"
             />
             {activeStudio.rooms.map((room) => {
-              const isSelected = selectedRoom?.id === room.id;
+              const isSelected = selectedRoom?.id === room.id || alsoSelected.includes(room.id);
               const hasCritical = room.status === 'critical';
               const hasWarning = room.status === 'warning';
               const statusText = hasCritical ? 'needs attention' : hasWarning ? `${room.openTicketsCount} open` : 'no open tickets';
-              const spot = floorplan.rooms[room.name];
+              const spot = spots[room.name];
               if (!spot) return null;
               const spotStyle = {'--room-x': `${spot.x}%`, '--room-y': `${spot.y}%`, '--room-w': `${spot.w}%`, '--room-h': `${spot.h}%`} as CSSProperties;
 
@@ -487,7 +617,10 @@ export function StudioOpsRadar({ initialStudio = 'kwality' }: { initialStudio?: 
                   style={spotStyle}
                   aria-pressed={isSelected}
                   aria-label={`${room.name}, ${statusText}${isSelected ? ', selected' : ''}`}
-                  onClick={() => setSelectedRoomId(room.id)}
+                  onClick={(e) => pickRoom(room.id, e)}
+                  onPointerDown={(e) => startDrag(room.name, e)}
+                  onPointerMove={onDrag}
+                  onPointerUp={() => void endDrag()}
                 >
                   <span className="floorplan-room-focus" aria-hidden />
                   <span className="floorplan-room-label">

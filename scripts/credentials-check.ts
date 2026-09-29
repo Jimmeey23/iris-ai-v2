@@ -37,10 +37,12 @@ check('ignores unrelated variables', !Object.values(mailtrapEnv).includes('ignor
 check('an integration with nothing in the environment reads empty',
   Object.keys(envCredentials('trello', env)).length === 0, envCredentials('trello', env));
 
-section('Precedence');
-check('a saved value beats the environment',
-  mergeCredentials({api_key: 'saved-token'}, mailtrapEnv).api_key === 'saved-token',
+section('Precedence: the environment is the source of truth');
+check('the environment beats a saved value',
+  mergeCredentials({api_key: 'saved-token'}, mailtrapEnv).api_key === 'env-token',
   mergeCredentials({api_key: 'saved-token'}, mailtrapEnv).api_key);
+check('Settings fills a field the deployment does not supply',
+  mergeCredentials({webhook_secret: 'saved-only'}, mailtrapEnv).webhook_secret === 'saved-only');
 check('the environment fills a field that was never saved',
   mergeCredentials({api_key: 'saved-token'}, mailtrapEnv).from_email === 'env@example.com');
 check('with nothing saved, the environment supplies everything',
@@ -49,6 +51,8 @@ check('with nothing in the environment, saved values stand alone',
   mergeCredentials({api_key: 'saved-token'}, {}).api_key === 'saved-token');
 
 section('Blank fields fall back rather than blanking');
+check('an unset environment variable leaves the saved value standing',
+  mergeCredentials({api_key: 'saved-token'}, {}).api_key === 'saved-token');
 check('an empty saved field falls back to the environment',
   mergeCredentials({api_key: ''}, mailtrapEnv).api_key === 'env-token',
   mergeCredentials({api_key: ''}, mailtrapEnv).api_key);
@@ -60,10 +64,10 @@ check('a blank field with no environment value stays absent',
 check('a non-string saved value is ignored',
   mergeCredentials({api_key: 42 as unknown as string}, mailtrapEnv).api_key === 'env-token');
 
-section('Momence: the environment wins');
+section('Momence, like everything else: the environment wins');
 const momenceEnv = {username: 'env-user', password: 'env-pass', username_blr: 'env-blr'};
-check('only momence is env-first',
-  [...ENV_FIRST_INTEGRATIONS].join(',') === 'momence', [...ENV_FIRST_INTEGRATIONS]);
+check('every integration is env-first',
+  [...ENV_FIRST_INTEGRATIONS].join(',') === '*', [...ENV_FIRST_INTEGRATIONS]);
 check('the environment overrides a saved value',
   mergeCredentials({username: 'ui-user'}, momenceEnv, true, true).username === 'env-user',
   mergeCredentials({username: 'ui-user'}, momenceEnv, true, true).username);

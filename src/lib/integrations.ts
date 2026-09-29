@@ -1,5 +1,5 @@
 import {lookup} from 'dns/promises';import {createHash} from 'crypto';import {and,asc,eq,desc,isNotNull,isNull,lt,lte,or,sql} from 'drizzle-orm';import {z} from 'zod';
-import {db} from '@/db';import {integrations,deliveryLogs} from '@/db/schema';import {credentials,integrationCredentials,hasEnvFallback,audit} from './config';import {ApiError} from './auth';import {getAccessToken,obj} from './momence';import {INTEGRATION_CATALOGUE} from './integration-catalogue';
+import {db} from '@/db';import {integrations,deliveryLogs} from '@/db/schema';import {credentials,integrationCredentials,hasSettingsFallback,audit} from './config';import {ApiError} from './auth';import {getAccessToken,obj} from './momence';import {INTEGRATION_CATALOGUE} from './integration-catalogue';
 function required(v:unknown,label:string){if(v===undefined||v===null||String(v).trim()==='')throw new ApiError(`${label} is required.`);return String(v);}
 function identifier(v:unknown,label:string){const id=required(v,label);if(!/^[\w.-]+$/.test(id))throw new ApiError(`${label} has invalid characters.`);return encodeURIComponent(id);}
 export function redacted(data:unknown):unknown{if(Array.isArray(data))return data.slice(0,100).map(redacted);if(data&&typeof data==='object')return Object.fromEntries(Object.entries(data).map(([k,v])=>[k,/(token|secret|password|api_key|authorization)/i.test(k)?'[redacted]':redacted(v)]));return data;}
@@ -78,14 +78,14 @@ export async function runIntegrationWithFallback(id:string,action:string,args:Re
   try{return await runIntegration(id,action,args);}
   catch(error){
     const message=error instanceof Error?error.message:String(error);
-    if(!hasEnvFallback(id)||!CREDENTIAL_FAILURE.test(message))throw error;
-    const fromEnv=await integrationCredentials(id,{envOnly:true});
-    const saved=await credentials(id);
-    // Nothing to gain when Settings already resolves to exactly the environment.
-    if(JSON.stringify(fromEnv)===JSON.stringify(saved))throw error;
-    console.warn(JSON.stringify({level:'warn',source:'integrations.fallback',integration:id,action,message:'Saved credentials were rejected; retrying with environment credentials.',detail:message.slice(0,200)}));
-    const result=await runIntegration(id,action,args,fromEnv);
-    console.warn(JSON.stringify({level:'warn',source:'integrations.fallback',integration:id,action,message:'Environment credentials succeeded. The values saved in Settings are stale or wrong.'}));
+    // The environment is the source of truth, so the credentials that just failed were the
+    // environment's. The fallback is therefore what Settings holds — the reverse of what it
+    // used to be. Retrying with the same values would only repeat the failure.
+    if(!CREDENTIAL_FAILURE.test(message)||!(await hasSettingsFallback(id)))throw error;
+    const fromSettings=await integrationCredentials(id,{settingsOnly:true});
+    console.warn(JSON.stringify({level:'warn',source:'integrations.fallback',integration:id,action,message:'Environment credentials were rejected; retrying with the values saved in Settings.',detail:message.slice(0,200)}));
+    const result=await runIntegration(id,action,args,fromSettings);
+    console.warn(JSON.stringify({level:'warn',source:'integrations.fallback',integration:id,action,message:'Settings credentials succeeded. The deployment variables for this integration are stale or wrong.'}));
     return result;
   }
 }
