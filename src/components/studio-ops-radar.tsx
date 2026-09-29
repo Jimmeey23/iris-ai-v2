@@ -383,7 +383,11 @@ export function StudioOpsRadar({ initialStudio = 'kwality' }: { initialStudio?: 
     const rooms = {...spots, ...(layout[activeStudio.id] || {})};
     try {
       await api('/api/ops/radar/layout', {method: 'PUT', body: JSON.stringify({studio: activeStudio.id, rooms})});
+      notify(`${d.room} moved. Everyone now sees it here.`);
     } catch (e) {
+      // The optimistic move above only lives in this tab's state — if the save failed,
+      // put the room back where the saved plan actually has it so the two never disagree.
+      setLayout(l => ({...l, [activeStudio.id]: {...(l[activeStudio.id] || {}), [d.room]: d.origin}}));
       notify(e instanceof Error ? e.message : 'The new position could not be saved', 'error');
     }
   };

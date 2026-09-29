@@ -13836,9 +13836,10 @@ small {
 .floorplan-room-focus {
   position: absolute;
   inset: 0;
-  border: 1px solid transparent;
+  border: 1px solid color-mix(in srgb, var(--text) 22%, transparent);
   border-radius: inherit;
-  background: transparent;
+  background: color-mix(in srgb, var(--surface) 30%, transparent);
+  box-shadow: 0 2px 10px rgba(20, 16, 12, 0.1);
   transition: border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
 }
 .floorplan-room-hotspot:hover,
@@ -13850,21 +13851,28 @@ small {
 .floorplan-room-hotspot:hover .floorplan-room-focus,
 .floorplan-room-hotspot:focus-visible .floorplan-room-focus {
   border-color: rgba(20, 20, 20, 0.42);
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.16);
   box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.78), 0 13px 26px rgba(20, 16, 12, 0.14);
 }
 .floorplan-room-hotspot.warning .floorplan-room-focus {
   border-color: color-mix(in srgb, var(--amber) 72%, transparent);
-  background: color-mix(in srgb, var(--amber) 11%, transparent);
+  background: color-mix(in srgb, var(--amber) 16%, transparent);
 }
 .floorplan-room-hotspot.critical .floorplan-room-focus {
   border-color: color-mix(in srgb, var(--red) 74%, transparent);
-  background: color-mix(in srgb, var(--red) 12%, transparent);
+  background: color-mix(in srgb, var(--red) 17%, transparent);
 }
 .floorplan-room-hotspot.selected .floorplan-room-focus {
   border: 2px solid var(--accent);
-  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 22%, rgba(255, 255, 255, 0.8)), 0 16px 30px rgba(20, 16, 12, 0.18);
+}
+/* Arranging mode reads as picking real tiles up and setting them back down, so a move
+ * reads as "the room is now here" rather than an invisible marker sliding around. */
+.floorplan-architectural-stage.is-arranging .floorplan-room-focus {
+  border: 1px dashed color-mix(in srgb, var(--accent) 65%, transparent);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  box-shadow: 0 4px 14px rgba(20, 16, 12, 0.16);
 }
 .floorplan-room-label {
   position: absolute;
