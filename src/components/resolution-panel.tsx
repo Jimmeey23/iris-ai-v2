@@ -816,6 +816,7 @@ function CompletionRing({ value }: { value: number }) {
           strokeLinecap="round"
         />
       </svg>
+      <strong aria-hidden="true">{Math.round(pct * 100)}</strong>
     </div>
   );
 }
@@ -832,8 +833,9 @@ function RwHead({
       <div className="rw-completion">
         <CompletionRing value={completion} />
         <div className="rw-completion-meta">
-          <strong>Resolution</strong>
-          <span>{Math.round(completion * 100)}% complete</span>
+          <span className="rw-kicker">PRIVATE WORKSPACE</span>
+          <strong>Case resolution</strong>
+          <span>{Math.round(completion * 100)}% complete · owner controlled</span>
         </div>
       </div>
       <button onClick={onClose} aria-label="Close resolution">
