@@ -7,12 +7,15 @@ import {
   departments,
   ticketActivities,
   ticketLinks,
+  chatSessions,
+  auditLogs,
 } from "@/db/schema";
 import {
   ApiError,
   requireAgent,
   requireWorkspace,
   requireTicketAccess,
+  requireAdmin,
   errorResponse,
   sameOrigin,
 } from "@/lib/auth";
@@ -79,8 +82,19 @@ export async function PATCH(req: Request, ctx: Ctx) {
         assignedStaffId: z.number().int().positive().optional(),
         isEscalated: z.boolean().optional(),
         title: z.string().min(3).max(240).optional(),
+        summary: z.string().min(3).max(1000).optional(),
         description: z.string().min(12).max(20000).optional(),
         requestedResolution: z.string().max(2000).optional(),
+        impact: z.string().max(2000).optional(),
+        memberName: z.string().min(2).max(120).optional(),
+        memberEmail: z.union([z.string().email(), z.literal("")]).optional(),
+        memberPhone: z.string().max(30).optional(),
+        studio: z.string().min(1).max(160).optional(),
+        incidentAt: z.string().min(1).max(160).optional(),
+        classFormat: z.string().max(160).optional(),
+        trainer: z.string().max(160).optional(),
+        membership: z.string().max(200).optional(),
+        preferredContact: z.string().max(50).optional(),
       })
       .parse(await req.json());
     const [[current], cfg] = await Promise.all([
@@ -89,6 +103,24 @@ export async function PATCH(req: Request, ctx: Ctx) {
     ]);
     if (!current) throw new ApiError("Ticket not found", 404);
     requireTicketAccess(actor, current);
+    const adminOnlyFields = [
+      "title",
+      "summary",
+      "description",
+      "requestedResolution",
+      "impact",
+      "memberName",
+      "memberEmail",
+      "memberPhone",
+      "studio",
+      "incidentAt",
+      "classFormat",
+      "trainer",
+      "membership",
+      "preferredContact",
+    ] as const;
+    if (adminOnlyFields.some((key) => b[key] !== undefined) && actor.role !== "admin")
+      throw new ApiError("An administrator is required to edit ticket details.", 403);
     let ownerFields = {};
     if (b.assignedStaffId) {
       const [p] = await db
@@ -203,6 +235,54 @@ export async function PATCH(req: Request, ctx: Ctx) {
       return t;
     });
     return Response.json({ ticket: result, followUpTickets: [] });
+  } catch (e) {
+    return errorResponse(e);
+  }
+}
+
+export async function DELETE(req: Request, ctx: Ctx) {
+  try {
+    sameOrigin(req);
+    const actor = await requireAdmin();
+    await enforceRateLimit("ticketWrite");
+    const id = z.coerce.number().int().positive().parse((await ctx.params).id);
+    const body = z
+      .object({
+        version: z.number().int(),
+        confirmation: z.string().min(1),
+      })
+      .parse(await req.json());
+    const [current] = await db.select().from(tickets).where(eq(tickets.id, id));
+    if (!current) throw new ApiError("Ticket not found", 404);
+    if (body.confirmation !== current.ticketNumber)
+      throw new ApiError("Enter the ticket number exactly to confirm deletion.");
+
+    await db.transaction(async (tx) => {
+      // IRIS transcripts remain useful after a ticket is removed, but must not retain a
+      // dead link to it. Everything with a declared ticket FK is removed by its cascade.
+      await tx
+        .update(chatSessions)
+        .set({ ticketId: null, ticketNumber: null, updatedAt: new Date() })
+        .where(eq(chatSessions.ticketId, id));
+      const [deleted] = await tx
+        .delete(tickets)
+        .where(and(eq(tickets.id, id), eq(tickets.version, body.version)))
+        .returning({ id: tickets.id });
+      if (!deleted)
+        throw new ApiError("This ticket changed elsewhere. Refresh before deleting.", 409);
+      await tx.insert(auditLogs).values({
+        actorId: actor.id,
+        actorName: actor.name,
+        action: "ticket.deleted",
+        entity: `ticket:${id}`,
+        detail: {
+          ticketNumber: current.ticketNumber,
+          title: current.title,
+          version: current.version,
+        },
+      });
+    });
+    return Response.json({ ok: true, id });
   } catch (e) {
     return errorResponse(e);
   }

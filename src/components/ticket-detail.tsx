@@ -33,6 +33,8 @@ import {
   Zap,
   Hash,
   ArrowRight,
+  Pencil,
+  Trash2,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -175,6 +177,25 @@ export function TicketDialog({
       data: unknown;
     }>(),
     [staff, setStaff] = useState<StaffRecord[]>([]);
+  const [editOpen, setEditOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
+  const [edit, setEdit] = useState({
+    title: "",
+    summary: "",
+    description: "",
+    memberName: "",
+    memberEmail: "",
+    memberPhone: "",
+    studio: "",
+    incidentAt: "",
+    classFormat: "",
+    trainer: "",
+    membership: "",
+    preferredContact: "",
+    requestedResolution: "",
+    impact: "",
+  });
   const load = useCallback(
     () =>
       api<Bundle>("/api/tickets/" + id).then(
@@ -340,6 +361,71 @@ export function TicketDialog({
     }
   }
 
+  function openEditor() {
+    if (!t) return;
+    setEdit({
+      title: t.title || "",
+      summary: t.summary || "",
+      description: t.description || "",
+      memberName: t.memberName || "",
+      memberEmail: t.memberEmail || "",
+      memberPhone: t.memberPhone || "",
+      studio: t.studio || "",
+      incidentAt: t.incidentAt || "",
+      classFormat: t.classFormat || "",
+      trainer: t.trainer || "",
+      membership: t.membership || "",
+      preferredContact: t.preferredContact || "",
+      requestedResolution: t.requestedResolution || "",
+      impact: t.impact || "",
+    });
+    setEditOpen(true);
+  }
+
+  async function saveEdit() {
+    if (!bundle) return;
+    setBusy(true);
+    try {
+      await api("/api/tickets/" + id, {
+        method: "PATCH",
+        body: JSON.stringify({ ...edit, version: bundle.ticket.version }),
+      });
+      setEditOpen(false);
+      await load();
+      onUpdated?.();
+      window.dispatchEvent(new Event("iris:tickets-updated"));
+      notify("Ticket details updated.");
+    } catch (e) {
+      notify((e as Error).message, "error");
+      await load();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function deleteTicket() {
+    if (!bundle) return;
+    setBusy(true);
+    try {
+      await api("/api/tickets/" + id, {
+        method: "DELETE",
+        body: JSON.stringify({
+          version: bundle.ticket.version,
+          confirmation: deleteConfirmation,
+        }),
+      });
+      setDeleteOpen(false);
+      onUpdated?.();
+      window.dispatchEvent(new Event("iris:tickets-updated"));
+      notify(`${bundle.ticket.ticketNumber} deleted.`);
+      onClose();
+    } catch (e) {
+      notify((e as Error).message, "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const t = bundle?.ticket;
   const memberRelated = Boolean(t && (t.momenceMemberId || t.memberEmail || t.memberPhone || (t.memberName && !/studio team observation|internal report/i.test(t.memberName))));
   return (
@@ -362,6 +448,25 @@ export function TicketDialog({
               Saved to your workspace · updates every 30s
             </span>
             <div className="flex-row">
+              {user?.role === "admin" && (
+                <>
+                  <button className="btn" disabled={busy || !t} onClick={openEditor}>
+                    <Pencil size={13} />
+                    Edit
+                  </button>
+                  <button
+                    className="btn btn-danger"
+                    disabled={busy || !t}
+                    onClick={() => {
+                      setDeleteConfirmation("");
+                      setDeleteOpen(true);
+                    }}
+                  >
+                    <Trash2 size={13} />
+                    Delete
+                  </button>
+                </>
+              )}
               <button className="btn" onClick={() => void load()}>
                 <RefreshCw size={13} />
                 Refresh
@@ -980,6 +1085,66 @@ export function TicketDialog({
           </div>
         )}
       </Modal>
+      {t && user?.role === "admin" && (
+        <Modal
+          open={editOpen}
+          onClose={() => setEditOpen(false)}
+          title={`Edit ${t.ticketNumber}`}
+          description="Update the ticket's documented facts. Routing, priority and status remain in the ticket workspace."
+          size="wide"
+          footer={
+            <>
+              <button className="btn" disabled={busy} onClick={() => setEditOpen(false)}>Cancel</button>
+              <button className="btn btn-primary" disabled={busy || edit.title.trim().length < 3 || edit.description.trim().length < 12 || edit.memberName.trim().length < 2 || !edit.studio.trim()} onClick={() => void saveEdit()}>
+                {busy ? <Loader2 className="spin" size={13} /> : <Pencil size={13} />}
+                Save changes
+              </button>
+            </>
+          }
+        >
+          <div className="ticket-admin-edit-grid">
+            <Field label="Title"><input value={edit.title} onChange={(e) => setEdit((v) => ({ ...v, title: e.target.value }))} /></Field>
+            <Field label="Summary"><input value={edit.summary} onChange={(e) => setEdit((v) => ({ ...v, summary: e.target.value }))} /></Field>
+            <Field label="What happened"><textarea value={edit.description} onChange={(e) => setEdit((v) => ({ ...v, description: e.target.value }))} /></Field>
+            <Field label="Requested outcome"><textarea value={edit.requestedResolution} onChange={(e) => setEdit((v) => ({ ...v, requestedResolution: e.target.value }))} /></Field>
+            <Field label="Community member"><input value={edit.memberName} onChange={(e) => setEdit((v) => ({ ...v, memberName: e.target.value }))} /></Field>
+            <Field label="Member email"><input type="email" value={edit.memberEmail} onChange={(e) => setEdit((v) => ({ ...v, memberEmail: e.target.value }))} /></Field>
+            <Field label="Member phone"><input value={edit.memberPhone} onChange={(e) => setEdit((v) => ({ ...v, memberPhone: e.target.value }))} /></Field>
+            <Field label="Follow-up preference"><input value={edit.preferredContact} onChange={(e) => setEdit((v) => ({ ...v, preferredContact: e.target.value }))} /></Field>
+            <Field label="Studio Space"><input value={edit.studio} onChange={(e) => setEdit((v) => ({ ...v, studio: e.target.value }))} /></Field>
+            <Field label="When it happened"><input value={edit.incidentAt} onChange={(e) => setEdit((v) => ({ ...v, incidentAt: e.target.value }))} /></Field>
+            <Field label="Signature Experience"><input value={edit.classFormat} onChange={(e) => setEdit((v) => ({ ...v, classFormat: e.target.value }))} /></Field>
+            <Field label="Studio Instructor"><input value={edit.trainer} onChange={(e) => setEdit((v) => ({ ...v, trainer: e.target.value }))} /></Field>
+            <Field label="Community access package"><input value={edit.membership} onChange={(e) => setEdit((v) => ({ ...v, membership: e.target.value }))} /></Field>
+            <Field label="Reported impact"><textarea value={edit.impact} onChange={(e) => setEdit((v) => ({ ...v, impact: e.target.value }))} /></Field>
+          </div>
+        </Modal>
+      )}
+      {t && user?.role === "admin" && (
+        <Modal
+          open={deleteOpen}
+          onClose={() => setDeleteOpen(false)}
+          title="Delete ticket"
+          description="This permanently removes the ticket and its comments, activity, resolution records, links and notifications."
+          size="narrow"
+          footer={
+            <>
+              <button className="btn" disabled={busy} onClick={() => setDeleteOpen(false)}>Cancel</button>
+              <button className="btn btn-danger" disabled={busy || deleteConfirmation !== t.ticketNumber} onClick={() => void deleteTicket()}>
+                {busy ? <Loader2 className="spin" size={13} /> : <Trash2 size={13} />}
+                Delete permanently
+              </button>
+            </>
+          }
+        >
+          <div className="stack">
+            <div className="error-box">Deletion cannot be undone. The IRIS conversation is retained but unlinked from this ticket.</div>
+            <Field label={`Enter ${t.ticketNumber} to confirm`}>
+              <input autoComplete="off" value={deleteConfirmation} onChange={(e) => setDeleteConfirmation(e.target.value)} />
+            </Field>
+          </div>
+        </Modal>
+      )}
       <Modal
         open={linkOpen}
         onClose={() => setLinkOpen(false)}

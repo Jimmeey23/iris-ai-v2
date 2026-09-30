@@ -730,6 +730,26 @@ small {
   background: color-mix(in srgb, var(--red) 16%, transparent);
   border-color: color-mix(in srgb, var(--red) 46%, transparent);
 }
+.btn-danger {
+  color: var(--red);
+  border-color: color-mix(in srgb, var(--red) 35%, var(--border));
+}
+
+.ticket-admin-edit-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+.ticket-admin-edit-grid > :nth-child(3),
+.ticket-admin-edit-grid > :nth-child(4),
+.ticket-admin-edit-grid > :last-child {
+  grid-column: 1 / -1;
+}
+.ticket-admin-edit-grid textarea { min-height: 104px; }
+@media (max-width: 720px) {
+  .ticket-admin-edit-grid { grid-template-columns: 1fr; }
+  .ticket-admin-edit-grid > * { grid-column: auto !important; }
+}
 /* New intents, for the cases that previously had to invent a one-off class. */
 .btn-ghost {
   background: transparent;
