@@ -151,7 +151,10 @@ export async function createTicketFromDraft(draft:AdvancedDraft,source=draft.sou
 async function insertTicketFromDraft(draft:AdvancedDraft,source=draft.source,channel='workspace',external?:ExternalCreate){const cfg=source==='history'?null:await getConfig();const submissionKey=draft.submissionKey||randomUUID();
 const findExisting=(tx:Tx)=>tx.select().from(tickets).where(external?.sourceRef?or(eq(tickets.submissionKey,submissionKey),eq(tickets.sourceRef,external.sourceRef)):eq(tickets.submissionKey,submissionKey));
 const work=async(tx:Tx)=>{await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${submissionKey}))`);const[existing]=await findExisting(tx);if(existing)return{row:existing,created:false};
-const now=external?.createdAt||new Date();
+// An imported record may carry a date the exporting system invented; a ticket filed in the
+// future would sit above every genuinely new one for ever in a newest-first list, so the
+// stamp is never allowed past the moment of the insert.
+const filedAt=new Date();const now=external?.createdAt&&external.createdAt.getTime()<filedAt.getTime()?external.createdAt:filedAt;
 // An Unassigned (queue-parked) ticket is not "assigned" to anyone yet.
 const status=external?.status||(draft.resolutionRequired?(draft.assignedStaffId?'assigned':'new'):'recorded');const closed=['resolved','closed'].includes(status);const backfill=Boolean(external?.noSla);const resolvedAt=closed?external?.resolvedAt||now:null;
 const area=ticketArea(draft.customFields);

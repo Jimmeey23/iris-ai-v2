@@ -424,7 +424,10 @@ async function seedGmailTickets(tx: Tx) {
       subcategory: item.subcategory,
     });
     const assignment = assignTicket(item.category, item.studio);
-    const createdAt = new Date(item.incidentAt || Date.now());
+    // Dataset incident dates are generated and can land in the future; clamp them so seeded
+    // rows never outrank real tickets in a newest-first list.
+    const incidentMs = Date.parse(item.incidentAt || '');
+    const createdAt = new Date(Number.isFinite(incidentMs) ? Math.min(incidentMs, Date.now()) : Date.now());
     const resolvedAt = new Date(createdAt.getTime() + 2 * 3600000);
 
     const [row] = await tx

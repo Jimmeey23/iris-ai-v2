@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import {
   LockKeyhole,
   PencilLine,
@@ -25,6 +25,7 @@ import {
   Download,
 } from "lucide-react";
 import { api, useApp } from "./ui";
+import { MentionBox, MentionText, mentionIdsIn, type MentionPerson } from "./mention-box";
 import { indiaDate } from "@/lib/display";
 
 export type Resolution = {
@@ -199,6 +200,15 @@ export function ResolutionPanel({
   >("log");
   const [saving, setSaving] = useState(false);
   const [step, setStep] = useState("");
+  // Everyone with a workspace account can be tagged in the log: a step is internal, and the
+  // person who needs to see it is not always the one the ticket is assigned to.
+  const [mentionPeople, setMentionPeople] = useState<MentionPerson[]>([]);
+  const [mentioned, setMentioned] = useState<MentionPerson[]>([]);
+  useEffect(() => {
+    void api<{people: {userId: number | null; name: string}[]}>("/api/directory")
+      .then((d) => setMentionPeople(d.people.filter((person): person is MentionPerson => person.userId !== null)))
+      .catch(() => {});
+  }, []);
   const [fuNote, setFuNote] = useState(""),
     [fuDue, setFuDue] = useState("");
   const [channel, setChannel] = useState<string>("call"),
@@ -380,11 +390,13 @@ export function ResolutionPanel({
           <>
             {canResolve && (
               <div className="rw-write">
-                <textarea
+                <MentionBox
                   rows={2}
-                  placeholder="What did you just do?"
+                  placeholder="What did you just do? Type @ to tag a teammate."
                   value={step}
-                  onChange={(e) => setStep(e.target.value)}
+                  onChange={setStep}
+                  people={mentionPeople}
+                  onPick={(person) => setMentioned((current) => current.some((item) => item.userId === person.userId) ? current : [...current, person])}
                 />
                 <button
                   className="btn btn-sm btn-primary"
@@ -392,8 +404,8 @@ export function ResolutionPanel({
                   onClick={() =>
                     void call("/steps", {
                       method: "POST",
-                      body: JSON.stringify({ body: step.trim() }),
-                    }).then(() => setStep(""))
+                      body: JSON.stringify({ body: step.trim(), mentionUserIds: mentionIdsIn(step, mentioned) }),
+                    }).then(() => { setStep(""); setMentioned([]); })
                   }
                 >
                   {saving ? (
@@ -415,7 +427,7 @@ export function ResolutionPanel({
               <ol className="rw-log">
                 {workspace.steps.map((s) => (
                   <li key={s.id}>
-                    <p>{s.body}</p>
+                    <p><MentionText body={s.body} people={mentionPeople} /></p>
                     <footer>
                       <span>{s.authorName}</span>
                       <time>{when(s.createdAt)}</time>

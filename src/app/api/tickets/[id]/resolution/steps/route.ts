@@ -4,6 +4,7 @@ import {db} from '@/db';
 import {ticketResolutionSteps,ticketActivities} from '@/db/schema';
 import {ApiError,errorResponse,sameOrigin} from '@/lib/auth';
 import {requireResolutionAccess,getResolutionWorkspace} from '@/lib/tickets';
+import {notifyMentions,resolveMentions} from '@/lib/mentions';
 
 export const dynamic='force-dynamic';
 type Ctx={params:Promise<{id:string}>};
@@ -12,11 +13,14 @@ const idOf=async(ctx:Ctx)=>z.coerce.number().int().positive().parse((await ctx.p
 export async function POST(req:Request,ctx:Ctx){try{
   sameOrigin(req);
   const id=await idOf(ctx);
-  const{user}=await requireResolutionAccess(id);
-  const b=z.object({body:z.string().trim().min(3,'Describe the step in a few words.').max(4000)}).parse(await req.json());
+  const{user,ticket}=await requireResolutionAccess(id);
+  const b=z.object({body:z.string().trim().min(3,'Describe the step in a few words.').max(4000),mentionUserIds:z.array(z.number().int().positive()).max(20).default([])}).parse(await req.json());
+  // The work log is private to the resolution workspace, so a tag here is internal by definition.
+  const people=await resolveMentions(b.body,b.mentionUserIds,user.id);
   await db.transaction(async tx=>{
     await tx.insert(ticketResolutionSteps).values({ticketId:id,authorUserId:user.id,authorName:user.name,body:b.body});
     await tx.insert(ticketActivities).values({ticketId:id,actorName:user.name,action:'resolution.step',detail:b.body.slice(0,180)});
+    await notifyMentions(tx,{people,ticketId:id,ticketNumber:ticket.ticketNumber,actorName:user.name,body:b.body,context:'in the work log'});
   });
   return Response.json(await getResolutionWorkspace(id));
 }catch(e){return errorResponse(e);}}

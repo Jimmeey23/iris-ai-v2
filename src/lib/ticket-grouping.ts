@@ -86,7 +86,11 @@ export function sortTickets(rows: TicketListRecord[], key: TicketColumn, dir: 'a
   const factor = dir === 'asc' ? 1 : -1;
   return [...rows].sort((a, b) => {
     const av = sortValue(a, key), bv = sortValue(b, key);
-    if (typeof av === 'number' && typeof bv === 'number') return (av - bv) * factor;
-    return String(av).localeCompare(String(bv), undefined, {numeric: true}) * factor;
+    const primary = typeof av === 'number' && typeof bv === 'number'
+      ? (av - bv) * factor
+      : String(av).localeCompare(String(bv), undefined, {numeric: true}) * factor;
+    // Ties fall back to the newest row first, so two tickets filed in the same second (an
+    // import batch, say) still read in the order they were created rather than at random.
+    return primary || b.id - a.id;
   });
 }

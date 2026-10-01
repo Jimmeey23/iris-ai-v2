@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
+import { MentionBox, MentionText, mentionIdsIn, type MentionPerson } from "./mention-box";
 import {
   BellRing,
   Copy,
@@ -160,12 +161,8 @@ export function TicketDialog({
     [tab, setTab] = useState<(typeof TABS)[number]>("overview"),
     [busy, setBusy] = useState(false),
     [note, setNote] = useState("");
-  const [mentionPeople, setMentionPeople] = useState<{userId: number; name: string}[]>([]);
-  const [mentioned, setMentioned] = useState<{userId: number; name: string}[]>([]);
-  const mentionMatch = note.match(/(?:^|\s)@([^@\n]*)$/);
-  const mentionOptions = mentionMatch
-    ? mentionPeople.filter((person) => person.name.toLowerCase().includes(mentionMatch[1].toLowerCase())).slice(0, 8)
-    : [];
+  const [mentionPeople, setMentionPeople] = useState<MentionPerson[]>([]);
+  const [mentioned, setMentioned] = useState<MentionPerson[]>([]);
   const [railOpen, setRailOpen] = useState(false);
   const [linkOpen, setLinkOpen] = useState(false),
     [linkQuery, setLinkQuery] = useState(""),
@@ -231,7 +228,7 @@ export function TicketDialog({
         .then((d) => setStaff(d.staff))
         .catch(() => {});
       void api<{people: {userId: number | null; name: string}[]}>('/api/directory')
-        .then((d) => setMentionPeople(d.people.filter((person): person is {userId: number; name: string} => person.userId !== null)))
+        .then((d) => setMentionPeople(d.people.filter((person): person is MentionPerson => person.userId !== null)))
         .catch(() => {});
       const timer = setInterval(() => {
         if (!document.hidden) void load();
@@ -358,7 +355,7 @@ export function TicketDialog({
     try {
       await api("/api/tickets/" + id + "/comments", {
         method: "POST",
-        body: JSON.stringify({ body: note, isInternal: true, mentionUserIds: mentioned.filter((person) => note.includes('@' + person.name)).map((person) => person.userId) }),
+        body: JSON.stringify({ body: note, isInternal: true, mentionUserIds: mentionIdsIn(note, mentioned) }),
       });
       setNote("");
       setMentioned([]);
@@ -961,7 +958,7 @@ export function TicketDialog({
                               </span>
                               <small>{indiaDate(n.createdAt)}</small>
                             </div>
-                            <p>{n.body}</p>
+                            <p><MentionText body={n.body} people={mentionPeople} /></p>
                           </div>
                         ))}
                         {!bundle.comments.length && (
@@ -969,18 +966,13 @@ export function TicketDialog({
                             No internal notes yet.
                           </p>
                         )}
-                        <textarea
-                          rows={3}
+                        <MentionBox
                           value={note}
-                          onChange={(e) => setNote(e.target.value)}
+                          onChange={setNote}
+                          people={mentionPeople}
+                          onPick={(person) => setMentioned((current) => current.some((item) => item.userId === person.userId) ? current : [...current, person])}
                           placeholder="Add context for your team. Type @ to tag a teammate. This does not message the member."
                         />
-                        {mentionOptions.length > 0 && <div className="card" role="listbox" aria-label="Tag a teammate" style={{maxHeight: 180, overflowY: 'auto'}}>
-                          {mentionOptions.map((person) => <button key={person.userId} type="button" role="option" aria-selected={false} className="btn" style={{display: 'block', width: '100%', textAlign: 'left'}} onClick={() => {
-                            setNote(note.replace(/(?:^|\s)@([^@\n]*)$/, (match) => match.slice(0, match.lastIndexOf('@')) + '@' + person.name + ' '));
-                            setMentioned((current) => current.some((item) => item.userId === person.userId) ? current : [...current, person]);
-                          }}>@{person.name}</button>)}
-                        </div>}
                         <button
                           className="btn btn-primary"
                           disabled={busy || !note.trim()}
