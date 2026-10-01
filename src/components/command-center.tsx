@@ -136,11 +136,15 @@ export function CommandCenter({directory = false}: {directory?: boolean}) {
   const grouped = prefs.groupBy !== 'none';
   const kanbanFields = prefs.kanbanFields;
   const pageSize = prefs.pageSize;
+  const allTab = f.tab === 'all';
+  const sortKey = allTab ? 'created' : prefs.sortKey;
+  const sortDir = allTab ? 'desc' : prefs.sortDir;
   const pageCount = Math.max(1, Math.ceil(tabbed.length / pageSize));
   const currentPage = Math.min(page, pageCount - 1);
-  const rows = grouped ? tabbed : sortTickets(tabbed, prefs.sortKey, prefs.sortDir).slice(currentPage * pageSize, (currentPage + 1) * pageSize);
+  const rows = grouped ? tabbed : sortTickets(tabbed, sortKey, sortDir).slice(currentPage * pageSize, (currentPage + 1) * pageSize);
 
   function onSort(key: TicketColumn) {
+    if (allTab) return;
     if (prefs.sortKey === key) update({sortDir: prefs.sortDir === 'asc' ? 'desc' : 'asc'});
     else update({sortKey: key, sortDir: COLUMN_META[key].numeric ? 'desc' : 'asc'});
   }
@@ -192,7 +196,7 @@ export function CommandCenter({directory = false}: {directory?: boolean}) {
         default: return '';
       }
     };
-    const ordered = sortTickets(tabbed, prefs.sortKey, prefs.sortDir);
+    const ordered = sortTickets(tabbed, sortKey, sortDir);
     csvDownload('iris-tickets.csv', [
       header,
       ...ordered.map((t) => [...(grouped ? [groupValue(t, prefs.groupBy)] : []), ...cols.map((c) => value(t, c))]),
@@ -255,7 +259,14 @@ export function CommandCenter({directory = false}: {directory?: boolean}) {
         className="tabs-toolbar"
         label="Ticket tabs"
         value={f.tab}
-        onChange={(tab) => changeFilters({tab})}
+        onChange={(tab) => {
+          if (tab === 'all') {
+            resetFilters();
+            update({groupBy: 'none', sortKey: 'created', sortDir: 'desc'});
+            setPage(0);
+            void reload();
+          } else changeFilters({tab});
+        }}
         items={TABS.map((t) => ({id: t.id, label: t.name, count: tabCounts[t.id as keyof typeof tabCounts]}))}
       />
 
@@ -350,8 +361,8 @@ export function CommandCenter({directory = false}: {directory?: boolean}) {
             tickets={rows}
             columns={prefs.columns}
             groupBy={prefs.groupBy}
-            sortKey={prefs.sortKey}
-            sortDir={prefs.sortDir}
+            sortKey={sortKey}
+            sortDir={sortDir}
             density={prefs.density}
             expandedGroups={prefs.expandedGroups}
             staleDays={staleTicketDays}

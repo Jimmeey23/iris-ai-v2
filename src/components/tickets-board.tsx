@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useCallback, useMemo, useState } from "react";
+import { useEffect, useCallback, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   CalendarDays,
@@ -35,6 +35,7 @@ export function useTickets(poll = true) {
     [loading, setLoading] = useState(true),
     [error, setError] = useState("");
   const { user, pollSeconds } = useApp();
+  const requestNumber = useRef(0);
   // /api/tickets pages at 500 by default; the board wants every ticket, so follow
   // nextCursor until the server says there is nothing left. No setState here — this
   // only fetches; `applyTickets` below is the callback that updates state.
@@ -61,12 +62,18 @@ export function useTickets(poll = true) {
     setError((e as Error).message);
     setLoading(false);
   }, []);
-  const load = useCallback(
-    async () => fetchAll().then(applyTickets).catch(handleError),
-    [fetchAll, applyTickets, handleError],
-  );
+  const load = useCallback(async () => {
+    const current = ++requestNumber.current;
+    try {
+      const all = await fetchAll();
+      if (current === requestNumber.current) applyTickets(all);
+    } catch (error) {
+      if (current === requestNumber.current) handleError(error);
+    }
+  }, [fetchAll, applyTickets, handleError]);
   useEffect(() => {
-    fetchAll().then(applyTickets).catch(handleError);
+    const initial = Promise.resolve().then(load);
+    void initial;
     // Refresh is event-driven (`iris:tickets-updated`); the interval is only a safety net for
     // changes made in another tab or by a teammate. Polling a hidden tab, or polling faster than
     // POLL_FLOOR, buys nothing and is what drove the dev server into its memory-restart loop.
@@ -87,7 +94,7 @@ export function useTickets(poll = true) {
       window.removeEventListener("iris:tickets-updated", handler);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [load, poll, user, pollSeconds, fetchAll, applyTickets, handleError]);
+  }, [load, poll, user, pollSeconds]);
   return { tickets, loading, error, reload: load };
 }
 function Sparkline({
