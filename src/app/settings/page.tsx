@@ -323,7 +323,6 @@ export default function SettingsPage() {
       | "positiveNoSla"
       | "webhookOnCreate"
       | "assignmentEmail"
-      | "requireResolutionNotes"
       | "allowReopen"
       | "maskMemberContact",
     title: string,
@@ -1113,11 +1112,6 @@ export default function SettingsPage() {
                         }
                       />
                     </div>
-                    {booleanSetting(
-                      "requireResolutionNotes",
-                      "Require resolution notes before closing",
-                      "A ticket cannot be marked resolved until its resolution workspace has been filled in.",
-                    )}
                     {booleanSetting(
                       "allowReopen",
                       "Allow resolved tickets to be reopened",

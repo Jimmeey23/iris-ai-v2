@@ -449,10 +449,8 @@ export async function assertStatusTransition(actor:Identity,current:typeof ticke
   if(TERMINAL.includes(next)&&!TERMINAL.includes(current.status)&&current.resolutionRequired){
     if(!(await canResolveTicket(actor,current.assignedStaffId,current.resolutionRequired)))throw new ApiError('Only the assigned owner or their reporting manager may resolve this ticket.',403);
     const[r]=await db.select().from(ticketResolutions).where(eq(ticketResolutions.ticketId,current.id));
-    if(!r?.actionTaken.trim()||!r.memberOutcome.trim())throw new ApiError('Complete the private resolution action and outcome first.');
-    // `requireResolutionNotes` asks for the whole record: without a root cause and a preventive
-    // action the log cannot answer "has this happened before, and what did we change?".
-    if(cfg.requireResolutionNotes&&(!r.rootCause.trim()||!r.preventiveAction.trim()))throw new ApiError('This workspace requires a root cause and a preventive action before a ticket can be resolved.');
+    // Action taken is the only required part of the write-up: any non-empty text counts.
+    if(!r?.actionTaken.trim())throw new ApiError('Complete the private resolution action first.');
   }
   // Reopening is a policy decision: some teams want resolution to be final, with a fresh
   // ticket raised instead of an old one being reopened weeks later.

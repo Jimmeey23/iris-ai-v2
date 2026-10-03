@@ -128,7 +128,7 @@ const SUMMARY_FIELDS = [
     key: "memberOutcome",
     label: "Member outcome",
     hint: "Where did this leave the member?",
-    required: true,
+    required: false,
   },
 ] as const;
 
@@ -242,10 +242,8 @@ export function ResolutionPanel({
     () => openFollowUps.filter((f) => new Date(f.dueAt).getTime() < now),
     [openFollowUps, now],
   );
-  // The server refuses to resolve without these two, so say so before the click.
-  const readyToResolve = Boolean(
-    draft.actionTaken.trim() && draft.memberOutcome.trim(),
-  );
+  // The server refuses to resolve without the action taken, so say so before the click.
+  const readyToResolve = Boolean(draft.actionTaken.trim());
   const hasWriteUp = SUMMARY_FIELDS.some((f) =>
     workspace.resolution?.[f.key]?.trim(),
   );
@@ -789,8 +787,7 @@ export function ResolutionPanel({
         <div className="rw-foot">
           {!readyToResolve && (
             <p>
-              Action taken and member outcome are needed before this can be
-              resolved.
+              Action taken is needed before this can be resolved.
             </p>
           )}
           <button
