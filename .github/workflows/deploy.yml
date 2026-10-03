@@ -1,0 +1,127 @@
+name: Deploy
+
+# Deploys to Vercel from CI instead of from Vercel's own Git integration.
+#
+# Why this exists: on the Vercel **Hobby** plan a Git-triggered deployment is only allowed
+# when the commit author resolves to the GitHub account that owns the Vercel account. When the
+# Vercel account is connected to a different GitHub login than the one that owns the
+# repository, every push is read as a collaborator's — and Hobby does not allow collaborators
+# on a private repository, so the deployment is refused with "Hobby teams do not support
+# collaboration". There is no commit email that satisfies both checks, so Git cannot fix it.
+#
+# The CLI has no such check: it deploys as whoever owns `VERCEL_TOKEN`. That makes this the
+# free-plan path to automatic deploys, and it keeps the gate where it belongs — nothing ships
+# until lint, typecheck, the offline checks, the migrations and the build have all passed.
+#
+# Setup, once:
+#   1. Vercel → Settings → Tokens → create a token, scoped to this project.
+#   2. GitHub → repo → Settings → Secrets and variables → Actions → add:
+#        VERCEL_TOKEN       the token from step 1
+#        VERCEL_ORG_ID      "orgId"     from .vercel/project.json
+#        VERCEL_PROJECT_ID  "projectId" from .vercel/project.json
+#   3. Vercel → Project → Settings → Git → turn the GitHub integration's automatic
+#      deployments off, so a push does not also trigger the refused Git deployment.
+#
+# Environment variables (DATABASE_URL, Supabase keys, CRON_SECRET, …) still live in Vercel's
+# project settings. `vercel pull` fetches them at build time; none of them belong here.
+
+on:
+  # Only after CI has gone green on main: a deploy that races the test suite is not a gate.
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  # And on demand, for a redeploy that does not need a new commit.
+  workflow_dispatch:
+
+concurrency:
+  # One deploy at a time, and a newer commit supersedes an in-flight older one.
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  production:
+    # `workflow_run` fires for failures too, so the result is checked rather than assumed.
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      NEXT_TELEMETRY_DISABLED: "1"
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # For a workflow_run the default ref is the branch tip, which may already have moved.
+          # Deploy the exact commit CI verified, or the gate means nothing.
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Check the deploy secrets are present
+        env:
+          TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          missing=""
+          [ -n "$TOKEN" ] || missing="$missing VERCEL_TOKEN"
+          [ -n "$VERCEL_ORG_ID" ] || missing="$missing VERCEL_ORG_ID"
+          [ -n "$VERCEL_PROJECT_ID" ] || missing="$missing VERCEL_PROJECT_ID"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing repository secret(s):$missing — see the comment at the top of .github/workflows/deploy.yml"
+            exit 1
+          fi
+
+      - name: Install
+        run: npm ci
+
+      - name: Pull the production environment from Vercel
+        run: npx vercel pull --yes --environment=production --token "${{ secrets.VERCEL_TOKEN }}"
+
+      - name: Build
+        # Built here rather than on Vercel so the deploy uploads a finished artifact: the build
+        # either passes in CI or never reaches production.
+        run: npx vercel build --prod --token "${{ secrets.VERCEL_TOKEN }}"
+
+      - name: Deploy
+        id: deploy
+        run: |
+          url=$(npx vercel deploy --prebuilt --prod --token "${{ secrets.VERCEL_TOKEN }}")
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "Deployed $GITHUB_SHA to $url"
+
+      - name: Check the deployment answers
+        env:
+          URL: ${{ steps.deploy.outputs.url }}
+        run: |
+          # /api/health is read-only and reports database reachability, so a deployment that
+          # built but cannot reach Supabase is caught here rather than by a person.
+          for attempt in 1 2 3 4 5 6; do
+            body=$(curl -fsS --max-time 20 "$URL/api/health" || true)
+            case "$body" in
+              *'"db":"up"'*) echo "healthy: $body"; exit 0 ;;
+            esac
+            echo "attempt $attempt: ${body:-no response}"
+            sleep 10
+          done
+          echo "::error::$URL/api/health never reported db:up — the deployment is live but may be misconfigured."
+          exit 1
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### Deploy"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Commit | \`${{ github.event.workflow_run.head_sha || github.sha }}\` |"
+            echo "| URL | ${{ steps.deploy.outputs.url || '—' }} |"
+            echo "| Result | ${{ job.status }} |"
+          } >> "$GITHUB_STEP_SUMMARY"
