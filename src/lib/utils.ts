@@ -35,17 +35,21 @@ export function slaState(dueAt?: string | Date | null, status?: string, createdA
   return slaWindowState(Number.isNaN(due) ? null : due, Number.isNaN(start) ? null : start);
 }
 
+/** Elapsed time, floored at every step. Rounding overstated the age of everything: a comment
+ *  30 seconds old read "1m ago" even though the branch above it exists to say "just now", and
+ *  45 minutes read "1h ago" — on a board where an hour is the difference between inside and
+ *  outside an SLA window, the label must never claim more elapsed time than has passed. */
 export function relativeTime(value?: string | Date | null) {
   if (!value) return "just now";
   const date = typeof value === "string" ? new Date(value) : value;
   const diff = Date.now() - date.getTime();
-  const minutes = Math.round(diff / 60000);
+  if (Number.isNaN(diff)) return "just now";
+  const minutes = Math.floor(diff / 60000);
   if (minutes < 1) return "just now";
   if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.round(minutes / 60);
+  const hours = Math.floor(minutes / 60);
   if (hours < 24) return `${hours}h ago`;
-  const days = Math.round(hours / 24);
-  return `${days}d ago`;
+  return `${Math.floor(hours / 24)}d ago`;
 }
 
 export function ticketNumberFor(id: number) {

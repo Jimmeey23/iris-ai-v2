@@ -12,6 +12,7 @@ import {
 } from "@/db/schema";
 import {
   ApiError,
+  canEditTicketDetails,
   requireAgent,
   requireWorkspace,
   requireTicketAccess,
@@ -33,6 +34,8 @@ import { getConfig } from "@/lib/config";
 import { emitTicketEvent } from "@/lib/ticket-events";
 import { inferSeverity } from "@/lib/routing";
 import { enforceRateLimit } from "@/lib/rate-limit";
+import { after } from "next/server";
+import { signalChanged } from "@/lib/realtime";
 export const dynamic = "force-dynamic";
 type Ctx = { params: Promise<{ id: string }> };
 export async function GET(_req: Request, ctx: Ctx) {
@@ -103,7 +106,20 @@ export async function PATCH(req: Request, ctx: Ctx) {
     ]);
     if (!current) throw new ApiError("Ticket not found", 404);
     requireTicketAccess(actor, current);
-    const adminOnlyFields = [
+    /**
+     * The documented facts of the ticket: what happened, who it is about, where and when.
+     *
+     * These are not routing — they are the account of the incident, and the person who wrote
+     * it is the person who can correct it. An administrator may edit any ticket; everybody
+     * else, agents included, may edit the ones they filed. Somebody who mistyped a member's
+     * phone number or left out half the story should not have to find an administrator to fix
+     * their own words, which is what the old blanket rule required.
+     *
+     * Still refused for a ticket you merely have access to: an agent can see every ticket at
+     * their studio (see `canAccessTicket`), and being able to read a colleague's report is not
+     * a reason to be able to rewrite it.
+     */
+    const documentedFields = [
       "title",
       "summary",
       "description",
@@ -119,8 +135,14 @@ export async function PATCH(req: Request, ctx: Ctx) {
       "membership",
       "preferredContact",
     ] as const;
-    if (adminOnlyFields.some((key) => b[key] !== undefined) && actor.role !== "admin")
-      throw new ApiError("An administrator is required to edit ticket details.", 403);
+    const editsDetails = documentedFields.some((key) => b[key] !== undefined);
+    if (editsDetails && !canEditTicketDetails(actor, current))
+      throw new ApiError(
+        current.createdByUserId
+          ? "Only the person who filed this ticket, or an administrator, can edit its details."
+          : "This ticket was filed outside the workspace, so it has no author — an administrator can edit it.",
+        403,
+      );
     let ownerFields = {};
     if (b.assignedStaffId) {
       const [p] = await db
@@ -172,6 +194,9 @@ export async function PATCH(req: Request, ctx: Ctx) {
         extra: { ...fields, ...ownerFields, ...sla },
         detail,
       });
+      // The write landed: tell the other open boards, so a teammate sees this without
+      // waiting for their poll. Advisory only — see lib/realtime.
+      after(() => signalChanged("tickets"));
       return Response.json({
         ticket,
         followUpTickets: followUps.map((f) => ({ id: f.id, ticketNumber: f.ticketNumber })),
@@ -234,6 +259,9 @@ export async function PATCH(req: Request, ctx: Ctx) {
         });
       return t;
     });
+    // The write landed: tell the other open boards, so a teammate sees this without
+    // waiting for their poll. Advisory only — see lib/realtime.
+    after(() => signalChanged("tickets"));
     return Response.json({ ticket: result, followUpTickets: [] });
   } catch (e) {
     return errorResponse(e);
@@ -282,6 +310,9 @@ export async function DELETE(req: Request, ctx: Ctx) {
         },
       });
     });
+    // The write landed: tell the other open boards, so a teammate sees this without
+    // waiting for their poll. Advisory only — see lib/realtime.
+    after(() => signalChanged("tickets"));
     return Response.json({ ok: true, id });
   } catch (e) {
     return errorResponse(e);
@@ -338,6 +369,9 @@ export async function POST(req: Request, ctx: Ctx) {
           relation: "duplicate",
         })
         .onConflictDoNothing();
+      // The write landed: tell the other open boards, so a teammate sees this without
+      // waiting for their poll. Advisory only — see lib/realtime.
+      after(() => signalChanged("tickets"));
       return Response.json({ ticket: copy });
     }
     if (!b.relatedId || b.relatedId === id)
@@ -374,6 +408,9 @@ export async function POST(req: Request, ctx: Ctx) {
         action: b.action,
         detail: "Ticket " + b.relatedId,
       });
+    // The write landed: tell the other open boards, so a teammate sees this without
+    // waiting for their poll. Advisory only — see lib/realtime.
+    after(() => signalChanged("tickets"));
     return Response.json({ ok: true });
   } catch (e) {
     return errorResponse(e);

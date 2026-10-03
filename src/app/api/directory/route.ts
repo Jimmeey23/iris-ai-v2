@@ -2,6 +2,7 @@ import {gte, sql} from 'drizzle-orm';
 import {db} from '@/db';
 import {appUsers, staff, userPresence} from '@/db/schema';
 import {errorResponse, requireWorkspace} from '@/lib/auth';
+import {ensureUsernames} from '@/lib/mentions';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,9 +23,12 @@ const ONLINE_SECONDS = 50;
 export async function GET() {
   try {
     await requireWorkspace();
+    // The mention picker takes its handles from this payload, so an account that has never
+    // had one gets it here, before anybody can type `@`. A no-op once every account is filled.
+    await ensureUsernames();
     const since = new Date(Date.now() - ONLINE_SECONDS * 1000);
     const [accounts, directory, present] = await Promise.all([
-      db.select({id: appUsers.id, name: appUsers.name, avatarUrl: appUsers.avatarUrl, staffId: appUsers.staffId, role: appUsers.role}).from(appUsers),
+      db.select({id: appUsers.id, name: appUsers.name, username: appUsers.username, avatarUrl: appUsers.avatarUrl, staffId: appUsers.staffId, role: appUsers.role}).from(appUsers),
       db.select({id: staff.id, name: staff.name, role: staff.role, colour: staff.avatarColor}).from(staff),
       db.select({userId: userPresence.userId, path: userPresence.path, label: userPresence.label}).from(userPresence).where(gte(userPresence.seenAt, since)),
     ]);
@@ -37,6 +41,7 @@ export async function GET() {
         const account = byStaffId.get(s.id);
         return {
           name: s.name,
+          username: account?.username ?? null,
           role: s.role,
           avatarUrl: account?.avatarUrl ?? null,
           colour: s.colour,
@@ -47,7 +52,7 @@ export async function GET() {
       }),
       // Accounts with no directory row of their own still get a face and a dot.
       ...accounts.filter(a => !a.staffId).map(a => ({
-        name: a.name, role: a.role, avatarUrl: a.avatarUrl, colour: null,
+        name: a.name, username: a.username, role: a.role, avatarUrl: a.avatarUrl, colour: null,
         userId: a.id, online: onlineIds.has(a.id),
         viewing: present.find(p => p.userId === a.id)?.label ?? null,
       })),

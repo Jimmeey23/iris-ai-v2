@@ -3,7 +3,7 @@ import {db} from '@/db';
 import {appSettings,tickets} from '@/db/schema';
 import {obj,arr} from './momence';
 import {makeDraft,createTicketFromDraft} from './tickets';
-import {credentials,getConfig} from './config';
+import {credentials,getConfig,getSetting,setSetting} from './config';
 import {ApiError} from './auth';
 
 /**
@@ -147,6 +147,30 @@ export type SyncResult={imported:number;skipped:number;failed:number;unmatched:n
     unmatchedStudios:string[];failures:{sourceRef:string;reason:string}[];error?:string}[]};
 
 /** Files any submission not already on record. Safe to call repeatedly. */
+/** Reviews an administrator has deleted, by upstream reference.
+ *
+ *  Deleting a review deletes its ticket — and its `sourceRef` with it, which is the only thing
+ *  stopping the next sync from importing the same submission again. The reference is therefore
+ *  kept here as a tombstone: it is the deletion itself that has to persist, not the row. */
+const DELETED_KEY='trainers:deleted-refs';
+/** Beyond this the setting row would grow without limit; the oldest tombstones are dropped
+ *  first, and an upstream submission that old is no longer in the forms' response windows. */
+const MAX_TOMBSTONES=2000;
+
+export async function deletedReviewRefs():Promise<Set<string>>{
+  const row=await getSetting(DELETED_KEY);
+  const refs=(row?.value as {refs?: unknown})?.refs;
+  return new Set(Array.isArray(refs)?refs.filter((r):r is string=>typeof r==='string'):[]);
+}
+
+export async function rememberDeletedReview(sourceRef:string|null|undefined,userId?:number){
+  if(!sourceRef)return;
+  const refs=await deletedReviewRefs();
+  refs.add(sourceRef);
+  const kept=[...refs].slice(-MAX_TOMBSTONES);
+  await setSetting(DELETED_KEY,{refs:kept},userId);
+}
+
 export async function syncTrainerReviews():Promise<SyncResult>{
   const cfg=await getConfig();
   const result:SyncResult={imported:0,skipped:0,failed:0,unmatched:0,lastSync:new Date().toISOString(),sources:[]};
@@ -158,7 +182,9 @@ export async function syncTrainerReviews():Promise<SyncResult>{
     entry.total=reviews.length;
     const refs=reviews.map(r=>r.sourceRef);
     const existing=refs.length?await db.select({sourceRef:tickets.sourceRef}).from(tickets).where(inArray(tickets.sourceRef,refs)):[];
-    const known=new Set(existing.map(e=>e.sourceRef));
+    // Already on file, or deliberately deleted — both are "do not import", and a deleted
+    // review that reappeared every sync would make the delete button look broken.
+    const known=new Set([...existing.map(e=>e.sourceRef),...(await deletedReviewRefs())]);
     for(const review of reviews){
       if(known.has(review.sourceRef)){entry.skipped++;continue;}
       // Rows whose studio is not one of ours are the app's own sample data, not P57 records.

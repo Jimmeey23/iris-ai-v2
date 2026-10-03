@@ -1,6 +1,8 @@
 import {timingSafeEqual} from 'node:crypto';
 import {deliverPending} from '@/lib/integrations';
 import {applyEscalations,emitOverdueEvents,queueSlaReminderEmails} from '@/lib/tickets';
+import {sweepRateLimits} from '@/lib/rate-limit';
+import {reportError} from '@/lib/observability';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -22,9 +24,12 @@ function authorized(req: Request) {
 }
 
 /**
- * Scheduled worker (vercel.json → crons). Drains the integration outbox in batches
- * until it is empty or the time budget is spent, then runs the SLA escalation sweep
- * (which rate-limits itself to once every few minutes).
+ * Scheduled worker (vercel.json → crons, every five minutes). Queues SLA reminders, emits
+ * overdue events, drains the integration outbox in batches until it is empty or the time
+ * budget is spent, runs the escalation sweep, then sweeps expired rate-limit windows.
+ *
+ * This is the only thing that drives any of that work. Nothing rides on a user request, so a
+ * board nobody is looking at is still swept.
  */
 export async function GET(req: Request) {
   if (!authorized(req)) return Response.json({ok: false, error: 'Unauthorized'}, {status: 401});
@@ -37,7 +42,7 @@ export async function GET(req: Request) {
         // Queued before the drain below, so a breach found now goes out on this run.
         // A failure here must not cost us the outbox drain or the escalation sweep.
         try{totals.overdue=await emitOverdueEvents();}
-        catch(error){console.error(JSON.stringify({level:'error',source:'cron.overdue',message:error instanceof Error?error.message:String(error)}));}
+        catch(error){await reportError(error,{source:'cron.overdue'});}
       }
       const r = await deliverPending({limit: BATCH});
       totals.batches++;
@@ -52,13 +57,21 @@ export async function GET(req: Request) {
     try {
       escalated = await applyEscalations();
     } catch (error) {
-      console.error(JSON.stringify({level: 'error', source: 'cron.escalations', message: error instanceof Error ? error.message : String(error)}));
+      await reportError(error, {source: 'cron.escalations'});
     }
-    const result = {ok: true, ...totals, escalated, ms: Date.now() - started};
+    // Housekeeping, last: a failure here is not worth a non-200 that makes Vercel retry the
+    // whole run, so it only ever logs.
+    let sweptRateLimits = 0;
+    try {
+      sweptRateLimits = await sweepRateLimits();
+    } catch (error) {
+      await reportError(error, {source: 'cron.sweep'});
+    }
+    const result = {ok: true, ...totals, escalated, sweptRateLimits, ms: Date.now() - started};
     console.log(JSON.stringify({level: 'info', source: 'cron.outbox', ...result}));
     return Response.json(result);
   } catch (error) {
-    console.error(JSON.stringify({level: 'error', source: 'cron.outbox', message: error instanceof Error ? error.message : String(error), ...totals}));
+    await reportError(error, {source: 'cron.outbox', severity: 'fatal', extra: {...totals}});
     return Response.json({ok: false, ...totals}, {status: 500});
   }
 }

@@ -11,7 +11,7 @@
  */
 import {indiaDate} from './display';
 
-export type TicketEmailKind = 'assigned' | 'sla-3h';
+export type TicketEmailKind = 'assigned' | 'sla-3h' | 'escalated';
 
 export type TicketEmailSubject = {
   ticketNumber: string;
@@ -27,13 +27,16 @@ export type TicketEmailSubject = {
   assignedStaffName?: string | null;
   summary?: string | null;
   appUrl?: string | null;
+  /** Escalation only: who held it when the target passed, so the manager reading this knows
+   *  whose work they have just been handed rather than having to open the ticket to find out. */
+  escalatedFromName?: string | null;
 };
 
 /** Inline styles only, tables for layout, no external assets: the rules of email HTML, and
  *  the reason this does not reuse the app's stylesheet. Colours are the IRIS palette with
  *  light-mode values, since most clients ignore a dark scheme anyway. */
-const BRAND = {ink: '#16161c', muted: '#5f5c6d', faint: '#94919f', line: '#eae8f0', gold: '#a8760a', goldSoft: '#fdf7e8', red: '#c0392b', redSoft: '#fdeeec', page: '#f2f1f6'};
-const esc = (v: unknown) => String(v ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c] as string));
+export const BRAND = {ink: '#16161c', muted: '#5f5c6d', faint: '#94919f', line: '#eae8f0', gold: '#a8760a', goldSoft: '#fdf7e8', red: '#c0392b', redSoft: '#fdeeec', page: '#f2f1f6'};
+export const esc = (v: unknown) => String(v ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c] as string));
 
 const PRIORITY_TONE: Record<string, {bg: string; fg: string}> = {
   critical: {bg: BRAND.redSoft, fg: BRAND.red},
@@ -151,6 +154,25 @@ function shell(opts: {eyebrow: string; accent: string; accentSoft: string; headi
 }
 
 /** Subject and plain-text body for one automatic ticket email. */
+/**
+ * Standing blind copy on every ticket email.
+ *
+ * The workspace keeps one archive address that receives a copy of anything sent about a
+ * ticket — assignment, the SLA warning, an escalation, the daily digest — so there is a
+ * single mailbox that holds the whole outbound record even after staff turnover.
+ *
+ * Blind, not CC: the owner and their manager should not see a head-office address on the
+ * thread and start replying to it instead of working the ticket. `TICKET_BCC_EMAILS` accepts
+ * a comma-separated list, and a single space switches the archive off entirely.
+ */
+export function ticketBcc(): {email: string}[] {
+  return (process.env.TICKET_BCC_EMAILS ?? 'admin@physique57india.com')
+    .split(',')
+    .map(address => address.trim().toLowerCase())
+    .filter(address => address.includes('@'))
+    .map(email => ({email}));
+}
+
 export function ticketEmailBody(ticket: TicketEmailSubject, kind: TicketEmailKind) {
   const deadline = ticket.slaDueAt ? `\nFollow-up target: ${indiaDate(ticket.slaDueAt)}.` : '';
   const facts = [
@@ -165,6 +187,24 @@ export function ticketEmailBody(ticket: TicketEmailSubject, kind: TicketEmailKin
     ticket.summary ? `\nWhat happened:\n${ticket.summary}` : '', ticket.appUrl ? `\nOpen it: ${ticket.appUrl}` : '']
     .filter(l => l !== '').join('\n');
 
+  if (kind === 'escalated') {
+    const from = ticket.escalatedFromName ? ` with ${ticket.escalatedFromName}` : '';
+    return {
+      subject: `Escalated to you — ${ticket.ticketNumber}: ${ticket.title}`,
+      text: plain(
+        `This ticket passed its follow-up target${from} without being resolved or extended, ` +
+          `so it has been escalated to you as the reporting manager and reassigned to your name.`,
+      ),
+      html: shell({
+        eyebrow: 'Escalated to you', accent: BRAND.red, accentSoft: BRAND.redSoft,
+        heading: 'This has come up to you',
+        lede:
+          `It passed its follow-up target${from} with no resolution and no extension, so IRIS ` +
+          `has escalated it and put it in your name. It needs either a decision or a new owner.`,
+        ticket, cta: 'Open the ticket', urgent: true,
+      }),
+    };
+  }
   return kind === 'assigned'
     ? {
         subject: `${ticket.ticketNumber} assigned to you — ${ticket.title}`,

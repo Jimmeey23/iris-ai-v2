@@ -91,6 +91,8 @@ type Bundle = {
   }[];
   linked: { id: number; ticketNumber: string; title: string; status: string }[];
   canResolve: boolean;
+  /** Administrator, or the person who filed this ticket. The server enforces the same rule. */
+  canEditDetails: boolean;
   asset: {id: number; name: string; assetTag: string | null; status: string; type: string; studio: string} | null;
   resolution: Resolution | null;
   steps: import("./resolution-panel").ResolutionStep[];
@@ -227,16 +229,20 @@ export function TicketDialog({
       void api<{ staff: StaffRecord[] }>("/api/staff")
         .then((d) => setStaff(d.staff))
         .catch(() => {});
-      void api<{people: {userId: number | null; name: string}[]}>('/api/directory')
+      void api<{people: {userId: number | null; name: string; username: string | null}[]}>('/api/directory')
         .then((d) => setMentionPeople(d.people.filter((person): person is MentionPerson => person.userId !== null)))
         .catch(() => {});
+      // Paused while the editor is open. A refresh landing mid-edit bumps the revision the
+      // save is about to be checked against, so a perfectly good edit came back as "this
+      // ticket changed elsewhere" — and the next poll after that would have reloaded the
+      // fields underneath the person typing.
       const timer = setInterval(() => {
-        if (!document.hidden) void load();
+        if (!document.hidden && !editOpen) void load();
       }, 30000);
       // Skip the tick while the tab is hidden, then catch up with one fetch
       // the moment it becomes visible again rather than waiting out the interval.
       const onVisible = () => {
-        if (!document.hidden) void load();
+        if (!document.hidden && !editOpen) void load();
       };
       document.addEventListener("visibilitychange", onVisible);
       return () => {
@@ -244,7 +250,7 @@ export function TicketDialog({
         document.removeEventListener("visibilitychange", onVisible);
       };
     }
-  }, [open, load]);
+  }, [open, load, editOpen]);
   // The picker searches server-side (`?q=` returns up to 20 matches) rather than
   // downloading the whole ticket list, debounced so typing doesn't fire a request a key.
   const linkTerm = linkQuery.trim();
@@ -315,6 +321,32 @@ export function TicketDialog({
     }
   }
 
+  /** One extension, with a reason. The server is the authority on "once" and on who may do
+   *  it — this only keeps the form from being offered where it would certainly be refused. */
+  const [extendOpen, setExtendOpen] = useState(false);
+  const [extendHours, setExtendHours] = useState(8);
+  const [extendReason, setExtendReason] = useState("");
+  async function extendSla() {
+    if (!t) return;
+    setBusy(true);
+    try {
+      await api(`/api/tickets/${t.id}/extend`, {
+        method: "POST",
+        body: JSON.stringify({ hours: extendHours, reason: extendReason }),
+      });
+      setExtendOpen(false);
+      setExtendReason("");
+      await load();
+      onUpdated?.();
+      window.dispatchEvent(new Event("iris:tickets-updated"));
+      notify(`Follow-up target moved out by ${extendHours} hours.`);
+    } catch (e) {
+      notify(e instanceof Error ? e.message : "Could not extend the target", "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function duplicate() {
     setBusy(true);
     try {
@@ -368,9 +400,14 @@ export function TicketDialog({
     }
   }
 
+  /** The values the form opened with. The save sends the difference against these, so a field
+   *  nobody touched is never written back over somebody else's change. */
+  type EditForm = typeof edit;
+  const [editBaseline, setEditBaseline] = useState<EditForm>(edit);
+
   function openEditor() {
     if (!t) return;
-    setEdit({
+    const seed: EditForm = {
       title: t.title || "",
       summary: t.summary || "",
       description: t.description || "",
@@ -385,25 +422,57 @@ export function TicketDialog({
       preferredContact: t.preferredContact || "",
       requestedResolution: t.requestedResolution || "",
       impact: t.impact || "",
-    });
+    };
+    setEdit(seed);
+    setEditBaseline(seed);
     setEditOpen(true);
   }
 
+  /**
+   * Saves the edit, then re-reads the ticket from the server.
+   *
+   * Only the fields that actually changed are sent, measured against the values the form was
+   * seeded with. Sending the whole form wrote every field back on every save, which made the
+   * activity log unreadable and meant two people editing different fields overwrote each
+   * other with values neither had touched.
+   *
+   * The revision travels with it (`version`), so the server refuses the write outright if the
+   * ticket moved underneath this form rather than silently discarding somebody's change — and
+   * the reload afterwards is what confirms what was actually stored, rather than trusting
+   * local state.
+   */
   async function saveEdit() {
     if (!bundle) return;
+    const changed = Object.fromEntries(
+      Object.entries(edit).filter(([key, value]) => value !== editBaseline[key as keyof typeof edit]),
+    );
+    if (!Object.keys(changed).length) {
+      setEditOpen(false);
+      notify("Nothing changed.");
+      return;
+    }
     setBusy(true);
     try {
-      await api("/api/tickets/" + id, {
+      const saved = await api<{ ticket: TicketRecord }>("/api/tickets/" + id, {
         method: "PATCH",
-        body: JSON.stringify({ ...edit, version: bundle.ticket.version }),
+        body: JSON.stringify({ ...changed, version: bundle.ticket.version }),
       });
       setEditOpen(false);
+      // Re-read rather than patching local state from the form: what is on screen afterwards
+      // is what the database returned, so a field the server normalised or rejected cannot
+      // look saved when it was not.
       await load();
       onUpdated?.();
       window.dispatchEvent(new Event("iris:tickets-updated"));
-      notify("Ticket details updated.");
+      const fields = Object.keys(changed).length;
+      notify(
+        `Saved to ticket ${saved.ticket?.ticketNumber ?? t?.ticketNumber ?? ""} · ` +
+          `${fields} field${fields === 1 ? "" : "s"} updated, revision ${saved.ticket?.version ?? "?"}.`,
+      );
     } catch (e) {
       notify((e as Error).message, "error");
+      // The save failed, so the form is out of step with the record: reload and let the person
+      // see the stored values before trying again.
       await load();
     } finally {
       setBusy(false);
@@ -455,24 +524,24 @@ export function TicketDialog({
               Saved to your workspace · updates every 30s
             </span>
             <div className="flex-row">
+              {bundle?.canEditDetails && (
+                <button className="btn" disabled={busy || !t} onClick={openEditor}>
+                  <Pencil size={13} />
+                  Edit
+                </button>
+              )}
               {user?.role === "admin" && (
-                <>
-                  <button className="btn" disabled={busy || !t} onClick={openEditor}>
-                    <Pencil size={13} />
-                    Edit
-                  </button>
-                  <button
-                    className="btn btn-danger"
-                    disabled={busy || !t}
-                    onClick={() => {
-                      setDeleteConfirmation("");
-                      setDeleteOpen(true);
-                    }}
-                  >
-                    <Trash2 size={13} />
-                    Delete
-                  </button>
-                </>
+                <button
+                  className="btn btn-danger"
+                  disabled={busy || !t}
+                  onClick={() => {
+                    setDeleteConfirmation("");
+                    setDeleteOpen(true);
+                  }}
+                >
+                  <Trash2 size={13} />
+                  Delete
+                </button>
               )}
               <button className="btn" onClick={() => void load()}>
                 <RefreshCw size={13} />
@@ -536,9 +605,48 @@ export function TicketDialog({
                         <span>Logged {indiaDate(t.createdAt)}</span>
                         <i aria-hidden="true" />
                         <span>by {t.memberName}</span>
+                        {/* Who filed it, which is also the answer to "why can I not edit this?".
+                            A ticket that arrived by email or from a form has no author in the
+                            workspace, so there is no edit button and the reason should be on
+                            screen rather than left to be guessed at. */}
+                        {t.createdByName && (
+                          <>
+                            <i aria-hidden="true" />
+                            <span>filed by {t.createdByName}</span>
+                          </>
+                        )}
+                        {!bundle.canEditDetails && (
+                          <>
+                            <i aria-hidden="true" />
+                            <span className="td-noedit" title={
+                              t.createdByName
+                                ? `Only ${t.createdByName} or an administrator can edit these details.`
+                                : "This ticket arrived from outside the workspace, so it has no author. An administrator can edit it."
+                            }>
+                              {t.createdByName ? "Editable by " + t.createdByName : "No author on file"}
+                            </span>
+                          </>
+                        )}
                       </div>
                     </div>
                     <div className="td-head-actions">
+                      {/* Editing used to be a plain button in the dialog footer, below the fold
+                          of a long ticket and admin-only, so the person who filed the ticket
+                          could neither find it nor use it. It belongs beside the title they
+                          would be correcting, labelled, and offered to whoever may actually
+                          save it — see `canEditDetails`. */}
+                      {bundle.canEditDetails && (
+                        <button
+                          type="button"
+                          className="btn btn-sm td-edit-btn"
+                          disabled={busy}
+                          onClick={openEditor}
+                          title={user?.role === "admin" ? "Edit the ticket's details" : "Edit the details you filed"}
+                        >
+                          <Pencil size={13} />
+                          Edit details
+                        </button>
+                      )}
                       <button type="button" className="icon-btn" onClick={() => void load()} aria-label="Refresh ticket" title="Refresh ticket">
                         <RefreshCw size={16} />
                       </button>
@@ -772,6 +880,77 @@ export function TicketDialog({
                               <small>{t.slaDueAt ? "Due " + indiaDate(t.slaDueAt) : "No follow-up deadline"}</small>
                             </div>
                           </div>
+                          {/* An extension is part of the ticket's story, so it is stated here
+                              rather than left in the activity log for somebody to find. */}
+                          {t.slaExtendedAt && (
+                            <p className="td-sla-extension">
+                              <Clock3 size={13} aria-hidden="true" />
+                              <span>
+                                <strong>
+                                  {t.slaExtendedByName || "The owner"} took {t.slaExtendedHours}h more
+                                </strong>
+                                {t.slaExtensionReason ? ` — ${t.slaExtensionReason}` : ""}
+                              </span>
+                            </p>
+                          )}
+                          {bundle.canResolve &&
+                            t.resolutionRequired &&
+                            !!t.slaDueAt &&
+                            !["resolved", "closed", "recorded"].includes(t.status) &&
+                            !t.slaExtendedAt &&
+                            (extendOpen ? (
+                              <div className="td-sla-extend-form">
+                                <label>
+                                  More time
+                                  <select
+                                    value={extendHours}
+                                    disabled={busy}
+                                    onChange={(e) => setExtendHours(Number(e.target.value))}
+                                  >
+                                    {[4, 8, 24, 48, 72].map((h) => (
+                                      <option key={h} value={h}>
+                                        {h} hours
+                                      </option>
+                                    ))}
+                                  </select>
+                                </label>
+                                <textarea
+                                  rows={2}
+                                  value={extendReason}
+                                  disabled={busy}
+                                  placeholder="What is holding this up? Everyone on the ticket sees this."
+                                  onChange={(e) => setExtendReason(e.target.value)}
+                                />
+                                <div className="td-sla-extend-actions">
+                                  <button
+                                    type="button"
+                                    className="btn-ghost"
+                                    disabled={busy}
+                                    onClick={() => setExtendOpen(false)}
+                                  >
+                                    Cancel
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="btn-primary"
+                                    disabled={busy || extendReason.trim().length < 10}
+                                    onClick={() => void extendSla()}
+                                  >
+                                    Move the target
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                className="td-sla-extend"
+                                disabled={busy}
+                                onClick={() => setExtendOpen(true)}
+                              >
+                                <Clock3 size={13} aria-hidden="true" />
+                                Need more time — once
+                              </button>
+                            ))}
                         </div>
                         <div className="td-panel">
                           <h3>Routing</h3>
@@ -1067,38 +1246,58 @@ export function TicketDialog({
                     </div>
                   )}
                 </div>
-                {railOpen && (
-                  <ResolutionPanel
-                    ticket={t}
-                    canResolve={bundle.canResolve}
-                    workspace={{
-                      resolution: bundle.resolution,
-                      steps: bundle.steps,
-                      followUps: bundle.followUps,
-                      contacts: bundle.contacts,
-                      attachments: bundle.attachments,
-                    }}
-                    busy={busy}
-                    onClose={() => setRailOpen(false)}
-                    onChanged={(w: ResolutionWorkspace) =>
-                      setBundle((b) => (b ? { ...b, ...w } : b))
-                    }
-                    onPatch={async (pp) => {
-                      await patch(pp);
-                    }}
-                  />
-                )}
+
               </div>
             </div>
           </div>
         )}
       </Modal>
-      {t && user?.role === "admin" && (
+      {/* The resolution workspace, popped out.
+          It used to be a column inside the ticket dialog, which left the work log about 200px
+          tall — a scroll inside a scroll, and the one surface where somebody is actually
+          writing. Here it gets the full dialog: the five sections stay as tabs, each with room
+          to show its own content. */}
+      {t && railOpen && (
+        <Modal
+          open
+          onClose={() => setRailOpen(false)}
+          title={`Resolution · ${t.ticketNumber}`}
+          description={t.title}
+          size="wide"
+          resetKey={String(t.id)}
+        >
+          <ResolutionPanel
+            ticket={t}
+            variant="modal"
+            canResolve={bundle.canResolve}
+            workspace={{
+              resolution: bundle.resolution,
+              steps: bundle.steps,
+              followUps: bundle.followUps,
+              contacts: bundle.contacts,
+              attachments: bundle.attachments,
+            }}
+            busy={busy}
+            onClose={() => setRailOpen(false)}
+            onChanged={(w: ResolutionWorkspace) =>
+              setBundle((b) => (b ? { ...b, ...w } : b))
+            }
+            onPatch={async (pp) => {
+              await patch(pp);
+            }}
+          />
+        </Modal>
+      )}
+      {t && bundle?.canEditDetails && (
         <Modal
           open={editOpen}
           onClose={() => setEditOpen(false)}
           title={`Edit ${t.ticketNumber}`}
-          description="Update the ticket's documented facts. Routing, priority and status remain in the ticket workspace."
+          description={
+            user?.role === "admin"
+              ? "Update the ticket's documented facts. Routing, priority and status remain in the ticket workspace."
+              : "Correct the details you filed. Routing, priority and status stay with the assigned owner, and every change is recorded on the ticket's activity log."
+          }
           size="wide"
           footer={
             <>

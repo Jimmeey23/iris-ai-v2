@@ -2,7 +2,9 @@ import {z} from 'zod';
 import {and, desc, eq, inArray, isNull} from 'drizzle-orm';
 import {db} from '@/db';
 import {tickets, userNotifications} from '@/db/schema';
+import {after} from 'next/server';
 import {errorResponse, requireWorkspace, sameOrigin} from '@/lib/auth';
+import {runDueWork} from '@/lib/sweeps';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,6 +13,10 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
   try {
     const user = await requireWorkspace();
+    // The bell is polled by every open tab on the workspace's poll interval, which makes it
+    // the most reliable heartbeat in the app — so the background sweeps hang off it as well as
+    // off the ticket list. Claimed and throttled in lib/sweeps; runs after the response.
+    after(() => runDueWork().catch(() => {}));
     const rows = await db
       .select({
         id: userNotifications.id, kind: userNotifications.kind, title: userNotifications.title,

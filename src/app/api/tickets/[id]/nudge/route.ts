@@ -4,6 +4,8 @@ import {db} from '@/db';
 import {appUsers, ticketActivities, tickets, userNotifications} from '@/db/schema';
 import {ApiError, errorResponse, requireAgent, requireTicketAccess, sameOrigin} from '@/lib/auth';
 import {enforceRateLimit} from '@/lib/rate-limit';
+import {after} from 'next/server';
+import {signalChanged} from '@/lib/realtime';
 
 export const dynamic = 'force-dynamic';
 
@@ -48,6 +50,10 @@ export async function POST(req: Request, ctx: {params: Promise<{id: string}>}) {
       ticketId: ticket.id, actorName: actor.name, action: 'nudged',
       detail: `Nudged ${ticket.assignedStaffName || 'the owner'}${note.message ? `: "${note.message}"` : ''}.`,
     });
+    // The write landed: tell the other open boards, so a teammate sees this without
+    // waiting for their poll. Advisory only — see lib/realtime.
+    after(() => signalChanged('tickets'));
+    after(() => signalChanged('notifications'));
     return Response.json({ok: true, notified: owner.name});
   } catch (e) {
     return errorResponse(e);

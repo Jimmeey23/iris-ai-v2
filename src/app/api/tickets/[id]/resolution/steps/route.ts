@@ -5,6 +5,8 @@ import {ticketResolutionSteps,ticketActivities} from '@/db/schema';
 import {ApiError,errorResponse,sameOrigin} from '@/lib/auth';
 import {requireResolutionAccess,getResolutionWorkspace} from '@/lib/tickets';
 import {notifyMentions,resolveMentions} from '@/lib/mentions';
+import {after} from 'next/server';
+import {signalChanged} from '@/lib/realtime';
 
 export const dynamic='force-dynamic';
 type Ctx={params:Promise<{id:string}>};
@@ -22,6 +24,9 @@ export async function POST(req:Request,ctx:Ctx){try{
     await tx.insert(ticketActivities).values({ticketId:id,actorName:user.name,action:'resolution.step',detail:b.body.slice(0,180)});
     await notifyMentions(tx,{people,ticketId:id,ticketNumber:ticket.ticketNumber,actorName:user.name,body:b.body,context:'in the work log'});
   });
+  // The write landed: tell the other open boards, so a teammate sees this without
+  // waiting for their poll. Advisory only — see lib/realtime.
+  after(() => signalChanged('tickets'));
   return Response.json(await getResolutionWorkspace(id));
 }catch(e){return errorResponse(e);}}
 
@@ -36,5 +41,8 @@ export async function DELETE(req:Request,ctx:Ctx){try{
   // may strike it from the log.
   if(step.authorUserId!==user.id&&user.role!=='admin')throw new ApiError('Only the person who logged this step can remove it.',403);
   await db.delete(ticketResolutionSteps).where(eq(ticketResolutionSteps.id,stepId));
+  // The write landed: tell the other open boards, so a teammate sees this without
+  // waiting for their poll. Advisory only — see lib/realtime.
+  after(() => signalChanged('tickets'));
   return Response.json(await getResolutionWorkspace(id));
 }catch(e){return errorResponse(e);}}

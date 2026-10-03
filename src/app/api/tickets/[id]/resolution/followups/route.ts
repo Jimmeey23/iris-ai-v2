@@ -4,6 +4,8 @@ import {db} from '@/db';
 import {ticketFollowUps,ticketActivities,staff} from '@/db/schema';
 import {ApiError,errorResponse,sameOrigin} from '@/lib/auth';
 import {requireResolutionAccess,getResolutionWorkspace} from '@/lib/tickets';
+import {after} from 'next/server';
+import {signalChanged} from '@/lib/realtime';
 
 export const dynamic='force-dynamic';
 type Ctx={params:Promise<{id:string}>};
@@ -30,6 +32,9 @@ export async function POST(req:Request,ctx:Ctx){try{
     await tx.insert(ticketFollowUps).values({ticketId:id,note:b.note,dueAt:due,ownerStaffId:ownerStaffId??null,ownerName,createdByUserId:user.id,createdByName:user.name});
     await tx.insert(ticketActivities).values({ticketId:id,actorName:user.name,action:'resolution.followup',detail:`Follow-up due ${due.toISOString().slice(0,10)}: ${b.note.slice(0,140)}`});
   });
+  // The write landed: tell the other open boards, so a teammate sees this without
+  // waiting for their poll. Advisory only — see lib/realtime.
+  after(() => signalChanged('tickets'));
   return Response.json(await getResolutionWorkspace(id));
 }catch(e){return errorResponse(e);}}
 
@@ -41,6 +46,9 @@ export async function PATCH(req:Request,ctx:Ctx){try{
   const[row]=await db.select().from(ticketFollowUps).where(and(eq(ticketFollowUps.id,b.followUpId),eq(ticketFollowUps.ticketId,id)));
   if(!row)throw new ApiError('That follow-up is no longer here.',404);
   await db.update(ticketFollowUps).set({done:b.done,completedAt:b.done?new Date():null}).where(eq(ticketFollowUps.id,b.followUpId));
+  // The write landed: tell the other open boards, so a teammate sees this without
+  // waiting for their poll. Advisory only — see lib/realtime.
+  after(() => signalChanged('tickets'));
   return Response.json(await getResolutionWorkspace(id));
 }catch(e){return errorResponse(e);}}
 
@@ -53,5 +61,8 @@ export async function DELETE(req:Request,ctx:Ctx){try{
   if(!row)throw new ApiError('That follow-up is no longer here.',404);
   if(row.createdByUserId!==user.id&&user.role!=='admin')throw new ApiError('Only the person who raised this follow-up can remove it.',403);
   await db.delete(ticketFollowUps).where(eq(ticketFollowUps.id,followUpId));
+  // The write landed: tell the other open boards, so a teammate sees this without
+  // waiting for their poll. Advisory only — see lib/realtime.
+  after(() => signalChanged('tickets'));
   return Response.json(await getResolutionWorkspace(id));
 }catch(e){return errorResponse(e);}}

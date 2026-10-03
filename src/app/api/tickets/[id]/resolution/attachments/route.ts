@@ -5,6 +5,8 @@ import {db} from '@/db';
 import {ticketActivities, ticketResolutionAttachments, tickets} from '@/db/schema';
 import {ApiError, currentUser, errorResponse, requireTicketAccess, requireWorkspace, sameOrigin} from '@/lib/auth';
 import {getResolutionWorkspace, requireResolutionAccess} from '@/lib/tickets';
+import {after} from 'next/server';
+import {signalChanged} from '@/lib/realtime';
 
 export const dynamic = 'force-dynamic';
 type Ctx = {params: Promise<{id: string}>};
@@ -35,6 +37,9 @@ export async function POST(req: Request, ctx: Ctx) {
       await tx.insert(ticketResolutionAttachments).values(rows);
       await tx.insert(ticketActivities).values({ticketId, actorName: user.name, action: 'resolution.attachment', detail: `${rows.length} supporting file${rows.length === 1 ? '' : 's'} uploaded`});
     });
+    // The write landed: tell the other open boards, so a teammate sees this without
+    // waiting for their poll. Advisory only — see lib/realtime.
+    after(() => signalChanged('tickets'));
     return Response.json(await getResolutionWorkspace(ticketId));
   } catch (e) { return errorResponse(e); }
 }
@@ -64,6 +69,9 @@ export async function DELETE(req: Request, ctx: Ctx) {
     if (!row) throw new ApiError('Attachment not found', 404);
     if (row.uploadedByUserId !== user.id && user.role !== 'admin') throw new ApiError('Only the person who uploaded this file can remove it.', 403);
     await db.delete(ticketResolutionAttachments).where(eq(ticketResolutionAttachments.id, attachmentId));
+    // The write landed: tell the other open boards, so a teammate sees this without
+    // waiting for their poll. Advisory only — see lib/realtime.
+    after(() => signalChanged('tickets'));
     return Response.json(await getResolutionWorkspace(ticketId));
   } catch (e) { return errorResponse(e); }
 }

@@ -8,10 +8,10 @@
  */
 import 'dotenv/config';
 import {randomUUID} from 'node:crypto';
-import {db,pool} from './src/db/index.ts';
-import {appUsers,appSettings,auditLogs,tickets,userNotifications,userPresence,staff} from './src/db/schema.ts';
+import {db,pool} from '../src/db/index.ts';
+import {appUsers,appSettings,auditLogs,tickets,userNotifications,userPresence,staff} from '../src/db/schema.ts';
 import {eq,inArray,and} from 'drizzle-orm';
-import {createTestUser,deleteTestAuthUsers} from './scripts/lib/test-auth.mjs';
+import {createTestUser,deleteTestAuthUsers} from './lib/test-auth.mjs';
 const base=process.env.TEST_BASE_URL||'http://localhost:3000';
 const mk=()=>{const c=new Map();return async(p,m='GET',b)=>{const r=await fetch(base+p,{method:m,headers:{'Content-Type':'application/json',Origin:base,Cookie:[...c].map(([k,v])=>k+'='+v).join('; ')},body:b===undefined?undefined:JSON.stringify(b)});for(const l of r.headers.getSetCookie()){const q=l.split(';')[0],i=q.indexOf('=');c.set(q.slice(0,i),q.slice(i+1));}return{status:r.status,body:await r.json().catch(()=>({}))};};};
 const sender=mk(), owner=mk();

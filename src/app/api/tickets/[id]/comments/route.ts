@@ -5,6 +5,8 @@ import { ticketComments, ticketActivities, tickets } from "@/db/schema";
 import { ApiError, requireAgent, requireTicketAccess, errorResponse, sameOrigin } from "@/lib/auth";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { notifyMentions, resolveMentions } from "@/lib/mentions";
+import { after } from "next/server";
+import { signalChanged } from "@/lib/realtime";
 export async function POST(
   req: Request,
   ctx: { params: Promise<{ id: string }> },
@@ -41,6 +43,9 @@ export async function POST(
       await notifyMentions(tx, {people, ticketId: id, ticketNumber: t.ticketNumber, actorName: actor.name, body: b.body, context: 'in a note'});
       return saved;
     });
+    // The write landed: tell the other open boards, so a teammate sees this without
+    // waiting for their poll. Advisory only — see lib/realtime.
+    after(() => signalChanged("tickets"));
     return Response.json({ comment });
   } catch (e) {
     return errorResponse(e);

@@ -7311,6 +7311,145 @@ small {
   background: var(--accent-soft);
   box-shadow: inset 0 0 0 1px var(--accent);
 }
+/* The review card: a collapsed line for history, the full record when open. */
+.tr-review-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.tr-review.latest {
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--accent-soft), 0 1px 2px rgba(0, 0, 0, .04);
+}
+.tr-review.open { background: var(--surface); }
+.tr-review-summary {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+  border: 0;
+  background: none;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+}
+.tr-review-title {
+  font-size: 13.5px;
+  font-weight: 650;
+  color: var(--text);
+}
+.tr-review-title em {
+  font-style: normal;
+  font-weight: 500;
+  color: var(--muted);
+}
+.tr-review-meta {
+  font-size: 11px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tr-review-badges {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+.tr-review-toggle {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 999px;
+  width: 24px;
+  height: 24px;
+  line-height: 1;
+  color: var(--muted);
+  cursor: pointer;
+}
+.tr-review-toggle:hover { color: var(--text); border-color: var(--accent); }
+.tr-review-body {
+  display: grid;
+  gap: 16px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+/* Score, evaluator, source, band, ticket — the facts of the review, stated before its prose. */
+.tr-review-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+.tr-review-facts dt {
+  margin: 0 0 3px;
+  font: 700 9.5px/1 var(--font-mono);
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.tr-review-facts dd {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+.tr-review-facts dd a { color: var(--accent); text-decoration: none; }
+.tr-review-rubric { display: grid; gap: 10px; }
+.tr-review-admin {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding-top: 12px;
+  border-top: 1px dashed var(--border);
+}
+.tr-review-admin .muted { font-size: 11px; max-width: 46ch; }
+.btn-danger-ghost {
+  border: 1px solid color-mix(in srgb, var(--red) 40%, transparent);
+  background: transparent;
+  color: var(--red);
+  border-radius: var(--radius-sm);
+  padding: 7px 13px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn-danger-ghost:hover:not(:disabled) { background: color-mix(in srgb, var(--red) 10%, transparent); }
+.btn-danger-ghost:disabled { opacity: .55; cursor: not-allowed; }
+
+/* A trainer card and its admin affordance, which sits over the card rather than inside the
+   button — a button inside a button is not valid markup and does not receive clicks. */
+.trainer-profile-card-wrap { position: relative; display: flex; }
+.trainer-profile-card-wrap > .trainer-profile-card { flex: 1; }
+.tpc-manage {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity .15s, color .15s, border-color .15s;
+}
+.trainer-profile-card-wrap:hover .tpc-manage,
+.tpc-manage:focus-visible { opacity: 1; }
+.tpc-manage:hover { color: var(--text); border-color: var(--accent); }
+.tpc-note {
+  margin: 10px 0 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.tpc-note-warn { color: var(--amber); }
+
 .tr-review-score {
   border: 0;
   background: none;
@@ -9500,6 +9639,45 @@ small {
   border-left: 2px solid var(--accent);
   border-radius: var(--radius-2xs) var(--radius-md) var(--radius-md) var(--radius-2xs);
 }
+/* The popped-out resolution workspace.
+   As a rail it was capped at 760px and shared the dialog with the ticket; on its own it takes
+   the height it needs, so the work log shows a dozen entries instead of two and the tabs stop
+   being a scroll inside a scroll. */
+.rw.rw-modal {
+  position: static;
+  max-height: none;
+  min-height: min(76vh, 820px);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  margin: -4px 0 0;
+}
+.rw.rw-modal .rw-tabs {
+  gap: 18px;
+  padding: 12px 2px 0;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--surface);
+}
+.rw.rw-modal .rw-tabs button { font-size: 12.5px; padding-bottom: 11px; }
+.rw.rw-modal .rw-body {
+  padding: 18px 2px 4px;
+  gap: 18px;
+  /* The modal already scrolls; a second scroller here is what made the panel feel cramped. */
+  overflow: visible;
+}
+.rw.rw-modal .rw-head { padding: 0 2px 10px; }
+/* Wider measures now that there is room for them: a step, a follow-up and the write-up all
+   read better as full-width rows than as a narrow column. */
+.rw.rw-modal .rw-write { max-width: none; }
+.rw.rw-modal .rw-write textarea { min-height: 96px; }
+@media (min-width: 900px) {
+  /* The write-up is four long-form fields; side by side they fit on one screen. */
+  .rw.rw-modal .rw-form { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .rw.rw-modal .rw-form > :last-child:nth-child(odd) { grid-column: 1 / -1; }
+}
+
 .rw-head {
   display: flex;
   align-items: center;
@@ -17547,6 +17725,88 @@ small {
 .ticket-detail-dialog .td-resolution-summary[data-sla="breached"] { --sla-tone: var(--red); }
 .ticket-detail-dialog .td-resolution-summary[data-sla="done"] { --sla-tone: var(--green); }
 .ticket-detail-dialog .td-resolution-summary[data-sla="none"] { --sla-tone: var(--muted); }
+/* The SLA extension: a stated fact when it has been used, a quiet control when it has not.
+   Deliberately understated — moving a follow-up target is allowed, not encouraged. */
+/* The edit affordance beside the ticket title. A labelled button rather than another icon in
+   the row: "Edit details" is the one action on this dialog somebody goes looking for, and an
+   unlabelled pencil among four other glyphs is what they could not find. */
+/* "Editable by X" / "No author on file": the reason the edit button is absent, stated where
+   somebody would look for the button. */
+.ticket-detail-dialog .td-noedit {
+  color: var(--muted);
+  cursor: help;
+  border-bottom: 1px dotted var(--hairline-strong, var(--hairline));
+}
+
+.ticket-detail-dialog .td-edit-btn {
+  flex: none;
+  gap: 6px;
+  white-space: nowrap;
+}
+@media (max-width: 560px) {
+  /* On a phone the label is the first thing to go, but the button keeps its own shape so it
+     still reads as the primary action rather than another icon. */
+  .ticket-detail-dialog .td-edit-btn { padding-inline: 9px; }
+}
+
+.ticket-detail-dialog .td-sla-extension {
+  display: flex;
+  gap: 7px;
+  align-items: flex-start;
+  margin: 12px 0 0;
+  padding: 9px 11px;
+  border: 1px solid color-mix(in srgb, var(--amber) 32%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--amber) 9%, var(--surface));
+  color: var(--text);
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+.ticket-detail-dialog .td-sla-extension svg { color: var(--amber); flex: none; margin-top: 1px; }
+.ticket-detail-dialog .td-sla-extension strong { font-weight: 650; }
+.ticket-detail-dialog .td-sla-extend {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+  padding: 7px 11px;
+  border: 1px dashed var(--hairline-strong, var(--hairline));
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font: 600 11px/1 var(--font-sans, inherit);
+  cursor: pointer;
+  transition: color .15s, border-color .15s, background .15s;
+}
+.ticket-detail-dialog .td-sla-extend:hover:not(:disabled) {
+  color: var(--text);
+  border-color: var(--amber);
+  background: color-mix(in srgb, var(--amber) 8%, transparent);
+}
+.ticket-detail-dialog .td-sla-extend:disabled { opacity: .5; cursor: not-allowed; }
+.ticket-detail-dialog .td-sla-extend-form {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 11px;
+  border: 1px solid var(--hairline);
+  border-radius: 11px;
+  background: var(--surface);
+}
+.ticket-detail-dialog .td-sla-extend-form label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--muted);
+  font: 700 9.5px/1 var(--font-mono);
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+.ticket-detail-dialog .td-sla-extend-form select { flex: 0 0 auto; }
+.ticket-detail-dialog .td-sla-extend-form textarea { width: 100%; font-size: 12px; resize: vertical; }
+.ticket-detail-dialog .td-sla-extend-actions { display: flex; justify-content: flex-end; gap: 7px; }
+
 .ticket-detail-dialog .td-rail-heading {
   display: flex;
   align-items: center;
@@ -18128,8 +18388,12 @@ small {
   overflow-y: auto;
   padding: 4px;
 }
+/* Handle first, real name beside it: the handle is what gets typed, the name is what
+   confirms it is the right person. */
 .mention-option {
-  display: block;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
   width: 100%;
   text-align: left;
   border: 0;
@@ -18143,6 +18407,14 @@ small {
 .mention-option:hover,
 .mention-option.active {
   background: var(--accent-soft);
+}
+.mention-option-handle { font-weight: 600; color: var(--text); }
+.mention-option-name {
+  color: var(--muted);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .mention-tag {
   font-weight: 600;

@@ -16,7 +16,15 @@ export type TicketInput=z.infer<typeof ticketInputSchema>;
 export const PUBLIC_TICKET_SOURCES=['iris','template','manual','voice','fillout'] as const;
 export const publicTicketInputSchema=ticketInputSchema.extend({source:z.enum(PUBLIC_TICKET_SOURCES).default('manual')});
 export type AdvancedDraft=TicketInput&{title:string;summary:string;priority:'critical'|'high'|'medium'|'low';severity:string;assignedStaffId:number|null;assignedStaffName:string;assignedStaffEmail:string;assignedStaffRole:string;departmentId:string;departmentName:string;slaHours:number;slaLabel:string;resolutionRequired:boolean;tags:string[];opsChecklist:string[];memberFacingUpdate:string;internalBrief:string;routingReason:string;};
-export type TicketRecord=AdvancedDraft&{id:number;ticketNumber:string;status:string;createdAt:string;updatedAt:string;slaDueAt:string|null;resolvedAt:string|null;version:number;isEscalated:boolean;/** Equipment register row, when the fault was about a specific asset. */assetId:number|null;};
+export type TicketRecord=AdvancedDraft&{id:number;ticketNumber:string;status:string;createdAt:string;updatedAt:string;slaDueAt:string|null;resolvedAt:string|null;version:number;isEscalated:boolean;/** Equipment register row, when the fault was about a specific asset. */assetId:number|null;
+/** The one SLA extension a ticket may be given, and who gave it. `slaDueAt` above already
+ *  carries the extended target — these are the record of why it moved. */
+slaExtendedHours:number;slaExtendedAt:string|null;slaExtendedByName:string|null;slaExtensionReason:string|null;
+/** Set when the breach sweep handed the ticket up the line. */
+escalatedToStaffId:number|null;escalatedToName:string|null;escalatedAt:string|null;
+/** Who filed it from inside the workspace. Null for an email import, a form submission or a
+ *  history backfill — those have no author, which is also who may edit the details. */
+createdByUserId:number|null;createdByName:string|null;};
 /** Columns the board, dashboard and link picker actually render. The full row carries
  *  `customFields` and the long-form text, which together are ~85% of the table's bytes
  *  and are never read by a list view — `listTickets` selects only these. */

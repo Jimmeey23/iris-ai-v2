@@ -84,12 +84,10 @@ export async function enforceRateLimit(bucket: keyof typeof LIMITS, identity?: s
     })
     .returning({count: rateLimits.count, windowStart: rateLimits.windowStart});
 
-  // The table would otherwise grow a permanent row per caller per bucket. Sweeping on
-  // roughly one call in two hundred keeps it bounded without putting a delete on the hot
-  // path of every request; anything older than a day is a window nobody is inside.
-  if (Math.random() < 0.005) {
-    await db.delete(rateLimits).where(lt(rateLimits.windowStart, new Date(Date.now() - 86400000)));
-  }
+  // The table would otherwise grow a permanent row per caller per bucket. `sweepRateLimits`
+  // on the five-minute cron is what keeps it bounded; the dice roll here is only a backstop
+  // for a deployment with no cron configured, and is rare enough to stay off the hot path.
+  if (Math.random() < 0.001) await sweepRateLimits();
 
   const used = Number(row?.count ?? 1);
   if (used > limit.max) {
@@ -97,4 +95,13 @@ export async function enforceRateLimit(bucket: keyof typeof LIMITS, identity?: s
     throw new ApiError(`Too many requests. Try again in ${resetsIn} second${resetsIn === 1 ? '' : 's'}.`, 429);
   }
   return {remaining: Math.max(0, limit.max - used)};
+}
+
+/** Drops windows nobody can still be inside. Called by /api/cron/outbox. */
+export async function sweepRateLimits(olderThanMs = 86400000): Promise<number> {
+  const gone = await db
+    .delete(rateLimits)
+    .where(lt(rateLimits.windowStart, new Date(Date.now() - olderThanMs)))
+    .returning({key: rateLimits.key});
+  return gone.length;
 }

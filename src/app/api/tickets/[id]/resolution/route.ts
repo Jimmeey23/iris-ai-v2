@@ -4,6 +4,8 @@ import {ticketResolutions,ticketActivities,tickets} from '@/db/schema';
 import {eq} from 'drizzle-orm';
 import {ApiError,errorResponse,requireTicketAccess,requireWorkspace,sameOrigin} from '@/lib/auth';
 import {requireResolutionAccess,getResolutionWorkspace,canResolveTicket} from '@/lib/tickets';
+import {after} from 'next/server';
+import {signalChanged} from '@/lib/realtime';
 
 export const dynamic='force-dynamic';
 type Ctx={params:Promise<{id:string}>};
@@ -30,5 +32,8 @@ export async function PUT(req:Request,ctx:Ctx){try{
     await tx.insert(ticketResolutions).values({ticketId:id,authorUserId:user.id,...b}).onConflictDoUpdate({target:ticketResolutions.ticketId,set:{...b,authorUserId:user.id,updatedAt:new Date()}});
     await tx.insert(ticketActivities).values({ticketId:id,actorName:user.name,action:'resolution.updated',detail:'Private owner-only resolution updated.'});
   });
+  // The write landed: tell the other open boards, so a teammate sees this without
+  // waiting for their poll. Advisory only — see lib/realtime.
+  after(() => signalChanged('tickets'));
   return Response.json(await getResolutionWorkspace(id));
 }catch(e){return errorResponse(e);}}

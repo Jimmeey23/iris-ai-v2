@@ -9,20 +9,37 @@ import type {ReactNode} from "react";
  * The server will only accept a mention whose name still appears in the body, so the people
  * picked here are carried alongside the text and filtered at submit time — see `mentionIdsIn`.
  */
-export type MentionPerson = {userId: number; name: string};
+export type MentionPerson = {userId: number; name: string; username: string | null};
 
-/** The `@partial` being typed at the caret, or null when the caret is not in a mention. */
+/** What goes into the text for this person: their handle, or their display name for an
+ *  account that has not been given one yet. */
+export const mentionLabel = (person: MentionPerson) => person.username || person.name;
+
+/** The `@partial` being typed at the caret, or null when the caret is not in a mention.
+ *  A handle has no space in it, but the display-name fallback does, so the term may still
+ *  contain one — it stops at a newline or a second `@`. */
 const PENDING = /(?:^|\s)@([^@\n]*)$/;
 
 /** The ids actually still referenced by the text — a name deleted after tagging is dropped. */
 export function mentionIdsIn(body: string, picked: MentionPerson[]): number[] {
-  return [...new Set(picked.filter((p) => body.includes("@" + p.name)).map((p) => p.userId))];
+  return [
+    ...new Set(
+      picked
+        // Either form still counts as a tag: the handle that was inserted, or a display name
+        // typed out by hand or left over from a note written before handles existed.
+        .filter((p) => body.includes("@" + mentionLabel(p)) || body.includes("@" + p.name))
+        .map((p) => p.userId),
+    ),
+  ];
 }
 
 /** Renders a posted note with its `@names` marked, longest name first so "@Anita Rao" wins over "@Anita". */
 export function MentionText({body, people}: {body: string; people: MentionPerson[]}): ReactNode {
   const names = useMemo(
-    () => [...new Set(people.map((p) => p.name))].sort((a, b) => b.length - a.length),
+    () =>
+      [...new Set(people.flatMap((p) => [mentionLabel(p), p.name]))]
+        // Longest first so "@anita.rao" wins over "@anita" and "@Anita Rao" over "@Anita".
+        .sort((a, b) => b.length - a.length),
     [people],
   );
   if (!names.length || !body.includes("@")) return body;
@@ -59,13 +76,24 @@ export function MentionBox({
   const options = useMemo(() => {
     if (!match) return [];
     const term = match[1].toLowerCase();
-    return people.filter((p) => p.name.toLowerCase().includes(term)).slice(0, 8);
+    return people
+      .filter(
+        (p) =>
+          p.name.toLowerCase().includes(term) ||
+          (p.username ?? "").toLowerCase().includes(term),
+      )
+      // A handle match is what the writer is most likely typing towards, so it ranks first.
+      .sort((a, b) => {
+        const score = (p: MentionPerson) => ((p.username ?? "").toLowerCase().startsWith(term) ? 0 : 1);
+        return score(a) - score(b);
+      })
+      .slice(0, 8);
   }, [match, people]);
 
   const active = Math.max(0, options.findIndex((p) => p.userId === activeId));
 
   function pick(person: MentionPerson) {
-    onChange(value.replace(PENDING, (m) => m.slice(0, m.lastIndexOf("@")) + "@" + person.name + " "));
+    onChange(value.replace(PENDING, (m) => m.slice(0, m.lastIndexOf("@")) + "@" + mentionLabel(person) + " "));
     onPick(person);
     ref.current?.focus();
   }
@@ -98,7 +126,8 @@ export function MentionBox({
               className={"mention-option" + (i === active ? " active" : "")}
               onMouseDown={(e) => { e.preventDefault(); pick(person); }}
             >
-              @{person.name}
+              <span className="mention-option-handle">@{mentionLabel(person)}</span>
+              {person.username && <span className="mention-option-name">{person.name}</span>}
             </button>
           ))}
         </div>

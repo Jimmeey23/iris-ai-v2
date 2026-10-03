@@ -2,10 +2,10 @@ import {and,desc,eq,or,sql,ne,inArray,lt,lte,gt,ilike,type SQL} from 'drizzle-or
 import {describeTicket} from './ticket-label';
 import {randomUUID} from 'crypto';
 import {db,type Tx} from '@/db';
-import {tickets,staff,departments,assets,appSettings,ticketActivities,ticketComments,ticketLinks,ticketResolutions,ticketResolutionSteps,ticketFollowUps,ticketContactLog,ticketResolutionAttachments,deliveryLogs,ticketNotifications} from '@/db/schema';
+import {tickets,staff,departments,assets,appSettings,ticketActivities,ticketComments,ticketLinks,ticketResolutions,ticketResolutionSteps,ticketFollowUps,ticketContactLog,ticketResolutionAttachments,deliveryLogs,ticketNotifications,appUsers,userNotifications} from '@/db/schema';
 import {ticketInputSchema,publicTicketInputSchema,type TicketInput,type AdvancedDraft} from './ticket-contract';
 import {getConfig,type WorkspaceConfig} from './config';
-import {ApiError,canAccessTicket,coveredStudios,currentUser,requireTicketAccess,type Identity} from './auth';
+import {ApiError,canAccessTicket,canEditTicketDetails,coveredStudios,currentUser,requireTicketAccess,type Identity} from './auth';
 import {CITY_OWNERS,ESCALATION_OWNERS,ROUND_ROBIN_DEPARTMENTS,cityOf,inferPriority,inferSeverity,studioIdsFor} from './routing';
 import {buildTemplate} from './templates';
 import {ticketNumberFor,slugify} from './utils';
@@ -14,7 +14,8 @@ import {configuredTemplates} from './template-store';
 import {indiaDate} from './display';
 import {equipmentRepairRoute} from './equipment-routing';
 import {emitTicketEvent,eventEnabled} from './ticket-events';
-import {ticketEmailBody} from './ticket-emails';
+import {ticketBcc,ticketEmailBody,type TicketEmailKind} from './ticket-emails';
+import {resolveTrainer} from './trainer-directory';
 
 type Priority='low'|'medium'|'high'|'critical';
 type Config=WorkspaceConfig;
@@ -32,7 +33,13 @@ const RESERVED_FIELD=/^(autoFollowUp|followUpType|followUpReason|parent[A-Z].*|r
 export function stripReservedFields(cf:Record<string,unknown>):Record<string,unknown>{return Object.fromEntries(Object.entries(cf).filter(([k])=>k==='_intake'||(!k.startsWith('_')&&!RESERVED_FIELD.test(k))));}
 const ticketArea=(fields:Record<string,unknown>)=>String(fields.area||fields.specific_area||fields.affected_room||fields.incident_location||'').trim()||null;
 /** Kinds that may be filed record-only (no SLA, no resolution), per the README. */
-const recordOnlyEligible=(input:{kind:string;sentiment:string})=>input.kind==='compliment'||input.kind==='assessment'||input.kind==='feedback'&&input.sentiment==='positive';
+/** Kinds that are a record of something said, not a job to be done: a compliment, a trainer
+ *  assessment, and feedback of any sentiment. Feedback used to count only when it was
+ *  positive, which left a member's negative comment holding an SLA and a resolution workspace
+ *  that nobody could ever meaningfully close — there is no "fix" for an opinion. Anything in
+ *  feedback that does need work is filed as the issue it is, not as feedback. */
+const RECORD_ONLY_KINDS=new Set(['compliment','assessment','feedback']);
+const recordOnlyEligible=(input:{kind:string})=>RECORD_ONLY_KINDS.has(input.kind);
 type Routing=Awaited<ReturnType<typeof resolveRouting>>;
 /** Per-run caches for bulk callers (history import), so a thousand rows do not read the
  *  configuration and the routing tables a thousand times. */
@@ -84,6 +91,15 @@ return{departmentId,dept,owner,ids,override};}
  *  `trusted` is for server-side callers (history import) that carry their own facts. */
 export async function makeDraft(raw:unknown,opts:{trusted?:boolean}&DraftContext={}):Promise<AdvancedDraft>{const trusted=Boolean(opts.trusted);const input:TicketInput=trusted?ticketInputSchema.parse(raw):publicTicketInputSchema.parse(raw);const cfg=opts.cfg||await getConfig();
 if(!trusted)input.customFields=stripReservedFields(input.customFields);
+// A trainer's name is free text on the way in, so the same person arrives as "Siddhartha"
+// and "Siddhartha Kusuma" and their reviews land in two places. Resolved to one canonical
+// name at the point of writing, which is the only way to stop the split growing; the
+// Trainers page still folds the spellings already on file. An ambiguous first name is left
+// exactly as written — see lib/trainer-directory.
+if(input.trainer){
+  const resolved=resolveTrainer(input.trainer);
+  if(resolved.via!=='ambiguous')input.trainer=resolved.name;
+}
 // A broken mic, headset or any other equipment/system failure is repair work. Apply this
 // before taxonomy validation and routing so every intake path reaches Operations.
 const repairRoute=equipmentRepairRoute({category:input.category,subcategory:input.subcategory,title:input.title,summary:input.summary,description:input.description,systemName:String(input.customFields.systemName||''),itemDescription:String(input.customFields.itemDescription||'')});
@@ -94,7 +110,11 @@ if(!cfg.taxonomy[input.category]?.includes(input.subcategory))throw new ApiError
 const template=input.templateId?(await configuredTemplates()).find(t=>t.id===input.templateId):undefined;
 if(template)for(const field of template.fields.filter(f=>f.required)){const val=input.customFields[field.id];if(val===undefined||val===null||val==='')throw new ApiError(`${field.label} is required.`);if(field.type==='rating'&&(!Number.isFinite(Number(val))||Number(val)<0||Number(val)>5))throw new ApiError(`${field.label} must be scored from 0 to 5.`);}
 const calculatedScore=template?scoreAssessment(template.fields,input.customFields):null;if(calculatedScore!==null)input.customFields.evaluationScore=calculatedScore;
-const praise=input.kind==='compliment'||input.kind==='feedback'&&input.sentiment==='positive';const noSla=input.resolutionRequired===false&&(trusted||recordOnlyEligible(input))||input.kind==='assessment'||praise&&cfg.positiveNoSla;
+// `positiveNoSla` still governs praise, because that is what the setting is named for and
+// what an administrator who turns it off expects to change. Everything in RECORD_ONLY_KINDS
+// is record-only regardless: a comment is not work, whoever asks.
+const praise=input.kind==='compliment'||input.kind==='feedback'&&input.sentiment==='positive';
+const noSla=input.resolutionRequired===false&&(trusted||recordOnlyEligible(input))||recordOnlyEligible(input)||praise&&cfg.positiveNoSla;
 // The intake answers ride in customFields — they are not columns on the schema — so
 // they have to be read back out here or the reporter's own urgency signal never
 // reaches the priority rules.
@@ -135,14 +155,18 @@ async function notificationRecipients(tx:Tx,ownerId:number|null,ownerEmail:strin
 /** Where the ticket lives, for the button in the email. Falls back to a relative path when
  *  the deployment URL is not configured — better a broken-looking link than a wrong domain. */
 const ticketUrl=(id:number)=>{const base=process.env.NEXT_PUBLIC_APP_URL||(process.env.VERCEL_PROJECT_PRODUCTION_URL?`https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`:'');return base?`${base.replace(/\/$/,'')}/tickets/${id}`:'';};
-async function queueTicketEmails(tx:Tx,ticket:{id:number;ticketNumber:string;title:string;assignedStaffId:number|null;assignedStaffEmail:string|null;slaDueAt:Date|null;priority?:string|null;category?:string|null;subcategory?:string|null;studio?:string|null;memberName?:string|null;assignedStaffName?:string|null;summary?:string|null},kind:'assigned'|'sla-3h',recipients?:string[]){
+async function queueTicketEmails(tx:Tx,ticket:{id:number;ticketNumber:string;title:string;assignedStaffId:number|null;assignedStaffEmail:string|null;slaDueAt:Date|null;priority?:string|null;category?:string|null;subcategory?:string|null;studio?:string|null;memberName?:string|null;assignedStaffName?:string|null;summary?:string|null;escalatedFromName?:string|null},kind:TicketEmailKind,recipients?:string[]){
   const targets=recipients||await notificationRecipients(tx,ticket.assignedStaffId,ticket.assignedStaffEmail);
   let queued=0;
+  // The archive address rides on the first message only. Attaching it to every message would
+  // put one copy per recipient in that mailbox — two or three copies of the same notification
+  // for a ticket that has an owner and a manager.
+  const bcc=ticketBcc();
   for(const email of targets){
     const[ledger]=await tx.insert(ticketNotifications).values({ticketId:ticket.id,kind,recipientEmail:email}).onConflictDoNothing().returning({id:ticketNotifications.id});
     if(!ledger)continue;
     const{subject,text,html}=ticketEmailBody({...ticket,appUrl:ticketUrl(ticket.id)},kind);
-    await tx.insert(deliveryLogs).values({integrationId:'mailtrap',action:'send',nextAttemptAt:new Date(),payload:{to:[{email}],subject,text,html}});queued++;
+    await tx.insert(deliveryLogs).values({integrationId:'mailtrap',action:'send',nextAttemptAt:new Date(),payload:{to:[{email}],...(queued===0&&bcc.length?{bcc}:{}),subject,text,html}});queued++;
   }
   return queued;
 }
@@ -270,10 +294,42 @@ export function maskMemberName(name:string){const parts=(name||'').trim().split(
  * Raises the priority of tickets that are far enough past their follow-up target, when the
  * workspace has asked for that.
  *
- * There is no scheduler in this deployment, so the sweep runs off the ticket list — but at
- * most once every few minutes, recorded in app_settings, so a busy board does not run it on
- * every request. Nothing is changed for a workspace that leaves escalation switched off.
+ * Driven by /api/cron/outbox. The run is still claimed through app_settings so two overlapping
+ * cron invocations (or a manual call) cannot both sweep. Nothing is changed for a workspace
+ * that leaves escalation switched off.
  */
+/**
+ * Who a breached ticket goes up to.
+ *
+ * The owner's own reporting manager first — `staff.manager` is a free-text name, so this can
+ * come back empty for a misspelling or a shared first name, which is exactly why the
+ * department's standing escalation owner stays as the fallback rather than being replaced.
+ *
+ * `userId` is the workspace account behind that staff member, when there is one, so the
+ * escalation can also raise the bell in the app and not only send mail.
+ */
+type EscalationTarget={id:number;name:string;email:string;userId:number|null;via:'manager'|'department'};
+async function escalationTarget(tx:Tx,row:{assignedStaffId:number|null;departmentId:string|null;departmentName:string|null}):Promise<EscalationTarget|undefined>{
+  const withAccount=async(person:{id:number;name:string;email:string},via:EscalationTarget['via']):Promise<EscalationTarget>=>{
+    const[account]=await tx.select({id:appUsers.id}).from(appUsers).where(and(eq(appUsers.staffId,person.id),eq(appUsers.active,true)));
+    return{...person,userId:account?.id??null,via};
+  };
+  if(row.assignedStaffId){
+    const[owner]=await tx.select({manager:staff.manager}).from(staff).where(eq(staff.id,row.assignedStaffId));
+    if(owner?.manager){
+      const named=await findManager(owner.manager);
+      if(named){
+        const[manager]=await tx.select({id:staff.id,name:staff.name,email:staff.email}).from(staff).where(and(eq(staff.id,named.id),eq(staff.isActive,true)));
+        if(manager)return withAccount(manager,'manager');
+      }
+    }
+  }
+  const pattern=row.departmentId?ESCALATION_OWNERS[row.departmentId]:undefined;
+  if(!pattern)return undefined;
+  const candidates=await tx.select({id:staff.id,name:staff.name,email:staff.email}).from(staff).where(and(eq(staff.isActive,true),eq(staff.department,row.departmentName||'')));
+  const fallback=candidates.find(person=>pattern.test(person.name));
+  return fallback?withAccount(fallback,'department'):undefined;
+}
 export async function applyEscalations(){
   const cfg=await getConfig();
   const hours=cfg.escalateAfterBreachHours;
@@ -300,15 +356,29 @@ export async function applyEscalations(){
       )).returning();
     if(rows.length)await tx.insert(ticketActivities).values(rows.map(r=>({ticketId:r.id,actorName:'IRIS',action:'escalated',detail:`Raised to critical — more than ${hours}h past the follow-up target.`})));
     // Raising the priority on its own leaves the ticket with the person who has already missed
-    // the target. Hand it to the department's escalation owner, and say so on the ticket.
+    // the target. It goes up the line instead: first to the owner's own reporting manager,
+    // because that is who can actually get an answer out of them, and only if there is no
+    // usable manager on record to the department's standing escalation owner. Either way the
+    // ticket says who it went to and who it came from.
     for(const row of rows){
-      const pattern=row.departmentId?ESCALATION_OWNERS[row.departmentId]:undefined;
-      if(!pattern)continue;
-      const candidates=await tx.select().from(staff).where(and(eq(staff.isActive,true),eq(staff.department,row.departmentName||'')));
-      const to=candidates.find(p=>pattern.test(p.name));
+      const to=await escalationTarget(tx,row);
       if(!to||to.id===row.assignedStaffId)continue;
-      await tx.update(tickets).set({assignedStaffId:to.id,assignedStaffName:to.name,assignedStaffEmail:to.email,version:sql`${tickets.version} + 1`}).where(eq(tickets.id,row.id));
-      await tx.insert(ticketActivities).values({ticketId:row.id,actorName:'IRIS',action:'assigned',detail:`Escalation owner for ${row.departmentName}: reassigned from ${row.assignedStaffName||'Unassigned'} to ${to.name}.`});
+      const from=row.assignedStaffName||'Unassigned';
+      await tx.update(tickets).set({
+        assignedStaffId:to.id,assignedStaffName:to.name,assignedStaffEmail:to.email,
+        escalatedToStaffId:to.id,escalatedToName:to.name,escalatedAt:at,
+        version:sql`${tickets.version} + 1`,
+      }).where(eq(tickets.id,row.id));
+      await tx.insert(ticketActivities).values({ticketId:row.id,actorName:'IRIS',action:'escalated.reassigned',detail:to.via==='manager'
+        ?`Past the follow-up target with no resolution and no extension: escalated from ${from} to their reporting manager ${to.name}.`
+        :`Past the follow-up target with no resolution and no extension, and no reporting manager on record for ${from}: escalated to the ${row.departmentName} escalation owner ${to.name}.`});
+      // Tell the manager out of band too. A board they are not looking at is not a handover.
+      if(emailSendingEnabled()&&cfg.assignmentEmail&&to.email)
+        await queueTicketEmails(tx,{...row,assignedStaffId:to.id,assignedStaffName:to.name,assignedStaffEmail:to.email,escalatedFromName:from},'escalated',[to.email]);
+      if(to.userId)
+        await tx.insert(userNotifications).values({userId:to.userId,ticketId:row.id,kind:'escalation',
+          title:`${row.ticketNumber} escalated to you — past its follow-up target`,
+          body:`${row.title} · was with ${from}`.slice(0,240),fromName:'IRIS'});
     }
     // No `changes` block: RETURNING gives the post-update row, so the prior priority is
     // not knowable here, and a half-true diff is worse than none.
@@ -366,7 +436,10 @@ const[linked,workspace]=await Promise.all([
   // correctly refused them. Read and write now answer to the same rule.
   ticket.resolutionRequired&&canResolve?getResolutionWorkspace(id):Promise.resolve(EMPTY_WORKSPACE),
 ]);
-return{ticket,comments,activities,similar,linked,asset,canResolve,...workspace};}
+// One rule, in lib/auth, shared with the PATCH route that enforces it. The client uses this
+// only to decide whether to offer the button.
+const canEditDetails=canEditTicketDetails(user,ticket);
+return{ticket,comments,activities,similar,linked,asset,canResolve,canEditDetails,...workspace};}
 
 const TERMINAL=['resolved','closed'];
 /** Guards every status change: record-only use of Recorded, the resolver and the private

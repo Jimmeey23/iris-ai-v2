@@ -44,6 +44,7 @@ import {
   useDirectory,
 } from "./ui";
 import { IrisLockup } from "./iris-mark";
+import { LiveSignal } from "@/components/live-signal";
 import { GuidedTour, signalTour } from "./guided-tour";
 import { isOpen } from "@/lib/metrics";
 /** The rail carries labels only — no AI / LIVE / count badges. The open-ticket
@@ -200,7 +201,9 @@ export function Shell({
   useEffect(() => {
     if (notifications) signalTour("notifications");
   }, [notifications]);
-  /** The bell's own contents. Polled rather than pushed, on the workspace's poll interval. */
+  /** The bell's own contents. Pushed when realtime is configured (LiveSignal turns a
+   *  broadcast into `iris:notifications-updated`); the interval stays as the floor, for a
+   *  dropped socket or a deployment without realtime. */
   useEffect(() => {
     if (!user) return;
     const load = () => {
@@ -210,7 +213,11 @@ export function Shell({
     };
     load();
     const timer = window.setInterval(load, Math.max(15, pollSeconds) * 1000);
-    return () => window.clearInterval(timer);
+    window.addEventListener("iris:notifications-updated", load);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("iris:notifications-updated", load);
+    };
   }, [user, pollSeconds]);
 
   const unread = notices.filter(n => !n.readAt);
@@ -273,6 +280,7 @@ export function Shell({
   }
   return (
     <div className={"workspace" + (collapsed ? " rail-collapsed" : "")}>
+      <LiveSignal />
       {mobile && (
         <div
           className="sidebar-scrim"

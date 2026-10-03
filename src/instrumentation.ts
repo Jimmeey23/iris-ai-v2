@@ -1,34 +1,40 @@
 import type { Instrumentation } from "next";
+import { reportError, sentryDsn } from "@/lib/observability";
 
 export function register() {
-  // Nothing to initialise. Kept so an APM/Sentry `register()` can slot in here
-  // later (see README → Monitoring).
+  // No SDK to boot — reporting is a POST, see lib/observability. This only states, once per
+  // cold start, whether errors are going anywhere other than stderr; a deployment that
+  // believes it is monitored and is not is worse than one that knows it is not.
+  console.log(
+    JSON.stringify({
+      level: "info",
+      source: "instrumentation",
+      errorReporting: sentryDsn() ? "sentry" : "logs-only",
+      commit: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7),
+    }),
+  );
 }
 
 /**
- * Called by Next for every uncaught server error (Server Components, Route
- * Handlers, Server Actions, Proxy). One JSON line on stderr is what Vercel's log
- * pipeline indexes best; the `digest` matches the reference shown to the user by
- * error.tsx / global-error.tsx. Headers, cookies and query strings are deliberately
- * not logged — they carry session tokens.
+ * Called by Next for every uncaught server error (Server Components, Route Handlers, Server
+ * Actions, Proxy). `reportError` writes the JSON line Vercel's log pipeline indexes and, when
+ * SENTRY_DSN is set, reports it. The `digest` matches the reference shown to the user by
+ * error.tsx / global-error.tsx, so a support conversation can be tied to the report.
+ *
+ * Headers, cookies and query strings are deliberately not passed on — they carry session
+ * tokens, and intake query strings carry ticket content.
  */
 export const onRequestError: Instrumentation.onRequestError = async (err, request, context) => {
   const error = err as Error & { digest?: string };
-  const path = request.path.split("?")[0];
-  console.error(
-    JSON.stringify({
-      level: "error",
-      source: "onRequestError",
-      message: error?.message ?? String(err),
-      digest: error?.digest,
-      path,
-      method: request.method,
+  await reportError(error, {
+    source: "onRequestError",
+    path: request.path.split("?")[0],
+    method: request.method,
+    digest: error?.digest,
+    extra: {
       routeType: context.routeType,
       routePath: context.routePath,
       renderSource: "renderSource" in context ? context.renderSource : undefined,
-      stack: process.env.NODE_ENV === "production" ? error?.stack?.split("\n").slice(0, 8).join("\n") : error?.stack,
-      commit: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7),
-      at: new Date().toISOString(),
-    }),
-  );
+    },
+  });
 };

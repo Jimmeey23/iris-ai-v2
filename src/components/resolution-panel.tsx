@@ -185,10 +185,14 @@ export function ResolutionPanel({
   onChanged,
   onPatch,
   busy,
+  variant = "rail",
 }: {
   ticket: Ticket;
   workspace: ResolutionWorkspace;
   canResolve: boolean;
+  /** `rail` is the narrow column inside the ticket dialog; `modal` is the pop-out, which gets
+   *  the height to show a work log without a scroll-within-a-scroll. */
+  variant?: "rail" | "modal";
   onClose: () => void;
   onChanged: (w: ResolutionWorkspace) => void;
   onPatch: (p: Record<string, unknown>) => Promise<void>;
@@ -205,7 +209,7 @@ export function ResolutionPanel({
   const [mentionPeople, setMentionPeople] = useState<MentionPerson[]>([]);
   const [mentioned, setMentioned] = useState<MentionPerson[]>([]);
   useEffect(() => {
-    void api<{people: {userId: number | null; name: string}[]}>("/api/directory")
+    void api<{people: {userId: number | null; name: string; username: string | null}[]}>("/api/directory")
       .then((d) => setMentionPeople(d.people.filter((person): person is MentionPerson => person.userId !== null)))
       .catch(() => {});
   }, []);
@@ -288,7 +292,7 @@ export function ResolutionPanel({
 
   if (!ticket.resolutionRequired)
     return (
-      <aside className="rw resolution-v2" aria-label="Resolution">
+      <aside className={"rw resolution-v2" + (variant === "modal" ? " rw-modal" : "")} aria-label="Resolution">
         <RwHead onClose={onClose} completion={0} />
         <p className="rw-empty">
           This ticket records feedback, appreciation or an assessment. There is
@@ -304,7 +308,7 @@ export function ResolutionPanel({
   // repeat the same error on every click.
   if (refusal)
     return (
-      <aside className="rw resolution-v2" aria-label="Resolution">
+      <aside className={"rw resolution-v2" + (variant === "modal" ? " rw-modal" : "")} aria-label="Resolution">
         <RwHead onClose={onClose} completion={0} />
         <p className="rw-note locked">
           <LockKeyhole size={12} />
@@ -327,7 +331,7 @@ export function ResolutionPanel({
   ] as const;
 
   return (
-    <aside className="rw resolution-v2" aria-label="Resolution">
+    <aside className={"rw resolution-v2" + (variant === "modal" ? " rw-modal" : "")} aria-label="Resolution">
       <RwHead onClose={onClose} completion={completion} />
 
       <div className="rw-command-bar">

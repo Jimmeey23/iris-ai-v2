@@ -8,16 +8,16 @@ async function publicWebhook(raw:string){const u=new URL(raw);if(u.protocol!=='h
 /** One file on an outgoing message. `content` is base64 so the whole payload stays
  *  JSON-serialisable — it has to survive a round trip through the delivery-log outbox. */
 export type MailAttachment={filename:string;content:string;type?:string;disposition?:'attachment'|'inline';content_id?:string};
-async function sendMailtrap(c:Record<string,string>,b:{to:{email:string}[];subject:string;text:string;html?:string;attachments?:MailAttachment[];reply_to?:{email:string}}){
-  const{attachments,reply_to,...message}=b;
+async function sendMailtrap(c:Record<string,string>,b:{to:{email:string}[];bcc?:{email:string}[];subject:string;text:string;html?:string;attachments?:MailAttachment[];reply_to?:{email:string}}){
+  const{attachments,reply_to,bcc,...message}=b;
   if(c.smtp_host&&c.smtp_username&&c.smtp_password){
     const nodemailer=(await import('nodemailer')).default;
     const transport=nodemailer.createTransport({host:c.smtp_host,port:Number(c.smtp_port)||587,secure:Number(c.smtp_port)===465,auth:{user:c.smtp_username,pass:c.smtp_password}});
-    const info=await transport.sendMail({from:`"Physique 57 India" <${c.from_email}>`,to:message.to.map(t=>t.email).join(','),replyTo:reply_to?.email,subject:message.subject,text:message.text,html:message.html,
+    const info=await transport.sendMail({from:`"Physique 57 India" <${c.from_email}>`,to:message.to.map(t=>t.email).join(','),bcc:bcc?.map(t=>t.email).join(',')||undefined,replyTo:reply_to?.email,subject:message.subject,text:message.text,html:message.html,
       attachments:attachments?.map(a=>({filename:a.filename,content:Buffer.from(a.content,'base64'),contentType:a.type,cid:a.content_id,contentDisposition:a.disposition==='inline'?'inline':'attachment'}))});
     return{messageId:info.messageId,accepted:info.accepted,via:'smtp'};
   }
-  if(c.api_key)return{...(await remote('https://send.api.mailtrap.io/api/send',c.api_key,'POST',{from:{email:c.from_email,name:'Physique 57 India'},...message,...(reply_to?{reply_to}:{}),...(attachments?.length?{attachments}:{}),category:'IRIS operations'})),via:'api'};
+  if(c.api_key)return{...(await remote('https://send.api.mailtrap.io/api/send',c.api_key,'POST',{from:{email:c.from_email,name:'Physique 57 India'},...message,...(bcc?.length?{bcc}:{}),...(reply_to?{reply_to}:{}),...(attachments?.length?{attachments}:{}),category:'IRIS operations'})),via:'api'};
   throw new ApiError('Provide either an API token or full SMTP credentials for Mailtrap.');
 }
 const googleCache=new Map<string,{fingerprint:string;token:string;expires:number}>();
@@ -30,7 +30,7 @@ if(action==='test'){const configured=Boolean(c.api_key||(c.smtp_host&&c.smtp_use
 // The preview sends the real assignment email, built by the same function the
 // automatic notification uses, so what arrives is what an owner would receive.
 if(action==='send-assignment-preview'){const{sampleAssignmentEmail}=await import('./ticket-emails');const to=z.array(z.object({email:z.string().email()})).min(1).max(5).parse(args.to);return sendMailtrap(c,{to,...sampleAssignmentEmail()});}
-const b=z.object({to:z.array(z.object({email:z.string().email()})).min(1).max(20),subject:z.string().min(1).max(200),text:z.string().min(1).max(50000),html:z.string().max(400000).optional(),reply_to:z.object({email:z.string().email()}).optional(),
+const b=z.object({to:z.array(z.object({email:z.string().email()})).min(1).max(20),bcc:z.array(z.object({email:z.string().email()})).max(10).optional(),subject:z.string().min(1).max(200),text:z.string().min(1).max(50000),html:z.string().max(400000).optional(),reply_to:z.object({email:z.string().email()}).optional(),
 attachments:z.array(z.object({filename:z.string().min(1).max(200),content:z.string().max(14_000_000),type:z.string().max(120).optional(),disposition:z.enum(['attachment','inline']).optional(),content_id:z.string().max(120).optional()})).max(10).optional()}).parse(args);return sendMailtrap(c,b);}
 if(id==='whatsapp'){const token=required(c.access_token,'Meta access token');const version=c.api_version||'v23.0';if(!/^v\d+\.\d+$/.test(version))throw new ApiError('Invalid Graph API version');const phone=identifier(c.phone_number_id,'Business phone number ID');if(action==='test')return remote(`https://graph.facebook.com/${version}/${phone}?fields=display_phone_number,verified_name`,token);required(args.to,'Recipient number');if(!['text','template'].includes(String(args.type)))throw new ApiError('Message type must be text or template.');return remote(`https://graph.facebook.com/${version}/${phone}/messages`,token,'POST',{...args,messaging_product:'whatsapp'});}
 if(id==='fillout'){const token=required(c.api_key,'Fillout API key');if(action==='test'||action==='forms')return remote('https://api.fillout.com/v1/api/forms',token);/* `form_id` holds a comma-separated list for the back-fill, so a single-form action takes its first entry rather than rejecting the list as invalid characters. */const formId=identifier(args.formId||c.form_id?.split(',')[0]?.trim(),'Form ID');if(action==='submissions')return remote(`https://api.fillout.com/v1/api/forms/${formId}/submissions?limit=20&offset=${Math.max(0,Number(args.offset)||0)}`,token);const submissionId=identifier(args.submissionId,'Exact submission ID');const submission=await remote(`https://api.fillout.com/v1/api/forms/${formId}/submissions/${submissionId}`,token);if(action==='import'){const {importFillout}=await import('./fillout');return importFillout({formId,submission,submissionId,templateId:args.templateId});}return submission;}

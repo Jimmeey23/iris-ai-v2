@@ -4,6 +4,8 @@ import {db} from '@/db';
 import {ticketContactLog,ticketActivities} from '@/db/schema';
 import {ApiError,errorResponse,sameOrigin} from '@/lib/auth';
 import {requireResolutionAccess,getResolutionWorkspace} from '@/lib/tickets';
+import {after} from 'next/server';
+import {signalChanged} from '@/lib/realtime';
 
 export const dynamic='force-dynamic';
 type Ctx={params:Promise<{id:string}>};
@@ -28,6 +30,9 @@ export async function POST(req:Request,ctx:Ctx){try{
     await tx.insert(ticketContactLog).values({ticketId:id,channel:b.channel,outcome:b.outcome,note:b.note,contactedAt:when,authorUserId:user.id,authorName:user.name});
     await tx.insert(ticketActivities).values({ticketId:id,actorName:user.name,action:'resolution.contact',detail:`${b.channel} · ${b.outcome}`});
   });
+  // The write landed: tell the other open boards, so a teammate sees this without
+  // waiting for their poll. Advisory only — see lib/realtime.
+  after(() => signalChanged('tickets'));
   return Response.json(await getResolutionWorkspace(id));
 }catch(e){return errorResponse(e);}}
 
@@ -40,5 +45,8 @@ export async function DELETE(req:Request,ctx:Ctx){try{
   if(!row)throw new ApiError('That contact entry is no longer here.',404);
   if(row.authorUserId!==user.id&&user.role!=='admin')throw new ApiError('Only the person who logged this contact can remove it.',403);
   await db.delete(ticketContactLog).where(eq(ticketContactLog.id,contactId));
+  // The write landed: tell the other open boards, so a teammate sees this without
+  // waiting for their poll. Advisory only — see lib/realtime.
+  after(() => signalChanged('tickets'));
   return Response.json(await getResolutionWorkspace(id));
 }catch(e){return errorResponse(e);}}

@@ -50,6 +50,13 @@
       "when": 1790656136203,
       "tag": "0006_needy_red_hulk",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1790997196262,
+      "tag": "0007_new_joystick",
+      "breakpoints": true
     }
   ]
 }

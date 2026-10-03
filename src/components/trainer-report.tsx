@@ -18,7 +18,7 @@ export type Assessment={
 };
 export type FeedbackRow={id:number;ticketNumber:string;title:string;subcategory:string;sentiment:string|null;status:string;createdAt:string;kind:string};
 export type Trainer={
-  name:string;totalTickets:number;assessmentCount:number;feedbackCount:number;complimentCount:number;
+  name:string;displayName?:string;hidden?:boolean;mergedFrom?:string[];ambiguousWith?:string[]|null;totalTickets:number;assessmentCount:number;feedbackCount:number;complimentCount:number;
   issueCount:number;avgScore:number|null;band:string|null;bandTone:string;
   primaryStudio:string;city:string;studioSummary:{studio:string;count:number}[];
   latestAssessment:Assessment|null;assessments:Assessment[];recentFeedback:FeedbackRow[];
@@ -146,20 +146,161 @@ function KpiTile({label,value,sub,tone,pct}:{label:string;value:string;sub:strin
   );
 }
 
+/**
+ * One review, in full: the score and who gave it, the coaching notes, every rubric row and
+ * every answer on the original submission.
+ *
+ * The most recent review is rendered open, because that is the one somebody opening a trainer's
+ * file came to read. Everything older is collapsed to a single line — a file with fourteen
+ * reviews, each printed in full, is a document nobody scrolls to the end of — and opens on
+ * click into exactly the same detail.
+ */
+function ReviewCard({
+  review, open, onToggle, onSelect, active, latest, canManage, onDelete, deleting,
+}: {
+  review: Assessment;
+  open: boolean;
+  onToggle: () => void;
+  onSelect: () => void;
+  active: boolean;
+  latest?: boolean;
+  canManage?: boolean;
+  onDelete?: () => void;
+  deleting?: boolean;
+}) {
+  const evaluator = review.evaluator && review.evaluator !== '—' ? review.evaluator : 'Evaluator not recorded';
+  return (
+    <div className={'tr-review' + (active ? ' active' : '') + (open ? ' open' : '') + (latest ? ' latest' : '')}>
+      <div className="tr-review-head">
+        <button
+          className="tr-review-score"
+          style={{color: active ? 'var(--accent)' : scoreColor(review.score)}}
+          onClick={onSelect}
+          title="Load this review into the rubric and radar above"
+        >
+          {review.score ? review.score + '%' : '—'}
+        </button>
+        <button className="tr-review-summary" onClick={onToggle} aria-expanded={open}>
+          <span className="tr-review-title">
+            {latest ? 'Most recent review' : indiaDate(review.submittedAt)}
+            {latest && <em> · {indiaDate(review.submittedAt)}</em>}
+          </span>
+          <span className="tr-review-meta">
+            {evaluator} · {review.sourceLabel}
+            {review.sessionName ? ' · ' + review.sessionName : ''}
+            {review.studio ? ' · ' + review.studio.split(',')[0] : ''} · {review.ticketNumber}
+          </span>
+        </button>
+        <div className="tr-review-badges">
+          <Badge tone={review.bandTone}>{review.band}</Badge>
+          {active && <Badge tone="blue">In report above</Badge>}
+          <button className="tr-review-toggle" onClick={onToggle} aria-label={open ? 'Collapse this review' : 'Expand this review'}>
+            {open ? '▴' : '▾'}
+          </button>
+        </div>
+      </div>
+
+      {open && (
+        <div className="tr-review-body">
+          <dl className="tr-review-facts">
+            <div><dt>Score</dt><dd style={{color: scoreColor(review.score)}}>{review.score ? review.score + '%' : 'Not scored'}</dd></div>
+            <div><dt>Evaluated by</dt><dd>{evaluator}</dd></div>
+            <div><dt>Submitted</dt><dd>{indiaDate(review.submittedAt)}</dd></div>
+            <div><dt>Source</dt><dd>{review.sourceLabel}</dd></div>
+            {review.sessionName && <div><dt>Session</dt><dd>{review.sessionName}</dd></div>}
+            {review.studio && <div><dt>Studio</dt><dd>{review.studio}</dd></div>}
+            <div><dt>Band</dt><dd>{review.band}</dd></div>
+            <div><dt>Ticket</dt><dd><a href={'/tickets/' + review.id}>{review.ticketNumber} ↗</a></dd></div>
+          </dl>
+
+          {(review.strengths || review.improvements || review.coachingPlan || review.summary) && (
+            <div className="tr-notes">
+              {review.strengths && <div className="tr-note" style={{borderLeftColor: 'var(--green)'}}><strong>Key strengths</strong><p>{review.strengths}</p></div>}
+              {review.improvements && <div className="tr-note" style={{borderLeftColor: 'var(--amber)'}}><strong>Development areas</strong><p>{review.improvements}</p></div>}
+              {review.coachingPlan && <div className="tr-note" style={{borderLeftColor: 'var(--accent)'}}><strong>Coaching action plan</strong><p>{review.coachingPlan}</p></div>}
+              {!review.strengths && !review.improvements && !review.coachingPlan && review.summary && (
+                <div className="tr-note"><strong>Summary</strong><p>{review.summary}</p></div>
+              )}
+            </div>
+          )}
+
+          {review.rubric.length > 0 && (
+            <div className="tr-review-rubric">
+              <span className="tr-kpi-label">Scored criteria · weakest first</span>
+              <div className="tr-rubric-cols">{review.rubric.map(row => <RubricBar key={row.category} {...row} />)}</div>
+            </div>
+          )}
+
+          {review.answers.length > 0 && (
+            <div className="tr-answers">
+              <span className="tr-kpi-label">The submission as it was filled in · {review.answers.length} answers</span>
+              {review.answers.map((answer, i) => (
+                <div key={i}><span>{answer.label}</span><p>{answer.value || '—'}</p></div>
+              ))}
+            </div>
+          )}
+
+          {canManage && (
+            <div className="tr-review-admin">
+              <button className="btn-danger-ghost" disabled={deleting} onClick={onDelete}>
+                {deleting ? 'Removing…' : 'Remove this review'}
+              </button>
+              <span className="muted">Deletes the review and its ticket. Recorded in the audit log; the upstream form will not re-import it.</span>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ------------------------------------------------------------------ */
 /* Report                                                              */
 /* ------------------------------------------------------------------ */
 
-export function TrainerReport({trainer}:{trainer:Trainer}){
-  const [selectedId,setSelectedId]=useState<number|null>(null);
-  const [openIds,setOpenIds]=useState<Set<number>>(new Set());
+export function TrainerReport({trainer,canManage=false,onRemoveReview}:{
+  trainer:Trainer;
+  /** Administrators only: shows the per-review remove control. The API enforces it too. */
+  canManage?:boolean;
+  /** Asked to delete one review. The page owns the confirmation and the refresh. */
+  onRemoveReview?:(review:Assessment)=>Promise<void>;
+}){
+  // Scoped to the trainer on screen for the same reason as `openOverride`: a selection made on
+  // one trainer's file must not carry into the next one.
+  const [selection,setSelection]=useState<{for:string;id:number}>();
+  const selectedId=selection?.for===trainer.name?selection.id:null;
+  const setSelectedId=(id:number)=>setSelection({for:trainer.name,id});
+  // Newest first, which is both the reading order of the history list and the order the
+  // "latest" card is taken from.
+  const newestFirst=useMemo(()=>[...trainer.assessments].sort((a,b)=>+new Date(b.submittedAt)-+new Date(a.submittedAt)),[trainer.assessments]);
+  // Open by default: the most recent review only. Everything older stays collapsed until
+  // somebody asks for it.
+  //
+  // Held as an override rather than as the state itself, so switching trainer does not need an
+  // effect to re-seed it: with no override, the open set is derived from this trainer's own
+  // latest review, which is the correct answer for whichever trainer is on screen.
+  const [openOverride,setOpenOverride]=useState<{for:string;ids:Set<number>}>();
+  const openIds=openOverride?.for===trainer.name
+    ? openOverride.ids
+    : new Set(newestFirst.slice(0,1).map(a=>a.id));
+  const setOpenIds=(ids:Set<number>)=>setOpenOverride({for:trainer.name,ids});
+  const [deletingId,setDeletingId]=useState<number|null>(null);
+  async function removeReview(review:Assessment){
+    if(!onRemoveReview)return;
+    setDeletingId(review.id);
+    try{await onRemoveReview(review);}finally{setDeletingId(null);}
+  }
   const [rubricFilter,setRubricFilter]=useState<'all'|'strong'|'focus'>('all');
   // Read on the client after mount: "last reviewed N days ago" must not be baked into the
   // server-rendered markup, or the two disagree the moment the page is cached.
   const [now,setNow]=useState(0);
   useEffect(()=>{const id=setTimeout(()=>setNow(Date.now()),0);return()=>clearTimeout(id);},[]);
 
-  const toggleOpen=(id:number)=>setOpenIds(s=>{const next=new Set(s);if(next.has(id))next.delete(id);else next.add(id);return next;});
+  const toggleOpen=(id:number)=>{
+    const next=new Set(openIds);
+    if(next.has(id))next.delete(id);else next.add(id);
+    setOpenIds(next);
+  };
 
   // Oldest first for the trend line; the history list below reverses it.
   const sorted=useMemo(()=>[...trainer.assessments].sort((a,b)=>+new Date(a.submittedAt)-+new Date(b.submittedAt)),[trainer.assessments]);
@@ -228,7 +369,7 @@ export function TrainerReport({trainer}:{trainer:Trainer}){
         </div>
         <div className="tr-masthead-body">
           <span className="eyebrow">TRAINER PERFORMANCE REPORT</span>
-          <h2>{trainer.name}</h2>
+          <h2>{trainer.displayName||trainer.name}</h2>
           <div className="flex-row wrap" style={{gap:6,marginTop:10}}>
             <Badge tone={trainer.bandTone}>{trainer.band||'Awaiting a formal assessment'}</Badge>
             {delta!==0&&<Badge tone={delta>0?'green':'red'}>{delta>0?'+':''}{delta} vs previous</Badge>}
@@ -315,65 +456,34 @@ export function TrainerReport({trainer}:{trainer:Trainer}){
         </Section>
       )}
 
-      {/* 06 — assessment history, expandable to the original submission */}
-      <Section index="06" title="Assessment history"
-        subtitle="Every historic review on file · select a score to load it into the rubric and radar above"
+      {/* 06 — the reviews themselves: latest in full, history collapsed */}
+      <Section index="06" title="Reviews on file"
+        subtitle="The most recent review in full; earlier ones collapsed — open any of them, or select a score to load it into the rubric and radar above"
         action={<Badge>{trainer.assessments.length} on file</Badge>}>
-        {!trainer.assessments.length?(
+        {!trainer.assessments.length ? (
           <Empty art="clipboard" title="No assessments recorded yet" detail="Submissions to the Fillout form and the Zite assessment apps appear here automatically."/>
-        ):(
-          <div className="stack" style={{gap:10}}>
-            {[...trainer.assessments].sort((a,b)=>+new Date(b.submittedAt)-+new Date(a.submittedAt)).map(a=>{
-              const active=a.id===selected?.id;
-              const open=openIds.has(a.id);
-              return (
-                <div key={a.id} className={'tr-review'+(active?' active':'')}>
-                  <div className="flex-row wrap" style={{gap:8,alignItems:'center'}}>
-                    <button className="tr-review-score" style={{color:active?'var(--accent)':scoreColor(a.score)}}
-                      onClick={()=>setSelectedId(a.id)} title="Load this review into the report above">
-                      {a.score?a.score+'%':'—'}
-                    </button>
-                    <Badge tone={a.bandTone}>{a.band}</Badge>
-                    <Badge>{a.sourceLabel}</Badge>
-                    {a.sessionName&&<Badge>{a.sessionName}</Badge>}
-                    {a.studio&&<Badge>{a.studio.split(',')[0]}</Badge>}
-                    {active&&<Badge tone="blue">Active in report</Badge>}
-                    <span className="muted" style={{marginLeft:'auto',fontSize:10}}>
-                      {indiaDate(a.submittedAt)}{a.evaluator&&a.evaluator!=='—'?` · ${a.evaluator}`:''} · {a.ticketNumber}
-                    </span>
-                  </div>
-                  {(a.strengths||a.improvements||a.coachingPlan)&&(
-                    <div className="tr-review-notes">
-                      {a.strengths&&<p><strong>Strengths:</strong> {a.strengths}</p>}
-                      {a.improvements&&<p><strong>Development:</strong> {a.improvements}</p>}
-                      {a.coachingPlan&&<p><strong>Coaching plan:</strong> {a.coachingPlan}</p>}
-                    </div>
-                  )}
-                  {a.rubric.length>0&&(
-                    <div className="tr-review-scores">
-                      {a.rubric.map(r=>(
-                        <span key={r.category}><em>{r.category}</em><b style={{color:scoreColor(r.pct)}}>{r.score}/{r.weightage}</b></span>
-                      ))}
-                    </div>
-                  )}
-                  <div className="flex-row" style={{gap:12,marginTop:10}}>
-                    {a.answers.length>0&&(
-                      <button className="text-btn" onClick={()=>toggleOpen(a.id)}>
-                        {open?'Hide full submission ▴':`Show full submission — all ${a.answers.length} answers ▾`}
-                      </button>
-                    )}
-                    <a className="text-btn" href={'/tickets/'+a.id}>Open ticket ↗</a>
-                  </div>
-                  {open&&(
-                    <div className="tr-answers">
-                      {a.answers.map((ans,i)=>(
-                        <div key={i}><span>{ans.label}</span><p>{ans.value||'—'}</p></div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+        ) : (
+          <div className="stack" style={{gap: 10}}>
+            {newestFirst.map((a, index) => (
+              <ReviewCard
+                key={a.id}
+                review={a}
+                latest={index === 0}
+                open={openIds.has(a.id)}
+                onToggle={() => toggleOpen(a.id)}
+                onSelect={() => setSelectedId(a.id)}
+                active={a.id === selected?.id}
+                canManage={canManage}
+                deleting={deletingId === a.id}
+                onDelete={() => void removeReview(a)}
+              />
+            ))}
+            {newestFirst.length > 1 && (
+              <div className="flex-row" style={{gap: 12, justifyContent: 'flex-end'}}>
+                <button className="text-btn" onClick={() => setOpenIds(new Set(newestFirst.map(a => a.id)))}>Expand every review</button>
+                <button className="text-btn" onClick={() => setOpenIds(new Set(newestFirst.slice(0, 1).map(a => a.id)))}>Collapse history</button>
+              </div>
+            )}
           </div>
         )}
       </Section>

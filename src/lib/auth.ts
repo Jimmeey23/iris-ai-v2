@@ -6,6 +6,7 @@ import type { User } from "@supabase/supabase-js";
 import { db } from "@/db";
 import { appUsers } from "@/db/schema";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { reportError } from "@/lib/observability";
 
 export type Identity = {
   id: number;
@@ -51,7 +52,10 @@ export function errorResponse(error: unknown) {
       { error: validationMessage(error) },
       { status: 400 },
     );
-  console.error("Request failed:", error);
+  // Unexpected: not an ApiError we raised and not a validation failure, so it is a bug or a
+  // dependency that is down. Reported rather than logged, because this is the class of error
+  // somebody needs to be told about.
+  void reportError(error, {source: "api.unhandled"});
   return Response.json(
     { error: "Something went wrong. Please try again." },
     { status: 500 },
@@ -414,6 +418,35 @@ export function canAccessTicket(
   if (studios.length)
     checks.push(!!ticket.studio && studios.includes(ticket.studio));
   return checks.length > 0 && checks.every(Boolean);
+}
+
+/**
+ * Who may correct a ticket's **documented facts** — the title, the account of what happened,
+ * the member's details, the studio, the time, the format.
+ *
+ * The author, or an administrator. Those fields are somebody's report of an incident, and the
+ * person who wrote it is the person who should be able to fix a mistyped phone number or a
+ * half-finished sentence without going to find an administrator first.
+ *
+ * Deliberately *not* everyone with access: an agent sees every ticket raised at their studio
+ * (see `canAccessTicket`), and being able to read a colleague's report is not a reason to be
+ * able to rewrite it. Also not the assigned owner — they own the resolution, which is a
+ * separate record with its own gate; the reporter's account of events is not theirs to edit.
+ *
+ * Routing, priority, status and assignment are **not** covered here. They are the owner's and
+ * the workspace's, and they have their own rules in the PATCH route.
+ *
+ * A ticket with no `createdByUserId` was not filed by a person in this workspace — an email
+ * import, a Fillout submission, a history backfill — so it has no author to grant this to, and
+ * only an administrator can edit it.
+ */
+export function canEditTicketDetails(
+  user: Pick<Identity, "id" | "role"> | null | undefined,
+  ticket: {createdByUserId?: number | null},
+): boolean {
+  if (!user) return false;
+  if (user.role === "admin") return true;
+  return ticket.createdByUserId !== null && ticket.createdByUserId !== undefined && ticket.createdByUserId === user.id;
 }
 
 export function requireTicketAccess(
