@@ -190,12 +190,12 @@ export function useToast(): Notify {
 /* ── Theme store ────────────────────────────────────────────────────────────
    The source of truth is `<html data-theme>`, which the inline script in the
    root layout sets before first paint (saved choice, else the OS setting). The
-   server has no theme, so its snapshot is "dark"; React swaps to the client
+   server has no theme, so its snapshot is "light"; React swaps to the client
    snapshot straight after hydration without a mismatch. */
 const THEME_KEY = "iris-theme";
 const themeListeners = new Set<() => void>();
 function readTheme(): Theme {
-  return document.documentElement.dataset.theme === "light" ? "light" : "dark";
+  return document.documentElement.dataset.theme === "dark" ? "dark" : "light";
 }
 function writeTheme(next: Theme, persist: boolean) {
   document.documentElement.dataset.theme = next;
@@ -241,6 +241,21 @@ function useReducedMotion() {
   );
 }
 
+/** False for the server render *and* the hydration render that must match it, true from the
+ *  re-render straight after. The one safe way to read something that exists only in the
+ *  browser — the URL, the viewport, the clock, a random pick — without the markup
+ *  disagreeing with the server's and React throwing the tree away.
+ *  Nothing to subscribe to: the value only ever changes once, as React leaves the server
+ *  snapshot behind. */
+const subscribeNever = () => () => {};
+export function useMounted() {
+  return useSyncExternalStore(
+    subscribeNever,
+    () => true,
+    () => false,
+  );
+}
+
 const ACCENT_PRESETS = {
   dark: {
     gold: { accent: "#f4bb3d", deep: "#c9902a", bright: "#ffd166" },
@@ -268,7 +283,7 @@ function applyAppearance(cfg: {
   appearanceCardStyle: "elevated" | "flat" | "glass";
 }) {
   const root = document.documentElement;
-  const activeTheme = root.dataset.theme === "light" ? "light" : "dark";
+  const activeTheme = root.dataset.theme === "dark" ? "dark" : "light";
   const palette = ACCENT_PRESETS[activeTheme][cfg.appearancePreset];
   root.style.setProperty("--accent", palette.accent);
   root.style.setProperty("--accent-deep", palette.deep);
@@ -413,7 +428,7 @@ function AppStateProvider({ children }: { children: ReactNode }) {
   const theme = useSyncExternalStore(
     subscribeTheme,
     readTheme,
-    () => "dark" as Theme,
+    () => "light" as Theme,
   );
   const [view, setViewState] = useState("list");
   const [user, setUser] = useState<Identity | null>(null);
@@ -448,7 +463,7 @@ function AppStateProvider({ children }: { children: ReactNode }) {
       .catch(() => {});
   }, [applyIdentity]);
   const toggleTheme = useCallback(() => {
-    const next: Theme = readTheme() === "light" ? "dark" : "light";
+    const next: Theme = readTheme() === "dark" ? "light" : "dark";
     writeTheme(next, true);
     window.dispatchEvent(new Event("iris:settings-updated"));
     void api("/api/preferences", {

@@ -16,7 +16,7 @@ const formPlanSchema=z.array(intakeFieldOverrideSchema).min(1).max(100).superRef
 });
 export const configSchema = z.object({
   workspaceName: z.string().min(2).max(80).default("Physique 57 India"), timezone: z.string().refine(v=>{try{new Intl.DateTimeFormat("en",{timeZone:v});return true;}catch{return false;}},"Choose a valid IANA timezone").default("Asia/Kolkata"),
-  defaultTheme: z.enum(["light","dark"]).default("dark"), defaultView: z.enum(["list","board","cards"]).default("list"),
+  defaultTheme: z.enum(["light","dark"]).default("light"), defaultView: z.enum(["list","board","cards"]).default("list"),
   pollSeconds: z.number().min(5).max(120).default(15), aiEnabled: z.boolean().default(true), aiModel: z.string().max(80).default("gpt-4o-mini"),
   aiVoice: z.string().max(1200).default("You're a smart operational assistant helping staff log issues efficiently. Be conversational, strategic, and context-aware. Reference what they've told you. If they signal urgency or blocking issues, prioritize resolution options. Never echo answers, apologize, or recap facts. Be concise like a colleague helping out, not a script."),
   historyRetrieval: z.boolean().default(true), autoTag: z.boolean().default(true), autoAssign: z.boolean().default(true), positiveNoSla: z.boolean().default(true),

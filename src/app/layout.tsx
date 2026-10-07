@@ -22,10 +22,10 @@ export const metadata:Metadata={
 };
 export const viewport:Viewport={
   themeColor:[{media:'(prefers-color-scheme: dark)',color:'#0a0a0d'},{media:'(prefers-color-scheme: light)',color:'#f4f6fa'}],
-  colorScheme:'dark light',
+  colorScheme:'light dark',
 };
 /** Runs before first paint. The server markup carries no data-theme (so there is
  *  nothing to mismatch on hydration); this sets it from the saved preference, or on
- *  a first visit from the OS setting, so nobody sees a flash of the wrong theme. */
-const THEME_SCRIPT="try{var t=localStorage.getItem('iris-theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia&&window.matchMedia('(prefers-color-scheme: light)').matches?'light':'dark'}document.documentElement.dataset.theme=t}catch(e){document.documentElement.dataset.theme='dark'}";
+ *  a first visit the light default, so nobody sees a flash of the wrong theme. */
+const THEME_SCRIPT="try{var t=localStorage.getItem('iris-theme');if(t!=='light'&&t!=='dark'){t='light'}document.documentElement.dataset.theme=t}catch(e){document.documentElement.dataset.theme='light'}";
 export default function RootLayout({children}:{children:React.ReactNode}){return <html lang="en" suppressHydrationWarning><head><script dangerouslySetInnerHTML={{__html:THEME_SCRIPT}}/></head><body className={outfit.variable+' '+spaceGrotesk.variable+' '+jetbrainsMono.variable} suppressHydrationWarning><AppProvider>{children}<FeedbackTab/></AppProvider></body></html>;}

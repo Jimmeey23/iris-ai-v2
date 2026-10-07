@@ -29,7 +29,7 @@ import {
   CheckCircle2,
   ChevronDown,
 } from "lucide-react";
-import { useApp, useToast, Switch } from "./ui";
+import { useApp, useToast, useMounted, Switch } from "./ui";
 import {
   FEEDBACK_KINDS,
   FEEDBACK_SEVERITIES,
@@ -256,25 +256,28 @@ export function FeedbackTab() {
     }
   }, [addFiles, notify]);
 
+  // Every browser-only value below (the full URL, the viewport, the user agent, the clock)
+  // differs from what the server rendered, and this panel is in the tree on every page — so
+  // reading them during the hydration render mismatched the server's markup. `mounted` is
+  // false for that render and true from the re-render after it, which is when the real values
+  // arrive. A report is only ever sent from a mounted panel, so nothing is submitted blank.
+  const mounted = useMounted();
   const context = useMemo(
     () => ({
-      url: typeof window === "undefined" ? pathname : window.location.href,
+      url: mounted ? window.location.href : pathname,
       route: pathname,
-      viewport:
-        typeof window === "undefined" ? "" : `${window.innerWidth}×${window.innerHeight}`,
-      screen: typeof window === "undefined" ? "" : `${screen.width}×${screen.height} @${window.devicePixelRatio}x`,
-      userAgent: typeof navigator === "undefined" ? "" : navigator.userAgent,
-      language: typeof navigator === "undefined" ? "" : navigator.language,
-      theme:
-        typeof document === "undefined" ? "" : document.documentElement.dataset.theme || "",
-      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-      online: typeof navigator === "undefined" ? "" : String(navigator.onLine),
+      viewport: mounted ? `${window.innerWidth}×${window.innerHeight}` : "",
+      screen: mounted ? `${screen.width}×${screen.height} @${window.devicePixelRatio}x` : "",
+      userAgent: mounted ? navigator.userAgent : "",
+      language: mounted ? navigator.language : "",
+      theme: mounted ? document.documentElement.dataset.theme || "" : "",
+      timezone: mounted ? Intl.DateTimeFormat().resolvedOptions().timeZone : "",
+      online: mounted ? String(navigator.onLine) : "",
       role: user?.role ?? "signed out",
       studio: user?.studio ?? "",
-      occurredAt: new Date().toISOString(),
       recentErrors: recentErrors.slice(-6),
     }),
-    [pathname, user],
+    [mounted, pathname, user],
   );
 
   const remove = (id: string) =>
@@ -317,7 +320,16 @@ export function FeedbackTab() {
           pageLabel: labelFor(pathname),
           contactBack: draft.contactBack,
           reporterEmail: draft.reporterEmail.trim() || undefined,
-          context,
+          // Stamped here rather than in `context`: the render-time clock was both a hydration
+          // mismatch and the wrong moment — this is when the report was actually sent. The
+          // error log is read here for the same reason: `recentErrors` is a module-level array
+          // that mutating never re-renders, so a memoised copy was whatever had landed by the
+          // time the panel mounted, not the errors the person is reporting.
+          context: {
+            ...context,
+            occurredAt: new Date().toISOString(),
+            recentErrors: recentErrors.slice(-6),
+          },
         }),
       );
       for (const f of files) body.append("files", f.file, f.file.name);

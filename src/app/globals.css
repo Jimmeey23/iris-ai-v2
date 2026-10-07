@@ -12,11 +12,11 @@
 @source "../**/*.{ts,tsx,js,jsx,mdx}";
 
 /* `dark:` utilities follow the app theme (the `data-theme` attribute toggled by
-   ThemeToggle), not the OS preference. With no attribute the app is dark (the
-   server always renders dark), so anything not explicitly light counts. */
+   ThemeToggle), not the OS preference. Light is the default, so only an
+   explicit `data-theme="dark"` counts. */
 /* css-languageserver-disable-next-line css-unknownAtRules -- Tailwind CSS v4 @custom-variant */
 /* stylelint-disable-next-line at-rule-no-unknown */
-@custom-variant dark (&:where(:root:not([data-theme="light"]), :root:not([data-theme="light"]) *));
+@custom-variant dark (&:where(:root[data-theme="dark"], :root[data-theme="dark"] *));
 
 /* ════════════════════════════════════════════════════════════════════════════
    DESIGN TOKENS — the single source of truth for the IRIS visual language.
@@ -84,14 +84,13 @@
 }
 /* css-languageserver-enable unknownAtRules */
 
-/* ── Dark theme (default) ──────────────────────────────────────────────────
-   The server always renders dark and the inline head script sets
-   `data-theme` before first paint, so plain `:root` carries the dark palette
-   too — a page with no attribute (JS disabled) still gets a coherent theme. */
+/* ── Dark theme (opt-in) ───────────────────────────────────────────────────
+   Light is the default, so plain `:root` carries the light palette below — a
+   page with no attribute (JS disabled) still gets a coherent theme. The inline
+   head script sets `data-theme` before first paint. */
 /* Theme blocks use bare `[data-theme]` (not `:root[...]`) so a subtree can be
    re-scoped — e.g. the Settings theme previews render `data-theme="light"`
    inside a dark page and get the light tokens. */
-:root,
 [data-theme="dark"] {
   color-scheme: dark;
   --bg: #08080b;
@@ -131,6 +130,7 @@
     inset 0 1px 0 rgb(255 255 255 / 0.06);
   --shadow-hairline: rgb(0 0 0 / calc(0.18 * var(--ui-shadow)));
 }
+:root,
 [data-theme="light"] {
   color-scheme: light;
   /* White page. Neumorphism needs the page and its cards to share a colour —

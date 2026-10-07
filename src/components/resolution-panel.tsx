@@ -242,8 +242,11 @@ export function ResolutionPanel({
     () => openFollowUps.filter((f) => new Date(f.dueAt).getTime() < now),
     [openFollowUps, now],
   );
-  // The server refuses to resolve without the action taken, so say so before the click.
-  const readyToResolve = Boolean(draft.actionTaken.trim());
+  // The server refuses to resolve without the *saved* action taken. The draft counts too:
+  // resolving saves it first (see the Mark resolved button), so an owner who typed the write-up
+  // and went straight for the button is not told to go back and press Save.
+  const savedActionTaken = Boolean(workspace.resolution?.actionTaken?.trim());
+  const readyToResolve = savedActionTaken || Boolean(draft.actionTaken.trim());
   const hasWriteUp = SUMMARY_FIELDS.some((f) =>
     workspace.resolution?.[f.key]?.trim(),
   );
@@ -286,6 +289,28 @@ export function ResolutionPanel({
     } finally {
       setSaving(false);
     }
+  }
+
+  /** Resolving with an unsaved write-up used to fail on the server ("Complete the private
+   *  resolution action first") because the button read the draft while the server reads the
+   *  saved row. Save the write-up first when it differs, then change the status. */
+  async function resolveNow() {
+    // Empty draft fields never overwrite what is already saved: the panel can be opened on a
+    // ticket whose write-up loaded after the form seeded itself.
+    const merged = { ...workspace.resolution, ...draft } as Resolution;
+    SUMMARY_FIELDS.forEach((f) => {
+      if (!draft[f.key].trim() && workspace.resolution?.[f.key])
+        merged[f.key] = workspace.resolution[f.key];
+    });
+    const dirty = SUMMARY_FIELDS.some(
+      (f) => (merged[f.key] || "").trim() !== (workspace.resolution?.[f.key] || "").trim(),
+    );
+    if (dirty)
+      await call("", {
+        method: "PUT",
+        body: JSON.stringify({ ...merged, followUpAt: merged.followUpAt || undefined }),
+      });
+    await onPatch({ status: "resolved" });
   }
 
   if (!ticket.resolutionRequired)
@@ -795,7 +820,7 @@ export function ResolutionPanel({
             disabled={
               busy || saving || !readyToResolve || ticket.status === "resolved"
             }
-            onClick={() => void onPatch({ status: "resolved" })}
+            onClick={() => void resolveNow().catch(() => {})}
           >
             <CheckCircle2 size={13} />
             {ticket.status === "resolved" ? "Resolved" : "Mark resolved"}

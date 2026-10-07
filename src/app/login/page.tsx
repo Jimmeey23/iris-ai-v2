@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowRight,
@@ -15,7 +15,7 @@ import {
   Building2,
 } from "lucide-react";
 import { IrisLockup } from "@/components/iris-mark";
-import { useApp } from "@/components/ui";
+import { useApp, useMounted } from "@/components/ui";
 import { STUDIOS, DEPARTMENT_RECORDS } from "@/lib/constants";
 import { reportingManagerFor } from "@/lib/staff-directory";
 import "./login.css";
@@ -68,12 +68,14 @@ export default function LoginPage() {
    * mid-fade on hydration. The poster covers the moment before the choice lands, and a
    * reload picks again — which is what makes it change on every visit.
    */
-  const [pickedFor, setPickedFor] = useState<string | null>(null);
-  const [clip, setClip] = useState<{src: string; poster: string}>(AUTH_CLIPS[0]);
-  if (typeof window !== 'undefined' && pickedFor !== theme) {
-    setPickedFor(theme);
-    setClip(pickClip(theme));
-  }
+  // The hydration render must match the server, which has no theme and no random number, so
+  // it keeps AUTH_CLIPS[0]; `mounted` flips to true only on the re-render after hydration,
+  // and the pick happens then (and again whenever the theme flips).
+  const mounted = useMounted();
+  const clip = useMemo(
+    () => (mounted ? pickClip(theme) : AUTH_CLIPS[0]),
+    [mounted, theme],
+  );
   const [mode, setMode] = useState<"login" | "signup" | "setup">("login"),
     [setupToken, setSetupToken] = useState(""),
     [email, setEmail] = useState(""),
