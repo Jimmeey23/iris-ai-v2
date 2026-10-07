@@ -46,8 +46,8 @@ export async function GET(_req: Request, ctx: Ctx) {
       .int()
       .positive()
       .parse((await ctx.params).id);
-    // Access is checked inside, before any private read; the resolution workspace is only
-    // included for the assigned owner or their reporting manager.
+    // Ticket access is checked inside; resolution history is included for every viewer.
+    // Editing remains restricted to the owner and their reporting manager.
     const bundle = await getTicketBundle(id, actor);
     if (!bundle) throw new ApiError("Ticket not found", 404);
     return Response.json(bundle);

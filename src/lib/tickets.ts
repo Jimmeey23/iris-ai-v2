@@ -1,4 +1,6 @@
 import {and,desc,eq,or,sql,ne,inArray,lt,lte,gt,ilike,type SQL} from 'drizzle-orm';
+import {recurrenceOwner} from './recurrence-assignment';
+import {reportingManagerId} from './reporting-line';
 import {describeTicket} from './ticket-label';
 import {randomUUID} from 'crypto';
 import {db,type Tx} from '@/db';
@@ -209,13 +211,15 @@ export function ticketScope(user?:Identity):SQL|undefined{
   if(!user||user.role==='admin')return undefined;
   const studios=coveredStudios(user);
   const inStudios=studios.length?inArray(tickets.studio,studios):undefined;
-  return user.role==='agent'
+  const reports=user.managedStaffIds?.length?inArray(tickets.assignedStaffId,user.managedStaffIds):undefined;
+  const base=user.role==='agent'
     ? or(
         user.staffId===null?undefined:eq(tickets.assignedStaffId,user.staffId),
         eq(tickets.createdByUserId,user.id),
         inStudios,
       )
-    : and(user.department?eq(tickets.departmentName,user.department):undefined,inStudios,user.department||studios.length?undefined:sql`false`);
+    : or(user.staffId===null?undefined:eq(tickets.assignedStaffId,user.staffId),and(user.department?eq(tickets.departmentName,user.department):undefined,inStudios,user.department||studios.length?undefined:sql`false`));
+  return reports?or(reports,base):base;
 }
 /**
  * Whether the app may send the automatic "assigned to you" email on ticket
@@ -389,20 +393,18 @@ export async function applyEscalations(){
 /** Staff row named by a free-text `manager` field. The field holds a name (sometimes only a
  *  first name, in any case) or occasionally a staff id; an ambiguous name matches nobody. */
 async function findManager(manager:string){
-  const m=manager.trim();if(!m)return undefined;
-  if(/^\d{1,9}$/.test(m)){const[byId]=await db.select({id:staff.id}).from(staff).where(or(eq(staff.id,Number(m)),eq(staff.externalId,m)));if(byId)return byId;}
-  const exact=await db.select({id:staff.id}).from(staff).where(sql`lower(trim(${staff.name})) = ${m.toLowerCase()}`).limit(2);if(exact.length===1)return exact[0];if(exact.length>1)return undefined;
-  const first=m.split(/\s+/)[0].toLowerCase();const byFirst=await db.select({id:staff.id,name:staff.name}).from(staff).where(ilike(staff.name,first.replace(/[\\%_]/g,c=>'\\'+c)+'%')).limit(5);
-  const hits=byFirst.filter(r=>r.name.trim().split(/\s+/)[0].toLowerCase()===first);return hits.length===1?hits[0]:undefined;
+  const directory=await db.select({id:staff.id,externalId:staff.externalId,name:staff.name,manager:staff.manager,isActive:staff.isActive}).from(staff);
+  const id=reportingManagerId(manager,directory);
+  return id===null?undefined:{id};
 }
-/** Resolution is private to the assigned owner and that owner's direct reporting manager.
+/** Resolution editing is restricted to the assigned owner and direct reporting manager.
  *  Per the README there is no blanket administrator override: an admin who is neither the
- *  owner nor their manager cannot read or write it. */
-export async function canResolveTicket(user:{staffId:number|null;role:string}|null,assignedStaffId:number|null,resolutionRequired:boolean):Promise<boolean>{if(!user||!resolutionRequired)return false;if(user.staffId===null||assignedStaffId===null)return false;if(user.staffId===assignedStaffId)return true;const[assignee]=await db.select({manager:staff.manager}).from(staff).where(eq(staff.id,assignedStaffId));if(!assignee?.manager)return false;const managerRow=await findManager(assignee.manager);return managerRow?.id===user.staffId;}
-/** Single gate for every resolution-workspace read and write. Returns the actor and the
+ *  owner nor their manager cannot edit it. */
+export async function canResolveTicket(user:{staffId:number|null;role:string;managedStaffIds?:number[]}|null,assignedStaffId:number|null,resolutionRequired:boolean):Promise<boolean>{if(!user||!resolutionRequired)return false;if(user.staffId===null||assignedStaffId===null)return false;if(user.staffId===assignedStaffId)return true;if(user.managedStaffIds)return user.managedStaffIds.includes(assignedStaffId);const[assignee]=await db.select({manager:staff.manager}).from(staff).where(eq(staff.id,assignedStaffId));if(!assignee?.manager)return false;const managerRow=await findManager(assignee.manager);return managerRow?.id===user.staffId;}
+/** Single gate for resolution-workspace writes. Reads use normal ticket access. Returns the actor and the
  *  ticket so callers do not re-read either. */
-export async function requireResolutionAccess(ticketId:number):Promise<{user:Identity;ticket:typeof tickets.$inferSelect}>{const user=await currentUser();const[ticket]=await db.select().from(tickets).where(eq(tickets.id,ticketId));if(!ticket)throw new ApiError('Ticket not found',404);if(!ticket.resolutionRequired)throw new ApiError('This ticket does not require a resolution.');if(!user)throw new ApiError('Sign in to open the resolution workspace.',401);if(!canAccessTicket(user,ticket))throw new ApiError('You do not have access to this ticket resolution.',403);if(!(await canResolveTicket(user,ticket.assignedStaffId,ticket.resolutionRequired)))throw new ApiError('Only the assigned owner or their reporting manager can open this resolution.',403);return{user,ticket};}
-/** The full private workspace payload. Only ever called once access is proven. */
+export async function requireResolutionAccess(ticketId:number):Promise<{user:Identity;ticket:typeof tickets.$inferSelect}>{const user=await currentUser();const[ticket]=await db.select().from(tickets).where(eq(tickets.id,ticketId));if(!ticket)throw new ApiError('Ticket not found',404);if(!ticket.resolutionRequired)throw new ApiError('This ticket does not require a resolution.');if(!user)throw new ApiError('Sign in to edit the resolution workspace.',401);if(!canAccessTicket(user,ticket))throw new ApiError('You do not have access to this ticket resolution.',403);if(!(await canResolveTicket(user,ticket.assignedStaffId,ticket.resolutionRequired)))throw new ApiError('Only the assigned owner or their reporting manager can edit this resolution.',403);return{user,ticket};}
+/** Full resolution history, readable by every signed-in user with ticket access. */
 export async function getResolutionWorkspace(ticketId:number){const[[resolution],steps,followUps,contacts,attachments]=await Promise.all([
   db.select().from(ticketResolutions).where(eq(ticketResolutions.ticketId,ticketId)),
   db.select().from(ticketResolutionSteps).where(eq(ticketResolutionSteps.ticketId,ticketId)).orderBy(ticketResolutionSteps.createdAt),
@@ -426,15 +428,11 @@ const[canResolve,comments,activities,similar,links,asset]=await Promise.all([
   ticket.assetId?db.select({id:assets.id,name:assets.name,assetTag:assets.assetTag,status:assets.status,type:assets.type,studio:assets.studio}).from(assets).where(eq(assets.id,ticket.assetId)).then(rows=>rows[0]||null):Promise.resolve(null),
 ]);
 const linkedIds=links.map(l=>l.ticketId===id?l.relatedId:l.ticketId);
-// The resolution record, its steps, follow-ups and contact log are private to whoever may
-// resolve the ticket (the assigned owner or their reporting manager) — see the README.
+// Resolution history is shared with everyone who can view this ticket.
+// canResolve controls editing only; it must never suppress the documented history.
 const[linked,workspace]=await Promise.all([
   linkedIds.length?db.select({id:tickets.id,ticketNumber:tickets.ticketNumber,title:tickets.title,status:tickets.status}).from(tickets).where(inArray(tickets.id,linkedIds)):Promise.resolve([]),
-  // `canResolve` — not `resolutionRequired` — is the gate. Reading only the
-  // latter handed the private workspace to anyone who could open the ticket,
-  // administrators included, while the write path (requireResolutionAccess)
-  // correctly refused them. Read and write now answer to the same rule.
-  ticket.resolutionRequired&&canResolve?getResolutionWorkspace(id):Promise.resolve(EMPTY_WORKSPACE),
+  ticket.resolutionRequired?getResolutionWorkspace(id):Promise.resolve(EMPTY_WORKSPACE),
 ]);
 // One rule, in lib/auth, shared with the PATCH route that enforces it. The client uses this
 // only to decide whether to offer the button.
@@ -442,7 +440,7 @@ const canEditDetails=canEditTicketDetails(user,ticket);
 return{ticket,comments,activities,similar,linked,asset,canResolve,canEditDetails,...workspace};}
 
 const TERMINAL=['resolved','closed'];
-/** Guards every status change: record-only use of Recorded, the resolver and the private
+/** Guards every status change: record-only use of Recorded, the resolver and the saved
  *  resolution on the way to resolved/closed, and the workspace's reopen policy. */
 export async function assertStatusTransition(actor:Identity,current:typeof tickets.$inferSelect,next:string,cfg:Config){
   if(next==='recorded'&&current.resolutionRequired)throw new ApiError('Only record-only feedback can use Recorded status.');
@@ -450,7 +448,7 @@ export async function assertStatusTransition(actor:Identity,current:typeof ticke
     if(!(await canResolveTicket(actor,current.assignedStaffId,current.resolutionRequired)))throw new ApiError('Only the assigned owner or their reporting manager may resolve this ticket.',403);
     const[r]=await db.select().from(ticketResolutions).where(eq(ticketResolutions.ticketId,current.id));
     // Action taken is the only required part of the write-up: any non-empty text counts.
-    if(!r?.actionTaken.trim())throw new ApiError('Complete the private resolution action first.');
+    if(!r?.actionTaken.trim())throw new ApiError('Record the resolution action taken first.');
   }
   // Reopening is a policy decision: some teams want resolution to be final, with a fresh
   // ticket raised instead of an old one being reopened weeks later.
@@ -496,10 +494,10 @@ export function isMicTicket(t:{title:string;description:string;subcategory:strin
 export function isAcTicket(t:{title:string;description:string;subcategory:string;category:string}):boolean{return AC_PATTERN.test(`${t.title} ${t.description} ${t.subcategory}`)&&EQUIPMENT_CATEGORIES_FOR_CHECKS.includes(t.category);}
 /** The two re-checks raised when a bike, AC or mic fault is resolved: days after resolution. */
 export const RECURRENCE_CHECK_DAYS=[5,10] as const;
-type ResolvedTicket={id:number;ticketNumber:string;title:string;description:string;subcategory:string;category:string;classFormat:string|null;studio:string|null;area?:string|null;assignedStaffId:number|null;assignedStaffName:string|null;assignedStaffEmail:string|null;departmentId:string|null;departmentName:string|null;memberName:string;trainer:string|null;resolvedAt?:Date|string|null;source?:string;customFields?:Record<string,unknown>|null};
+type ResolvedTicket={createdByUserId?:number|null;createdByName?:string|null;id:number;ticketNumber:string;title:string;description:string;subcategory:string;category:string;classFormat:string|null;studio:string|null;area?:string|null;assignedStaffId:number|null;assignedStaffName:string|null;assignedStaffEmail:string|null;departmentId:string|null;departmentName:string|null;memberName:string;trainer:string|null;resolvedAt?:Date|string|null;source?:string;customFields?:Record<string,unknown>|null};
 const shortDate=(d:Date)=>d.toLocaleDateString('en-IN',{timeZone:'Asia/Kolkata',day:'numeric',month:'short',year:'numeric'});
 /** When a PowerCycle bike, AC or microphone fault is resolved, raise two child tickets for the
- *  same owner — due 5 and 10 days after the resolution — asking the studio to confirm the
+ *  original reporter for AC/bikes (repair owner for microphones) — due 5 and 10 days after resolution — asking the studio to confirm the
  *  fault has not come back. A check is itself never re-checked, and each is raised once:
  *  resolving, re-opening and resolving again does not duplicate them. */
 export async function maybeCreateRecurrenceChecks(resolved:ResolvedTicket){
@@ -510,6 +508,15 @@ export async function maybeCreateRecurrenceChecks(resolved:ResolvedTicket){
   const num=bike?text.match(/bike\s*(?:no\.?|number|#)?\s*(\d{1,3})\b/i):mic?text.match(/\bmic(?:rophone)?\s*(?:no\.?|number|#)?\s*(\d{1,2})\b/i):null;
   const label=bike?(num?`Bike #${num[1]}`:'PowerCycle bike'):ac?'Air-conditioning system':(num?`Mic #${num[1]}`:'Studio microphone');
   const kind=bike?'bike':ac?'ac':'mic';
+  const [reporter] = (bike || ac) && resolved.createdByUserId
+    ? await db.select({id:staff.id,name:staff.name,email:staff.email}).from(appUsers)
+        .innerJoin(staff,eq(appUsers.staffId,staff.id))
+        .where(and(eq(appUsers.id,resolved.createdByUserId),eq(appUsers.active,true),eq(staff.isActive,true)))
+    : [];
+  const owner=recurrenceOwner(kind,{id:resolved.assignedStaffId,name:resolved.assignedStaffName,email:resolved.assignedStaffEmail},reporter||null);
+  const assignmentReason=(bike||ac)
+    ? reporter?`Assigned to ${reporter.name}, who raised ${resolved.ticketNumber}, to verify the repair.`:`Unassigned: the original reporter of ${resolved.ticketNumber} has no active linked staff profile.`
+    : `Assigned to the original microphone repair owner of ${resolved.ticketNumber}.`;
   const base=resolved.resolvedAt?new Date(resolved.resolvedAt):new Date();
   const checklist=bike
     ?['Ride-test the bike for at least 5 minutes','Confirm the original fault has not come back','Check pedal tightness (42 N·m), crank arm torque (52–57 N·m) and the saddle clamp','Test the resistance knob, SprintShift lever and power meter pairing','Ask the trainers who taught on it whether anything felt off','Resolve only once you have confirmed there is no recurrence; if it has returned, say so and escalate to the vendor']
@@ -533,14 +540,14 @@ export async function maybeCreateRecurrenceChecks(resolved:ResolvedTicket){
       preferredContact:'Internal log only',requestedResolution:`Confirm ${label.toLowerCase()} has had no recurrence of the original fault since ${shortDate(base)}.`,
       priority:'medium',severity:inferSeverity('medium'),sentiment:'neutral',
       tags:['auto-follow-up','recurrence-check',`${kind}-recheck`,`day-${days}-check`],
-      customFields:{area:resolved.area||resolved.customFields?.area,parentTicketId:resolved.id,parentTicketNumber:resolved.ticketNumber,autoFollowUp:true,followUpType:'recurrence-check',recheckEquipment:kind,recheckDay:days,recheckOf:RECURRENCE_CHECK_DAYS.length,recheckDueAt:due.toISOString(),firstResolvedAt:base.toISOString(),recurrenceConfirmationRequired:true,relapseDetailsAllowed:true,followUpReason:`Confirm no recurrence ${days} days after resolution`},
-      assignedStaffId:resolved.assignedStaffId,assignedStaffName:resolved.assignedStaffName||'Unassigned',assignedStaffEmail:resolved.assignedStaffEmail||'',assignedStaffRole:'Follow-up owner',
+      customFields:{area:resolved.area||resolved.customFields?.area,parentTicketId:resolved.id,parentTicketNumber:resolved.ticketNumber,autoFollowUp:true,followUpType:'recurrence-check',recheckEquipment:kind,recheckDay:days,recheckOf:RECURRENCE_CHECK_DAYS.length,recheckDueAt:due.toISOString(),firstResolvedAt:base.toISOString(),recurrenceConfirmationRequired:true,relapseDetailsAllowed:true,followUpReason:`Confirm no recurrence ${days} days after resolution`,followUpAssignment:(bike||ac)?'original-reporter':'repair-owner',originalReporterUserId:resolved.createdByUserId||null},
+      assignedStaffId:owner.id,assignedStaffName:owner.name||'Unassigned',assignedStaffEmail:owner.email||'',assignedStaffRole:'Follow-up owner',
       departmentId:resolved.departmentId||'operations',departmentName:resolved.departmentName||'Operations',slaHours,slaLabel:`${days} days from the first resolution`,resolutionRequired:true,
-      opsChecklist:checklist,memberFacingUpdate:'',internalBrief:`Day-${days} recurrence check for ${resolved.ticketNumber} — ${label}.`,routingReason:`Auto-raised ${days}-day recurrence check, same owner as ${resolved.ticketNumber}.`};
+      opsChecklist:checklist,memberFacingUpdate:'',internalBrief:`Day-${days} recurrence check for ${resolved.ticketNumber} — ${label}.`,routingReason:`Auto-raised ${days}-day recurrence check. ${assignmentReason}`};
     const{row:child,created:isNew}=await insertTicketFromDraft(draft,'system','automation',{sourceRef:key,slaDueAt:due});
     if(!isNew)continue;
     await db.insert(ticketLinks).values({ticketId:Math.min(resolved.id,child.id),relatedId:Math.max(resolved.id,child.id),relation:'child'}).onConflictDoNothing();
-    await db.insert(ticketActivities).values({ticketId:child.id,actorName:'IRIS Automation',action:'created',detail:`Auto-raised from ${resolved.ticketNumber} · day-${days} recurrence check due ${shortDate(due)}.`});
+    await db.insert(ticketActivities).values({ticketId:child.id,actorName:'IRIS Automation',action:'created',detail:`Auto-raised from ${resolved.ticketNumber} · day-${days} recurrence check due ${shortDate(due)}. ${assignmentReason}`});
     created.push(child);
   }
   if(created.length)await db.insert(ticketActivities).values({ticketId:resolved.id,actorName:'IRIS Automation',action:'follow_up.created',detail:`Auto-raised ${created.map(c=>c.ticketNumber).join(' and ')} to confirm the ${kind} fault has not returned (${RECURRENCE_CHECK_DAYS.map(d=>d+' days').join(' and ')} after resolution).`});

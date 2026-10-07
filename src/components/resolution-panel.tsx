@@ -180,7 +180,7 @@ type Ticket = {
 export function ResolutionPanel({
   ticket,
   workspace,
-  canResolve,
+  canResolve: permittedToEdit,
   onClose,
   onChanged,
   onPatch,
@@ -201,8 +201,10 @@ export function ResolutionPanel({
   const { notify } = useApp();
   const [section, setSection] = useState<
     "log" | "chase" | "member" | "files" | "writeup"
-  >("log");
-  const [saving, setSaving] = useState(false);
+  >(workspace.resolution?.actionTaken ? "writeup" : "log");
+  const [writing, setWriting] = useState(false);
+  const [resolving, setResolving] = useState(false);
+  const saving = writing || resolving;
   const [step, setStep] = useState("");
   // Everyone with a workspace account can be tagged in the log: a step is internal, and the
   // person who needs to see it is not always the one the ticket is assigned to.
@@ -226,8 +228,14 @@ export function ResolutionPanel({
     ...(workspace.resolution || {}),
   }));
   const [status, setStatus] = useState(ticket.status);
+  const [statusFor, setStatusFor] = useState(ticket.status);
+  if (statusFor !== ticket.status) {
+    setStatusFor(ticket.status);
+    setStatus(ticket.status);
+  }
   const [refusal, setRefusal] = useState("");
   const [files, setFiles] = useState<File[]>([]);
+  const canResolve = permittedToEdit && !refusal;
 
   const now = useNow();
   const defaultDue = useMemo(
@@ -270,7 +278,7 @@ export function ResolutionPanel({
   }, [workspace, openFollowUps]);
 
   async function call(path: string, init: RequestInit) {
-    setSaving(true);
+    setWriting(true);
     try {
       onChanged(
         await api<ResolutionWorkspace>(
@@ -287,30 +295,34 @@ export function ResolutionPanel({
       } else notify(message, "error");
       throw e;
     } finally {
-      setSaving(false);
+      setWriting(false);
     }
   }
 
-  /** Resolving with an unsaved write-up used to fail on the server ("Complete the private
-   *  resolution action first") because the button read the draft while the server reads the
+  /** Resolving with an unsaved write-up used to fail on the server ("Record the resolution action taken first") because the button read the draft while the server reads the
    *  saved row. Save the write-up first when it differs, then change the status. */
-  async function resolveNow() {
-    // Empty draft fields never overwrite what is already saved: the panel can be opened on a
-    // ticket whose write-up loaded after the form seeded itself.
-    const merged = { ...workspace.resolution, ...draft } as Resolution;
-    SUMMARY_FIELDS.forEach((f) => {
-      if (!draft[f.key].trim() && workspace.resolution?.[f.key])
-        merged[f.key] = workspace.resolution[f.key];
-    });
-    const dirty = SUMMARY_FIELDS.some(
-      (f) => (merged[f.key] || "").trim() !== (workspace.resolution?.[f.key] || "").trim(),
-    );
-    if (dirty)
-      await call("", {
-        method: "PUT",
-        body: JSON.stringify({ ...merged, followUpAt: merged.followUpAt || undefined }),
+  async function resolveNow(target: "resolved" | "closed" = "resolved") {
+    setResolving(true);
+    try {
+      // Empty draft fields never overwrite what is already saved: the panel can be opened on a
+      // ticket whose write-up loaded after the form seeded itself.
+      const merged = { ...workspace.resolution, ...draft } as Resolution;
+      SUMMARY_FIELDS.forEach((f) => {
+        if (!draft[f.key].trim() && workspace.resolution?.[f.key])
+          merged[f.key] = workspace.resolution[f.key];
       });
-    await onPatch({ status: "resolved" });
+      const dirty = SUMMARY_FIELDS.some(
+        (f) => (merged[f.key] || "").trim() !== (workspace.resolution?.[f.key] || "").trim(),
+      );
+      if (dirty)
+        await call("", {
+          method: "PUT",
+          body: JSON.stringify({ ...merged, followUpAt: merged.followUpAt || undefined }),
+        });
+      await onPatch({ status: target });
+    } finally {
+      setResolving(false);
+    }
   }
 
   if (!ticket.resolutionRequired)
@@ -324,33 +336,16 @@ export function ResolutionPanel({
       </aside>
     );
 
-  // The resolution is visible to everyone with ticket access; only writing to it is
-  // restricted to the assigned owner and their reporting manager. A `refusal` means a
+  // Resolution history is shared; edits belong to the owner and reporting manager. A refusal means a
   // write slipped through client-side despite that (e.g. a stale canResolve after a
   // reassignment) and the server said no — fall back to a locked view rather than
   // repeat the same error on every click.
-  if (refusal)
-    return (
-      <aside className={"rw resolution-v2" + (variant === "modal" ? " rw-modal" : "")} aria-label="Resolution">
-        <RwHead onClose={onClose} completion={0} />
-        <p className="rw-note locked">
-          <LockKeyhole size={12} />
-          Private to {ticket.assignedStaffName || "the assigned owner"} and
-          their reporting manager.
-        </p>
-        <p className="rw-empty">
-          Only the assigned owner or their reporting manager can update this
-          ticket&apos;s work log, follow-ups, member contacts and write-up.
-        </p>
-      </aside>
-    );
-
   const tabs = [
-    { id: "log", label: "Work log", count: workspace.steps.length, icon: ListChecks },
+    { id: "log", label: "Steps", count: workspace.steps.length, icon: ListChecks },
     { id: "chase", label: "Follow-ups", count: openFollowUps.length, icon: BellRing },
-    { id: "member", label: "Member", count: workspace.contacts.length, icon: ContactRound },
+    { id: "member", label: "Contact", count: workspace.contacts.length, icon: ContactRound },
     { id: "files", label: "Files", count: workspace.attachments.length, icon: Paperclip },
-    { id: "writeup", label: "Write-up", count: hasWriteUp ? 1 : 0, icon: FileCheck2 },
+    { id: "writeup", label: "Summary", count: hasWriteUp ? 1 : 0, icon: FileCheck2 },
   ] as const;
 
   return (
@@ -360,9 +355,9 @@ export function ResolutionPanel({
       <div className="rw-command-bar">
         <p className="rw-note">
           {canResolve ? (
-            <><PencilLine size={12} />Owner workspace · changes are privately controlled.</>
+            <><PencilLine size={12} />Owner & reporting manager workspace.</>
           ) : (
-            <><LockKeyhole size={12} />Read only · owned by {ticket.assignedStaffName || "the assigned owner"}.</>
+            <><LockKeyhole size={12} />View access · only {ticket.assignedStaffName || "the owner"} and their reporting manager can edit.</>
           )}
         </p>
         {canResolve && (
@@ -378,8 +373,8 @@ export function ResolutionPanel({
             </select>
             <button
               className="btn btn-sm"
-              disabled={busy || saving || status === ticket.status}
-              onClick={() => void onPatch({ status })}
+              disabled={busy || saving || status === ticket.status || (["resolved", "closed"].includes(status) && !readyToResolve)}
+              onClick={() => void (status === "resolved" || status === "closed" ? resolveNow(status) : onPatch({ status })).catch(() => {})}
             >
               Apply
             </button>
@@ -804,7 +799,7 @@ export function ResolutionPanel({
               ))}
             </div>
           ) : (
-            <p className="rw-empty">The owner has not written this up yet.</p>
+            <p className="rw-empty">No resolution write-up has been recorded yet.</p>
           ))}
       </div>
 
@@ -871,9 +866,9 @@ function RwHead({
       <div className="rw-completion">
         <CompletionRing value={completion} />
         <div className="rw-completion-meta">
-          <span className="rw-kicker">PRIVATE WORKSPACE</span>
+          <span className="rw-kicker">RESOLUTION HISTORY</span>
           <strong>Case resolution</strong>
-          <span>{Math.round(completion * 100)}% complete · owner controlled</span>
+          <span>{Math.round(completion * 100)}% documented</span>
         </div>
       </div>
       <button onClick={onClose} aria-label="Close resolution">

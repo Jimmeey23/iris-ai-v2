@@ -4,7 +4,8 @@ import { createHash, randomBytes } from "crypto";
 import { and, eq, isNull } from "drizzle-orm";
 import type { User } from "@supabase/supabase-js";
 import { db } from "@/db";
-import { appUsers } from "@/db/schema";
+import { directReportIds } from "./reporting-line";
+import { appUsers, staff } from "@/db/schema";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { reportError } from "@/lib/observability";
 
@@ -14,6 +15,8 @@ export type Identity = {
   email: string;
   role: "agent" | "manager" | "admin";
   staffId: number | null;
+  /** Server-derived direct reports; never accepted from request bodies. */
+  managedStaffIds?: number[];
   department: string | null;
   /** The primary studio, for display and for defaulting a new ticket. */
   studio: string | null;
@@ -161,12 +164,13 @@ export type ProfileResult =
   | { identity: Identity; reason?: undefined }
   | { identity: null; reason: "inactive" | "not_authorised" };
 
-function toResult(row: ProfileRow | undefined): ProfileResult {
+async function toResult(row: ProfileRow | undefined): Promise<ProfileResult> {
   if (!row) return { identity: null, reason: "not_authorised" };
   if (!row.active) return { identity: null, reason: "inactive" };
   const { active: _active, supabaseUserId: _link, ...identity } = row;
+  const directory = identity.staffId === null ? [] : await db.select({id: staff.id, externalId: staff.externalId, name: staff.name, manager: staff.manager, isActive: staff.isActive}).from(staff);
   return {
-    identity: { ...identity, role: identity.role as Identity["role"] },
+    identity: { ...identity, role: identity.role as Identity["role"], managedStaffIds: identity.staffId === null ? [] : directReportIds(identity.staffId, directory) },
   };
 }
 
@@ -399,6 +403,7 @@ export function canAccessTicket(
   },
 ) {
   if (user.role === "admin") return true;
+  if (ticket.assignedStaffId !== null && (ticket.assignedStaffId === user.staffId || user.managedStaffIds?.includes(ticket.assignedStaffId))) return true;
   // An agent sees their own work *and* everything logged for their studio. A
   // studio is a shared workplace: an associate covering the floor needs the
   // tickets raised by whoever was on shift before them, not only the ones with

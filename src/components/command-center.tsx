@@ -64,10 +64,10 @@ const KANBAN_FIELDS: Array<{id: KanbanField; label: string}> = [
   {id: 'sla', label: 'SLA timer'},
 ];
 
-export function CommandCenter({directory = false}: {directory?: boolean}) {
+export function CommandCenter({directory = false, assignedOnly = false}: {directory?: boolean; assignedOnly?: boolean}) {
   const {tickets, loading, error, reload} = useTickets();
   const {user, view, setView, notify, staleTicketDays} = useApp();
-  const {prefs, views, loaded, update, setFilters, resetFilters, saveView, deleteView} = useDashboardPrefs();
+  const {prefs, views, loaded, update, setFilters: setSharedFilters, resetFilters: resetSharedFilters, saveView, deleteView} = useDashboardPrefs();
 
   const [detail, setDetail] = useState<number>();
   const [create, setCreate] = useState(false);
@@ -81,7 +81,16 @@ export function CommandCenter({directory = false}: {directory?: boolean}) {
   const [page, setPage] = useState(0);
   const [uiReady, setUiReady] = useState(false);
 
-  const f = prefs.filters;
+  // The personal queue starts with every assignment, independent of shared directory filters.
+  const [personalFilters, setPersonalFilters] = useState<FilterState>(EMPTY_FILTERS);
+  const f = assignedOnly ? personalFilters : prefs.filters;
+  const setFilters = (patch: Partial<FilterState>) => assignedOnly
+    ? setPersonalFilters(current => ({...current, ...patch})) : setSharedFilters(patch);
+  const resetFilters = () => assignedOnly ? setPersonalFilters(EMPTY_FILTERS) : resetSharedFilters();
+  const staffId = user?.staffId;
+  const queue = useMemo(() => assignedOnly
+    ? tickets.filter(ticket => staffId != null && ticket.assignedStaffId === staffId)
+    : tickets, [tickets, assignedOnly, staffId]);
   // Captured once on mount rather than read inline, so render stays pure; the interval-driven
   // ticket reload (see useTickets) is what keeps this screen from ever going stale for long.
   const [now] = useState(() => Date.now());
@@ -89,7 +98,7 @@ export function CommandCenter({directory = false}: {directory?: boolean}) {
   const changeFilters = (patch: Partial<FilterState>) => { setFilters(patch); setPage(0); };
   const clearFilters = () => { resetFilters(); setPage(0); };
 
-  const filtered = useMemo(() => applyFilters(tickets, f), [tickets, f]);
+  const filtered = useMemo(() => applyFilters(queue, f), [queue, f]);
 
   // The tab is a further cut on top of the filters, not a replacement for them.
   const tabbed = useMemo(() => {
@@ -240,7 +249,7 @@ export function CommandCenter({directory = false}: {directory?: boolean}) {
     <section className="card tickets-panel">
       <div className="section-head">
         <div className="tickets-title">
-          <h2>{directory ? 'All logged tickets' : 'Ticket workspace'}</h2>
+          <h2>{assignedOnly ? 'Your assigned tickets' : directory ? 'All logged tickets' : 'Ticket workspace'}</h2>
           <span className="small-counter">{tabbed.length}</span>
         </div>
         <div className="flex-row">
@@ -267,7 +276,7 @@ export function CommandCenter({directory = false}: {directory?: boolean}) {
             void reload();
           } else changeFilters({tab});
         }}
-        items={TABS.map((t) => ({id: t.id, label: t.name, count: tabCounts[t.id as keyof typeof tabCounts]}))}
+        items={TABS.filter(t => !assignedOnly || t.id !== 'mine').map((t) => ({id: t.id, label: assignedOnly && t.id === 'all' ? 'All assigned' : t.name, count: tabCounts[t.id as keyof typeof tabCounts]}))}
       />
 
       <TicketFilters
@@ -347,8 +356,8 @@ export function CommandCenter({directory = false}: {directory?: boolean}) {
         : !tabbed.length ? (
           <Empty
             art="search"
-            title={f.tab === 'mine' && !user ? 'Sign in for your personal queue' : 'Nothing matches'}
-            detail={f.tab === 'mine' && !user ? 'Link your staff profile to see assigned tickets.' : 'No tickets match the current filters.'}
+            title={assignedOnly && staffId == null ? 'Staff profile not linked' : f.tab === 'mine' && !user ? 'Sign in for your personal queue' : assignedOnly && !queue.length ? 'No tickets assigned to you' : 'Nothing matches'}
+            detail={assignedOnly && staffId == null ? 'Ask an administrator to link your workspace account to your staff profile.' : f.tab === 'mine' && !user ? 'Link your staff profile to see assigned tickets.' : assignedOnly && !queue.length ? 'Your assigned tickets will appear here automatically.' : 'No tickets match the current filters.'}
             action={<button className="btn" onClick={resetFilters}>Clear filters</button>}
           />
         )
@@ -393,8 +402,8 @@ export function CommandCenter({directory = false}: {directory?: boolean}) {
     </section>
   );
 
-  const shellTitle = directory ? 'Every ticket, one shared log.' : `Welcome${user?.name ? `, ${user.name.trim().split(/\s+/)[0]}` : ''}`;
-  const shellEyebrow = directory ? 'TICKET DIRECTORY' : 'INTERNAL OPERATIONS';
+  const shellTitle = assignedOnly ? 'Assigned to me' : directory ? 'All tickets' : `Welcome${user?.name ? `, ${user.name.trim().split(/\s+/)[0]}` : ''}`;
+  const shellEyebrow = assignedOnly ? 'YOUR PERSONAL QUEUE' : directory ? 'TICKET DIRECTORY' : 'INTERNAL OPERATIONS';
   const shellAction = (
     <div className="flex-row">
       <select className="btn" aria-label="Reporting date range" value={f.from || f.to ? 'custom' : f.range} onChange={(e) => changeFilters({range: e.target.value, from: '', to: ''})}>

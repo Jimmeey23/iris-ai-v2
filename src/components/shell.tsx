@@ -32,6 +32,7 @@ import {
   MessageSquareWarning,
   Lock,
   LogOut,
+  UserRoundCheck,
 } from "lucide-react";
 import {
   useApp,
@@ -60,6 +61,7 @@ const nav: NavItem[] = [
   { href: "/iris", label: "IRIS assistant", icon: Bot },
   { href: "/radar", label: "Radar", icon: Radar },
   { href: "/tickets", label: "All tickets", icon: Tickets },
+  { href: "/assigned", label: "Assigned to me", icon: UserRoundCheck },
   { href: "/equipment", label: "Equipment", icon: Drill },
   { href: "/templates", label: "Template library", icon: LibraryBig },
   { href: "/reports", label: "Reports library", icon: Files },

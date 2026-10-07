@@ -8,6 +8,7 @@ import './intake.css';
 import './trainers.css';
 import './feedback.css';
 import './tour.css';
+import './premium.css';
 const outfit=Outfit({subsets:['latin'],variable:'--font-outfit',display:'swap'});
 const spaceGrotesk=Space_Grotesk({subsets:['latin'],variable:'--font-space',display:'swap',weight:['500','600','700']});
 const jetbrainsMono=JetBrains_Mono({subsets:['latin'],variable:'--font-mono-tech',display:'swap',weight:['400','500','600']});

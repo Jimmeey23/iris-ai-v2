@@ -30,7 +30,7 @@ export async function PUT(req:Request,ctx:Ctx){try{
   const b=z.object({rootCause:z.string().max(5000),actionTaken:z.string().max(5000),preventiveAction:z.string().max(5000),memberOutcome:z.string().max(5000),followUpAt:z.string().max(100).optional()}).parse(await req.json());
   await db.transaction(async tx=>{
     await tx.insert(ticketResolutions).values({ticketId:id,authorUserId:user.id,...b}).onConflictDoUpdate({target:ticketResolutions.ticketId,set:{...b,authorUserId:user.id,updatedAt:new Date()}});
-    await tx.insert(ticketActivities).values({ticketId:id,actorName:user.name,action:'resolution.updated',detail:'Private owner-only resolution updated.'});
+    await tx.insert(ticketActivities).values({ticketId:id,actorName:user.name,action:'resolution.updated',detail:'Resolution write-up updated.'});
   });
   // The write landed: tell the other open boards, so a teammate sees this without
   // waiting for their poll. Advisory only — see lib/realtime.

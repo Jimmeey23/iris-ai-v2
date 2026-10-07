@@ -221,6 +221,7 @@ export function TicketDialog({
     if (open) {
       setBundle(undefined);
       setTab("overview");
+      setRailOpen(false);
     }
   }
   useEffect(() => {
@@ -702,18 +703,17 @@ export function TicketDialog({
                 <button
                   type="button"
                   className={"rail-toggle" + (railOpen ? " active" : "")}
-                  onClick={() => setRailOpen((v) => !v)}
+                  onClick={() => { setTab("overview"); setRailOpen((v) => !v); }}
                   aria-expanded={railOpen}
                   title={
                     bundle.canResolve
                       ? undefined
-                      : "Private to the assigned owner and their reporting manager"
+                      : "Visible to everyone with ticket access; editable by the owner and reporting manager"
                   }
                 >
-                  <LockKeyhole size={12} />
+                  <FileText size={12} />
                   Resolution
-                  {bundle.canResolve &&
-                    bundle.steps.length +
+                  {bundle.steps.length +
                       bundle.followUps.filter((f) => !f.done).length >
                       0 && (
                       <span>
@@ -1248,46 +1248,32 @@ export function TicketDialog({
                 </div>
 
               </div>
+              {railOpen && (
+                <ResolutionPanel
+                  key={t.id}
+                  ticket={t}
+                  canResolve={bundle.canResolve}
+                  workspace={{
+                    resolution: bundle.resolution,
+                    steps: bundle.steps,
+                    followUps: bundle.followUps,
+                    contacts: bundle.contacts,
+                    attachments: bundle.attachments,
+                  }}
+                  busy={busy}
+                  onClose={() => setRailOpen(false)}
+                  onChanged={(w: ResolutionWorkspace) =>
+                    setBundle((b) => (b ? { ...b, ...w } : b))
+                  }
+                  onPatch={async (pp) => {
+                    await patch(pp);
+                  }}
+                />
+              )}
             </div>
           </div>
         )}
       </Modal>
-      {/* The resolution workspace, popped out.
-          It used to be a column inside the ticket dialog, which left the work log about 200px
-          tall — a scroll inside a scroll, and the one surface where somebody is actually
-          writing. Here it gets the full dialog: the five sections stay as tabs, each with room
-          to show its own content. */}
-      {t && railOpen && (
-        <Modal
-          open
-          onClose={() => setRailOpen(false)}
-          title={`Resolution · ${t.ticketNumber}`}
-          description={t.title}
-          size="wide"
-          resetKey={String(t.id)}
-        >
-          <ResolutionPanel
-            ticket={t}
-            variant="modal"
-            canResolve={bundle.canResolve}
-            workspace={{
-              resolution: bundle.resolution,
-              steps: bundle.steps,
-              followUps: bundle.followUps,
-              contacts: bundle.contacts,
-              attachments: bundle.attachments,
-            }}
-            busy={busy}
-            onClose={() => setRailOpen(false)}
-            onChanged={(w: ResolutionWorkspace) =>
-              setBundle((b) => (b ? { ...b, ...w } : b))
-            }
-            onPatch={async (pp) => {
-              await patch(pp);
-            }}
-          />
-        </Modal>
-      )}
       {t && bundle?.canEditDetails && (
         <Modal
           open={editOpen}

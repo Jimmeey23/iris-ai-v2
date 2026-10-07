@@ -3,7 +3,7 @@ import {and, eq} from 'drizzle-orm';
 import {z} from 'zod';
 import {db} from '@/db';
 import {ticketActivities, ticketResolutionAttachments, tickets} from '@/db/schema';
-import {ApiError, currentUser, errorResponse, requireTicketAccess, requireWorkspace, sameOrigin} from '@/lib/auth';
+import {ApiError, currentUser, errorResponse, requireTicketAccess, sameOrigin} from '@/lib/auth';
 import {getResolutionWorkspace, requireResolutionAccess} from '@/lib/tickets';
 import {after} from 'next/server';
 import {signalChanged} from '@/lib/realtime';
@@ -18,10 +18,7 @@ export async function POST(req: Request, ctx: Ctx) {
   try {
     sameOrigin(req);
     const ticketId = await idOf(ctx);
-    const user = await requireWorkspace();
-    const [ticket] = await db.select().from(tickets).where(eq(tickets.id, ticketId));
-    if (!ticket) throw new ApiError('Ticket not found', 404);
-    requireTicketAccess(user, ticket);
+    const {user} = await requireResolutionAccess(ticketId);
     const form = await req.formData();
     const files = form.getAll('files').filter((item): item is File => item instanceof File);
     if (!files.length) throw new ApiError('Choose at least one document or recording.');
@@ -67,8 +64,10 @@ export async function DELETE(req: Request, ctx: Ctx) {
     const attachmentId = z.string().uuid().parse(new URL(req.url).searchParams.get('attachmentId'));
     const [row] = await db.select().from(ticketResolutionAttachments).where(and(eq(ticketResolutionAttachments.id, attachmentId), eq(ticketResolutionAttachments.ticketId, ticketId)));
     if (!row) throw new ApiError('Attachment not found', 404);
-    if (row.uploadedByUserId !== user.id && user.role !== 'admin') throw new ApiError('Only the person who uploaded this file can remove it.', 403);
-    await db.delete(ticketResolutionAttachments).where(eq(ticketResolutionAttachments.id, attachmentId));
+    await db.transaction(async tx => {
+      await tx.delete(ticketResolutionAttachments).where(eq(ticketResolutionAttachments.id, attachmentId));
+      await tx.insert(ticketActivities).values({ticketId, actorName:user.name, action:'resolution.attachment.removed', detail:`Supporting file removed: ${row.fileName}`});
+    });
     // The write landed: tell the other open boards, so a teammate sees this without
     // waiting for their poll. Advisory only — see lib/realtime.
     after(() => signalChanged('tickets'));

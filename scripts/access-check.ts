@@ -77,13 +77,19 @@ check('a manager needs department and studio to agree',
 check('a manager with neither department nor studio sees nothing',
   !canAccessTicket(user({role: 'manager'}), ticket({})));
 
+section('Owner and direct-report access across scopes');
+const reportingManager = user({role: 'manager', staffId: 10, managedStaffIds: [99]});
+check('a reporting manager can open direct-report tickets outside their scope', canAccessTicket(reportingManager, ticket()));
+check('an assigned manager can open their own ticket without studio cover', canAccessTicket(user({role: 'manager'}), ticket({assignedStaffId: 10})));
+check('an unrelated manager has no extra access', !canAccessTicket(reportingManager, ticket({assignedStaffId: 88})));
+
 section('The SQL twin agrees');
 check('an admin gets no filter', ticketScope(user({role: 'admin'})) === undefined);
 check('an anonymous caller gets no filter', ticketScope(undefined) === undefined);
 /** The literal values bound into a scope's SQL. Drizzle's SQL objects reference their
  *  table and are circular, so walk the query chunks rather than serialising them. */
 function boundValues(node: unknown, seen = new Set<unknown>(), depth = 0): string[] {
-  if (depth > 8 || node === null || node === undefined) return [];
+  if (depth > 16 || node === null || node === undefined) return [];
   if (typeof node === 'string' || typeof node === 'number' || typeof node === 'boolean') return [String(node)];
   if (typeof node !== 'object' || seen.has(node)) return [];
   seen.add(node);
@@ -102,6 +108,9 @@ check('a multi-studio associate filters on every studio',
   [KWALITY, SUPREME, COURTSIDE].every(s => sqlFor(trainer).includes(s)), sqlFor(trainer));
 check('a manager with nothing set produces a filter that excludes everything',
   sqlFor(user({role: 'manager'})).includes('false'), sqlFor(user({role: 'manager'})));
+
+check('a reporting manager list binds the direct-report staff id', sqlFor(reportingManager).includes('99'));
+check('a manager list includes their own assigned staff id', sqlFor(user({role: 'manager'})).includes('10'));
 
 section('Route protection is actually wired up');
 // Next resolves the proxy only when it sits beside `app`. This project keeps its app

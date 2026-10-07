@@ -53,7 +53,8 @@ Never commit `.env` or the integration encryption key. The database contains mem
 - Template cards open structured guided forms. Category-specific fields, hosted-class feedback and weighted trainer assessments are included. Templates may be edited in **Settings → Database explorer → templates**.
 - Creation uses a shared validated contract with deterministic department routing, active studio-aware staff matching, tags, response targets and idempotency keys.
 - Compliments, qualifying positive feedback and assessments can be record-only: no SLA deadline and no required resolution.
-- Only the current assigned owner's authenticated staff account can read or write private resolutions. Administrators do not receive a blanket resolution override.
+- Every signed-in user with ticket access can view resolution notes, steps, action taken, follow-ups, contacts, attachments and activity. Only the assigned owner or their direct reporting manager can edit resolution records or resolve the ticket; administrators have no blanket editing override.
+- AC and bike repairs generate day-5/day-10 recurrence checks assigned to the original reporter's active linked staff profile. If that profile is unavailable, the checks are explicitly unassigned for routing. Microphone checks retain the repair owner.
 - Ticket edits use revision checks. Tickets can be duplicated and manually related; same-category/subcategory suggestions are queried from the database.
 - List, board and card views, filters, CSV exports, saved views, themes, settings, accounts and audit trails persist.
 
