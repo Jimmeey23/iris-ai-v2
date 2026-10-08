@@ -1031,9 +1031,9 @@ export function Status({ status }: { status: string }) {
 }
 export function Priority({ priority }: { priority: string }) {
   return (
-    <span className={cn("badge", "priority-" + priority)}>
-      <span style={{ fontSize: 11 }}>≋</span>
-      {priority.replace(/^./, (c) => c.toUpperCase())}
+    <span className={cn("badge", "priority-badge", "priority-" + priority)}>
+      <i className="priority-dot" aria-hidden="true" />
+      <span>{priority.replace(/^./, (c) => c.toUpperCase())}</span>
     </span>
   );
 }
