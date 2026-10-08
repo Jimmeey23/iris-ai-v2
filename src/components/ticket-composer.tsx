@@ -50,6 +50,7 @@ import { CATEGORY_MAP, STUDIOS, REPORTED_BY_OPTIONS } from "@/lib/constants";
 import { display, object, indiaDate, niceKey } from "@/lib/display";
 import { scoreAssessment } from "@/lib/guided-templates";
 import { AttachmentPreviewList, FileUpload, type UploadedFile } from "./file-upload";
+import {hostedFeedbackError} from '@/lib/hosted-feedback';
 
 type HostedAttendee = {
   key: string;
@@ -621,6 +622,9 @@ export function TicketComposer({
     }
   }
   async function review() {
+    if (hostedTemplate && hostedBusy) { setError('Wait for the selected hosted class roster to finish loading.'); return; }
+    const rosterError = hostedFeedbackError(String(form.category || ''), String(form.subcategory || ''), hostedAttendees);
+    if (rosterError) { setError(rosterError); return; }
     if (memberInvolved && !String(form.momenceMemberId || "")) {
       setError("Link the community member from Momence before continuing.");
       return;
@@ -723,6 +727,8 @@ export function TicketComposer({
   }
   async function submit() {
     if (!draft) return;
+    const rosterError = hostedFeedbackError(draft.category, draft.subcategory, draft.customFields.hostedAttendees);
+    if (rosterError) { setError(rosterError); return; }
     setBusy(true);
     setError("");
     try {
@@ -737,7 +743,7 @@ export function TicketComposer({
         const uploadBody = new FormData();
         attachments.forEach(a => { if (a.file) uploadBody.append('files', a.file); });
         const upload = await fetch(`/api/tickets/${d.ticket.id}/resolution/attachments`, {method: 'POST', body: uploadBody});
-        if (!upload.ok) notify('Ticket created, but one or more supporting files could not be attached.', 'error');
+        if (!upload.ok) throw new Error(`${d.ticket.ticketNumber} was saved, but its attachments could not be uploaded. Retry filing to attach the files to the same ticket.`);
       }
       if (draftId)
         await api(`/api/drafts?id=${draftId}`, { method: "DELETE" }).catch(
@@ -1251,7 +1257,7 @@ export function TicketComposer({
                                 <th>ATTENDEE</th>
                                 <th>SESSION</th>
                                 <th>STATUS</th>
-                                <th>COMMENTS</th>
+                                <th>COMMENTS · REQUIRED</th>
                                 <th>DETAILS</th>
                                 <th />
                               </tr>
@@ -1310,6 +1316,8 @@ export function TicketComposer({
                                   <td>
                                     <input
                                       value={row.comments}
+                                      required
+                                      aria-label={`Required comment for ${row.attendee || 'member'}`}
                                       onChange={(e) =>
                                         setHostedAttendees((a) =>
                                           a.map((x, i) =>

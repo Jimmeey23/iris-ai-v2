@@ -18,6 +18,7 @@ import {CategoryArt, CATEGORY_TONE, HeroBackdrop} from '../ticket-art';
 import {CategoryGrid, SubcategoryGrid} from './pickers';
 import {ClassDesk, type ClassDeskResult} from './class-desk';
 import {ReviewSheet} from './review-sheet';
+import {hostedFeedbackError} from '@/lib/hosted-feedback';
 import {LookupChip} from './lookup-field';
 import type {IntakeCategory, IntakePlan, IntakeTaxonomy} from './types';
 import {InlineFormDesigner} from '@/components/inline-form-designer';
@@ -77,6 +78,7 @@ export function IntakeFlow({presetCategory, presetSubcategory, presetDesk, onLeg
   // One section open at a time; undefined opens the first.
   const [openSec, setOpenSec] = useState<string | null | undefined>(undefined);
   const [hostedRows, setHostedRows] = useState<HostedRow[]>([]);
+  const [hostedStatus, setHostedStatus] = useState<'loading' | 'ready' | 'error'>('ready');
   const [kind, setKind] = useState<TicketKind>('issue');
   const [requiredOnly, setRequiredOnly] = useState(false);
   const [classDetail, setClassDetail] = useState<SessionDetail | null>(null);
@@ -339,6 +341,8 @@ export function IntakeFlow({presetCategory, presetSubcategory, presetDesk, onLeg
   };
   const file = async () => {
     if (!plan || !category) return;
+    const rosterError = hostedError;
+    if (rosterError) { setFileError(rosterError); return; }
     setBusy(true); setFileError('');
     try {
       const input = toTicketInput({category: category.name, sub, fields, data, kind, submissionKey, classSnapshot, hostedAttendees: hostedClass ? hostedRows.filter(r => r.name.trim()).map(r => ({name: r.name, memberId: r.memberId, email: r.email, session: r.session, booking: r.booking, attendance: r.attendance, outcome: r.outcome, followUp: r.followUp, flags: r.flags.map(f => HOSTED_FLAGS.find(x => x.id === f)?.label || f), note: r.note})) : undefined, memberDetail: memberDetail ? {email: memberDetail.email, phone: memberDetail.phone, membership: memberDetail.membership} : undefined, momenceContext: memberDetail?.context});
@@ -348,7 +352,7 @@ export function IntakeFlow({presetCategory, presetSubcategory, presetDesk, onLeg
         const form = new FormData();
         attachments.forEach(a => { if (a.file) form.append('files', a.file); });
         const upload = await fetch(`/api/tickets/${ticket.id}/resolution/attachments`, {method: 'POST', body: form});
-        if (!upload.ok) notify('Ticket created, but one or more supporting files could not be attached.', 'error');
+        if (!upload.ok) throw new Error(`${ticket.ticketNumber} was saved, but its attachments could not be uploaded. Retry filing to attach the files to the same ticket.`);
       }
       window.dispatchEvent(new Event('iris:tickets-updated'));
       setResult({ticket, draft}); setReview(false); setStep('done');
@@ -380,6 +384,9 @@ export function IntakeFlow({presetCategory, presetSubcategory, presetDesk, onLeg
   const tips = useMemo(() => category && sub ? tipsFor(category.name, sub) : [], [category, sub]);
   const alert = step === 'form' ? alertFor(data) : null;
   const hostedClass = category?.name === 'Brand Feedback' && /hosted class/i.test(sub);
+  const hostedError = hostedClass && hostedStatus !== 'ready'
+    ? hostedStatus === 'loading' ? 'Wait for the selected class roster to finish loading.' : 'Retry loading the selected class roster before filing feedback.'
+    : category ? hostedFeedbackError(category.name, sub, hostedRows) : null;
   const baseSections = useMemo(() => groupSections(fields, data, {hidden: headerIds(fields), requiredOnly, gatingIds, errors}), [fields, data, requiredOnly, gatingIds, errors]);
   // The roster fills the head-count questions it can answer, never over a typed number.
   const onHostedRows = useCallback((next: HostedRow[] | ((prev: HostedRow[]) => HostedRow[]), loaded?: {firstTimers: number; booked: number}) => {
@@ -396,8 +403,8 @@ export function IntakeFlow({presetCategory, presetSubcategory, presetDesk, onLeg
   }, []);
   const injected: InjectedSection[] = hostedClass ? [{
     name: 'Attendees', after: baseSections.some(x => x.name === 'Class context') ? 'Class context' : 'Where & when',
-    answered: hostedRows.filter(r => r.attendance && r.outcome).length, total: hostedRows.length,
-    body: <HostedRoster sessions={data.class_date} rows={hostedRows} onRows={onHostedRows} />,
+    answered: hostedRows.filter(r => r.attendance && r.outcome && r.note.trim()).length, total: hostedRows.length,
+    body: <HostedRoster sessions={data.class_date} rows={hostedRows} onRows={onHostedRows} onStatus={setHostedStatus} />,
   }] : [];
   const navSections = withInjected(baseSections, injected);
   const focus = useMemo(() => focusOf(visible.filter(f => !headerIds(fields).has(f.id))), [visible, fields]);
@@ -572,7 +579,7 @@ export function IntakeFlow({presetCategory, presetSubcategory, presetDesk, onLeg
 
       {plan && category && (
         <ReviewSheet open={review} onClose={() => setReview(false)} plan={plan} data={data} kind={kind} priority={priority} slaHours={slaHours} recordOnly={recordOnly}
-          missing={summaryShort ? [...missing, ...(missing.some(f => f.id === 'summary') ? [] : fields.filter(f => f.id === 'summary'))] : missing} gating={gating} onFix={fix} onFile={file} busy={busy} error={fileError} classSnapshot={classSnapshot} />
+          missing={summaryShort ? [...missing, ...(missing.some(f => f.id === 'summary') ? [] : fields.filter(f => f.id === 'summary'))] : missing} gating={[...gating, ...(hostedError ? [{id: '_hosted_comments', label: 'Hosted class member comments', reason: hostedError}] : [])]} onFix={id => { if (id === '_hosted_comments') { setReview(false); jump('Attendees'); } else fix(id); }} onFile={file} busy={busy} error={fileError} classSnapshot={classSnapshot} />
       )}
       <PasscodeDialog open={askPass} onClose={() => setAskPass(false)} onUnlock={() => { setDesignUnlocked(true); setAskPass(false); setDesigning(true); }} />
       {category&&sub&&<InlineFormDesigner key={`${category.name}|||${sub}`} open={designing} onClose={()=>setDesigning(false)} category={category.name} subcategory={sub} onPublished={async()=>{const params=new URLSearchParams({category:category.name,subcategory:sub});if(studio)params.set('studio',studio);const[t,p]=await Promise.all([api<IntakeTaxonomy>('/api/intake'),api<IntakePlan>(`/api/intake?${params}`)]);setTaxonomy(t);setLoaded({key:wantKey,plan:p});}}/>}

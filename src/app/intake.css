@@ -4149,3 +4149,12 @@ input.hroster-name-input {
 @media (prefers-reduced-motion: reduce) {
   .intake-other { animation: none; }
 }
+
+.hroster-comment-needed {
+  color: var(--amber);
+  background: var(--amber-bg);
+  border-radius: var(--radius-xs);
+  padding: 3px 6px;
+  font-size: 10px;
+  white-space: nowrap;
+}

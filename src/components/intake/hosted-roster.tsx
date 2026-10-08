@@ -39,18 +39,19 @@ export const hostedSummary = summarise;
 /** The roster of every hosted session linked on the form, with a line per attendee the desk
  *  fills in: attendance, outcome, follow-up, the switches and a note. Bookings come from
  *  Momence; walk-ins are added by hand. Answers already given survive a re-read. */
-export function HostedRoster({sessions, rows, onRows}: {sessions: IntakeValue; rows: HostedRow[]; onRows: (next: HostedRow[] | ((prev: HostedRow[]) => HostedRow[]), loaded?: {firstTimers: number; booked: number}) => void}) {
+export function HostedRoster({sessions, rows, onRows, onStatus}: {sessions: IntakeValue; rows: HostedRow[]; onStatus?: (status: 'loading' | 'ready' | 'error') => void; onRows: (next: HostedRow[] | ((prev: HostedRow[]) => HostedRow[]), loaded?: {firstTimers: number; booked: number}) => void}) {
   const refs = useMemo(() => decodeLookups(sessions).filter(r => !r.manual && /^\d+$/.test(r.id)), [sessions]);
   const ids = refs.map(r => r.id).join(',');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [open, setOpen] = useState<string | null>(null);
+  const [retry, setRetry] = useState(0);
 
   useEffect(() => {
-    if (!ids) return;
+    if (!ids) { onStatus?.('ready'); return; }
     let cancelled = false;
     (async () => {
-      setBusy(true); setError('');
+      setBusy(true); setError(''); onStatus?.('loading');
       try {
         const details = await Promise.all(refs.map(async ref => {
           const res = await fetch(`/api/momence?module=sessions&id=${encodeURIComponent(ref.id)}`, {cache: 'no-store'});
@@ -67,12 +68,13 @@ export function HostedRoster({sessions, rows, onRows}: {sessions: IntakeValue; r
           const kept = new Map(prev.map(p => [p.key, p]));
           return [...fresh.map(f => kept.has(f.key) ? {...f, ...kept.get(f.key)!, booking: f.booking} : f), ...prev.filter(p => p.manual)];
         }, {firstTimers: fresh.filter(r => r.flags.includes('first_timer')).length, booked: fresh.filter(r => r.booking !== 'Cancelled').length});
-      } catch (e) { if (!cancelled) setError(e instanceof Error ? e.message : 'The roster could not be read.'); }
+        onStatus?.('ready');
+      } catch (e) { if (!cancelled) { setError(e instanceof Error ? e.message : 'The roster could not be read.'); onStatus?.('error'); } }
       finally { if (!cancelled) setBusy(false); }
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ids]);
+  }, [ids, retry]);
 
   const set = (key: string, patch: Partial<HostedRow>) => onRows(prev => prev.map(r => r.key === key ? {...r, ...patch} : r));
   const toggle = (row: HostedRow, flag: string) => {
@@ -89,6 +91,7 @@ export function HostedRoster({sessions, rows, onRows}: {sessions: IntakeValue; r
 
   return (
     <div className="hroster">
+      <p className="field-hint">A comment is required for every member row, including no-shows and cancellations.</p>
       <div className="hroster-bar">
         <dl className="hroster-stats">
           <div><dt>Booked</dt><dd>{s.booked}</dd></div>
@@ -103,7 +106,7 @@ export function HostedRoster({sessions, rows, onRows}: {sessions: IntakeValue; r
         </div>
       </div>
       {busy && <div className="hroster-empty"><Loader2 size={15} className="animate-spin" /> Reading the roster from Momence…</div>}
-      {error && <div className="hroster-empty error">{error}</div>}
+      {error && <div className="hroster-empty error">{error}<button type="button" className="btn btn-sm" onClick={() => setRetry(v => v + 1)}>Retry roster</button></div>}
       {!busy && !rows.length && <div className="hroster-empty"><UserRound size={15} /> {ids ? 'No bookings on the linked class yet. Add walk-ins by hand.' : 'Link the hosted class at the top of the form to load everyone who booked.'}</div>}
       {rows.length > 0 && (
         <div className="hroster-table" role="table" aria-label="Hosted class attendees">
@@ -112,7 +115,7 @@ export function HostedRoster({sessions, rows, onRows}: {sessions: IntakeValue; r
           </div>
           {rows.map(r => {
             const isOpen = open === r.key;
-            const done = Boolean(r.attendance && r.outcome);
+            const done = Boolean(r.attendance && r.outcome && r.note.trim());
             return (
               <div className={'hroster-item' + (isOpen ? ' open' : '') + (r.booking === 'Cancelled' ? ' muted' : '')} key={r.key} role="rowgroup">
                 <div className="hroster-row" role="row">
@@ -120,6 +123,7 @@ export function HostedRoster({sessions, rows, onRows}: {sessions: IntakeValue; r
                     <span className={'hroster-dot' + (done ? ' done' : '')} aria-hidden="true">{done && <Check size={9} strokeWidth={3} />}</span>
                     {r.manual ? <input className="hroster-name-input" value={r.name} placeholder="Walk-in name" aria-label="Walk-in name" onChange={e => set(r.key, {name: e.target.value})} />
                       : <span className="hroster-name"><b>{r.name}</b><em>{[r.booking, r.email].filter(Boolean).join(' · ')}</em></span>}
+                    {!r.note.trim() && <span className="hroster-comment-needed">Comment needed</span>}
                     {r.flags.length > 0 && <span className="hroster-flagcount" title={r.flags.map(f => HOSTED_FLAGS.find(x => x.id === f)?.label).join(', ')}>{r.flags.length}</span>}
                   </span>
                   <span role="cell"><OptionSelect options={HOSTED_ATTENDANCE} value={r.attendance} onChange={v => set(r.key, {attendance: String(v)})} placeholder="Attendance" /></span>
@@ -138,8 +142,8 @@ export function HostedRoster({sessions, rows, onRows}: {sessions: IntakeValue; r
                       })}
                     </div>
                     <label className="hroster-note">
-                      <span>Notes</span>
-                      <textarea rows={2} value={r.note} placeholder="What they said, what they asked about, what was promised…" onChange={e => set(r.key, {note: e.target.value})} />
+                      <span>Member comment · Required</span>
+                      <textarea required aria-label={`Required comment for ${r.name || 'walk-in'}`} rows={2} value={r.note} placeholder="Member reported… For absent members, document the no-show or cancellation." onChange={e => set(r.key, {note: e.target.value})} />
                     </label>
                     {r.manual && <button type="button" className="text-btn hroster-remove" onClick={() => onRows(prev => prev.filter(x => x.key !== r.key))}><Trash2 size={12} /> Remove walk-in</button>}
                   </div>

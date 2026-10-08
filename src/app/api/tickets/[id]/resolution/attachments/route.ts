@@ -3,8 +3,8 @@ import {and, eq} from 'drizzle-orm';
 import {z} from 'zod';
 import {db} from '@/db';
 import {ticketActivities, ticketResolutionAttachments, tickets} from '@/db/schema';
-import {ApiError, currentUser, errorResponse, requireTicketAccess, sameOrigin} from '@/lib/auth';
-import {getResolutionWorkspace, requireResolutionAccess} from '@/lib/tickets';
+import {ApiError, canEditTicketDetails, currentUser, errorResponse, requireTicketAccess, sameOrigin} from '@/lib/auth';
+import {canResolveTicket, getResolutionWorkspace, requireResolutionAccess} from '@/lib/tickets';
 import {after} from 'next/server';
 import {signalChanged} from '@/lib/realtime';
 
@@ -18,7 +18,14 @@ export async function POST(req: Request, ctx: Ctx) {
   try {
     sameOrigin(req);
     const ticketId = await idOf(ctx);
-    const {user} = await requireResolutionAccess(ticketId);
+    const user = await currentUser();
+    if (!user) throw new ApiError('Sign in to attach a file.', 401);
+    const [ticket] = await db.select().from(tickets).where(eq(tickets.id, ticketId));
+    if (!ticket) throw new ApiError('Ticket not found', 404);
+    requireTicketAccess(user, ticket);
+    if (!canEditTicketDetails(user, ticket) && !await canResolveTicket(user, ticket.assignedStaffId, ticket.resolutionRequired)) {
+      throw new ApiError('Only the reporter, an administrator, or a resolution editor can attach files.', 403);
+    }
     const form = await req.formData();
     const files = form.getAll('files').filter((item): item is File => item instanceof File);
     if (!files.length) throw new ApiError('Choose at least one document or recording.');
@@ -52,7 +59,8 @@ export async function GET(req: Request, ctx: Ctx) {
     const attachmentId = z.string().uuid().parse(new URL(req.url).searchParams.get('attachmentId'));
     const [row] = await db.select().from(ticketResolutionAttachments).where(and(eq(ticketResolutionAttachments.id, attachmentId), eq(ticketResolutionAttachments.ticketId, ticketId)));
     if (!row) throw new ApiError('Attachment not found', 404);
-    return new Response(new Uint8Array(row.data), {headers: {'Content-Type': row.fileType, 'Content-Length': String(row.fileSize), 'Content-Disposition': `inline; filename="${row.fileName.replace(/["\r\n]/g, '_')}"`, 'Cache-Control': 'private, no-store'}});
+    const inline = /^(image\/(jpeg|png|gif|webp)|audio\/[a-z0-9.+-]+|application\/pdf)$/.test(row.fileType);
+    return new Response(new Uint8Array(row.data), {headers: {'Content-Type': row.fileType, 'Content-Length': String(row.fileSize), 'Content-Disposition': `${inline ? 'inline' : 'attachment'}; filename="${row.fileName.replace(/["\r\n]/g, '_')}"`, 'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff'}});
   } catch (e) { return errorResponse(e); }
 }
 

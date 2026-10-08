@@ -14,9 +14,9 @@
 import {and, eq} from "drizzle-orm";
 import {createHash, randomUUID} from "crypto";
 import {db} from "@/db";
-import {sameOrigin, intakeActor, browserKey, errorResponse, ApiError} from "@/lib/auth";
+import {sameOrigin, intakeActor, browserKey, errorResponse, ApiError, currentUser, requireTicketAccess} from "@/lib/auth";
 import {enforceRateLimit} from "@/lib/rate-limit";
-import {chatAttachments, chatSessions} from "@/db/schema";
+import {chatAttachments, chatSessions, tickets} from "@/db/schema";
 import {NextRequest, NextResponse} from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -111,7 +111,16 @@ export async function GET(request: NextRequest) {
     if (!id) throw new ApiError("Attachment id required");
     const [row] = await db.select().from(chatAttachments).where(eq(chatAttachments.id, id)).limit(1);
     if (!row?.data) throw new ApiError("Attachment not found", 404);
-    await assertOwnsSession(row.sessionId);
+    const [session] = await db.select({ticketId: chatSessions.ticketId}).from(chatSessions).where(eq(chatSessions.id, row.sessionId));
+    if (session?.ticketId) {
+      const user = await currentUser();
+      if (!user) throw new ApiError('Sign in to view this ticket attachment.', 401);
+      const [ticket] = await db.select().from(tickets).where(eq(tickets.id, session.ticketId));
+      if (!ticket) throw new ApiError('Ticket not found', 404);
+      requireTicketAccess(user, ticket);
+    } else {
+      await assertOwnsSession(row.sessionId);
+    }
     const body = Buffer.from(row.data);
     return new NextResponse(new Uint8Array(body), {
       headers: {
@@ -119,7 +128,7 @@ export async function GET(request: NextRequest) {
         "Content-Length": String(body.byteLength),
         "Content-Disposition": `${INLINE_TYPES.has(row.fileType) ? "inline" : "attachment"}; filename="${row.fileName.replaceAll('"', "")}"`,
         // Attachments are conversation-scoped; a shared cache must not hold one.
-        "Cache-Control": "private, max-age=3600",
+        "Cache-Control": "private, no-store",
         "X-Content-Type-Options": "nosniff",
       },
     });

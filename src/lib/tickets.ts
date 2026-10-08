@@ -3,8 +3,9 @@ import {recurrenceOwner} from './recurrence-assignment';
 import {reportingManagerId} from './reporting-line';
 import {describeTicket} from './ticket-label';
 import {randomUUID} from 'crypto';
+import {hostedFeedbackError} from './hosted-feedback';
 import {db,type Tx} from '@/db';
-import {tickets,staff,departments,assets,appSettings,ticketActivities,ticketComments,ticketLinks,ticketResolutions,ticketResolutionSteps,ticketFollowUps,ticketContactLog,ticketResolutionAttachments,deliveryLogs,ticketNotifications,appUsers,userNotifications} from '@/db/schema';
+import {tickets,staff,departments,assets,appSettings,ticketActivities,ticketComments,ticketLinks,ticketResolutions,ticketResolutionSteps,ticketFollowUps,ticketContactLog,ticketResolutionAttachments,chatAttachments,chatSessions,deliveryLogs,ticketNotifications,appUsers,userNotifications} from '@/db/schema';
 import {ticketInputSchema,publicTicketInputSchema,type TicketInput,type AdvancedDraft} from './ticket-contract';
 import {getConfig,type WorkspaceConfig} from './config';
 import {ApiError,canAccessTicket,canEditTicketDetails,coveredStudios,currentUser,requireTicketAccess,type Identity} from './auth';
@@ -174,7 +175,9 @@ async function queueTicketEmails(tx:Tx,ticket:{id:number;ticketNumber:string;tit
 }
 export async function createTicketFromDraft(draft:AdvancedDraft,source=draft.source,channel='workspace',external?:ExternalCreate){return(await insertTicketFromDraft(draft,source,channel,external)).row;}
 /** `created` is false when the submission key or source reference already had a ticket. */
-async function insertTicketFromDraft(draft:AdvancedDraft,source=draft.source,channel='workspace',external?:ExternalCreate){const cfg=source==='history'?null:await getConfig();const submissionKey=draft.submissionKey||randomUUID();
+async function insertTicketFromDraft(draft:AdvancedDraft,source=draft.source,channel='workspace',external?:ExternalCreate){
+if(source!=='history'&&source!=='system'){const error=hostedFeedbackError(draft.category,draft.subcategory,draft.customFields?.hostedAttendees);if(error)throw new ApiError(error);}
+const cfg=source==='history'?null:await getConfig();const submissionKey=draft.submissionKey||randomUUID();
 const findExisting=(tx:Tx)=>tx.select().from(tickets).where(external?.sourceRef?or(eq(tickets.submissionKey,submissionKey),eq(tickets.sourceRef,external.sourceRef)):eq(tickets.submissionKey,submissionKey));
 const work=async(tx:Tx)=>{await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${submissionKey}))`);const[existing]=await findExisting(tx);if(existing)return{row:existing,created:false};
 // An imported record may carry a date the exporting system invented; a ticket filed in the
@@ -412,7 +415,6 @@ export async function getResolutionWorkspace(ticketId:number){const[[resolution]
   db.select().from(ticketContactLog).where(eq(ticketContactLog.ticketId,ticketId)).orderBy(desc(ticketContactLog.contactedAt)),
   db.select({id:ticketResolutionAttachments.id,fileName:ticketResolutionAttachments.fileName,fileType:ticketResolutionAttachments.fileType,fileSize:ticketResolutionAttachments.fileSize,uploadedByName:ticketResolutionAttachments.uploadedByName,createdAt:ticketResolutionAttachments.createdAt}).from(ticketResolutionAttachments).where(eq(ticketResolutionAttachments.ticketId,ticketId)).orderBy(desc(ticketResolutionAttachments.createdAt)),
 ]);return{resolution:resolution||null,steps,followUps,contacts,attachments};}
-const EMPTY_WORKSPACE={resolution:null,steps:[],followUps:[],contacts:[],attachments:[]};
 /** Everything the ticket page renders. Returns null when the ticket does not exist and throws
  *  403 when the caller may not open it. */
 export async function getTicketBundle(id:number,viewer?:Identity|null){const[[ticket],user]=await Promise.all([db.select().from(tickets).where(eq(tickets.id,id)),viewer===undefined?currentUser():Promise.resolve(viewer)]);if(!ticket)return null;
@@ -430,14 +432,15 @@ const[canResolve,comments,activities,similar,links,asset]=await Promise.all([
 const linkedIds=links.map(l=>l.ticketId===id?l.relatedId:l.ticketId);
 // Resolution history is shared with everyone who can view this ticket.
 // canResolve controls editing only; it must never suppress the documented history.
-const[linked,workspace]=await Promise.all([
+const[linked,workspace,conversationAttachments]=await Promise.all([
   linkedIds.length?db.select({id:tickets.id,ticketNumber:tickets.ticketNumber,title:tickets.title,status:tickets.status}).from(tickets).where(inArray(tickets.id,linkedIds)):Promise.resolve([]),
-  ticket.resolutionRequired?getResolutionWorkspace(id):Promise.resolve(EMPTY_WORKSPACE),
+  getResolutionWorkspace(id),
+  db.select({id:chatAttachments.id,fileName:chatAttachments.fileName,fileType:chatAttachments.fileType,fileSize:chatAttachments.fileSize,createdAt:chatAttachments.createdAt}).from(chatAttachments).innerJoin(chatSessions,eq(chatAttachments.sessionId,chatSessions.id)).where(eq(chatSessions.ticketId,id)),
 ]);
 // One rule, in lib/auth, shared with the PATCH route that enforces it. The client uses this
 // only to decide whether to offer the button.
 const canEditDetails=canEditTicketDetails(user,ticket);
-return{ticket,comments,activities,similar,linked,asset,canResolve,canEditDetails,...workspace};}
+return{ticket,comments,activities,similar,linked,asset,canResolve,canEditDetails,conversationAttachments,...workspace};}
 
 const TERMINAL=['resolved','closed'];
 /** Guards every status change: record-only use of Recorded, the resolver and the saved

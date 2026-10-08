@@ -25,6 +25,16 @@
   padding: 24px;
 }
 .main, .caseContent, .resolution { min-width: 0; }
+.evidence > header { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
+.evidenceGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr)); gap: 12px; }
+.evidenceFile { min-width: 0; overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface-2); }
+.evidenceFile img { display: block; width: 100%; height: 200px; object-fit: contain; background: var(--surface-3); }
+.evidenceFile audio { width: 100%; padding: 10px; }
+.evidenceLink { display: flex; align-items: center; gap: 10px; padding: 14px; color: var(--text); }
+.evidenceLink > span { flex: 1; min-width: 0; }
+.evidenceLink strong { display: block; overflow-wrap: anywhere; font-size: 13px; font-weight: 500; }
+.evidenceLink small { display: block; margin-top: 4px; font-size: 11px; color: var(--muted); }
+.evidenceLink:hover { color: var(--accent); background: var(--accent-soft); }
 .caseContent { display: grid; gap: 20px; }
 .resolution { grid-row: 1; scroll-margin-top: 112px; }
 .workspace[data-resolution="open"] .main { grid-row: 2; }

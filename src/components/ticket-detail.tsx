@@ -55,6 +55,7 @@ import {
 } from "./ui";
 import { ResolutionPanel, type ResolutionWorkspace } from "./resolution-panel";
 import styles from "./ticket-detail.module.css";
+import {TicketEvidence} from './ticket-evidence';
 import { SlaCountdown } from "./tickets-board";
 import {
   SlaRing,
@@ -101,6 +102,7 @@ type Bundle = {
   followUps: import("./resolution-panel").FollowUp[];
   contacts: import("./resolution-panel").ContactEntry[];
   attachments: import("./resolution-panel").ResolutionAttachment[];
+  conversationAttachments: {id: string; fileName: string; fileType: string; fileSize: number}[];
 };
 
 const FACT_ICONS: Record<string, LucideIcon> = {
@@ -783,9 +785,14 @@ export function TicketDialog({
                             <span className="td-tag td-tag-sub">{t.subcategory}</span>
                             {t.impact && t.requestedResolution && <span className="td-tag td-tag-impact"><Zap size={11}/>{t.impact}</span>}
                           </div>
-                        </section>
+                          </section>
 
-                        {(t.requestedResolution || t.impact) && (
+                          <TicketEvidence files={[
+                            ...bundle.attachments.map(file => ({...file, url: `/api/tickets/${t.id}/resolution/attachments?attachmentId=${encodeURIComponent(file.id)}`})),
+                            ...(bundle.conversationAttachments || []).map(file => ({...file, url: `/api/iris/upload?id=${encodeURIComponent(file.id)}`})),
+                          ]}/>
+
+                          {(t.requestedResolution || t.impact) && (
                           <section className="td-outcome-card">
                             <span className="td-section-icon"><Sparkles size={16}/></span>
                             <div>
