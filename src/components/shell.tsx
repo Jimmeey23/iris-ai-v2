@@ -299,7 +299,7 @@ export function Shell({
           {visibleNav.map((n) => {
             const Icon = n.icon;
             const active =
-              path === n.href || (path === "/" && n.href === "/dashboard");
+              path === n.href || path.startsWith(n.href + "/") || (path === "/" && n.href === "/dashboard");
             if (lockedFor(n.href, user?.role))
               return <LockedNavItem key={n.href} item={n} />;
             return (

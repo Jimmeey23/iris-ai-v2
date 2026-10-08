@@ -840,7 +840,6 @@ export function Tabs<T extends string>({
         } as React.CSSProperties
       }
     >
-      <span className="tabs-thumb" aria-hidden="true" />
       <div
         className="tabs-list"
         ref={listRef}
@@ -848,6 +847,7 @@ export function Tabs<T extends string>({
         aria-label={label}
         onKeyDown={onKey}
       >
+        <span className="tabs-thumb" aria-hidden="true" />
         {items.map((item) => {
           const selected = item.id === value;
           return (
