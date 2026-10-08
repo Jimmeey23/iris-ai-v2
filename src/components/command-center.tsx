@@ -39,7 +39,7 @@ const TABS = [
   {id: 'all', name: 'All tickets'},
   {id: 'attention', name: 'Needs attention'},
   {id: 'mine', name: 'Assigned to me'},
-  {id: 'feedback', name: 'Feedback'},
+  {id: 'feedback', name: 'Feedback & Records'},
   {id: 'sla', name: 'SLA at risk'},
 ];
 
@@ -105,7 +105,7 @@ export function CommandCenter({directory = false, assignedOnly = false}: {direct
     switch (f.tab) {
       case 'attention': return filtered.filter((t) => !isClosed(t) && ['critical', 'high'].includes(t.priority));
       case 'mine': return filtered.filter((t) => Boolean(user?.staffId) && t.assignedStaffId === user?.staffId);
-      case 'feedback': return filtered.filter((t) => ['compliment', 'feedback', 'assessment'].includes(t.kind));
+      case 'feedback': return filtered.filter((t) => ['compliment', 'feedback', 'assessment'].includes(t.kind) || !t.resolutionRequired || t.status === 'recorded');
       case 'sla': return filtered.filter((t) => !isClosed(t) && slaState(t.slaDueAt, t.status, t.createdAt) !== 'ok');
       default: return filtered;
     }
@@ -115,7 +115,7 @@ export function CommandCenter({directory = false, assignedOnly = false}: {direct
     all: filtered.length,
     attention: filtered.filter((t) => !isClosed(t) && ['critical', 'high'].includes(t.priority)).length,
     mine: filtered.filter((t) => Boolean(user?.staffId) && t.assignedStaffId === user?.staffId).length,
-    feedback: filtered.filter((t) => ['compliment', 'feedback', 'assessment'].includes(t.kind)).length,
+    feedback: filtered.filter((t) => ['compliment', 'feedback', 'assessment'].includes(t.kind) || !t.resolutionRequired || t.status === 'recorded').length,
     sla: filtered.filter((t) => !isClosed(t) && slaState(t.slaDueAt, t.status, t.createdAt) !== 'ok').length,
   }), [filtered, user]);
 

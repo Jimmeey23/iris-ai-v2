@@ -328,11 +328,45 @@ export function ResolutionPanel({
   if (!ticket.resolutionRequired)
     return (
       <aside className={"rw resolution-v2" + (variant === "modal" ? " rw-modal" : "")} aria-label="Resolution">
-        <RwHead onClose={onClose} completion={0} />
-        <p className="rw-empty">
-          This ticket records feedback, appreciation or an assessment. There is
-          no resolution to work through.
-        </p>
+        <RwHead onClose={onClose} completion={100} />
+        <div style={{ padding: '24px 20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div className="rw-empty" style={{ margin: 0 }}>
+            This ticket is an informational record (feedback, observation or praise).
+            No operational repair or SLA closure workflow is required.
+          </div>
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+            {ticket.status !== 'recorded' && (
+              <button
+                type="button"
+                className="btn btn-sm btn-primary"
+                disabled={resolving}
+                onClick={() => void onPatch({ status: 'recorded' })}
+              >
+                Mark as Recorded
+              </button>
+            )}
+            {ticket.status !== 'closed' && (
+              <button
+                type="button"
+                className="btn btn-sm btn-outline"
+                disabled={resolving}
+                onClick={() => void onPatch({ status: 'closed' })}
+              >
+                Close Record
+              </button>
+            )}
+            {ticket.status === 'closed' && (
+              <button
+                type="button"
+                className="btn btn-sm btn-outline"
+                disabled={resolving}
+                onClick={() => void onPatch({ status: 'recorded' })}
+              >
+                Re-open as Recorded
+              </button>
+            )}
+          </div>
+        </div>
       </aside>
     );
 

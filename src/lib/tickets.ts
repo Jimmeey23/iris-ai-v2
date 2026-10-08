@@ -116,7 +116,7 @@ const calculatedScore=template?scoreAssessment(template.fields,input.customField
 // what an administrator who turns it off expects to change. Everything in RECORD_ONLY_KINDS
 // is record-only regardless: a comment is not work, whoever asks.
 const praise=input.kind==='compliment'||input.kind==='feedback'&&input.sentiment==='positive';
-const noSla=input.resolutionRequired===false&&(trusted||recordOnlyEligible(input))||recordOnlyEligible(input)||praise&&cfg.positiveNoSla;
+const noSla=input.resolutionRequired===false||recordOnlyEligible(input)||(praise&&cfg.positiveNoSla);
 // The intake answers ride in customFields — they are not columns on the schema — so
 // they have to be read back out here or the reporter's own urgency signal never
 // reaches the priority rules.
@@ -234,7 +234,7 @@ export function emailSendingEnabled(){return (process.env.SEND_EMAILS??'true').t
 export async function queueSlaReminderEmails(now=new Date()){
   if(!emailSendingEnabled())return 0;const cfg=await getConfig();if(!cfg.assignmentEmail)return 0;
   const dueBefore=new Date(now.getTime()+3*3600_000);
-  const rows=await db.select({id:tickets.id,ticketNumber:tickets.ticketNumber,title:tickets.title,assignedStaffId:tickets.assignedStaffId,assignedStaffEmail:tickets.assignedStaffEmail,slaDueAt:tickets.slaDueAt,priority:tickets.priority,category:tickets.category,subcategory:tickets.subcategory,studio:tickets.studio,memberName:tickets.memberName,assignedStaffName:tickets.assignedStaffName,summary:tickets.summary}).from(tickets).where(and(sql`${tickets.status} not in ('resolved','closed','recorded')`,gt(tickets.slaDueAt,now),lte(tickets.slaDueAt,dueBefore)));
+  const rows=await db.select({id:tickets.id,ticketNumber:tickets.ticketNumber,title:tickets.title,assignedStaffId:tickets.assignedStaffId,assignedStaffEmail:tickets.assignedStaffEmail,slaDueAt:tickets.slaDueAt,priority:tickets.priority,category:tickets.category,subcategory:tickets.subcategory,studio:tickets.studio,memberName:tickets.memberName,assignedStaffName:tickets.assignedStaffName,summary:tickets.summary}).from(tickets).where(and(eq(tickets.resolutionRequired,true),sql`${tickets.status} not in ('resolved','closed','recorded')`,gt(tickets.slaDueAt,now),lte(tickets.slaDueAt,dueBefore)));
   let queued=0;for(const ticket of rows)queued+=await db.transaction(tx=>queueTicketEmails(tx,ticket,'sla-3h'));return queued;
 }
 /**

@@ -98,6 +98,8 @@ export async function PATCH(req: Request, ctx: Ctx) {
         trainer: z.string().max(160).optional(),
         membership: z.string().max(200).optional(),
         preferredContact: z.string().max(50).optional(),
+        tags: z.array(z.string().max(60)).max(30).optional(),
+        customFields: z.record(z.string(), z.unknown()).optional(),
       })
       .parse(await req.json());
     const [[current], cfg] = await Promise.all([
@@ -134,6 +136,8 @@ export async function PATCH(req: Request, ctx: Ctx) {
       "trainer",
       "membership",
       "preferredContact",
+      "tags",
+      "customFields",
     ] as const;
     const editsDetails = documentedFields.some((key) => b[key] !== undefined);
     if (editsDetails && !canEditTicketDetails(actor, current))
@@ -179,6 +183,13 @@ export async function PATCH(req: Request, ctx: Ctx) {
           ? { severity: inferSeverity(b.priority) }
           : {};
     const { version, status, ...fields } = b;
+    const sanitizedCustom = fields.customFields
+      ? { ...(current.customFields || {}), ...stripReservedFields(fields.customFields) }
+      : undefined;
+    const patchPayload = {
+      ...fields,
+      ...(sanitizedCustom ? { customFields: sanitizedCustom } : {}),
+    };
     const detail = Object.entries(b)
       .filter(([k]) => k !== "version")
       .map(([k, v]) => `${k}: ${v}`)
@@ -191,7 +202,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
         ticketId: id,
         version,
         status,
-        extra: { ...fields, ...ownerFields, ...sla },
+        extra: { ...patchPayload, ...ownerFields, ...sla },
         detail,
       });
       // The write landed: tell the other open boards, so a teammate sees this without
@@ -207,7 +218,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
       const [t] = await tx
         .update(tickets)
         .set({
-          ...fields,
+          ...patchPayload,
           ...(status ? { status, ...statusTimestamps(current, status) } : {}),
           ...ownerFields,
           ...sla,

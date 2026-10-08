@@ -36,6 +36,7 @@ import {
   ArrowRight,
   Pencil,
   Trash2,
+  BookmarkCheck,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -865,21 +866,34 @@ export function TicketDialog({
                                 : slaState(t.slaDueAt, t.status, t.createdAt)
                           }
                         >
-                          <div className="td-rail-heading"><CheckCircle2 size={14}/><span>RESOLUTION</span></div>
-                          <div className="td-resolution-instrument">
-                            <SlaRing
-                              createdAt={t.createdAt}
-                              slaDueAt={t.slaDueAt}
-                              status={t.status}
-                              size={108}
-                            />
-                            <div className="td-resolution-copy">
-                              <strong>{["resolved", "closed"].includes(t.status) ? "Complete" : "In progress"}</strong>
-                              <span>Follow-up window</span>
-                              <SlaCountdown ticket={t as never} large />
-                              <small>{t.slaDueAt ? "Due " + indiaDate(t.slaDueAt) : "No follow-up deadline"}</small>
+                          <div className="td-rail-heading"><CheckCircle2 size={14}/><span>{t.resolutionRequired ? "RESOLUTION" : "RECORD STATUS"}</span></div>
+                          {!t.resolutionRequired || t.status === "recorded" ? (
+                            <div className="td-resolution-instrument td-record-only-instrument">
+                              <div className="td-record-pill-badge" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 44, height: 44, borderRadius: '50%', background: 'color-mix(in srgb, var(--green, #10b981) 15%, transparent)', color: 'var(--green, #10b981)' }}>
+                                <BookmarkCheck size={22} />
+                              </div>
+                              <div className="td-resolution-copy">
+                                <strong>{t.status === "closed" ? "Closed Record" : "Recorded"}</strong>
+                                <span>Informational Log</span>
+                                <small>No SLA or resolution target required</small>
+                              </div>
                             </div>
-                          </div>
+                          ) : (
+                            <div className="td-resolution-instrument">
+                              <SlaRing
+                                createdAt={t.createdAt}
+                                slaDueAt={t.slaDueAt}
+                                status={t.status}
+                                size={108}
+                              />
+                              <div className="td-resolution-copy">
+                                <strong>{["resolved", "closed"].includes(t.status) ? "Complete" : "In progress"}</strong>
+                                <span>Follow-up window</span>
+                                <SlaCountdown ticket={t as never} large />
+                                <small>{t.slaDueAt ? "Due " + indiaDate(t.slaDueAt) : "No follow-up deadline"}</small>
+                              </div>
+                            </div>
+                          )}
                           {/* An extension is part of the ticket's story, so it is stated here
                               rather than left in the activity log for somebody to find. */}
                           {t.slaExtendedAt && (
@@ -991,20 +1005,55 @@ export function TicketDialog({
                             </Field>
                             <button
                               className="btn btn-sm"
-                              disabled={busy || t.isEscalated}
+                              disabled={busy || t.isEscalated || !t.resolutionRequired}
                               onClick={() => void patch({ isEscalated: true })}
+                              title={!t.resolutionRequired ? "Informational records cannot be escalated" : undefined}
                             >
                               {t.isEscalated
                                 ? "Escalated"
                                 : "Escalate for review"}
                             </button>
                           </div>
+                          {!t.resolutionRequired && (
+                            <div className="td-record-status-bar" style={{ display: 'flex', gap: '8px', marginTop: '12px', flexWrap: 'wrap' }}>
+                              {t.status !== 'recorded' && (
+                                <button
+                                  type="button"
+                                  className="btn btn-sm btn-primary"
+                                  disabled={busy}
+                                  onClick={() => void patch({ status: 'recorded' })}
+                                >
+                                  Mark as Recorded
+                                </button>
+                              )}
+                              {t.status !== 'closed' && (
+                                <button
+                                  type="button"
+                                  className="btn btn-sm btn-outline"
+                                  disabled={busy}
+                                  onClick={() => void patch({ status: 'closed' })}
+                                >
+                                  Close Record
+                                </button>
+                              )}
+                              {t.status === 'closed' && (
+                                <button
+                                  type="button"
+                                  className="btn btn-sm btn-outline"
+                                  disabled={busy}
+                                  onClick={() => void patch({ status: 'recorded' })}
+                                >
+                                  Re-open as Recorded
+                                </button>
+                              )}
+                            </div>
+                          )}
                           <p className="td-panel-note">
                             {bundle.canResolve
                               ? "Status changes live in the resolution panel."
                               : t.resolutionRequired
                                 ? "Only the assigned owner or their reporting manager can change status or resolve this ticket."
-                                : "This ticket is a record only. There is nothing to resolve."}
+                                : "This ticket is a record only. Use the record actions above to update its status."}
                           </p>
                         </div>
                         <div className="td-panel">
