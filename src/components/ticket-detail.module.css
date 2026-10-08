@@ -1,0 +1,141 @@
+/* A real two-column workspace: case content and exactly one context rail.
+   Container queries use the dialog's available width, not the browser width. */
+.dialog:global(.ticket-detail-dialog.dialog-content) {
+  width: min(1280px, calc(100vw - 32px)) !important;
+  max-height: 94dvh; padding: 0; border-radius: var(--radius-xl);
+  border-color: var(--border-strong); background: var(--surface);
+}
+.dialog:global(.ticket-detail-dialog) > :global(.dialog-scroll) { padding: 0; min-height: 0; }
+.dialog:global(.ticket-detail-dialog) > :global(.dialog-head) { display: none; }
+.dialog:global(.ticket-detail-dialog) > :global(.dialog-footer) {
+  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap;
+  gap: 12px; padding: 12px 24px; background: var(--surface); border-top: 1px solid var(--border);
+}
+.dialog:global(.ticket-detail-dialog) > :global(.dialog-footer) > div { flex-wrap: wrap; }
+.shell {
+  container: ticket-case / inline-size;
+  background: var(--bg);
+}
+.frame { display: flex; flex-direction: column; gap: 0; }
+.workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  gap: 20px;
+  padding: 24px;
+}
+.main, .caseContent, .resolution { min-width: 0; }
+.caseContent { display: grid; gap: 20px; }
+.resolution { grid-row: 1; scroll-margin-top: 112px; }
+.workspace[data-resolution="open"] .main { grid-row: 2; }
+
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-masthead) {
+  padding: 24px 28px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-title-row) {
+  display: flex; align-items: flex-start; gap: 20px; justify-content: space-between;
+}
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-title-row) > div:first-child { min-width: 0; }
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-modal-title) {
+  font: 600 clamp(22px, 2.2vw, 30px)/1.25 var(--font-display);
+  letter-spacing: -.035em; margin: 14px 0 10px;
+}
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-summary-primary) {
+  margin: 14px 0; max-width: 85ch; font-size: 13px; line-height: 1.65;
+}
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-head-actions) { flex-wrap: wrap; flex-shrink: 0; }
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-tabs-row) {
+  position: sticky; top: 0; z-index: 5;
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  margin: 0; padding: 10px 24px; background: var(--surface);
+  border-bottom: 1px solid var(--border); backdrop-filter: none;
+}
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-tabs-row .tabs) { flex: 1 1 280px; min-width: 0; }
+.dialog:global(.ticket-detail-dialog) .shell :global(.rail-toggle) {
+  min-height: 38px; margin-left: 0; padding: 8px 12px;
+  background: var(--surface-2); border: 1px solid var(--border-strong);
+  color: var(--secondary); box-shadow: none;
+}
+.dialog:global(.ticket-detail-dialog) .shell :global(.rail-toggle.active) {
+  background: var(--accent); color: var(--accent-text); border-color: var(--accent);
+}
+.dialog:global(.ticket-detail-dialog) .shell :global(.rail-toggle.active span) {
+  background: color-mix(in srgb, var(--accent-text) 15%, transparent); color: inherit;
+}
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-column) { display: grid; gap: 18px; min-width: 0; }
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-case-file),
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-context-sheet),
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-sheet) {
+  padding: 22px; border: 1px solid var(--border); border-radius: var(--radius-lg);
+  background: var(--surface); box-shadow: var(--shadow-1);
+}
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-context-sheet .td-section-head) { margin-bottom: 16px; }
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-context-sheet h3),
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-case-file h3) { font-size: 16px; font-weight: 600; }
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-facts-grid) {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 18px;
+}
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-fact-tile) { min-width: 0; padding: 12px 0; border-bottom: 1px solid var(--border); }
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-fact-body) { min-width: 0; }
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-fact-body dt) { color: var(--muted); font-size: 11px; margin-bottom: 4px; }
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-fact-body dd) { color: var(--text); font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-aside) {
+  display: grid; position: static; top: auto; gap: 0; min-width: 0;
+  padding: 0; border: 1px solid var(--border); border-radius: var(--radius-lg);
+  background: var(--surface); box-shadow: var(--shadow-1); overflow: hidden;
+}
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-aside) > div {
+  margin: 0; padding: 20px; border: 0; border-bottom: 1px solid var(--border);
+  border-radius: 0; background: var(--surface); box-shadow: none;
+}
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-aside) > div:last-child { border-bottom: 0; }
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-resolution-instrument) { gap: 16px; padding: 16px 0; }
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-panel h3) { font-size: 13px; font-weight: 600; }
+.dialog:global(.ticket-detail-dialog) .shell :global(.ticket-detail-grid) {
+  display: grid; grid-template-columns: 1fr; gap: 24px; padding: 22px;
+  border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface);
+}
+.dialog:global(.ticket-detail-dialog) .shell .resolution > :global(.resolution-v2.rw) {
+  display: flex; flex-direction: column; width: 100%; min-width: 0;
+  height: auto; min-height: 0; max-height: none; overflow: visible;
+  border: 1px solid var(--border-strong); border-radius: var(--radius-lg);
+  background: var(--surface); box-shadow: var(--shadow-2);
+}
+.dialog:global(.ticket-detail-dialog) .shell .resolution :global(.rw-head) {
+  position: static; padding: 20px; background: var(--accent-soft); border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+.dialog:global(.ticket-detail-dialog) .shell .resolution :global(.rw-body) { flex: initial; padding: 20px; overflow: visible; min-height: 0; background: var(--surface); }
+.dialog:global(.ticket-detail-dialog) .shell .resolution :global(.rw-command-bar) { padding: 16px 20px; }
+.dialog:global(.ticket-detail-dialog) .shell .resolution :global(.rw-tabs) { display: flex; flex-wrap: wrap; gap: 4px; }
+.dialog:global(.ticket-detail-dialog) .shell .resolution :global(.rw-tabs button) { flex: 1 1 auto; min-height: 38px; }
+.dialog:global(.ticket-detail-dialog) .shell .resolution :global(.rw-tabs button.active) { color: var(--accent-text); background: var(--accent); }
+.dialog:global(.ticket-detail-dialog) .shell .resolution :global(.rw-foot) { position: static; padding: 18px 20px; border-top: 1px solid var(--border); }
+
+@container ticket-case (min-width: 900px) {
+  .workspace[data-split="true"] { grid-template-columns: minmax(0, 1.55fr) minmax(320px, 1fr); }
+  .workspace[data-resolution="open"] .main { grid-column: 1; grid-row: 1; }
+  .resolution { grid-column: 2; grid-row: 1; }
+}
+@container ticket-case (max-width: 599px) {
+  .workspace { gap: 14px; padding: 12px; }
+  .dialog:global(.ticket-detail-dialog) .shell :global(.td-masthead) { padding: 20px 16px; }
+  .dialog:global(.ticket-detail-dialog) .shell :global(.td-title-row) { flex-direction: column; gap: 10px; }
+  .dialog:global(.ticket-detail-dialog) .shell :global(.td-modal-title) { font-size: 23px; }
+  .dialog:global(.ticket-detail-dialog) .shell :global(.td-tabs-row) { padding: 8px 12px; gap: 8px; }
+  .dialog:global(.ticket-detail-dialog) .shell :global(.td-tabs-row .tabs) { flex-basis: 100%; }
+  .dialog:global(.ticket-detail-dialog) .shell :global(.td-case-file),
+  .dialog:global(.ticket-detail-dialog) .shell :global(.td-context-sheet) { padding: 18px; }
+  .dialog:global(.ticket-detail-dialog) .shell :global(.td-facts-grid) { grid-template-columns: 1fr; }
+  .dialog:global(.ticket-detail-dialog) .shell :global(.rail-toggle) { min-height: 44px; }
+  .dialog:global(.ticket-detail-dialog) .shell .resolution :global(.rw-body) { padding: 16px; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .resolution { animation: rail-enter 200ms ease-out both; }
+  @keyframes rail-enter { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+}
+@media (max-width: 640px) {
+  .dialog:global(.ticket-detail-dialog.dialog-content) { width: calc(100vw - 12px) !important; max-height: 98dvh; }
+  .dialog:global(.ticket-detail-dialog) > :global(.dialog-footer) { padding: 12px 16px; }
+}
