@@ -149,3 +149,155 @@
   .dialog:global(.ticket-detail-dialog.dialog-content) { width: calc(100vw - 12px) !important; max-height: 98dvh; }
   .dialog:global(.ticket-detail-dialog) > :global(.dialog-footer) { padding: 12px 16px; }
 }
+
+/* ── Premium case header ───────────────────────────────────────────────────── */
+.shell {
+  --td-hairline: color-mix(in srgb, var(--border) 85%, transparent);
+}
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-hero) {
+  position: relative;
+  padding: 24px 32px 22px;
+  background:
+    radial-gradient(120% 140% at 100% 0%, color-mix(in srgb, var(--accent) 7%, transparent) 0%, transparent 55%),
+    var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-hero-top) {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+}
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-hero .td-identity-line) {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap; min-width: 0;
+}
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-hero .td-ticket-key) {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 10px; border-radius: 999px;
+  font: 600 11.5px/1 var(--font-mono); letter-spacing: .02em;
+  color: var(--accent); background: var(--accent-soft);
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
+}
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-crumb) {
+  display: inline-flex; align-items: center; gap: 6px; min-width: 0;
+  font-size: 12.5px; color: var(--muted);
+}
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-crumb strong) { color: var(--secondary); font-weight: 600; }
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-crumb svg) { opacity: .55; flex: none; }
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-hero .td-head-actions) { display: flex; align-items: center; gap: 6px; }
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-hero .icon-btn) {
+  width: 36px; height: 36px; border-radius: 10px;
+  border: 1px solid var(--border); background: var(--surface); color: var(--secondary);
+}
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-hero .icon-btn:hover) { color: var(--text); border-color: var(--border-strong); background: var(--surface-2); }
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-hero .td-edit-btn) { height: 36px; border-radius: 10px; }
+
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-hero .td-modal-title) {
+  margin: 18px 0 12px; max-width: 62ch;
+  font: 650 clamp(24px, 2.3vw, 31px)/1.18 var(--font-display);
+  letter-spacing: -.025em; color: var(--text); text-wrap: balance;
+}
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-hero .td-chips) { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; }
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-hero .td-summary-primary) {
+  margin: 14px 0 0; max-width: 92ch;
+  font-size: 14px; font-weight: 400; line-height: 1.65; color: var(--secondary);
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+}
+
+/* People strip: who reported it, who it is about, who owns it, where, and when it is due. */
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-people) {
+  display: grid; grid-template-columns: 1.25fr repeat(4, minmax(0, 1fr));
+  gap: 1px; margin: 20px 0 0; padding: 0;
+  background: var(--td-hairline); border: 1px solid var(--td-hairline);
+  border-radius: 14px; overflow: hidden;
+  box-shadow: 0 1px 2px rgb(16 24 40 / .04);
+}
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-person) { min-width: 0; padding: 13px 16px 14px; background: var(--surface); }
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-person-reporter) { background: color-mix(in srgb, var(--accent) 6%, var(--surface)); }
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-person dt) {
+  margin: 0 0 8px; font-size: 10.5px; line-height: 1.2; font-weight: 700;
+  letter-spacing: .1em; text-transform: uppercase; color: var(--muted);
+}
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-person-reporter dt) { color: var(--accent); }
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-person dd) { display: flex; align-items: center; gap: 10px; margin: 0; min-width: 0; }
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-person dd > span:last-child) { display: grid; gap: 2px; min-width: 0; }
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-person strong) {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: 13.5px; font-weight: 600; line-height: 1.3; color: var(--text);
+}
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-person-reporter strong) { font-size: 14px; }
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-person small) {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: 11.5px; line-height: 1.3; color: var(--muted);
+}
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-person .avatar) { flex: none; }
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-person-glyph) {
+  flex: none; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%;
+  color: var(--secondary); background: var(--surface-2); border: 1px solid var(--border);
+}
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-person-due .sla-countdown),
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-person-due dd > span:last-child > :first-child) { font-size: 13.5px; font-weight: 700; }
+
+/* The countdown is built for the board's right-aligned column; here it sits inline. */
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-person-due .sla-countdown) {
+  display: flex; flex-direction: row; align-items: baseline; justify-content: flex-start; gap: 6px;
+  margin: 0; padding: 0; text-align: left; background: none; border: 0; min-width: 0;
+}
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-person-due .sla-countdown-value) { font: 700 14px/1.3 var(--font-display); }
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-person-due .sla-countdown-label) {
+  font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+}
+
+/* Status and priority read at a glance: tinted pills, the priority in its own tone. */
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-hero .td-chips .badge) {
+  min-height: 26px; padding: 4px 11px; border-radius: 999px;
+  font-size: 12px; font-weight: 600; letter-spacing: 0; text-transform: none;
+}
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-hero .td-chips .badge[class*="status-"]) {
+  color: var(--accent); background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 20%, transparent);
+}
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-hero .td-chips .badge.status-resolved),
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-hero .td-chips .badge.status-closed) {
+  color: var(--green); background: color-mix(in srgb, var(--green) 10%, var(--surface)); border-color: color-mix(in srgb, var(--green) 25%, transparent);
+}
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-hero .td-chips .priority-critical) {
+  color: #fff; background: var(--red); border-color: var(--red);
+}
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-hero .td-chips .priority-critical .priority-dot) { background: #fff; }
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-hero .td-chips .priority-high) {
+  color: var(--red); background: color-mix(in srgb, var(--red) 9%, var(--surface)); border-color: color-mix(in srgb, var(--red) 28%, transparent);
+}
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-hero .td-chips .priority-medium) {
+  color: var(--amber); background: color-mix(in srgb, var(--amber) 10%, var(--surface)); border-color: color-mix(in srgb, var(--amber) 28%, transparent);
+}
+
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-hero-meta) {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin: 12px 2px 0;
+  font-size: 11.5px; color: var(--muted);
+}
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-hero-meta .td-noedit) { display: inline-flex; align-items: center; gap: 5px; }
+
+/* Calmer, more editorial content cards. */
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-case-file),
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-context-sheet),
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-sheet),
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-outcome-card),
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-aside) {
+  border-color: var(--td-hairline); border-radius: 16px;
+  box-shadow: 0 1px 2px rgb(16 24 40 / .04), 0 8px 24px -16px rgb(16 24 40 / .12);
+}
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-case-file h3),
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-context-sheet h3) {
+  font: 650 17px/1.3 var(--font-display); letter-spacing: -.01em;
+}
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-narrative) { font-size: 14.5px; line-height: 1.75; color: var(--text); }
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-tabs-row) { padding: 8px 28px; }
+
+@container ticket-case (max-width: 1050px) {
+  .dialog:global(.ticket-detail-dialog) .shell :global(.td-people) { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .dialog:global(.ticket-detail-dialog) .shell :global(.td-person-reporter) { grid-column: span 3; }
+}
+@container ticket-case (max-width: 599px) {
+  .dialog:global(.ticket-detail-dialog) .shell :global(.td-hero) { padding: 18px 16px 16px; }
+  .dialog:global(.ticket-detail-dialog) .shell :global(.td-hero .td-modal-title) { font-size: 22px; margin-top: 14px; }
+  .dialog:global(.ticket-detail-dialog) .shell :global(.td-people) { grid-template-columns: minmax(0, 1fr); }
+  .dialog:global(.ticket-detail-dialog) .shell :global(.td-person-reporter) { grid-column: auto; }
+  .dialog:global(.ticket-detail-dialog) .shell :global(.td-tabs-row) { padding: 8px 12px; }
+}

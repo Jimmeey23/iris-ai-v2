@@ -29,4 +29,7 @@ export const viewport:Viewport={
  *  nothing to mismatch on hydration); this sets it from the saved preference, or on
  *  a first visit the light default, so nobody sees a flash of the wrong theme. */
 const THEME_SCRIPT="try{var t=localStorage.getItem('iris-theme');if(t!=='light'&&t!=='dark'){t='light'}document.documentElement.dataset.theme=t}catch(e){document.documentElement.dataset.theme='light'}";
-export default function RootLayout({children}:{children:React.ReactNode}){return <html lang="en" suppressHydrationWarning><head><script dangerouslySetInnerHTML={{__html:THEME_SCRIPT}}/></head><body className={outfit.variable+' '+spaceGrotesk.variable+' '+jetbrainsMono.variable} suppressHydrationWarning><AppProvider>{children}<FeedbackTab/></AppProvider></body></html>;}
+// The next/font variables sit on <html>, not <body>: globals.css composes --font-display,
+// --font-body and --font-mono from them on :root, and at :root a variable set on <body>
+// does not exist yet — so those tokens resolved to nothing and every surface fell back.
+export default function RootLayout({children}:{children:React.ReactNode}){return <html lang="en" className={outfit.variable+' '+spaceGrotesk.variable+' '+jetbrainsMono.variable} suppressHydrationWarning><head><script dangerouslySetInnerHTML={{__html:THEME_SCRIPT}}/></head><body suppressHydrationWarning><AppProvider>{children}<FeedbackTab/></AppProvider></body></html>;}

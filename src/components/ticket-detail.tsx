@@ -127,6 +127,20 @@ const FACT_ICONS: Record<string, LucideIcon> = {
   Impact: AlertCircle,
 };
 
+/** How a ticket with no workspace author reached IRIS, for the "Reported by" slot. */
+function reportedVia(source?: string | null) {
+  return (
+    {
+      fillout: "Via an intake form",
+      history: "History import",
+      system: "IRIS automation",
+      voice: "Via voice intake",
+      iris: "Via IRIS chat",
+      template: "Via a template",
+    } as Record<string, string>
+  )[source || ""] || "Outside the workspace";
+}
+
 function FactTile({
   label,
   value,
@@ -538,7 +552,7 @@ export function TicketDialog({
         title={t ? t.title : "Ticket details"}
         description={
           t
-            ? `${t.ticketNumber} · Logged ${indiaDate(t.createdAt)} by ${t.memberName}`
+            ? `${t.ticketNumber} · Logged ${indiaDate(t.createdAt)}${t.createdByName ? ` · reported by ${t.createdByName}` : ""}`
             : "Loading the latest ticket details"
         }
         size="wide"
@@ -547,15 +561,11 @@ export function TicketDialog({
           <>
             <span className="muted flex-row" style={{ fontSize: 10 }}>
               <ShieldCheck size={13} />
-              Saved to your workspace · updates every 30s
+              Saved to your workspace · refreshes automatically
             </span>
             <div className="flex-row">
-              {bundle?.canEditDetails && (
-                <button className="btn" disabled={busy || !t} onClick={openEditor}>
-                  <Pencil size={13} />
-                  Edit
-                </button>
-              )}
+              {/* Edit, refresh and duplicate live in the header beside the title; the footer
+                  keeps only what is not there. */}
               {user?.role === "admin" && (
                 <button
                   className="btn btn-danger"
@@ -569,18 +579,6 @@ export function TicketDialog({
                   Delete
                 </button>
               )}
-              <button className="btn" onClick={() => void load()}>
-                <RefreshCw size={13} />
-                Refresh
-              </button>
-              <button
-                className="btn"
-                disabled={busy || !t}
-                onClick={() => void duplicate()}
-              >
-                <Copy size={13} />
-                Duplicate
-              </button>
               <button className="btn btn-primary" onClick={onClose}>
                 Done
               </button>
@@ -599,61 +597,31 @@ export function TicketDialog({
           <div className={"ticket-detail-shell " + styles.shell}>
             <div className={styles.frame}>
               <header
-                className="td-masthead"
+                className="td-masthead td-hero"
                 data-tone={CATEGORY_TONE[t.category] || "accent"}
               >
                 <div className="td-masthead-body">
-                  <div className="td-identity-line">
-                    <button
-                      type="button"
-                      className="td-ticket-key"
-                      title="Copy ticket ID"
-                      onClick={() => {
-                        void navigator.clipboard
-                          .writeText(t.ticketNumber)
-                          .then(() => notify("Ticket ID copied."))
-                          .catch(() => notify("Your browser blocked clipboard access.", "error"));
-                      }}
-                    >
-                      {t.ticketNumber}
-                      <Copy size={11} />
-                    </button>
-                    <span>{t.category} / {t.subcategory}</span>
-                    <span className="td-rev">
-                      Revision {t.version} · updated {indiaDate(t.updatedAt)}
-                    </span>
-                  </div>
-                  <div className="td-title-row">
-                    <div>
-                      <h2 className="td-modal-title">{t.title}</h2>
-                      <div className="td-created-meta">
-                        <Clock3 size={12} />
-                        <span>Logged {indiaDate(t.createdAt)}</span>
-                        <i aria-hidden="true" />
-                        <span>by {t.memberName}</span>
-                        {/* Who filed it, which is also the answer to "why can I not edit this?".
-                            A ticket that arrived by email or from a form has no author in the
-                            workspace, so there is no edit button and the reason should be on
-                            screen rather than left to be guessed at. */}
-                        {t.createdByName && (
-                          <>
-                            <i aria-hidden="true" />
-                            <span>filed by {t.createdByName}</span>
-                          </>
-                        )}
-                        {!bundle.canEditDetails && (
-                          <>
-                            <i aria-hidden="true" />
-                            <span className="td-noedit" title={
-                              t.createdByName
-                                ? `Only ${t.createdByName} or an administrator can edit these details.`
-                                : "This ticket arrived from outside the workspace, so it has no author. An administrator can edit it."
-                            }>
-                              {t.createdByName ? "Editable by " + t.createdByName : "No author on file"}
-                            </span>
-                          </>
-                        )}
-                      </div>
+                  <div className="td-hero-top">
+                    <div className="td-identity-line">
+                      <button
+                        type="button"
+                        className="td-ticket-key"
+                        title="Copy ticket ID"
+                        onClick={() => {
+                          void navigator.clipboard
+                            .writeText(t.ticketNumber)
+                            .then(() => notify("Ticket ID copied."))
+                            .catch(() => notify("Your browser blocked clipboard access.", "error"));
+                        }}
+                      >
+                        {t.ticketNumber}
+                        <Copy size={11} />
+                      </button>
+                      <span className="td-crumb">
+                        {t.category}
+                        <ChevronRight size={12} aria-hidden="true" />
+                        <strong>{t.subcategory}</strong>
+                      </span>
                     </div>
                     <div className="td-head-actions">
                       {/* Editing used to be a plain button in the dialog footer, below the fold
@@ -695,18 +663,98 @@ export function TicketDialog({
                         <X size={17} />
                       </button>
                     </div>
+
                   </div>
-                  <p className="td-summary td-summary-primary">{t.summary}</p>
+                  <h2 className="td-modal-title">{t.title}</h2>
                   <div className="td-chips">
                     <Status status={t.status} />
                     <Priority priority={t.priority} />
-                    <Badge tone="blue">{t.departmentName}</Badge>
+                    {t.departmentName && <Badge tone="blue">{t.departmentName}</Badge>}
                     <Badge>{t.kind}</Badge>
                     {!t.resolutionRequired && (
                       <Badge tone="green">Record only</Badge>
                     )}
                     {t.isEscalated && <Badge tone="red">Escalated</Badge>}
                   </div>
+                  {t.summary && t.summary !== t.title && (
+                    <p className="td-summary td-summary-primary">{t.summary}</p>
+                  )}
+                  {/* Who is involved, at a glance. "Reported by" leads: it is the person to go
+                      back to with a question, and it used to be the smallest text on the screen,
+                      easily read as the member's name. */}
+                  <dl className="td-people" aria-label="People and place">
+                    <div className="td-person td-person-reporter">
+                      <dt>Reported by</dt>
+                      <dd>
+                        {t.createdByName ? <Avatar name={t.createdByName} showPresence /> : <span className="td-person-glyph"><Layers size={14} /></span>}
+                        <span>
+                          <strong>{t.createdByName || reportedVia(t.source)}</strong>
+                          <small>Filed {indiaDate(t.createdAt)}</small>
+                        </span>
+                      </dd>
+                    </div>
+                    <div className="td-person">
+                      <dt>Member</dt>
+                      <dd>
+                        <span className="td-person-glyph"><UserRound size={14} /></span>
+                        <span>
+                          <strong>{t.memberName || "Not recorded"}</strong>
+                          {t.membership && <small>{t.membership}</small>}
+                        </span>
+                      </dd>
+                    </div>
+                    <div className="td-person">
+                      <dt>Owner</dt>
+                      <dd>
+                        {t.assignedStaffName ? <Avatar name={t.assignedStaffName} owner /> : <span className="td-person-glyph"><UserRound size={14} /></span>}
+                        <span>
+                          <strong>{t.assignedStaffName || "Unassigned"}</strong>
+                          {t.departmentName && <small>{t.departmentName}</small>}
+                        </span>
+                      </dd>
+                    </div>
+                    <div className="td-person">
+                      <dt>Studio</dt>
+                      <dd>
+                        <span className="td-person-glyph"><MapPin size={14} /></span>
+                        <span>
+                          <strong>{t.studio || "Not specified"}</strong>
+                          {typeof t.customFields?.area === "string" && t.customFields.area && <small>{t.customFields.area}</small>}
+                        </span>
+                      </dd>
+                    </div>
+                    <div className="td-person td-person-due">
+                      <dt>{t.resolutionRequired ? "Follow-up target" : "Record"}</dt>
+                      <dd>
+                        <span className="td-person-glyph"><Clock3 size={14} /></span>
+                        <span>
+                          {t.resolutionRequired && t.slaDueAt ? (
+                            <>
+                              <SlaCountdown ticket={t as never} />
+                              <small>{indiaDate(t.slaDueAt)}</small>
+                            </>
+                          ) : (
+                            <strong>{t.resolutionRequired ? "No target set" : "Nothing to chase"}</strong>
+                          )}
+                        </span>
+                      </dd>
+                    </div>
+                  </dl>
+                  <p className="td-hero-meta">
+                    <span>Revision {t.version} · updated {indiaDate(t.updatedAt)}</span>
+                    {/* Which is also the answer to "why can I not edit this?". A ticket that
+                        arrived by email or from a form has no author in the workspace. */}
+                    {!bundle.canEditDetails && (
+                      <span className="td-noedit" title={
+                        t.createdByName
+                          ? `Only ${t.createdByName} or an administrator can edit these details.`
+                          : "This ticket arrived from outside the workspace, so it has no author. An administrator can edit it."
+                      }>
+                        <LockKeyhole size={11} />
+                        {t.createdByName ? "Editable by " + t.createdByName : "No author on file"}
+                      </span>
+                    )}
+                  </p>
                 </div>
               </header>
               <div className="td-tabs-row">
