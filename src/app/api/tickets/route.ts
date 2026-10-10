@@ -9,7 +9,7 @@ import {ensureSeeded} from '@/lib/seed';
 import {errorResponse,intakeActor,requireWorkspace,sameOrigin} from '@/lib/auth';
 import {enforceRateLimit} from '@/lib/rate-limit';
 import {signalChanged} from '@/lib/realtime';
-import {runDueWork} from '@/lib/sweeps';
+import {runDueWorkThrottled} from '@/lib/sweeps';
 export const dynamic='force-dynamic';
 /** `GET /api/tickets` — `{tickets, nextCursor}`, newest first. `?limit=` (default 500, max 2000)
  *  and `?cursor=` (the previous page's `nextCursor`) page through the list; `nextCursor` is
@@ -21,7 +21,7 @@ export async function GET(req:NextRequest){try{
   // Escalation, the SLA warnings, the outbox drain and the morning digest ride on this
   // request — claimed and throttled in lib/sweeps, and run after the response. The Vercel
   // Hobby plan gives two cron jobs a day, which is the backstop rather than the mechanism.
-  if(q===null)after(()=>runDueWork().catch(()=>{}));
+  if(q===null)after(()=>runDueWorkThrottled().catch(()=>{}));
   const page=q!==null?{tickets:await searchTickets(user,q,Number(params.get('limit'))||20),nextCursor:null}:await listTicketsPage(user,{limit:Number(params.get('limit'))||DEFAULT_LIST_LIMIT,cursor:params.get('cursor')});
   // Masking hides a member's full name from everyone below administrator in list payloads.
   // The ticket itself still carries the real record for whoever can open it.

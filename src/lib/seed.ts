@@ -265,6 +265,18 @@ export async function ensureSeeded() {
     // gain the register too. It runs outside the seed transaction (it is idempotent — insert
     // on conflict do nothing) so the seed never holds two pooled connections at once.
     await seedAssets();
+    // Fast path, without the lock: once the workspace is initialised and the mailbox import is
+    // in, the transaction below can only confirm that. Taking the advisory lock on every cold
+    // start queued each new instance behind the others for nothing — it was the costliest
+    // statement in pg_stat_statements. Same checks, same outcome; the locked path still runs
+    // whenever either is missing, and always when demo data is switched on.
+    if (!demoDataEnabled()) {
+      const [[marker], [mailbox]] = await Promise.all([
+        db.select({key: appSettings.key}).from(appSettings).where(eq(appSettings.key, "workspace-initialized")).limit(1),
+        db.select({id: tickets.id}).from(tickets).where(eq(tickets.source, "gmail")).limit(1),
+      ]);
+      if (marker && mailbox) return;
+    }
     await db.transaction(async tx => {
       await tx.execute(sql`select pg_advisory_xact_lock(578157)`);
       const [marker] = await tx.select().from(appSettings).where(eq(appSettings.key,"workspace-initialized"));

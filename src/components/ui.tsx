@@ -28,6 +28,7 @@ import { cn, initials } from "@/lib/utils";
 import type { Identity } from "@/lib/auth";
 import { setDisplayTimezone } from "@/lib/display";
 import { configureMetrics } from "@/lib/metrics";
+import { onVisibleInterval } from "@/lib/visible-interval";
 
 /** An API failure that keeps the HTTP status, so callers can branch on 401/403/409. */
 export class ApiRequestError extends Error {
@@ -162,10 +163,9 @@ function DirectoryProvider({children}: {children: ReactNode}) {
         })
         .catch(() => {});
     };
-    load();
     // Matches the heartbeat in the shell, so a dot is at most one beat behind the truth.
-    const timer = window.setInterval(load, 20000);
-    return () => { stop = true; window.clearInterval(timer); };
+    const clear = onVisibleInterval(load, 60000);
+    return () => { stop = true; clear(); };
   }, []);
   const value = useMemo(() => ({people, online}), [people, online]);
   return <DirectoryContext.Provider value={value}>{children}</DirectoryContext.Provider>;

@@ -48,6 +48,7 @@ import { IrisLockup } from "./iris-mark";
 import { LiveSignal } from "@/components/live-signal";
 import { GuidedTour, signalTour } from "./guided-tour";
 import { isOpen } from "@/lib/metrics";
+import { onVisibleInterval } from "@/lib/visible-interval";
 /** The rail carries labels only — no AI / LIVE / count badges. The open-ticket
  *  figure still appears in the top bar, which is where a changing number
  *  belongs; in the nav it competed with the labels for attention. */
@@ -117,6 +118,28 @@ function LockedNavItem({ item }: { item: NavItem }) {
   );
 }
 export { Badge };
+
+type ShellTicket = {id: number; title: string; ticketNumber: string; memberName: string; status: string; priority: string};
+type ShellNotice = {id: number; title: string; body: string | null; fromName: string | null; readAt: string | null; ticketId: number | null; ticketNumber: string | null};
+/**
+ * Every page renders its own Shell, so each navigation remounts it — and used to re-download
+ * the 500-row ticket list and the bell on every click. Both are kept here, per signed-in
+ * user, for a short while. A ticket change only invalidates (the board refreshes itself), so
+ * the next navigation fetches fresh rather than every open tab fetching on every write.
+ */
+const SHELL_TTL_MS = 30_000;
+const shellCache: {
+  tickets?: {userId: number; at: number; rows: ShellTicket[]};
+  notices?: {userId: number; at: number; rows: ShellNotice[]};
+} = {};
+function freshCache<T>(entry: {userId: number; at: number; rows: T[]} | undefined, userId: number | undefined) {
+  return entry && userId !== undefined && entry.userId === userId && Date.now() - entry.at < SHELL_TTL_MS ? entry.rows : undefined;
+}
+if (typeof window !== "undefined")
+  window.addEventListener("iris:tickets-updated", () => {
+    shellCache.tickets = undefined;
+  });
+
 export function Shell({
   children,
   title = "Overview",
@@ -145,22 +168,13 @@ export function Shell({
   const { user, openAuth, refreshUser, notify, pollSeconds } = useApp();
   /** Live presence, shared with every avatar in the app — one poll, one truth. */
   const { online } = useDirectory();
-  const [notices, setNotices] = useState<{id: number; title: string; body: string | null; fromName: string | null; readAt: string | null; ticketId: number | null; ticketNumber: string | null}[]>([]);
+  const [notices, setNotices] = useState<ShellNotice[]>(() => freshCache(shellCache.notices, user?.id) ?? []);
   const [mobile, setMobile] = useState(false),
     [collapsed, setCollapsed] = useState(true),
     [searchOpen, setSearchOpen] = useState(false),
     [notifications, setNotifications] = useState(false),
     [query, setQuery] = useState(""),
-    [items, setItems] = useState<
-      {
-        id: number;
-        title: string;
-        ticketNumber: string;
-        memberName: string;
-        status: string;
-        priority: string;
-      }[]
-    >([]);
+    [items, setItems] = useState<ShellTicket[]>(() => freshCache(shellCache.tickets, user?.id) ?? []);
   /**
    * The topbar only claims elevation once there is content underneath it to lift
    * off. Passive listener, and it writes straight to the DOM attribute rather
@@ -188,10 +202,20 @@ export function Shell({
   }, []);
   useEffect(() => {
     if (!user) return;
+    const cached = freshCache(shellCache.tickets, user.id);
+    if (cached) {
+      // Deferred, as the board does: the user arrives after the first render, so the
+      // initial state could not read the cache yet.
+      void Promise.resolve().then(() => setItems(cached));
+      return;
+    }
     // The default page (500, newest first) — the open count below is the same
     // figure the top bar shows, so the two can never disagree.
-    void api<{ tickets: typeof items }>("/api/tickets")
-      .then((d) => setItems(d.tickets))
+    void api<{ tickets: ShellTicket[] }>("/api/tickets")
+      .then((d) => {
+        shellCache.tickets = {userId: user.id, at: Date.now(), rows: d.tickets};
+        setItems(d.tickets);
+      })
       .catch(() => {});
   }, [user]);
   /** The guided tour gates two of its steps on these panels actually opening,
@@ -208,16 +232,29 @@ export function Shell({
    *  dropped socket or a deployment without realtime. */
   useEffect(() => {
     if (!user) return;
+    // The first call after a navigation is skipped while the cache is fresh; every later
+    // tick, a realtime push and a return to the tab always fetch.
+    let first = true;
     const load = () => {
-      void api<{notifications: typeof notices}>("/api/notifications")
-        .then(d => setNotices(d.notifications))
+      const cached = first ? freshCache(shellCache.notices, user.id) : undefined;
+      first = false;
+      if (cached) {
+        setNotices(cached);
+        return;
+      }
+      void api<{notifications: ShellNotice[]}>("/api/notifications")
+        .then(d => {
+          shellCache.notices = {userId: user.id, at: Date.now(), rows: d.notifications};
+          setNotices(d.notifications);
+        })
         .catch(() => {});
     };
-    load();
-    const timer = window.setInterval(load, Math.max(15, pollSeconds) * 1000);
+    // Realtime pushes new notifications, so the poll is only the floor — the same one-minute
+    // floor the ticket board uses — and it sleeps while the tab is hidden.
+    const stop = onVisibleInterval(load, Math.max(60, pollSeconds) * 1000);
     window.addEventListener("iris:notifications-updated", load);
     return () => {
-      window.clearInterval(timer);
+      stop();
       window.removeEventListener("iris:notifications-updated", load);
     };
   }, [user, pollSeconds]);
@@ -225,6 +262,7 @@ export function Shell({
   const unread = notices.filter(n => !n.readAt);
   const markRead = () => {
     if (!unread.length) return;
+    shellCache.notices = undefined;
     setNotices(list => list.map(n => ({...n, readAt: n.readAt ?? new Date().toISOString()})));
     void api("/api/notifications", {method: "PATCH", body: JSON.stringify({all: true})}).catch(() => {});
   };
@@ -249,8 +287,10 @@ export function Shell({
   const activeName =
     routes.find((n) => path.startsWith(n.href))?.label ||
     (path === "/" ? "Overview" : title);
-  /** Heartbeat: says who is here and what they are looking at. Twenty seconds is inside the
-   *  fifty the API counts as present, so one dropped beat does not make somebody vanish. */
+  /** Heartbeat: says who is here and what they are looking at. Sixty seconds is inside the
+   *  150 the API counts as present, so one dropped beat does not make somebody vanish. A
+   *  hidden tab stops beating, so somebody counts as here while they have the app in front
+   *  of them. */
   useEffect(() => {
     if (!user) return;
     const beat = () => {
@@ -259,9 +299,7 @@ export function Shell({
         body: JSON.stringify({ path, label: activeName }),
       }).catch(() => {});
     };
-    beat();
-    const timer = window.setInterval(beat, 20000);
-    return () => window.clearInterval(timer);
+    return onVisibleInterval(beat, 60000);
   }, [user, path, activeName]);
 
   const openItems = items.filter(isOpen);

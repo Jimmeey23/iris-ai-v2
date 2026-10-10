@@ -27,6 +27,7 @@ export async function POST(req:Request,ctx:Ctx){try{
   // The write landed: tell the other open boards, so a teammate sees this without
   // waiting for their poll. Advisory only — see lib/realtime.
   after(() => signalChanged('tickets'));
+  if(people.length)after(() => signalChanged('notifications'));
   return Response.json(await getResolutionWorkspace(id));
 }catch(e){return errorResponse(e);}}
 

@@ -7,7 +7,10 @@ import {ensureUsernames} from '@/lib/mentions';
 export const dynamic = 'force-dynamic';
 
 /** Matches ONLINE_SECONDS in the presence route: one missed heartbeat is forgiven. */
-const ONLINE_SECONDS = 50;
+const ONLINE_SECONDS = 150;
+
+const USERNAME_RECHECK_MS = 5 * 60_000;
+let usernamesCheckedAt = 0;
 
 /**
  * Faces and presence for everyone in the workspace, in one small payload.
@@ -24,8 +27,12 @@ export async function GET() {
   try {
     await requireWorkspace();
     // The mention picker takes its handles from this payload, so an account that has never
-    // had one gets it here, before anybody can type `@`. A no-op once every account is filled.
-    await ensureUsernames();
+    // had one gets it here, before anybody can type `@`. A no-op once every account is filled,
+    // so a warm instance only re-checks every few minutes rather than on every poll.
+    if (Date.now() - usernamesCheckedAt > USERNAME_RECHECK_MS) {
+      await ensureUsernames();
+      usernamesCheckedAt = Date.now();
+    }
     const since = new Date(Date.now() - ONLINE_SECONDS * 1000);
     const [accounts, directory, present] = await Promise.all([
       db.select({id: appUsers.id, name: appUsers.name, username: appUsers.username, avatarUrl: appUsers.avatarUrl, staffId: appUsers.staffId, role: appUsers.role}).from(appUsers),

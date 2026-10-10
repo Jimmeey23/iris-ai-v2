@@ -7,13 +7,13 @@ import {errorResponse, requireWorkspace, sameOrigin} from '@/lib/auth';
 export const dynamic = 'force-dynamic';
 
 /** How long after their last heartbeat somebody still counts as here. The client beats every
- *  20s, so this tolerates one missed beat before the person drops off the list. */
-const ONLINE_SECONDS = 50;
+ *  60s while visible, so this tolerates one missed beat before the person drops off the list. */
+const ONLINE_SECONDS = 150;
 
 /**
  * Who is in the workspace, and which page they have open.
  *
- * Polled rather than pushed: a heartbeat on a 20-second interval costs one tiny upsert per
+ * Polled rather than pushed: a heartbeat on a 60-second interval costs one tiny upsert per
  * person and needs no socket, which matters on serverless where a long-lived connection has
  * nowhere to live. The trade is that "currently viewing" can be up to a beat stale — the
  * right trade for a presence strip, and the wrong one for anything transactional.

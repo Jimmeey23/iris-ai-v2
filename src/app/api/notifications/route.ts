@@ -4,7 +4,7 @@ import {db} from '@/db';
 import {tickets, userNotifications} from '@/db/schema';
 import {after} from 'next/server';
 import {errorResponse, requireWorkspace, sameOrigin} from '@/lib/auth';
-import {runDueWork} from '@/lib/sweeps';
+import {runDueWorkThrottled} from '@/lib/sweeps';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,7 +16,7 @@ export async function GET() {
     // The bell is polled by every open tab on the workspace's poll interval, which makes it
     // the most reliable heartbeat in the app — so the background sweeps hang off it as well as
     // off the ticket list. Claimed and throttled in lib/sweeps; runs after the response.
-    after(() => runDueWork().catch(() => {}));
+    after(() => runDueWorkThrottled().catch(() => {}));
     const rows = await db
       .select({
         id: userNotifications.id, kind: userNotifications.kind, title: userNotifications.title,

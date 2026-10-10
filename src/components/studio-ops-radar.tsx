@@ -104,7 +104,9 @@ interface RadarApiResponse {
   };
 }
 
-const POLL_MS = 12000;
+/** The radar is derived from tickets only, so realtime (`iris:tickets-updated`) carries a
+ *  change as it lands; the poll is the floor for a dropped socket. */
+const POLL_MS = 60000;
 
 // Humanise an SLA delta given in minutes. Long-overdue tickets are common in
 // seeded data, so anything past a day collapses to whole days — "-1272130m" is
@@ -244,10 +246,16 @@ export function StudioOpsRadar({ initialStudio = 'kwality' }: { initialStudio?: 
       if (document.hidden) stop();
       else { void load(selectedStudioId); start(); }
     };
+    const onTickets = () => { if (!document.hidden) void load(selectedStudioId); };
     void load(selectedStudioId);
     if (!document.hidden) start();
     document.addEventListener('visibilitychange', onVisibility);
-    return () => { stop(); document.removeEventListener('visibilitychange', onVisibility); };
+    window.addEventListener('iris:tickets-updated', onTickets);
+    return () => {
+      stop();
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('iris:tickets-updated', onTickets);
+    };
   }, [selectedStudioId, load]);
 
   useEffect(() => {

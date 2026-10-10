@@ -258,18 +258,22 @@ export function TicketDialog({
       // save is about to be checked against, so a perfectly good edit came back as "this
       // ticket changed elsewhere" — and the next poll after that would have reloaded the
       // fields underneath the person typing.
+      // Realtime (`iris:tickets-updated`, below) carries a teammate's change; the interval is
+      // only the floor for a dropped socket.
       const timer = setInterval(() => {
         if (!document.hidden && !editOpen) void load();
-      }, 30000);
+      }, 60000);
       // Skip the tick while the tab is hidden, then catch up with one fetch
       // the moment it becomes visible again rather than waiting out the interval.
       const onVisible = () => {
         if (!document.hidden && !editOpen) void load();
       };
       document.addEventListener("visibilitychange", onVisible);
+      window.addEventListener("iris:tickets-updated", onVisible);
       return () => {
         clearInterval(timer);
         document.removeEventListener("visibilitychange", onVisible);
+        window.removeEventListener("iris:tickets-updated", onVisible);
       };
     }
   }, [open, load, editOpen]);

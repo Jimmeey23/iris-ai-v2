@@ -46,6 +46,7 @@ export async function POST(
     // The write landed: tell the other open boards, so a teammate sees this without
     // waiting for their poll. Advisory only — see lib/realtime.
     after(() => signalChanged("tickets"));
+    if (people.length) after(() => signalChanged("notifications"));
     return Response.json({ comment });
   } catch (e) {
     return errorResponse(e);

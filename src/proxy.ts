@@ -35,4 +35,8 @@ export async function proxy(request: NextRequest) {
   return session.response;
 }
 
-export const config = { matcher: ["/((?!.*\\.[^/]+$).*)"] };
+// API routes are excluded as well: every one of them that needs a session verifies it
+// itself through lib/auth (and refreshes the cookie there — Route Handlers can write
+// cookies), and answers for itself with a 401. Running the proxy in front of them too
+// doubled the invocations of every poll for no change in behaviour.
+export const config = { matcher: ["/((?!api/|.*\\.[^/]+$).*)"] };

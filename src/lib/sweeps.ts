@@ -71,6 +71,24 @@ async function run(job: SweepJob, work: () => Promise<unknown>): Promise<boolean
   }
 }
 
+/** When this process last asked the database for a claim. See runDueWorkThrottled. */
+let lastAttempt = 0;
+/** Shorter than every window above, so this gate only ever delays a sweep by under a minute. */
+const LOCAL_GATE_MS = 60_000;
+
+/**
+ * runDueWork for the polled routes. Every open tab hits those every minute or so, and each
+ * call used to cost three conditional upserts that almost always changed nothing. A warm
+ * instance now asks at most once a minute; the database claim still arbitrates between
+ * instances. The crons call runDueWork directly and are never gated.
+ */
+export async function runDueWorkThrottled(): Promise<{ran: SweepJob[]}> {
+  const now = Date.now();
+  if (now - lastAttempt < LOCAL_GATE_MS) return {ran: []};
+  lastAttempt = now;
+  return runDueWork();
+}
+
 /**
  * Everything that is due, as far as its own window allows. Safe to call from any request.
  *
@@ -85,7 +103,12 @@ export async function runDueWork(): Promise<{ran: SweepJob[]}> {
       // Ordered so that anything a sweep queues is in the outbox before the drain below runs.
       await queueSlaReminderEmails();
       await emitOverdueEvents();
-      await applyEscalations();
+      // An escalation reassigns tickets and drops a note in the new owner's bell; push both so
+      // open tabs do not wait for their (slow) fallback poll.
+      if ((await applyEscalations()) > 0) {
+        const {signalChanged} = await import('./realtime');
+        await Promise.all([signalChanged('tickets'), signalChanged('notifications')]);
+      }
     })
   )
     ran.push('sla');

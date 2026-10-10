@@ -19,10 +19,12 @@ export async function updateSession(request: NextRequest) {
       },
     },
   });
-  // getUser() revalidates the token with Supabase. Never trust getSession() here:
-  // it reads the cookie without verifying it, which a forged cookie would pass.
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // getClaims() refreshes an expired token and verifies the JWT signature — locally
+  // with asymmetric signing keys, so a page view no longer waits on a round trip to
+  // the Auth server. Never trust getSession() here: it reads the cookie without
+  // verifying it, which a forged cookie would pass. Revocation is still enforced by
+  // lib/auth, which reads app_users.active on every request.
+  const { data } = await supabase.auth.getClaims();
+  const user = data?.claims?.sub ? { id: data.claims.sub } : null;
   return { response, user };
 }

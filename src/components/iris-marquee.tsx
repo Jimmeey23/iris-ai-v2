@@ -1,6 +1,7 @@
 "use client";
 import {useEffect, useState} from 'react';
 import {api} from './ui';
+import {onVisibleInterval} from '@/lib/visible-interval';
 import {
   Activity,
   ShieldAlert,
@@ -36,11 +37,10 @@ export function IrisMarquee({page = 'overview'}: {page?: string}) {
         .then(d => { if (!cancelled) setItems(d.items || []); })
         .catch(() => {});
     };
-    load();
     // Slow on purpose. This is ambient information; refreshing it every few seconds would
-    // make the numbers jitter under the reader's eye for no gain.
-    const timer = window.setInterval(load, 60000);
-    return () => { cancelled = true; window.clearInterval(timer); };
+    // make the numbers jitter under the reader's eye for no gain. Sleeps while hidden.
+    const stop = onVisibleInterval(load, 60000);
+    return () => { cancelled = true; stop(); };
   }, [page]);
 
   if (!items.length) return null;
