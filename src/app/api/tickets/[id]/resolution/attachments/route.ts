@@ -23,7 +23,7 @@ export async function POST(req: Request, ctx: Ctx) {
     const [ticket] = await db.select().from(tickets).where(eq(tickets.id, ticketId));
     if (!ticket) throw new ApiError('Ticket not found', 404);
     requireTicketAccess(user, ticket);
-    if (!canEditTicketDetails(user, ticket) && !await canResolveTicket(user, ticket.assignedStaffId, ticket.resolutionRequired)) {
+    if (!canEditTicketDetails(user, ticket) && !await canResolveTicket(user, ticket.assignedStaffId, ticket.resolutionRequired, ticket.additionalOwners)) {
       throw new ApiError('Only the reporter, an administrator, or a resolution editor can attach files.', 403);
     }
     const form = await req.formData();

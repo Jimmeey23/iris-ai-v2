@@ -442,3 +442,107 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="
   /* globals.css owns the full reduced-motion policy, including loading states. */
   .ovc-kpi-flip, .mc-flip { transition: none; }
 }
+
+/* ── Ticket status phases & recurrence ──────────────────────────────────────────────
+   Open work has to win the scan. Finished rows were the same weight and the same green
+   as each other, so a busy board read as a wall. Now: open = vivid pill + priority rail;
+   resolved = green check, row quietened; closed = grey lock, row quieter still;
+   recorded = archive glyph, muted. Every phase carries an icon and a word, never hue alone.
+   Recurrence gets the one hue nothing else on the board uses (orchid), in both themes. */
+:root, [data-theme="light"] {
+  --recur: #8a2aa8;
+  --recur-bg: #8a2aa812;
+  --status-closed: #677387;
+  --row-done-bg: color-mix(in srgb, var(--surface-2) 75%, var(--surface));
+}
+[data-theme="dark"] {
+  --recur: #e0a6f5;
+  --recur-bg: #e0a6f51c;
+  --status-closed: #8e9bb0;
+  --row-done-bg: color-mix(in srgb, var(--bg) 55%, var(--surface));
+}
+.status-resolved { --badge-ink: var(--green); }
+.status-closed { --badge-ink: var(--status-closed); }
+.status-recorded { --badge-ink: var(--muted); }
+
+.status-pill { display: inline-flex; align-items: center; gap: 4px; }
+.status-pill svg { flex: none; }
+.badge.status-pill.status-phase-open {
+  font-weight: 600;
+  background: color-mix(in srgb, var(--badge-ink) 15%, var(--surface));
+  border-color: color-mix(in srgb, var(--badge-ink) 45%, var(--border));
+}
+.badge.status-pill.status-phase-resolved {
+  background: color-mix(in srgb, var(--green) 7%, var(--surface));
+  border-color: color-mix(in srgb, var(--green) 30%, var(--border));
+}
+.badge.status-pill.status-phase-closed {
+  background: var(--surface-2);
+  border-color: var(--border-strong);
+  color: var(--status-closed);
+}
+.badge.status-pill.status-phase-recorded {
+  background: transparent;
+  border-style: dashed;
+  color: var(--muted);
+}
+
+/* Rows: open rows keep the priority rail; finished rows drop it and step back. Content
+   fades rather than the <tr>, so borders stay crisp and hover brings the row fully back. */
+.ticket-grid tbody tr.tg-row-open.priority-row-low { border-left-color: color-mix(in srgb, var(--accent) 22%, var(--border-strong)); }
+.data-table tbody tr.tg-row-resolved,
+.data-table tbody tr.tg-row-closed { background: var(--row-done-bg); border-left-color: transparent; }
+.data-table tbody tr.tg-row-resolved > td > *,
+.data-table tbody tr.tg-row-closed > td > * { opacity: .74; filter: saturate(.45); transition: opacity .15s, filter .15s; }
+.data-table tbody tr.tg-row-closed > td > * { opacity: .62; filter: saturate(.15); }
+.data-table tbody tr.tg-row-resolved .ticket-name,
+.data-table tbody tr.tg-row-closed .ticket-name { font-weight: 500; color: var(--secondary); }
+.data-table tbody tr.tg-row-resolved:hover,
+.data-table tbody tr.tg-row-closed:hover { background: color-mix(in srgb, var(--accent) 4%, var(--row-done-bg)); }
+.data-table tbody tr.tg-row-resolved:hover > td > *,
+.data-table tbody tr.tg-row-closed:hover > td > *,
+.data-table tbody tr.tg-row-resolved:focus-within > td > *,
+.data-table tbody tr.tg-row-closed:focus-within > td > * { opacity: 1; filter: none; }
+/* The status pill is the reason the row is quiet; it stays legible at full strength. */
+.data-table tbody tr.tg-row-resolved > td > .status-pill,
+.data-table tbody tr.tg-row-closed > td > .status-pill { opacity: 1; filter: none; }
+
+/* Kanban / card views get the same treatment. */
+.ticket-card.ticket-card-resolved,
+.ticket-card.ticket-card-closed { background: var(--row-done-bg); box-shadow: none; }
+.ticket-card.ticket-card-resolved > *,
+.ticket-card.ticket-card-closed > * { opacity: .74; filter: saturate(.45); transition: opacity .15s, filter .15s; }
+.ticket-card.ticket-card-closed > * { opacity: .62; filter: saturate(.15); }
+.ticket-card.ticket-card-resolved:hover > *,
+.ticket-card.ticket-card-closed:hover > *,
+.ticket-card.ticket-card-resolved:focus-visible > *,
+.ticket-card.ticket-card-closed:focus-visible > * { opacity: 1; filter: none; }
+.ticket-card.ticket-card-resolved:before,
+.ticket-card.ticket-card-closed:before { background: var(--border); }
+.ticket-card.ticket-card-recur:not(.ticket-card-resolved):not(.ticket-card-closed) { border-color: color-mix(in srgb, var(--recur) 35%, var(--border)); }
+
+/* Recurrence badges */
+.recur-badges { display: flex; flex-wrap: wrap; gap: 5px; margin: 4px 0 2px; }
+.recur-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 8px; border-radius: var(--radius-pill, 999px);
+  font-size: 10px; font-weight: 600; line-height: 1.5; letter-spacing: .01em; white-space: nowrap;
+  color: var(--recur); background: var(--recur-bg);
+  border: 1px solid color-mix(in srgb, var(--recur) 30%, var(--border));
+}
+.recur-badge-repeat { background: transparent; border-style: dashed; }
+.recur-parent { font-family: var(--font-mono); font-weight: 500; opacity: .85; margin-left: 2px; }
+.ticket-grid tbody tr.tg-row-recur.tg-row-open { background: color-mix(in srgb, var(--recur) 3.5%, var(--surface)); }
+.ticket-grid tbody tr.tg-row-recur.tg-row-open:hover { background: color-mix(in srgb, var(--recur) 7%, var(--surface)); }
+
+/* Accountability columns */
+.tg-co-count {
+  font-style: normal; font-weight: 600; font-size: 10px; margin-left: 4px;
+  padding: 0 5px; border-radius: var(--radius-pill, 999px);
+  background: var(--surface-3); color: var(--secondary);
+}
+.tg-flag { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; }
+.tg-flag-escalated { color: var(--red); }
+.tg-flag-extension { color: var(--amber); cursor: help; }
+.tg-revised { color: var(--amber); font-weight: 500; text-decoration: underline dotted; text-underline-offset: 3px; cursor: help; }
+.tg-commit-missed { display: inline-flex; align-items: center; gap: 4px; color: var(--red); font-weight: 600; }

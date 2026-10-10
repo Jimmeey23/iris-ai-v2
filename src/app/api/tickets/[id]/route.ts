@@ -1,4 +1,4 @@
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import {
@@ -29,6 +29,8 @@ import {
   statusTimestamps,
   slaHoursFor,
   stripReservedFields,
+  canResolveTicket,
+  clientInvolvedTicket,
 } from "@/lib/tickets";
 import { getConfig } from "@/lib/config";
 import { emitTicketEvent } from "@/lib/ticket-events";
@@ -100,6 +102,10 @@ export async function PATCH(req: Request, ctx: Ctx) {
         preferredContact: z.string().max(50).optional(),
         tags: z.array(z.string().max(60)).max(30).optional(),
         customFields: z.record(z.string(), z.unknown()).optional(),
+        /** The full co-owner list (replaces it), for work that spans teams. */
+        additionalOwnerIds: z.array(z.number().int().positive()).max(6).optional(),
+        /** The date the owner commits to resolving it by; null withdraws it. */
+        committedResolutionAt: z.union([z.string().datetime({ offset: true }), z.null()]).optional(),
       })
       .parse(await req.json());
     const [[current], cfg] = await Promise.all([
@@ -147,6 +153,27 @@ export async function PATCH(req: Request, ctx: Ctx) {
           : "This ticket was filed outside the workspace, so it has no author — an administrator can edit it.",
         403,
       );
+    // Co-owners and the committed date are the owners' working arrangements, not the account of
+    // the incident: whoever may resolve it (owner, co-owner, their manager) or edit its details
+    // may set them.
+    if (b.additionalOwnerIds !== undefined || b.committedResolutionAt !== undefined) {
+      const allowed =
+        canEditTicketDetails(actor, current) ||
+        (await canResolveTicket(actor, current.assignedStaffId, current.resolutionRequired, current.additionalOwners));
+      if (!allowed) throw new ApiError("Only the ticket's owners, their reporting manager or its author can change this.", 403);
+    }
+    let coOwnerFields = {};
+    if (b.additionalOwnerIds !== undefined) {
+      const ids = [...new Set(b.additionalOwnerIds)].filter((sid) => sid !== (b.assignedStaffId ?? current.assignedStaffId));
+      const people = ids.length
+        ? await db.select({ id: staff.id, name: staff.name, email: staff.email, departmentName: staff.department }).from(staff).where(and(inArray(staff.id, ids), eq(staff.isActive, true)))
+        : [];
+      if (people.length !== ids.length) throw new ApiError("Choose active staff members as co-owners.");
+      coOwnerFields = { additionalOwners: ids.map((sid) => people.find((p) => p.id === sid)!) };
+    }
+    // A ticket about a client never drops below high — the same rule makeDraft applies on filing.
+    if (b.priority && clientInvolvedTicket(current) && (b.priority === "low" || b.priority === "medium"))
+      throw new ApiError("This ticket involves a client directly, so it stays at high priority or above.");
     let ownerFields = {};
     if (b.assignedStaffId) {
       const [p] = await db
@@ -182,17 +209,24 @@ export async function PATCH(req: Request, ctx: Ctx) {
         : b.priority
           ? { severity: inferSeverity(b.priority) }
           : {};
-    const { version, status, ...fields } = b;
+    const { version, status, additionalOwnerIds: _coOwnerIds, committedResolutionAt, ...fields } = b;
+    void _coOwnerIds;
+    const workingFields = {
+      ...coOwnerFields,
+      ...(committedResolutionAt !== undefined ? { committedResolutionAt: committedResolutionAt ? new Date(committedResolutionAt) : null } : {}),
+    };
     const sanitizedCustom = fields.customFields
       ? { ...(current.customFields || {}), ...stripReservedFields(fields.customFields) }
       : undefined;
     const patchPayload = {
       ...fields,
+      ...workingFields,
       ...(sanitizedCustom ? { customFields: sanitizedCustom } : {}),
     };
     const detail = Object.entries(b)
       .filter(([k]) => k !== "version")
-      .map(([k, v]) => `${k}: ${v}`)
+      // Arrays of ids read as names in the log, not as "1,2".
+      .map(([k, v]) => k === "additionalOwnerIds" ? `co-owners: ${(coOwnerFields as {additionalOwners?: {name: string}[]}).additionalOwners?.map((o) => o.name).join(", ") || "none"}` : `${k}: ${v}`)
       .join(" · ");
     // Resolving and closing go through the shared resolveTicket, which enforces the resolver,
     // the private resolution record, the reopen policy and the caller's revision, and raises

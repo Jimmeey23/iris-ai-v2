@@ -5,6 +5,7 @@ import {Avatar, Badge, Modal, Priority} from '../ui';
 import {decodeLookups, orderSections, filled, visibleFields, type ClassSnapshot, type Gate, type IntakeData, type IntakeField} from '@/lib/intake/plan';
 import {LookupChip} from './lookup-field';
 import type {IntakePlan} from './types';
+import {hostedRowMissing, hostedSummary, type HostedRow} from './hosted-roster';
 import {indiaDate} from '@/lib/display';
 
 const display = (f: IntakeField, v: unknown) => {
@@ -14,9 +15,15 @@ const display = (f: IntakeField, v: unknown) => {
   return v == null || v === '' ? '—' : String(v);
 };
 
-export function ReviewSheet({open, onClose, plan, data, kind, priority, slaHours, recordOnly, missing, gating, onFix, onFile, busy, error, classSnapshot}: {
+export function ReviewSheet({open, onClose, plan, data, kind, priority, slaHours, recordOnly, missing, gating, onFix, onFile, busy, error, classSnapshot, titlePreview = '', involvedTeams = [], hostedRows}: {
   open: boolean; onClose: () => void; plan: IntakePlan; data: IntakeData; kind: string; priority: string; slaHours: number; recordOnly: boolean;
   missing: IntakeField[]; gating: Gate[]; onFix: (id: string) => void; onFile: () => void; busy: boolean; error: string; classSnapshot?: ClassSnapshot | null;
+  /** What the server's labeller is likely to write when no title was typed. */
+  titlePreview?: string;
+  /** Names of the teams that will co-own the ticket beside the lead owner. */
+  involvedTeams?: string[];
+  /** The hosted-class roster, on hosted-class tickets. */
+  hostedRows?: HostedRow[];
 }) {
   const [showAll, setShowAll] = useState(false);
   const visible = useMemo(() => visibleFields(plan.fields, data), [plan.fields, data]);
@@ -41,7 +48,9 @@ export function ReviewSheet({open, onClose, plan, data, kind, priority, slaHours
         <div className="rv-head">
           <div>
             <div className="eyebrow">{plan.sub.category}</div>
-            <h3>{String(data.title || '') || `${plan.sub.name} — ${studio || 'studio'}`}</h3>
+            {String(data.title || '').trim()
+              ? <h3>{String(data.title)}</h3>
+              : <h3 title="No title typed: Iris writes a descriptive one from the description when it files">{titlePreview || 'Title will be generated from the description'}<small className="muted" style={{display: 'block', fontSize: 10.5, fontWeight: 500, marginTop: 2}}>Title generated on filing{titlePreview ? ' · preview' : ''}</small></h3>}
             <p className="secondary">{String(data.summary || '') || 'No summary written.'}</p>
           </div>
           <div className="rv-prio">
@@ -55,7 +64,20 @@ export function ReviewSheet({open, onClose, plan, data, kind, priority, slaHours
           <ArrowRight size={14} className="muted" />
           <div className="rv-step">{owner ? <Avatar name={owner.name} tone="purple" /> : <Avatar name="" emptyDark />}<div><b>{owner ? owner.name : 'Department queue'}</b><span>{owner ? owner.role : 'picked up on arrival'}</span></div></div>
           <div className="rv-dest"><span className="muted" style={{fontSize: 10}}>goes to</span><b>{studio || 'studio not chosen'}</b>{filled(data.area) && <span> · {String(data.area)}</span>}</div>
+          {involvedTeams.length > 0 && <div className="rv-teams"><span>Also involves</span>{involvedTeams.map(t => <b key={t}>{t}</b>)}<span>· each team gets a co-owner</span></div>}
         </div>
+        {hostedRows && (() => {
+          const s = hostedSummary(hostedRows);
+          return (
+            <div className="rv-class rv-hosted">
+              <div className="between"><h4>Attendees · {hostedRows.length} row{hostedRows.length === 1 ? '' : 's'}</h4><span className="tag">{s.attended} attended · {s.walkIns} walk-in{s.walkIns === 1 ? '' : 's'} · {s.warm} warm lead{s.warm === 1 ? '' : 's'}</span></div>
+              {hostedRows.length ? <div className="rv-att">{hostedRows.map(r => {
+                const needs = hostedRowMissing(r);
+                return <div className="rv-att-row" key={r.key}><b>{r.name || 'Unnamed attendee'}</b><span>{r.attendance || '—'}</span><span>{r.outcome || '—'}</span>{r.followUp && <em>{r.followUp}</em>}{needs.length > 0 && <span className="need">needs {needs.join(', ')}</span>}{r.note.trim() && <small>{r.note}</small>}</div>;
+              })}</div> : <p className="muted" style={{fontSize: 11.5}}>No attendees recorded yet. At least one row is required.</p>}
+            </div>
+          );
+        })()}
         {classSnapshot && (
           <div className="rv-class">
             <div className="between"><h4>Class & roll call · read back from Momence</h4><span className="tag">session #{classSnapshot.sessionId}</span></div>

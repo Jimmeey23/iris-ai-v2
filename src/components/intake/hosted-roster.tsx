@@ -1,6 +1,6 @@
 "use client";
 import {useEffect, useMemo, useState} from 'react';
-import {Check, ChevronDown, Loader2, Plus, Trash2, UserRound} from 'lucide-react';
+import {AlertTriangle, Check, ChevronDown, Loader2, Plus, Trash2, UserRound} from 'lucide-react';
 import {decodeLookups, type IntakeValue} from '@/lib/intake/plan';
 import {rosterRows, type SessionDetail} from '@/lib/intake/class-desk';
 import {OptionSelect} from './option-select';
@@ -36,10 +36,32 @@ const summarise = (rows: HostedRow[]) => ({
 });
 export const hostedSummary = summarise;
 
+/** What a row still needs before the ticket can file: every attendee — booked, walk-in,
+ *  no-show or cancelled — carries attendance, an outcome and a comment. */
+export function hostedRowMissing(r: HostedRow): string[] {
+  return [!r.name.trim() && 'name', !r.attendance && 'attendance', !r.outcome && 'outcome', !r.note.trim() && 'comment'].filter(Boolean) as string[];
+}
+/** The one blocking message for the roster, or null when it can file. Stricter than the
+ *  server's check (it also insists on an outcome), so the server never has to refuse it. */
+export function hostedRosterError(rows: HostedRow[], opts: {status: 'loading' | 'ready' | 'error'; linked: boolean}): string | null {
+  if (opts.status === 'loading') return 'Wait for the hosted class roster to finish loading.';
+  if (opts.status === 'error') return 'Retry loading the hosted class roster, or add each attendee by hand.';
+  if (!rows.length) return opts.linked
+    ? 'Nobody is booked on the linked class yet. Add every attendee by hand: at least one row is required.'
+    : 'Link the hosted class to load its roster, or add each attendee by hand: at least one row is required.';
+  const incomplete = rows.filter(r => hostedRowMissing(r).length);
+  if (!incomplete.length) return null;
+  const first = incomplete[0], what = hostedRowMissing(first);
+  const who = first.name.trim() || `row ${rows.indexOf(first) + 1}`;
+  return `${incomplete.length} attendee row${incomplete.length > 1 ? 's' : ''} incomplete. ${who} still needs ${what.join(', ').replace(/, ([^,]*)$/, ' and $1')}.`;
+}
+
 /** The roster of every hosted session linked on the form, with a line per attendee the desk
  *  fills in: attendance, outcome, follow-up, the switches and a note. Bookings come from
  *  Momence; walk-ins are added by hand. Answers already given survive a re-read. */
-export function HostedRoster({sessions, rows, onRows, onStatus}: {sessions: IntakeValue; rows: HostedRow[]; onStatus?: (status: 'loading' | 'ready' | 'error') => void; onRows: (next: HostedRow[] | ((prev: HostedRow[]) => HostedRow[]), loaded?: {firstTimers: number; booked: number}) => void}) {
+export function HostedRoster({sessions, rows, onRows, onStatus, error: blocking}: {sessions: IntakeValue; rows: HostedRow[]; onStatus?: (status: 'loading' | 'ready' | 'error') => void; onRows: (next: HostedRow[] | ((prev: HostedRow[]) => HostedRow[]), loaded?: {firstTimers: number; booked: number}) => void;
+  /** Why the roster cannot file yet, shown under the table. */
+  error?: string | null}) {
   const refs = useMemo(() => decodeLookups(sessions).filter(r => !r.manual && /^\d+$/.test(r.id)), [sessions]);
   const ids = refs.map(r => r.id).join(',');
   const [busy, setBusy] = useState(false);
@@ -91,7 +113,7 @@ export function HostedRoster({sessions, rows, onRows, onStatus}: {sessions: Inta
 
   return (
     <div className="hroster">
-      <p className="field-hint">A comment is required for every member row, including no-shows and cancellations.</p>
+      <p className="field-hint hroster-rule"><b>Required for this ticket.</b> Every attendee row needs attendance, an outcome and a comment, including no-shows and cancellations. {ids ? 'Walk-ins are added by hand.' : 'No class linked: add each attendee by hand.'}</p>
       <div className="hroster-bar">
         <dl className="hroster-stats">
           <div><dt>Booked</dt><dd>{s.booked}</dd></div>
@@ -102,12 +124,12 @@ export function HostedRoster({sessions, rows, onRows, onStatus}: {sessions: Inta
         </dl>
         <div className="hroster-actions">
           {rows.length > 0 && <button type="button" className="btn btn-sm" onClick={() => onRows(prev => prev.map(r => r.attendance || r.booking === 'Cancelled' ? r : {...r, attendance: 'Attended'}))}><Check size={13} /> Mark the rest attended</button>}
-          <button type="button" className="btn btn-sm" onClick={addWalkIn}><Plus size={13} /> Add walk-in</button>
+          <button type="button" className="btn btn-sm" onClick={addWalkIn}><Plus size={13} /> {ids ? 'Add walk-in' : 'Add attendee'}</button>
         </div>
       </div>
       {busy && <div className="hroster-empty"><Loader2 size={15} className="animate-spin" /> Reading the roster from Momence…</div>}
       {error && <div className="hroster-empty error">{error}<button type="button" className="btn btn-sm" onClick={() => setRetry(v => v + 1)}>Retry roster</button></div>}
-      {!busy && !rows.length && <div className="hroster-empty"><UserRound size={15} /> {ids ? 'No bookings on the linked class yet. Add walk-ins by hand.' : 'Link the hosted class at the top of the form to load everyone who booked.'}</div>}
+      {!busy && !rows.length && <div className="hroster-empty"><UserRound size={15} /> {ids ? 'No bookings on the linked class yet. Add every attendee by hand.' : 'Link the hosted class at the top of the form to load everyone who booked, or add attendees by hand.'}<button type="button" className="btn btn-sm" onClick={addWalkIn}><Plus size={13} /> Add attendee</button></div>}
       {rows.length > 0 && (
         <div className="hroster-table" role="table" aria-label="Hosted class attendees">
           <div className="hroster-row head" role="row">
@@ -115,22 +137,28 @@ export function HostedRoster({sessions, rows, onRows, onStatus}: {sessions: Inta
           </div>
           {rows.map(r => {
             const isOpen = open === r.key;
-            const done = Boolean(r.attendance && r.outcome && r.note.trim());
+            const needs = hostedRowMissing(r);
+            const done = !needs.length;
             return (
-              <div className={'hroster-item' + (isOpen ? ' open' : '') + (r.booking === 'Cancelled' ? ' muted' : '')} key={r.key} role="rowgroup">
+              <div className={'hroster-item' + (isOpen ? ' open' : '') + (r.booking === 'Cancelled' ? ' muted' : '') + (done ? '' : ' incomplete')} key={r.key} role="rowgroup">
                 <div className="hroster-row" role="row">
                   <span role="cell" className="hroster-who">
                     <span className={'hroster-dot' + (done ? ' done' : '')} aria-hidden="true">{done && <Check size={9} strokeWidth={3} />}</span>
                     {r.manual ? <input className="hroster-name-input" value={r.name} placeholder="Walk-in name" aria-label="Walk-in name" onChange={e => set(r.key, {name: e.target.value})} />
                       : <span className="hroster-name"><b>{r.name}</b><em>{[r.booking, r.email].filter(Boolean).join(' · ')}</em></span>}
-                    {!r.note.trim() && <span className="hroster-comment-needed">Comment needed</span>}
+                    {!done && <span className="hroster-comment-needed" title={`Still needs ${needs.join(', ')}`}>Needs {needs.join(' · ')}</span>}
                     {r.flags.length > 0 && <span className="hroster-flagcount" title={r.flags.map(f => HOSTED_FLAGS.find(x => x.id === f)?.label).join(', ')}>{r.flags.length}</span>}
                   </span>
-                  <span role="cell"><OptionSelect options={HOSTED_ATTENDANCE} value={r.attendance} onChange={v => set(r.key, {attendance: String(v)})} placeholder="Attendance" /></span>
-                  <span role="cell"><OptionSelect options={HOSTED_OUTCOME} value={r.outcome} onChange={v => set(r.key, {outcome: String(v)})} placeholder="Outcome" /></span>
-                  <span role="cell"><OptionSelect options={HOSTED_FOLLOW_UP} value={r.followUp} onChange={v => set(r.key, {followUp: String(v)})} placeholder="Follow-up" /></span>
-                  <span role="cell"><button type="button" className="hroster-expand" aria-expanded={isOpen} aria-label={`${isOpen ? 'Hide' : 'Show'} notes and flags for ${r.name || 'walk-in'}`} onClick={() => setOpen(isOpen ? null : r.key)}><ChevronDown size={15} /></button></span>
+                  <span role="cell"><OptionSelect options={HOSTED_ATTENDANCE} value={r.attendance} onChange={v => set(r.key, {attendance: String(v ?? '')})} placeholder="Attendance *" /></span>
+                  <span role="cell"><OptionSelect options={HOSTED_OUTCOME} value={r.outcome} onChange={v => set(r.key, {outcome: String(v ?? '')})} placeholder="Outcome *" /></span>
+                  <span role="cell"><OptionSelect options={HOSTED_FOLLOW_UP} value={r.followUp} onChange={v => set(r.key, {followUp: String(v ?? '')})} placeholder="Follow-up" /></span>
+                  <span role="cell"><button type="button" className="hroster-expand" aria-expanded={isOpen} aria-label={`${isOpen ? 'Hide' : 'Show'} flags for ${r.name || 'walk-in'}`} title="Flags" onClick={() => setOpen(isOpen ? null : r.key)}><ChevronDown size={15} /></button></span>
                 </div>
+                {/* The comment sits in the row itself: in a collapsed panel nobody opened it. */}
+                <label className={'hroster-note inline' + (r.note.trim() ? '' : ' empty')}>
+                  <span className="sr-only">Required comment for {r.name || 'walk-in'}</span>
+                  <textarea required aria-required="true" aria-invalid={!r.note.trim() || undefined} rows={1} value={r.note} placeholder={`Comment (required): what ${r.name.trim().split(' ')[0] || 'they'} said or did. For a no-show or cancellation, say so.`} onChange={e => set(r.key, {note: e.target.value})} />
+                </label>
                 <div className="icollapse" inert={!isOpen || undefined}>
                   <div className="icollapse-inner hroster-detail">
                     <div className="hroster-flags" role="group" aria-label="Flags">
@@ -141,10 +169,6 @@ export function HostedRoster({sessions, rows, onRows, onStatus}: {sessions: Inta
                         </button>;
                       })}
                     </div>
-                    <label className="hroster-note">
-                      <span>Member comment · Required</span>
-                      <textarea required aria-label={`Required comment for ${r.name || 'walk-in'}`} rows={2} value={r.note} placeholder="Member reported… For absent members, document the no-show or cancellation." onChange={e => set(r.key, {note: e.target.value})} />
-                    </label>
                     {r.manual && <button type="button" className="text-btn hroster-remove" onClick={() => onRows(prev => prev.filter(x => x.key !== r.key))}><Trash2 size={12} /> Remove walk-in</button>}
                   </div>
                 </div>
@@ -153,6 +177,7 @@ export function HostedRoster({sessions, rows, onRows, onStatus}: {sessions: Inta
           })}
         </div>
       )}
+      {blocking && !busy && <div className="hroster-blocker" role="alert"><AlertTriangle size={13} /> {blocking}</div>}
     </div>
   );
 }

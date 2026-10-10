@@ -1,12 +1,15 @@
 "use client";
 
 import {useEffect, useMemo, useState} from 'react';
-import {ChevronDown, ChevronRight, ArrowDown, ArrowUp, ChevronsUpDown, TriangleAlert} from 'lucide-react';
-import {Avatar, Badge, Priority, Status} from './ui';
-import {SlaCountdown} from './tickets-board';
+import {ChevronDown, ChevronRight, ArrowDown, ArrowUp, ChevronsUpDown, TriangleAlert, ArrowUpFromLine, Hourglass} from 'lucide-react';
+import {Avatar, Badge, Priority} from './ui';
+import {RecurrenceBadges, SlaCountdown, StatusPill} from './tickets-board';
 import {relativeTime} from '@/lib/utils';
 import {indiaDate} from '@/lib/display';
-import {COLUMN_META, GROUP_LABELS, type GroupBy, type TicketColumn} from '@/lib/dashboard-contract';
+import {
+  COLUMN_META, GROUP_LABELS, accountabilitySortValue, commitmentMissed, originalSlaDueAt,
+  recurrenceInfo, statusPhase, type GroupBy, type TicketColumn,
+} from '@/lib/dashboard-contract';
 import {groupTickets, sortTickets} from '@/lib/ticket-grouping';
 import {slaBucketOf} from '@/lib/ticket-filtering';
 import type {TicketListRecord} from '@/lib/ticket-contract';
@@ -51,7 +54,8 @@ function Cell({column, ticket, staleDays, nowMs}: {column: TicketColumn; ticket:
     case 'label':
       return (
         <td className="tg-label-cell">
-          <p className="ticket-name">{t.title}</p>
+          <p className="ticket-name" title={t.title}>{recurrenceInfo(t).title}</p>
+          <RecurrenceBadges ticket={t}/>
           <div className="ticket-meta">
             <span className="ticket-id">{t.ticketNumber}</span>
             {t.memberName && <><span>·</span><span className="ticket-member">{t.memberName}</span></>}
@@ -66,21 +70,79 @@ function Cell({column, ticket, staleDays, nowMs}: {column: TicketColumn; ticket:
     case 'subcategory': return <td><span className="category-sub">{t.subcategory || '—'}</span></td>;
     case 'studio': return <td>{t.studio ? t.studio.split(',')[0] : <span className="muted">—</span>}</td>;
     case 'status':
-      return <td><Status status={t.status}/>{!t.resolutionRequired && <span className="category-sub">record only</span>}</td>;
+      return <td><StatusPill status={t.status}/>{!t.resolutionRequired && <span className="category-sub">record only</span>}</td>;
     case 'priority': return <td><Priority priority={t.priority}/></td>;
     case 'owner': {
       // An unassigned ticket is styled as absent rather than as a person whose initials
       // happen to be "UN".
       const unassigned = !t.assignedStaffName;
+      const co = t.additionalOwners ?? [];
+      const title = (t.assignedStaffName || 'Not yet assigned') + (co.length ? ' (lead) · with ' + co.map((o) => o.name).join(', ') : '');
       return (
         <td>
-          <div className={'mini-owner' + (unassigned ? ' mini-owner-empty' : '')} title={t.assignedStaffName || 'Not yet assigned'}>
+          <div className={'mini-owner' + (unassigned ? ' mini-owner-empty' : '')} title={title}>
             <Avatar name={unassigned ? 'Unassigned owner' : t.assignedStaffName} tone="purple" emptyDark={unassigned} owner={!unassigned}/>
             <span>
-              <strong>{unassigned ? 'Unassigned' : t.assignedStaffName.split(' ')[0]}</strong>
+              <strong>
+                {unassigned ? 'Unassigned' : t.assignedStaffName.split(' ')[0]}
+                {co.length > 0 && <em className="tg-co-count" aria-label={`plus ${co.length} co-owner${co.length === 1 ? '' : 's'}`}>+{co.length}</em>}
+              </strong>
               <small>{t.departmentName || 'No desk'}</small>
             </span>
           </div>
+        </td>
+      );
+    }
+    case 'coOwners': {
+      const co = t.additionalOwners ?? [];
+      if (!co.length) return <td><span className="muted">—</span></td>;
+      return (
+        <td>
+          <span className="tg-co-owners" title={co.map((o) => o.name + (o.departmentName ? ` (${o.departmentName})` : '')).join('\n')}>
+            {co.slice(0, 2).map((o) => o.name.split(' ')[0]).join(', ')}
+            {co.length > 2 && <em className="tg-co-count">+{co.length - 2}</em>}
+          </span>
+        </td>
+      );
+    }
+    case 'reporter': return <td>{t.createdByName || <span className="muted">—</span>}</td>;
+    case 'escalation': {
+      if (!t.isEscalated && !t.escalatedToName) return <td><span className="muted">—</span></td>;
+      return (
+        <td>
+          <span className="tg-flag tg-flag-escalated" title={t.escalatedAt ? indiaDate(t.escalatedAt) : 'Escalated'}>
+            <ArrowUpFromLine size={10} aria-hidden="true"/>
+            Escalated to {t.escalatedToName || 'manager'}{t.escalatedAt ? ' · ' + indiaDate(t.escalatedAt, true) : ''}
+          </span>
+        </td>
+      );
+    }
+    case 'extension': {
+      if (!(t.slaExtendedHours > 0)) return <td><span className="muted">—</span></td>;
+      const tip = [t.slaExtensionReason ? 'Reason: ' + t.slaExtensionReason : 'No reason recorded', t.slaExtendedAt ? 'Requested ' + indiaDate(t.slaExtendedAt) : ''].filter(Boolean).join('\n');
+      return (
+        <td>
+          <span className="tg-flag tg-flag-extension" title={tip}>
+            <Hourglass size={10} aria-hidden="true"/>
+            +{t.slaExtendedHours}h{t.slaExtendedByName ? ' by ' + t.slaExtendedByName.split(' ')[0] : ''}
+          </span>
+        </td>
+      );
+    }
+    case 'revisedSla': {
+      const original = originalSlaDueAt(t);
+      if (!original || !t.slaDueAt) return <td><span className="muted">—</span></td>;
+      return <td><span className="tg-revised" title={`Original target ${indiaDate(original)} · moved +${t.slaExtendedHours}h to ${indiaDate(t.slaDueAt)}`}>{indiaDate(t.slaDueAt, true)}</span></td>;
+    }
+    case 'committedResolution': {
+      if (!t.committedResolutionAt) return <td><span className="muted">—</span></td>;
+      const missed = commitmentMissed(t, nowMs);
+      return (
+        <td>
+          <span className={missed ? 'tg-commit-missed' : ''} title={(missed ? 'Commitment passed — ' : 'Owner committed to resolve by ') + indiaDate(t.committedResolutionAt)}>
+            {missed && <TriangleAlert size={10} role="img" aria-label="Commitment missed"/>}
+            {indiaDate(t.committedResolutionAt, true)}
+          </span>
         </td>
       );
     }
@@ -92,6 +154,7 @@ function Cell({column, ticket, staleDays, nowMs}: {column: TicketColumn; ticket:
     case 'slaDue': return <td>{t.slaDueAt ? <span title={indiaDate(t.slaDueAt)}>{indiaDate(t.slaDueAt, true)}</span> : <span className="muted">—</span>}</td>;
     case 'sla': return <td className="tg-right"><SlaCountdown ticket={t}/></td>;
     case 'resolved': return <td>{t.resolvedAt ? indiaDate(t.resolvedAt, true) : <span className="muted">—</span>}</td>;
+    case 'closed': return <td>{t.closedAt ? <span title={indiaDate(t.closedAt)}>{indiaDate(t.closedAt, true)}</span> : <span className="muted">—</span>}</td>;
     case 'timeToResolve':
       return (
         <td className="tg-right">
@@ -110,6 +173,18 @@ function groupStats(rows: TicketListRecord[]) {
   const urgent = rows.filter((t) => isOpen(t) && ['critical', 'high'].includes(t.priority)).length;
   const overdue = rows.filter((t) => slaBucketOf(t) === 'breached').length;
   return {open, urgent, overdue, total: rows.length};
+}
+
+/** `sortTickets` predates the v2 columns and ranks them all as equal; those are sorted here
+ *  with the same tie-break (newest first), everything else goes through the shared rules. */
+function sortRows(rows: TicketListRecord[], key: TicketColumn, dir: 'asc' | 'desc') {
+  if (!rows.length || accountabilitySortValue(rows[0], key) === undefined) return sortTickets(rows, key, dir);
+  const factor = dir === 'asc' ? 1 : -1;
+  return [...rows].sort((a, b) => {
+    const av = accountabilitySortValue(a, key)!, bv = accountabilitySortValue(b, key)!;
+    const primary = typeof av === 'number' && typeof bv === 'number' ? (av - bv) * factor : String(av).localeCompare(String(bv)) * factor;
+    return primary || b.id - a.id;
+  });
 }
 
 export interface TicketGridProps {
@@ -133,7 +208,7 @@ export function TicketGrid({
   tickets, columns, groupBy, sortKey, sortDir, density, expandedGroups, staleDays = 3,
   onSort, onToggleGroup, onSetGroups, onSelect, selected, onToggleSelect,
 }: TicketGridProps) {
-  const sorted = useMemo(() => sortTickets(tickets, sortKey, sortDir), [tickets, sortKey, sortDir]);
+  const sorted = useMemo(() => sortRows(tickets, sortKey, sortDir), [tickets, sortKey, sortDir]);
 
   // A slow clock so the ageing flag keeps up with a board left open, without reading the
   // wall clock during render.
@@ -180,7 +255,7 @@ export function TicketGrid({
   const row = (t: TicketListRecord, nested: boolean) => (
     <tr
       key={t.id}
-      className={'priority-row priority-row-' + t.priority + (nested ? ' tg-child' : '')}
+      className={'priority-row priority-row-' + t.priority + ' tg-row-' + statusPhase(t.status) + (recurrenceInfo(t).check ? ' tg-row-recur' : '') + (nested ? ' tg-child' : '')}
       onClick={() => onSelect(t.id)}
     >
       {onToggleSelect && (

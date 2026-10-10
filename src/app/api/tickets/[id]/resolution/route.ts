@@ -19,7 +19,7 @@ export async function GET(_req:Request,ctx:Ctx){try{
   if(!ticket)throw new ApiError('Ticket not found',404);
   if(!ticket.resolutionRequired)throw new ApiError('This ticket does not require a resolution.');
   requireTicketAccess(user,ticket);
-  const canResolve=await canResolveTicket(user,ticket.assignedStaffId,ticket.resolutionRequired);
+  const canResolve=await canResolveTicket(user,ticket.assignedStaffId,ticket.resolutionRequired,ticket.additionalOwners);
   return Response.json({...await getResolutionWorkspace(id),canResolve});
 }catch(e){return errorResponse(e);}}
 

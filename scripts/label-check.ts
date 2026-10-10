@@ -13,7 +13,11 @@ const section = (t: string) => console.log('\n' + t);
 
 section('It uses what the reporter actually wrote');
 const plain = describeTicket({description: 'The studio 1 AC stopped working and is throwing warm air.', subcategory: 'Air Quality Poor', category: 'Studio Amenities and Facilities', kind: 'issue', studio: 'Kwality House, Kemps Corner'});
-check('the sentence becomes the label', plain === 'The studio 1 AC stopped working and is throwing warm air', plain);
+check('the sentence becomes the label, with the studio after it', plain === 'The studio 1 AC stopped working and is throwing warm air — Kwality House', plain);
+const client = describeTicket({description: 'Client upset the trainer ignored her modification request in class.', subcategory: 'Engagement with Clients', category: 'Class Experience', kind: 'issue', studio: 'Supreme HQ, Bandra', memberName: 'Sanjanaa Aswani'});
+check('a client complaint names the issue, the member and the studio', client === 'Client upset the trainer ignored her modification request in class — Sanjanaa Aswani · Supreme HQ', client);
+const observation = describeTicket({description: 'The lobby speaker keeps cutting out mid-song.', subcategory: 'Music', kind: 'issue', studio: 'Supreme HQ, Bandra', memberName: 'Studio team observation'});
+check('a placeholder member name is left out', observation === 'The lobby speaker keeps cutting out mid-song — Supreme HQ', observation);
 check('it does not repeat the subcategory', !plain.includes('Air Quality'), plain);
 
 const greeted = describeTicket({description: 'Hi team, just wanted to report that the mic in Studio 2 keeps cutting out mid-class.', subcategory: 'Mic Not Working', kind: 'issue'});
@@ -47,7 +51,7 @@ check('a bare identifier tag is dropped, not used', idTag.startsWith('The steam 
 
 section('When there is nothing to go on');
 const bare = describeTicket({description: 'broken', subcategory: 'Shower Water Pressure', category: 'Studio Amenities and Facilities', kind: 'issue', studio: 'Supreme HQ, Bandra'});
-check('it falls back to readable English, not a taxonomy string', bare === 'Low shower water pressure at Supreme HQ', bare);
+check('it falls back to readable English, not a taxonomy string', bare === 'Low shower water pressure — Supreme HQ', bare);
 check('the fallback is not the raw subcategory', bare !== 'Shower Water Pressure', bare);
 
 const empty = describeTicket({description: '', subcategory: 'Locker Availability', kind: 'issue', studio: 'Kenkere House, Bengaluru'});

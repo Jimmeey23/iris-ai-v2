@@ -4158,3 +4158,158 @@ input.hroster-name-input {
   font-size: 10px;
   white-space: nowrap;
 }
+
+/* Hosted roster: the comment lives in the row, and the roster says what still blocks filing. */
+.hroster-rule b {
+  color: var(--text);
+  font-weight: 600;
+}
+.hroster-note.inline {
+  margin: 0;
+  padding: 0 12px 11px 35px;
+}
+.hroster-note.inline textarea {
+  min-height: 38px;
+  resize: vertical;
+}
+.hroster-item.incomplete .hroster-note.inline.empty textarea {
+  border-color: color-mix(in srgb, var(--amber) 55%, var(--border));
+  background: color-mix(in srgb, var(--amber-bg) 60%, var(--surface));
+}
+.hroster-item.incomplete .hroster-note.inline.empty textarea:focus {
+  border-color: var(--accent);
+  background: var(--surface);
+}
+.hroster-empty .btn {
+  margin-left: 6px;
+}
+.hroster-blocker {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--red) 35%, transparent);
+  border-radius: var(--radius-md);
+  background: var(--red-bg);
+  color: var(--red);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.hroster-blocker svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+@media (max-width: 760px) {
+  .hroster-note.inline {
+    padding-left: 12px;
+  }
+}
+
+/* "Also involve these teams": co-owner chips beside the routing preview. */
+.iteams {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--hairline);
+}
+.iteams.compact {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+.iteams-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.iteams-label {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text);
+}
+.iteams-head small {
+  font-size: 10.5px;
+  color: var(--muted);
+}
+.iteams-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.iteams-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--secondary);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background var(--dur-2),
+    border-color var(--dur-2),
+    color var(--dur-2);
+}
+.iteams-chip:hover {
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+.iteams-chip.on {
+  border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.iteams-chip.lead {
+  cursor: default;
+  border-style: dashed;
+  color: var(--muted);
+  background: transparent;
+}
+.iteams-chip.lead em {
+  font-style: normal;
+  font-size: 9.5px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.iteams-box {
+  width: 12px;
+  height: 12px;
+  display: grid;
+  place-items: center;
+  border: 1.5px solid var(--border-strong);
+  border-radius: 3px;
+}
+.iteams-chip.on .iteams-box {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--surface);
+}
+.iteams-spark {
+  opacity: 0.75;
+}
+.rv-teams {
+  flex-basis: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  font-size: 11px;
+  color: var(--muted);
+}
+.rv-teams b {
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 550;
+}
+.rv-hosted .rv-att-row span.need {
+  color: var(--red);
+}

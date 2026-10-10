@@ -21,6 +21,13 @@ export const tickets = pgTable("tickets", {
   /** Who the breach was escalated to, so the digest and the ticket can say so, and so a
    *  second sweep does not escalate the same ticket to the same person again. */
   escalatedToStaffId: integer("escalated_to_staff_id").references((): AnyPgColumn => staff.id, { onDelete: "set null" }), escalatedToName: text("escalated_to_name"), escalatedAt: timestamp("escalated_at", { withTimezone: true }),
+  /** Further owners when the work spans teams (a class complaint touching client servicing,
+   *  training and operations). `assignedStaffId` stays the lead owner every SLA, escalation
+   *  and resolution rule keys on; these people share access, mail and the board column. */
+  additionalOwners: jsonb("additional_owners").$type<{id:number;name:string;email:string;departmentName?:string|null}[]>().notNull().default([]),
+  /** The date the owner commits to having it resolved by — separate from the SLA target, which
+   *  is the follow-up clock, not a promise of a fix. */
+  committedResolutionAt: timestamp("committed_resolution_at", { withTimezone: true }),
   momenceSessionId: text("momence_session_id"), sourceRef: text("source_ref"), submissionKey: text("submission_key"), impact: text("impact"), assetId: integer("asset_id").references((): AnyPgColumn => assets.id, { onDelete: "set null" }), createdByUserId: integer("created_by_user_id").references((): AnyPgColumn => appUsers.id, { onDelete: "set null" }), createdByName: text("created_by_name"), version: integer("version").notNull().default(1),
 }, (t) => [uniqueIndex("tickets_source_ref_idx").on(t.sourceRef), uniqueIndex("tickets_submission_key_idx").on(t.submissionKey), index("tickets_category_idx").on(t.category,t.subcategory), index("tickets_status_sla_idx").on(t.status,t.slaDueAt), index("tickets_owner_idx").on(t.assignedStaffId), index("tickets_creator_idx").on(t.createdByUserId), index("tickets_created_idx").on(t.createdAt), index("tickets_asset_idx").on(t.assetId), index("tickets_studio_idx").on(t.studio), index("tickets_recurring_context_idx").on(t.subcategory,t.studio,t.area), index("tickets_department_name_idx").on(t.departmentName), index("tickets_source_idx").on(t.source)]);
 export const ticketComments = pgTable("ticket_comments", {

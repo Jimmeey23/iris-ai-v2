@@ -1,5 +1,5 @@
 import type {TicketListRecord} from './ticket-contract';
-import type {GroupBy, TicketColumn} from './dashboard-contract';
+import {accountabilitySortValue, type GroupBy, type TicketColumn} from './dashboard-contract';
 import {slaBucketOf} from './ticket-filtering';
 
 /**
@@ -56,6 +56,10 @@ const PRIORITY_ORDER: Record<string, number> = {critical: 0, high: 1, medium: 2,
 /** Returns a number for dates and durations and a string otherwise, so one comparator
  *  covers every column. */
 export function sortValue(t: TicketListRecord, key: TicketColumn): string | number {
+  // The accountability columns (escalation, extension, revised SLA, commitment…) sort by the
+  // rule that renders them, kept beside it in dashboard-contract.
+  const accountable = accountabilitySortValue(t, key);
+  if (accountable !== undefined) return accountable;
   switch (key) {
     case 'label': return t.title.toLowerCase();
     case 'ticketNumber': return t.ticketNumber;

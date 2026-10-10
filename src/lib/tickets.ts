@@ -6,7 +6,7 @@ import {randomUUID} from 'crypto';
 import {hostedFeedbackError} from './hosted-feedback';
 import {db,type Tx} from '@/db';
 import {tickets,staff,departments,assets,appSettings,ticketActivities,ticketComments,ticketLinks,ticketResolutions,ticketResolutionSteps,ticketFollowUps,ticketContactLog,ticketResolutionAttachments,chatAttachments,chatSessions,deliveryLogs,ticketNotifications,appUsers,userNotifications} from '@/db/schema';
-import {ticketInputSchema,publicTicketInputSchema,type TicketInput,type AdvancedDraft} from './ticket-contract';
+import {ticketInputSchema,publicTicketInputSchema,type TicketInput,type AdvancedDraft,type TicketOwner} from './ticket-contract';
 import {getConfig,type WorkspaceConfig} from './config';
 import {ApiError,canAccessTicket,canEditTicketDetails,coveredStudios,currentUser,requireTicketAccess,type Identity} from './auth';
 import {CITY_OWNERS,ESCALATION_OWNERS,ROUND_ROBIN_DEPARTMENTS,cityOf,inferPriority,inferSeverity,studioIdsFor} from './routing';
@@ -32,7 +32,7 @@ export function slaHoursFor(cfg:Pick<Config,'responseHours'|'subcategoryRouting'
 /** customFields keys only the server writes: the routing brief, automation markers, the chat's
  *  own session keys and the repeat counter. `_intake` stays — the form intake legitimately
  *  records which plan the answers came from (see README). */
-const RESERVED_FIELD=/^(autoFollowUp|followUpType|followUpReason|parent[A-Z].*|recurrence.*|recheck.*|firstResolvedAt|lastRepeatAt|closedOnImport)$/;
+const RESERVED_FIELD=/^(clientInvolved|autoFollowUp|followUpType|followUpReason|parent[A-Z].*|recurrence.*|recheck.*|firstResolvedAt|lastRepeatAt|closedOnImport)$/;
 export function stripReservedFields(cf:Record<string,unknown>):Record<string,unknown>{return Object.fromEntries(Object.entries(cf).filter(([k])=>k==='_intake'||(!k.startsWith('_')&&!RESERVED_FIELD.test(k))));}
 const ticketArea=(fields:Record<string,unknown>)=>String(fields.area||fields.specific_area||fields.affected_room||fields.incident_location||'').trim()||null;
 /** Kinds that may be filed record-only (no SLA, no resolution), per the README. */
@@ -43,6 +43,26 @@ const ticketArea=(fields:Record<string,unknown>)=>String(fields.area||fields.spe
  *  feedback that does need work is filed as the issue it is, not as feedback. */
 const RECORD_ONLY_KINDS=new Set(['compliment','assessment','feedback']);
 const recordOnlyEligible=(input:{kind:string})=>RECORD_ONLY_KINDS.has(input.kind);
+/** Names the intake and the automations file under when nobody outside the team is involved. */
+const PLACEHOLDER_MEMBER=/^(studio team( observation)?|automated follow-up|member|client|n\/?a|none|unknown|internal|staff|-)\b/i;
+/** Whether a client (member or prospect) is directly involved: someone linked in Momence, a
+ *  member's contact details, a member or prospect raising it, members affected, or a named
+ *  person on the ticket who is not on the staff directory. A trainer assessment is about the
+ *  trainer, so it never counts. */
+async function involvesClient(input:TicketInput):Promise<boolean>{
+  if(input.kind==='assessment')return false;
+  const cf=input.customFields||{};
+  const intake=cf._intake&&typeof cf._intake==='object'?cf._intake as Record<string,unknown>:{};
+  if(input.momenceMemberId||input.memberEmail||input.memberPhone||intake.memberLinked===true)return true;
+  if(/^(member|prospect)/i.test(String(cf.reportedBy||'')))return true;
+  if(String(cf.memberImpact||'').toLowerCase().startsWith('yes')||String(cf.impactedMembers||'').trim())return true;
+  const name=(input.memberName||'').trim();
+  if(!name||PLACEHOLDER_MEMBER.test(name))return false;
+  const[colleague]=await db.select({id:staff.id}).from(staff).where(ilike(staff.name,name)).limit(1);
+  return !colleague;
+}
+/** The stored form of that judgement, for rules applied after filing (the PATCH route). */
+export function clientInvolvedTicket(t:{customFields?:Record<string,unknown>|null;tags?:string[]|null}):boolean{return t.customFields?.clientInvolved===true||Boolean(t.tags?.includes('client-involved'));}
 type Routing=Awaited<ReturnType<typeof resolveRouting>>;
 /** Per-run caches for bulk callers (history import), so a thousand rows do not read the
  *  configuration and the routing tables a thousand times. */
@@ -88,6 +108,28 @@ if(cfg.autoAssign&&!cityOwner&&!subRule?.ownerId&&!override&&ROUND_ROBIN_DEPARTM
 }
 const owner=cfg.autoAssign?(cityOwner||rotaOwner||people.find(p=>p.id===override)||people.sort((a,b)=>{const score=(p:typeof a)=>(p.categories.includes(category)?10:0)+(p.studioId&&ids.includes(p.studioId)?8:0)+(/Head|Coordinator|Ops Manager|Chief/.test(p.role)?3:0);return score(b)-score(a);})[0]):{id:null,name:'Unassigned',email:'',role:'Department queue'};if(!owner)throw new ApiError('No active owner is available in the routing department.');
 return{departmentId,dept,owner,ids,override};}
+/** Co-owners for the other teams a ticket involves, plus anyone named outright. Each team's
+ *  owner is picked the way the lead one is — the named city owner first, then whoever on that
+ *  team works at the studio, then its lead — so a cross-team ticket lands with real people
+ *  rather than three department queues. The lead owner and duplicates are dropped. */
+async function coOwnersFor(args:{lead:number|null;leadDepartment:string;teams:string[];ids:number[];studio:string;category:string}):Promise<TicketOwner[]>{
+  const out=new Map<number,TicketOwner>();
+  const keep=(p:{id:number;name:string;email:string;department:string})=>{if(p.id!==args.lead&&!out.has(p.id))out.set(p.id,{id:p.id,name:p.name,email:p.email,departmentName:p.department});};
+  if(args.ids.length)for(const p of await db.select().from(staff).where(and(inArray(staff.id,args.ids),eq(staff.isActive,true))))keep(p);
+  const teams=[...new Set(args.teams)].filter(t=>t!==args.leadDepartment);
+  if(teams.length){
+    const depts=await db.select().from(departments).where(and(inArray(departments.id,teams),eq(departments.active,true)));
+    const ids=studioIdsFor(args.studio);const city=cityOf(args.studio)||'mumbai';
+    for(const dept of depts){
+      const people=await db.select().from(staff).where(and(eq(staff.isActive,true),eq(staff.department,dept.name)));
+      const named=CITY_OWNERS[dept.id]?.[city]?.map(re=>people.find(p=>re.test(p.name))).find(Boolean);
+      const score=(p:typeof people[number])=>(p.studioId&&ids.includes(p.studioId)?8:0)+(p.categories.includes(args.category)?4:0)+(/Head|Coordinator|Ops Manager|Chief|Manager/.test(p.role)?3:0);
+      const pick=named||[...people].sort((a,b)=>score(b)-score(a)||a.id-b.id)[0];
+      if(pick)keep(pick);
+    }
+  }
+  return[...out.values()].slice(0,6);
+}
 /** Builds a ticket draft. Callers default to untrusted — the public endpoint and the chat —
  *  where the source is restricted, reserved customFields are stripped, a supplied priority
  *  can only raise the inferred one, and record-only is honoured only for kinds that qualify.
@@ -117,13 +159,19 @@ const calculatedScore=template?scoreAssessment(template.fields,input.customField
 // what an administrator who turns it off expects to change. Everything in RECORD_ONLY_KINDS
 // is record-only regardless: a comment is not work, whoever asks.
 const praise=input.kind==='compliment'||input.kind==='feedback'&&input.sentiment==='positive';
-const noSla=input.resolutionRequired===false||recordOnlyEligible(input)||(praise&&cfg.positiveNoSla);
+// A ticket that involves a client directly is never record-only and never below high: a
+// member who has spoken to the studio is owed a reply, whatever the ticket's kind. History
+// imports are closed records and keep the facts they carried.
+const clientInvolved=input.source!=='history'&&input.source!=='system'&&await involvesClient(input);
+if(clientInvolved)input.customFields.clientInvolved=true;
+const noSla=!clientInvolved&&(input.resolutionRequired===false||recordOnlyEligible(input)||(praise&&cfg.positiveNoSla));
 // The intake answers ride in customFields — they are not columns on the schema — so
 // they have to be read back out here or the reporter's own urgency signal never
 // reaches the priority rules.
 // Guided templates saved before the field was renamed still send `classImpact`.
 const inferred=inferPriority({category:input.category,subcategory:input.subcategory,isClassImpacted:String(input.customFields.isClassImpacted||input.customFields.classImpact||''),isImmediateDanger:String(input.customFields.isImmediateDanger||''),impact:input.impact,memberImpact:String(input.customFields.memberImpact||''),cycleSeverity:String(input.customFields.cycleSeverity||'')});
-const priority:Priority=noSla?'low':input.category==='Safety and Security'?'critical':trusted&&input.priority?input.priority:maxPriority(inferred,input.priority);
+const ruled:Priority=noSla?'low':input.category==='Safety and Security'?'critical':trusted&&input.priority?input.priority:maxPriority(inferred,input.priority);
+const priority:Priority=clientInvolved?maxPriority('high',ruled):ruled;
 const routeKey=input.category+'::'+input.studio+'::'+input.subcategory;let routing=opts.routing?.get(routeKey);if(!routing){routing=await resolveRouting(cfg,input.category,input.studio,input.subcategory);opts.routing?.set(routeKey,routing);}
 const{departmentId,dept,owner,ids,override}=routing;
 const studioShort=input.studio.split(',')[0].trim();
@@ -145,39 +193,59 @@ const slaHours=noSla?0:slaHoursFor(cfg,input.category,input.subcategory,priority
 const opsChecklist=noSla
   ?['Record the feedback accurately, in the reporter\u2019s own words','Share the recognition with the named team member and their manager','File under the studio\u2019s monthly highlights']
   :[`Acknowledge ${input.memberName} on ${input.preferredContact.toLowerCase()} within ${Math.max(1,Math.round(slaHours/4))}h`,...base.opsChecklist,...(input.category==='Safety and Security'?['Escalate to the studio manager on duty immediately','Record the incident in the safety register']:[]),...(input.momenceMemberId?['Check the member\u2019s Momence booking and billing history for related issues']:[]),...(String(input.customFields.memberImpact||'').toLowerCase().startsWith('yes')?[`Contact the members whose session was affected${input.customFields.impactedMembers?` (${String(input.customFields.impactedMembers).slice(0,120)})`:''} and agree the credit or makeup owed`,'Note the affected members against their Momence bookings so the front desk can see it']:[]),'Confirm the outcome with the member before closing'];
-const tags=cfg.autoTag?[...new Set([slugify(input.category),slugify(input.subcategory),slugify(studioShort),input.kind,noSla?'no-sla':priority,'sentiment-'+input.sentiment,'via-'+input.source,...(input.impact?['impact-'+slugify(input.impact)]:[]),...(input.classFormat?['format-'+slugify(input.classFormat.split('+')[0])]:[]),...(input.trainer?['trainer-'+slugify(input.trainer.split(',')[0])]:[]),...(input.membership?['membership-'+slugify(input.membership)]:[]),...(input.momenceMemberId?['momence-linked']:[]),...(input.kind==='assessment'?['trainer-evaluation']:[])].filter(Boolean))]:[];
+const tags=cfg.autoTag?[...new Set([slugify(input.category),slugify(input.subcategory),slugify(studioShort),input.kind,noSla?'no-sla':priority,'sentiment-'+input.sentiment,'via-'+input.source,...(input.impact?['impact-'+slugify(input.impact)]:[]),...(input.classFormat?['format-'+slugify(input.classFormat.split('+')[0])]:[]),...(input.trainer?['trainer-'+slugify(input.trainer.split(',')[0])]:[]),...(input.membership?['membership-'+slugify(input.membership)]:[]),...(input.momenceMemberId?['momence-linked']:[]),...(input.kind==='assessment'?['trainer-evaluation']:[]),...(clientInvolved?['client-involved']:[])].filter(Boolean))]:[];
+const additionalOwners=await coOwnersFor({lead:owner.id,leadDepartment:departmentId,teams:input.involvedTeams||[],ids:input.additionalOwnerIds||[],studio:input.studio,category:input.category});
 const memberFacingUpdate=praise?`Thank you${input.memberName?' , '+input.memberName.split(' ')[0]:''} for sharing this. Your feedback will be recorded for our ${dept.name} team.`:`Hi ${input.memberName.split(' ')[0]}, thank you for sharing your experience. ${owner.name} from ${dept.name} will review your request. The internal follow-up target is ${slaHours} hours; a resolution time has not yet been confirmed.`;
-return{...input,title,summary,priority,severity:inferSeverity(priority),assignedStaffId:owner.id,assignedStaffName:owner.name,assignedStaffEmail:owner.email,assignedStaffRole:owner.role,departmentId,departmentName:dept.name,slaHours,slaLabel:noSla?'No SLA required':slaHours===1?'1 hour':slaHours+' hours',resolutionRequired:!noSla,tags,opsChecklist,memberFacingUpdate,internalBrief:input.description,routingReason:!cfg.autoAssign?'Automatic assignment disabled · parked in the department queue':override?`Administrator-defined routing rule for ${input.category}${cfg.routingOwners[input.category+'::'+input.studio]?' at '+studioShort:''} → ${owner.name}`:`${input.category} routes to ${dept.name}. ${owner.name} picked up as the active ${owner.role||'specialist'}${ids.length?` covering ${studioShort}`:''}, with a ${noSla?'record-only':slaHours+'h'} follow-up target at ${priority} priority.`};}
+return{...input,title,summary,priority,severity:inferSeverity(priority),additionalOwners,assignedStaffId:owner.id,assignedStaffName:owner.name,assignedStaffEmail:owner.email,assignedStaffRole:owner.role,departmentId,departmentName:dept.name,slaHours,slaLabel:noSla?'No SLA required':slaHours===1?'1 hour':slaHours+' hours',resolutionRequired:!noSla,tags,opsChecklist,memberFacingUpdate,internalBrief:input.description,routingReason:!cfg.autoAssign?'Automatic assignment disabled · parked in the department queue':override?`Administrator-defined routing rule for ${input.category}${cfg.routingOwners[input.category+'::'+input.studio]?' at '+studioShort:''} → ${owner.name}`:`${input.category} routes to ${dept.name}. ${owner.name} picked up as the active ${owner.role||'specialist'}${ids.length?` covering ${studioShort}`:''}, with a ${noSla?'record-only':slaHours+'h'} follow-up target at ${priority} priority.${clientInvolved?' A client is directly involved, so it is held at high priority or above with a resolution required.':''}${additionalOwners.length?` Co-owned with ${additionalOwners.map(o=>`${o.name}${o.departmentName?` (${o.departmentName})`:''}`).join(', ')}.`:''}`};}
 
 type ExternalCreate={sourceRef?:string;createdAt?:Date;status?:string;resolvedAt?:Date;/** A backfilled record was never worked in this system, so it carries no SLA clock. */noSla?:boolean;/** An explicit follow-up deadline (recurrence checks are due days after the resolution, not hours after filing). */slaDueAt?:Date;/** Run inside the caller's transaction (as a savepoint) instead of opening a new one — the history import batches rows this way. */tx?:Tx};
-/** The owner and their reporting manager, each with the name they are greeted by and the
- *  role their copy is written for. Deduped by address: a manager who owns their own ticket
- *  gets one owner's copy, not two. */
+/** Everyone a ticket email goes to. The owners (lead plus any co-owners) are addressed; their
+ *  reporting managers are always on CC, so the person who has to act and the person who has
+ *  to know read the same message; the archive address rides on BCC (see ticketBcc). Deduped
+ *  by address: a manager who owns their own ticket is addressed once, not copied as well. */
 type MailRecipient={email:string;name:string|null;role:'owner'|'manager'};
-async function notificationRecipients(tx:Tx,ownerId:number|null,ownerEmail:string|null,ownerName:string|null){
-  const byEmail=new Map<string,MailRecipient>();const add=(email:string|null|undefined,name:string|null,role:MailRecipient['role'])=>{const key=email?.trim().toLowerCase();if(key&&!byEmail.has(key))byEmail.set(key,{email:key,name,role});};
-  add(ownerEmail,ownerName,'owner');
-  if(ownerId){const[owner]=await tx.select({manager:staff.manager}).from(staff).where(eq(staff.id,ownerId));if(owner?.manager){const[manager]=await tx.select({email:staff.email,name:staff.name}).from(staff).where(and(eq(staff.isActive,true),ilike(staff.name,owner.manager.trim())));if(manager?.email)add(manager.email,manager.name,'manager');}}
-  return[...byEmail.values()];
+type MailRoute={to:MailRecipient[];cc:MailRecipient[]};
+async function managerOf(tx:Tx,staffId:number){
+  const[person]=await tx.select({manager:staff.manager}).from(staff).where(eq(staff.id,staffId));
+  if(!person?.manager)return undefined;
+  const named=await findManager(person.manager);
+  if(!named)return undefined;
+  const[manager]=await tx.select({email:staff.email,name:staff.name}).from(staff).where(and(eq(staff.id,named.id),eq(staff.isActive,true)));
+  return manager?.email?manager:undefined;
+}
+async function notificationRecipients(tx:Tx,owners:{id:number|null;email:string|null;name:string|null}[]):Promise<MailRoute>{
+  const seen=new Set<string>();const to:MailRecipient[]=[];const cc:MailRecipient[]=[];
+  const add=(list:MailRecipient[],email:string|null|undefined,name:string|null,role:MailRecipient['role'])=>{const key=email?.trim().toLowerCase();if(key&&key.includes('@')&&!seen.has(key)){seen.add(key);list.push({email:key,name,role});}};
+  for(const o of owners)add(to,o.email,o.name,'owner');
+  for(const o of owners)if(o.id){const m=await managerOf(tx,o.id);if(m)add(cc,m.email,m.name,'manager');}
+  return{to,cc};
 }
 /** Where the ticket lives, for the button in the email. Falls back to a relative path when
  *  the deployment URL is not configured — better a broken-looking link than a wrong domain. */
 const ticketUrl=(id:number)=>{const base=process.env.NEXT_PUBLIC_APP_URL||(process.env.VERCEL_PROJECT_PRODUCTION_URL?`https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`:'');return base?`${base.replace(/\/$/,'')}/tickets/${id}`:'';};
-async function queueTicketEmails(tx:Tx,ticket:{id:number;ticketNumber:string;title:string;assignedStaffId:number|null;assignedStaffEmail:string|null;slaDueAt:Date|null;priority?:string|null;category?:string|null;subcategory?:string|null;studio?:string|null;memberName?:string|null;assignedStaffName?:string|null;departmentName?:string|null;createdAt?:Date|null;summary?:string|null;escalatedFromName?:string|null},kind:TicketEmailKind,recipients?:MailRecipient[],cc:MailRecipient[]=[]){
-  const targets=recipients||await notificationRecipients(tx,ticket.assignedStaffId,ticket.assignedStaffEmail,ticket.assignedStaffName??null);
-  let queued=0;
-  // The archive address rides on the first message only. Attaching it to every message would
-  // put one copy per recipient in that mailbox — two or three copies of the same notification
-  // for a ticket that has an owner and a manager.
-  const bcc=ticketBcc();
-  for(const{email,name,role}of targets){
-    const[ledger]=await tx.insert(ticketNotifications).values({ticketId:ticket.id,kind,recipientEmail:email}).onConflictDoNothing().returning({id:ticketNotifications.id});
-    if(!ledger)continue;
-    const copied=cc.filter(c=>c.email!==email);
-    const{subject,text,html}=ticketEmailBody({...ticket,appUrl:ticketUrl(ticket.id)},kind,{name,role,copied:copied.map(c=>c.name||c.email)});
-    await tx.insert(deliveryLogs).values({integrationId:'mailtrap',action:'send',nextAttemptAt:new Date(),payload:{to:[{email}],...(copied.length?{cc:copied.map(c=>({email:c.email}))}:{}),...(queued===0&&bcc.length?{bcc}:{}),subject,text,html}});queued++;
-  }
-  return queued;
+type EmailTicket={id:number;ticketNumber:string;title:string;assignedStaffId:number|null;assignedStaffEmail:string|null;slaDueAt:Date|null;priority?:string|null;category?:string|null;subcategory?:string|null;studio?:string|null;memberName?:string|null;assignedStaffName?:string|null;departmentName?:string|null;createdAt?:Date|null;summary?:string|null;escalatedFromName?:string|null;additionalOwners?:TicketOwner[]|null};
+/** One message per ticket event: To the owners, CC their reporting managers, BCC the archive.
+ *  `route` overrides who is addressed and copied (the escalation goes to the manager, with the
+ *  owner it left copied); the managers of everyone addressed are still added to CC. The ledger
+ *  keeps it idempotent per address — if the lead recipient already had this kind, nothing is
+ *  sent again. */
+async function queueTicketEmails(tx:Tx,ticket:EmailTicket,kind:TicketEmailKind,route?:MailRoute){
+  const owners=[{id:ticket.assignedStaffId,email:ticket.assignedStaffEmail,name:ticket.assignedStaffName??null},...(ticket.additionalOwners||[]).map(o=>({id:o.id,email:o.email,name:o.name}))];
+  const base=await notificationRecipients(tx,route?route.to.map(r=>({id:null,email:r.email,name:r.name})):owners);
+  const to=route?route.to:base.to;
+  const seen=new Set(to.map(r=>r.email));
+  const cc:MailRecipient[]=[];
+  // The managers of the owners are copied whoever is addressed — including on an escalation,
+  // where the addressee is a manager already and the copied owner's own manager still learns.
+  const fromOwners=route?await notificationRecipients(tx,owners):base;
+  for(const r of[...(route?.cc||[]),...base.cc,...fromOwners.cc])if(!seen.has(r.email)){seen.add(r.email);cc.push(r);}
+  if(!to.length)return 0;
+  const ledger=await tx.insert(ticketNotifications).values([...to,...cc].map(r=>({ticketId:ticket.id,kind,recipientEmail:r.email}))).onConflictDoNothing().returning({email:ticketNotifications.recipientEmail});
+  if(!ledger.some(l=>l.email===to[0].email))return 0;
+  const bcc=ticketBcc().filter(b=>!seen.has(b.email));
+  const{subject,text,html}=ticketEmailBody({...ticket,appUrl:ticketUrl(ticket.id)},kind,{name:to.length===1?to[0].name:null,role:to[0].role,copied:cc.map(c=>c.name||c.email)});
+  await tx.insert(deliveryLogs).values({integrationId:'mailtrap',action:'send',nextAttemptAt:new Date(),payload:{to:to.map(r=>({email:r.email})),...(cc.length?{cc:cc.map(c=>({email:c.email}))}:{}),...(bcc.length?{bcc}:{}),subject,text,html}});
+  return 1;
 }
 export async function createTicketFromDraft(draft:AdvancedDraft,source=draft.source,channel='workspace',external?:ExternalCreate){return(await insertTicketFromDraft(draft,source,channel,external)).row;}
 /** `created` is false when the submission key or source reference already had a ticket. */
@@ -193,7 +261,7 @@ const filedAt=new Date();const now=external?.createdAt&&external.createdAt.getTi
 // An Unassigned (queue-parked) ticket is not "assigned" to anyone yet.
 const status=external?.status||(draft.resolutionRequired?(draft.assignedStaffId?'assigned':'new'):'recorded');const closed=['resolved','closed'].includes(status);const backfill=Boolean(external?.noSla);const resolvedAt=closed?external?.resolvedAt||now:null;
 const area=ticketArea(draft.customFields);
-const[row]=await tx.insert(tickets).values({ticketNumber:'P57-'+randomUUID(),title:draft.title,summary:draft.summary,description:draft.description,category:draft.category,subcategory:draft.subcategory,status,priority:draft.priority,severity:draft.severity,sentiment:draft.sentiment,kind:draft.kind,resolutionRequired:backfill?false:draft.resolutionRequired,impact:draft.impact,studio:draft.studio,area,classFormat:draft.classFormat,trainer:draft.trainer,membership:draft.membership,incidentAt:draft.incidentAt,memberName:draft.memberName,memberEmail:draft.memberEmail,memberPhone:draft.memberPhone,momenceMemberId:draft.momenceMemberId,momenceSessionId:draft.momenceSessionId,preferredContact:draft.preferredContact,requestedResolution:draft.requestedResolution,assignedStaffId:draft.assignedStaffId,assignedStaffName:draft.assignedStaffName,assignedStaffEmail:draft.assignedStaffEmail,departmentId:draft.departmentId,departmentName:draft.departmentName,slaHours:backfill?0:draft.slaHours,slaDueAt:backfill||!draft.slaHours?null:external?.slaDueAt||new Date(now.getTime()+draft.slaHours*3600000),source,channel,tags:draft.tags,templateId:draft.templateId,customFields:{...draft.customFields,_brief:{opsChecklist:draft.opsChecklist,memberFacingUpdate:draft.memberFacingUpdate,routingReason:draft.routingReason}},momenceContext:draft.momenceContext||null,assetId:typeof draft.customFields?.assetId==='number'?draft.customFields.assetId:null,submissionKey,sourceRef:external?.sourceRef,createdAt:now,updatedAt:now,resolvedAt,closedAt:status==='closed'?resolvedAt:null}).onConflictDoNothing().returning();
+const[row]=await tx.insert(tickets).values({ticketNumber:'P57-'+randomUUID(),title:draft.title,summary:draft.summary,description:draft.description,category:draft.category,subcategory:draft.subcategory,status,priority:draft.priority,severity:draft.severity,sentiment:draft.sentiment,kind:draft.kind,resolutionRequired:backfill?false:draft.resolutionRequired,impact:draft.impact,studio:draft.studio,area,classFormat:draft.classFormat,trainer:draft.trainer,membership:draft.membership,incidentAt:draft.incidentAt,memberName:draft.memberName,memberEmail:draft.memberEmail,memberPhone:draft.memberPhone,momenceMemberId:draft.momenceMemberId,momenceSessionId:draft.momenceSessionId,preferredContact:draft.preferredContact,requestedResolution:draft.requestedResolution,assignedStaffId:draft.assignedStaffId,assignedStaffName:draft.assignedStaffName,assignedStaffEmail:draft.assignedStaffEmail,departmentId:draft.departmentId,departmentName:draft.departmentName,slaHours:backfill?0:draft.slaHours,slaDueAt:backfill||!draft.slaHours?null:external?.slaDueAt||new Date(now.getTime()+draft.slaHours*3600000),source,channel,tags:draft.tags,templateId:draft.templateId,customFields:{...draft.customFields,_brief:{opsChecklist:draft.opsChecklist,memberFacingUpdate:draft.memberFacingUpdate,routingReason:draft.routingReason}},momenceContext:draft.momenceContext||null,assetId:typeof draft.customFields?.assetId==='number'?draft.customFields.assetId:null,additionalOwners:draft.additionalOwners||[],submissionKey,sourceRef:external?.sourceRef,createdAt:now,updatedAt:now,resolvedAt,closedAt:status==='closed'?resolvedAt:null}).onConflictDoNothing().returning();
 // A concurrent insert with the same key or source reference won the race: return that row rather than a 500.
 if(!row){const[winner]=await findExisting(tx);if(!winner)throw new ApiError('This ticket could not be saved. Try again.',409);return{row:winner,created:false};}
 const number=ticketNumberFor(row.id);await tx.update(tickets).set({ticketNumber:number}).where(eq(tickets.id,row.id));await tx.insert(ticketActivities).values({ticketId:row.id,actorName:source==='history'?'History import':'IRIS',action:'created',detail:`${draft.assignedStaffName} · ${draft.departmentName} · ${backfill?'No SLA · closed historical record':draft.slaLabel}`,createdAt:now});
@@ -206,7 +274,13 @@ return{row:savedRow,created:true};};
 return external?.tx?external.tx.transaction(work):db.transaction(work);}
 /** List views never read `customFields` or the long-form text, which are ~85% of the
  *  table's bytes. Selecting only the rendered columns keeps this response small. */
-const LIST_COLUMNS={id:tickets.id,ticketNumber:tickets.ticketNumber,title:tickets.title,status:tickets.status,priority:tickets.priority,category:tickets.category,subcategory:tickets.subcategory,studio:tickets.studio,area:tickets.area,memberName:tickets.memberName,assignedStaffId:tickets.assignedStaffId,assignedStaffName:tickets.assignedStaffName,departmentName:tickets.departmentName,createdByUserId:tickets.createdByUserId,kind:tickets.kind,source:tickets.source,resolutionRequired:tickets.resolutionRequired,slaDueAt:tickets.slaDueAt,resolvedAt:tickets.resolvedAt,createdAt:tickets.createdAt,updatedAt:tickets.updatedAt,version:tickets.version};
+const LIST_COLUMNS={id:tickets.id,ticketNumber:tickets.ticketNumber,title:tickets.title,status:tickets.status,priority:tickets.priority,category:tickets.category,subcategory:tickets.subcategory,studio:tickets.studio,area:tickets.area,memberName:tickets.memberName,assignedStaffId:tickets.assignedStaffId,assignedStaffName:tickets.assignedStaffName,departmentName:tickets.departmentName,createdByUserId:tickets.createdByUserId,kind:tickets.kind,source:tickets.source,resolutionRequired:tickets.resolutionRequired,slaDueAt:tickets.slaDueAt,resolvedAt:tickets.resolvedAt,createdAt:tickets.createdAt,updatedAt:tickets.updatedAt,version:tickets.version,
+  closedAt:tickets.closedAt,slaHours:tickets.slaHours,isEscalated:tickets.isEscalated,escalatedToName:tickets.escalatedToName,escalatedAt:tickets.escalatedAt,
+  slaExtendedHours:tickets.slaExtendedHours,slaExtendedAt:tickets.slaExtendedAt,slaExtendedByName:tickets.slaExtendedByName,slaExtensionReason:tickets.slaExtensionReason,
+  committedResolutionAt:tickets.committedResolutionAt,additionalOwners:tickets.additionalOwners,createdByName:tickets.createdByName,
+  /** The few customFields keys the board needs to mark recurrence: the auto re-checks and a
+   *  fault reported more than once. Picked out in SQL so the list still never ships customFields. */
+  recurrence:sql<{autoFollowUp?:boolean;recheckDay?:number;recheckOf?:number;parentTicketNumber?:string;recurrenceCount?:number}>`jsonb_strip_nulls(jsonb_build_object('autoFollowUp',${tickets.customFields}->'autoFollowUp','recheckDay',${tickets.customFields}->'recheckDay','recheckOf',${tickets.customFields}->'recheckOf','parentTicketNumber',${tickets.customFields}->'parentTicketNumber','recurrenceCount',${tickets.customFields}->'recurrenceCount'))`};
 /** SQL form of `canAccessTicket`, so a list or a search only ever reads rows the caller may open. */
 /** The row filter behind every list, search and count. Mirrors `canAccessTicket`
  *  in lib/auth.ts — that one judges a single ticket, this one turns the same
@@ -221,6 +295,9 @@ export function ticketScope(user?:Identity):SQL|undefined{
   const studios=coveredStudios(user);
   const inStudios=studios.length?inArray(tickets.studio,studios):undefined;
   const reports=user.managedStaffIds?.length?inArray(tickets.assignedStaffId,user.managedStaffIds):undefined;
+  // Co-owners on a cross-team ticket, and their managers — the same rule canAccessTicket applies.
+  const coOwned=[user.staffId,...(user.managedStaffIds||[])].filter((id):id is number=>typeof id==='number');
+  const coOwner=coOwned.length?or(...coOwned.map(id=>sql`${tickets.additionalOwners} @> ${JSON.stringify([{id}])}::jsonb`)):undefined;
   const base=user.role==='agent'
     ? or(
         user.staffId===null?undefined:eq(tickets.assignedStaffId,user.staffId),
@@ -228,7 +305,7 @@ export function ticketScope(user?:Identity):SQL|undefined{
         inStudios,
       )
     : or(user.staffId===null?undefined:eq(tickets.assignedStaffId,user.staffId),and(user.department?eq(tickets.departmentName,user.department):undefined,inStudios,user.department||studios.length?undefined:sql`false`));
-  return reports?or(reports,base):base;
+  return reports||coOwner?or(reports,coOwner,base):base;
 }
 /**
  * Whether the app may send the automatic "assigned to you" email on ticket
@@ -243,7 +320,7 @@ export function emailSendingEnabled(){return (process.env.SEND_EMAILS??'true').t
 export async function queueSlaReminderEmails(now=new Date()){
   if(!emailSendingEnabled())return 0;const cfg=await getConfig();if(!cfg.assignmentEmail)return 0;
   const dueBefore=new Date(now.getTime()+3*3600_000);
-  const rows=await db.select({id:tickets.id,ticketNumber:tickets.ticketNumber,title:tickets.title,assignedStaffId:tickets.assignedStaffId,assignedStaffEmail:tickets.assignedStaffEmail,slaDueAt:tickets.slaDueAt,priority:tickets.priority,category:tickets.category,subcategory:tickets.subcategory,studio:tickets.studio,memberName:tickets.memberName,assignedStaffName:tickets.assignedStaffName,summary:tickets.summary,departmentName:tickets.departmentName,createdAt:tickets.createdAt}).from(tickets).where(and(eq(tickets.resolutionRequired,true),sql`${tickets.status} not in ('resolved','closed','recorded')`,gt(tickets.slaDueAt,now),lte(tickets.slaDueAt,dueBefore)));
+  const rows=await db.select({id:tickets.id,ticketNumber:tickets.ticketNumber,title:tickets.title,assignedStaffId:tickets.assignedStaffId,assignedStaffEmail:tickets.assignedStaffEmail,slaDueAt:tickets.slaDueAt,priority:tickets.priority,category:tickets.category,subcategory:tickets.subcategory,studio:tickets.studio,memberName:tickets.memberName,assignedStaffName:tickets.assignedStaffName,summary:tickets.summary,departmentName:tickets.departmentName,createdAt:tickets.createdAt,additionalOwners:tickets.additionalOwners}).from(tickets).where(and(eq(tickets.resolutionRequired,true),sql`${tickets.status} not in ('resolved','closed','recorded')`,gt(tickets.slaDueAt,now),lte(tickets.slaDueAt,dueBefore)));
   let queued=0;for(const ticket of rows)queued+=await db.transaction(tx=>queueTicketEmails(tx,ticket,'sla-3h'));return queued;
 }
 /**
@@ -391,7 +468,7 @@ export async function applyEscalations(){
       if(emailSendingEnabled()&&cfg.assignmentEmail&&to.email){
         const fromEmail=row.assignedStaffEmail?.trim().toLowerCase();
         await queueTicketEmails(tx,{...row,assignedStaffId:to.id,assignedStaffName:to.name,assignedStaffEmail:to.email,escalatedFromName:from},'escalated',
-          [{email:to.email.trim().toLowerCase(),name:to.name,role:'manager'}],fromEmail?[{email:fromEmail,name:row.assignedStaffName,role:'owner'}]:[]);
+          {to:[{email:to.email.trim().toLowerCase(),name:to.name,role:'manager'}],cc:fromEmail?[{email:fromEmail,name:row.assignedStaffName,role:'owner'}]:[]});
       }
       if(to.userId)
         await tx.insert(userNotifications).values({userId:to.userId,ticketId:row.id,kind:'escalation',
@@ -414,10 +491,10 @@ async function findManager(manager:string){
 /** Resolution editing is restricted to the assigned owner and direct reporting manager.
  *  Per the README there is no blanket administrator override: an admin who is neither the
  *  owner nor their manager cannot edit it. */
-export async function canResolveTicket(user:{staffId:number|null;role:string;managedStaffIds?:number[]}|null,assignedStaffId:number|null,resolutionRequired:boolean):Promise<boolean>{if(!user||!resolutionRequired)return false;if(user.staffId===null||assignedStaffId===null)return false;if(user.staffId===assignedStaffId)return true;if(user.managedStaffIds)return user.managedStaffIds.includes(assignedStaffId);const[assignee]=await db.select({manager:staff.manager}).from(staff).where(eq(staff.id,assignedStaffId));if(!assignee?.manager)return false;const managerRow=await findManager(assignee.manager);return managerRow?.id===user.staffId;}
+export async function canResolveTicket(user:{staffId:number|null;role:string;managedStaffIds?:number[]}|null,assignedStaffId:number|null,resolutionRequired:boolean,/** Co-owners on a cross-team ticket work the resolution too. */coOwners?:{id:number}[]|null):Promise<boolean>{if(!user||!resolutionRequired)return false;if(user.staffId===null)return false;if(coOwners?.some(o=>o.id===user.staffId||user.managedStaffIds?.includes(o.id)))return true;if(assignedStaffId===null)return false;if(user.staffId===assignedStaffId)return true;if(user.managedStaffIds)return user.managedStaffIds.includes(assignedStaffId);const[assignee]=await db.select({manager:staff.manager}).from(staff).where(eq(staff.id,assignedStaffId));if(!assignee?.manager)return false;const managerRow=await findManager(assignee.manager);return managerRow?.id===user.staffId;}
 /** Single gate for resolution-workspace writes. Reads use normal ticket access. Returns the actor and the
  *  ticket so callers do not re-read either. */
-export async function requireResolutionAccess(ticketId:number):Promise<{user:Identity;ticket:typeof tickets.$inferSelect}>{const user=await currentUser();const[ticket]=await db.select().from(tickets).where(eq(tickets.id,ticketId));if(!ticket)throw new ApiError('Ticket not found',404);if(!ticket.resolutionRequired)throw new ApiError('This ticket does not require a resolution.');if(!user)throw new ApiError('Sign in to edit the resolution workspace.',401);if(!canAccessTicket(user,ticket))throw new ApiError('You do not have access to this ticket resolution.',403);if(!(await canResolveTicket(user,ticket.assignedStaffId,ticket.resolutionRequired)))throw new ApiError('Only the assigned owner or their reporting manager can edit this resolution.',403);return{user,ticket};}
+export async function requireResolutionAccess(ticketId:number):Promise<{user:Identity;ticket:typeof tickets.$inferSelect}>{const user=await currentUser();const[ticket]=await db.select().from(tickets).where(eq(tickets.id,ticketId));if(!ticket)throw new ApiError('Ticket not found',404);if(!ticket.resolutionRequired)throw new ApiError('This ticket does not require a resolution.');if(!user)throw new ApiError('Sign in to edit the resolution workspace.',401);if(!canAccessTicket(user,ticket))throw new ApiError('You do not have access to this ticket resolution.',403);if(!(await canResolveTicket(user,ticket.assignedStaffId,ticket.resolutionRequired,ticket.additionalOwners)))throw new ApiError('Only the assigned owner or their reporting manager can edit this resolution.',403);return{user,ticket};}
 /** Full resolution history, readable by every signed-in user with ticket access. */
 export async function getResolutionWorkspace(ticketId:number){const[[resolution],steps,followUps,contacts,attachments]=await Promise.all([
   db.select().from(ticketResolutions).where(eq(ticketResolutions.ticketId,ticketId)),
@@ -433,7 +510,7 @@ if(!user)throw new ApiError('Sign in to your workspace account to view this.',40
 // These reads are independent of each other. Issued sequentially they cost a database
 // round-trip each before anything renders; in parallel they cost one.
 const[canResolve,comments,activities,similar,links,asset]=await Promise.all([
-  canResolveTicket(user,ticket.assignedStaffId,ticket.resolutionRequired),
+  canResolveTicket(user,ticket.assignedStaffId,ticket.resolutionRequired,ticket.additionalOwners),
   db.select().from(ticketComments).where(eq(ticketComments.ticketId,id)).orderBy(ticketComments.createdAt),
   db.select().from(ticketActivities).where(eq(ticketActivities.ticketId,id)).orderBy(ticketActivities.createdAt),
   db.select({id:tickets.id,ticketNumber:tickets.ticketNumber,title:tickets.title,status:tickets.status,priority:tickets.priority}).from(tickets).where(and(eq(tickets.category,ticket.category),eq(tickets.subcategory,ticket.subcategory),ne(tickets.id,id),ticketScope(user))).orderBy(desc(tickets.createdAt)).limit(8),
@@ -459,7 +536,7 @@ const TERMINAL=['resolved','closed'];
 export async function assertStatusTransition(actor:Identity,current:typeof tickets.$inferSelect,next:string,cfg:Config){
   if(next==='recorded'&&current.resolutionRequired)throw new ApiError('Only record-only feedback can use Recorded status.');
   if(TERMINAL.includes(next)&&!TERMINAL.includes(current.status)&&current.resolutionRequired){
-    if(!(await canResolveTicket(actor,current.assignedStaffId,current.resolutionRequired)))throw new ApiError('Only the assigned owner or their reporting manager may resolve this ticket.',403);
+    if(!(await canResolveTicket(actor,current.assignedStaffId,current.resolutionRequired,current.additionalOwners)))throw new ApiError('Only the assigned owner or their reporting manager may resolve this ticket.',403);
     const[r]=await db.select().from(ticketResolutions).where(eq(ticketResolutions.ticketId,current.id));
     // Action taken is the only required part of the write-up: any non-empty text counts.
     if(!r?.actionTaken.trim())throw new ApiError('Record the resolution action taken first.');
@@ -577,7 +654,7 @@ export async function maybeCreateRecurrenceChecks(resolved:ResolvedTicket){
       customFields:{area:resolved.area||resolved.customFields?.area,parentTicketId:resolved.id,parentTicketNumber:resolved.ticketNumber,autoFollowUp:true,followUpType:'recurrence-check',recheckEquipment:kind,recheckDay:days,recheckOf:RECURRENCE_CHECK_DAYS.length,recheckDueAt:due.toISOString(),firstResolvedAt:base.toISOString(),recurrenceConfirmationRequired:true,relapseDetailsAllowed:true,followUpReason:`Confirm no recurrence ${days} days after resolution`,followUpAssignment:(bike||ac)?'original-reporter':'repair-owner',originalReporterUserId:resolved.createdByUserId||null},
       assignedStaffId:owner.id,assignedStaffName:owner.name||'Unassigned',assignedStaffEmail:owner.email||'',assignedStaffRole:'Follow-up owner',
       departmentId:resolved.departmentId||'operations',departmentName:resolved.departmentName||'Operations',slaHours,slaLabel:`${days} days from the first resolution`,resolutionRequired:true,
-      opsChecklist:checklist,memberFacingUpdate:'',internalBrief:`Day-${days} recurrence check for ${resolved.ticketNumber} — ${label}.`,routingReason:`Auto-raised ${days}-day recurrence check. ${assignmentReason}`};
+      additionalOwners:[],opsChecklist:checklist,memberFacingUpdate:'',internalBrief:`Day-${days} recurrence check for ${resolved.ticketNumber} — ${label}.`,routingReason:`Auto-raised ${days}-day recurrence check. ${assignmentReason}`};
     const{row:child,created:isNew}=await insertTicketFromDraft(draft,'system','automation',{sourceRef:key,slaDueAt:due});
     if(!isNew)continue;
     await db.insert(ticketLinks).values({ticketId:Math.min(resolved.id,child.id),relatedId:Math.max(resolved.id,child.id),relation:'child'}).onConflictDoNothing();

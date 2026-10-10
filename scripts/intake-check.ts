@@ -14,11 +14,14 @@ import {ticketInputSchema} from '@/lib/ticket-contract';
 import {inferPriority} from '@/lib/routing';
 import {
   composeWriteup, decodeLookup, decodeLookups, encodeLookup, encodeLookups, fieldOptions, gatingFor, hubCategories, hubSub, hubTier, isVisible, linkedLookup,
-  missingFields, planFields, priorityInputs, relativeFor, seedData, toTicketInput, visibleFields, type IntakeData,
+  missingFields, planFields, priorityInputs, relativeFor, seedData, titlePreview, toTicketInput, visibleFields, type IntakeData,
 } from '@/lib/intake/plan';
 import {classDeskAnswers, rosterRows, sessionSnapshot, sessionStats, type SessionDetail} from '@/lib/intake/class-desk';
 import {equipmentRepairRoute} from '@/lib/equipment-routing';
 import {departmentForTicket, isAcTicket, slaHoursFor} from '@/lib/tickets';
+import {hostedFeedbackError, isHostedClassTicket} from '@/lib/hosted-feedback';
+import {hostedRosterError, type HostedRow} from '@/components/intake/hosted-roster';
+import {suggestTeams} from '@/components/intake/involved-teams';
 
 let failed = 0;
 function check(name: string, cond: boolean, got?: unknown) {
@@ -74,6 +77,9 @@ console.log('\nThe shared block and its dependencies');
   check('a timetable request does not ask for a room', !byId.area && !byId.specific_area);
   const hosted = planFields('Brand Feedback', 'Hosted Class Feedback', ctx).map(f => f.id);
   check('a hosted class skips the room and triage block', !['specific_area', 'area', 'immediate_danger', 'class_impacted', 'is_repeat', 'linked_ticket'].some(id => hosted.includes(id)) && hosted.includes('partner_name'), hosted);
+  // The ops lead-capture record is a hosted class too: same roster, same triage-free form.
+  const opsHosted = planFields('Internal Operations & Admin', 'Hosted Class / Event Lead Capture & Tracking', ctx).map(f => f.id);
+  check('the ops hosted-class record also skips the room and triage block', !['specific_area', 'area', 'class_format', 'immediate_danger', 'class_impacted', 'is_repeat', 'linked_ticket', 'requested_outcome'].some(id => opsHosted.includes(id)) && opsHosted.includes('lead_ref'), opsHosted);
   const laptops = planFields('Tech Issues', 'Laptops Not Functioning', ctx).map(f => f.id);
   check('a laptop fault is not asked for a payment reference', !laptops.includes('transaction_ref') && !laptops.includes('amount_inr'), laptops);
   const safety = Object.fromEntries(planFields('Safety and Security', 'Handling of Medical Emergencies', ctx).map(f => [f.id, f]));
@@ -170,6 +176,54 @@ console.log('\nThe write-up quotes the form and nothing else');
   const sparse = composeWriteup({sub, fields, data: {studio: 'Courtside, Mumbai', occurred_relative: 'Yesterday'}});
   check('with two answers it writes two facts, not a story', sparse === 'AC and HVAC Issues at Courtside — yesterday.', sparse);
   check('never longer than the description column allows', text.length <= 4000);
+}
+
+console.log('\nHosted-class tickets require a complete attendee roster');
+{
+  check('both hosted sub-categories are hosted-class tickets', isHostedClassTicket('Brand Feedback', 'Hosted Class Feedback') && isHostedClassTicket('Internal Operations & Admin', 'Hosted Class / Event Lead Capture & Tracking') && !isHostedClassTicket('Class Experience', 'Class Flow'));
+  const row = (patch: Partial<HostedRow> = {}): HostedRow => ({key: 'k' + Math.random(), name: 'Priya Mehta', booking: 'Booked', attendance: 'Attended', outcome: 'Booked an intro or trial', followUp: '', flags: [], note: 'Loved the class, booking a trial.', ...patch});
+  check('an empty roster blocks filing, linked or not', Boolean(hostedRosterError([], {status: 'ready', linked: false})) && Boolean(hostedRosterError([], {status: 'ready', linked: true})));
+  check('a roster still loading blocks filing', Boolean(hostedRosterError([row()], {status: 'loading', linked: true})));
+  check('a row without a comment blocks filing', /comment/.test(hostedRosterError([row({note: ' '})], {status: 'ready', linked: true}) || ''));
+  check('a row without an outcome blocks filing', /outcome/.test(hostedRosterError([row({outcome: ''})], {status: 'ready', linked: true}) || ''));
+  check('a row without attendance blocks filing', /attendance/.test(hostedRosterError([row({attendance: ''})], {status: 'ready', linked: true}) || ''));
+  check('a hand-added roster with no class linked can file', hostedRosterError([row({manual: true, booking: 'Walk-in'})], {status: 'ready', linked: false}) === null);
+  // The ops record's form is the one the server validates too.
+  const sub = 'Hosted Class / Event Lead Capture & Tracking', category = 'Internal Operations & Admin';
+  const fields = planFields(category, sub, ctx);
+  const data: IntakeData = seedData({studio: ctx.studios[0], reporter_name: 'Desk', reporter_contact: 'desk@physique57.in', summary: 'Ten guests from the partner community joined the hosted PowerCycle class.'});
+  for (const f of missingFields(fields, data)) data[f.id] = f.type === 'number' ? '2' : f.type === 'multiselect' ? (f.options || ['x']).slice(0, 1) : f.options?.length ? f.options[0] : f.type === 'datetime' ? '2026-09-21T07:00' : 'Recorded';
+  const r = row();
+  const input = toTicketInput({category, sub, fields, data, kind: 'feedback', submissionKey: 'check-hosted-ops-0001', hostedAttendees: [{name: r.name, booking: r.booking, attendance: r.attendance, outcome: r.outcome, followUp: r.followUp, flags: [], note: r.note}]});
+  const cf = input.customFields as Record<string, unknown>;
+  check('the ops hosted roster rides on the ticket', Array.isArray(cf.hostedAttendees) && (cf.hostedAttendees as unknown[]).length === 1 && ticketInputSchema.safeParse(input).success);
+  check('the server accepts the roster the form files', hostedFeedbackError(category, sub, cf.hostedAttendees) === null, hostedFeedbackError(category, sub, cf.hostedAttendees));
+}
+
+console.log('\nTitles are left to the server unless the reporter typed one');
+{
+  const fields = planFields('Class Experience', 'Class Flow', ctx);
+  check('the title is never a required question', fields.find(f => f.id === 'title')?.required !== true, fields.find(f => f.id === 'title'));
+  const base: IntakeData = seedData({studio: 'Supreme HQ, Bandra', area: 'Barre Studio', reporter_name: 'Desk', reporter_contact: 'desk@physique57.in', summary: 'The member said the class felt rushed. Transitions were skipped.', member_name: encodeLookup({id: '481102', label: 'Priya Mehta'})});
+  const blank = toTicketInput({category: 'Class Experience', sub: 'Class Flow', fields, data: base, kind: 'issue', submissionKey: 'check-title-000001'});
+  check('no typed title sends no title', blank.title === undefined && ticketInputSchema.safeParse(blank).success, blank.title);
+  const typed = toTicketInput({category: 'Class Experience', sub: 'Class Flow', fields, data: {...base, title: '  Rushed 7am barre class  '}, kind: 'issue', submissionKey: 'check-title-000002'});
+  check('a typed title is kept as written', typed.title === 'Rushed 7am barre class', typed.title);
+  check('the preview reads like the server label', titlePreview(base) === 'The member said the class felt rushed — Priya Mehta · Supreme HQ', titlePreview(base));
+  check('no summary, no preview', titlePreview({studio: 'Supreme HQ, Bandra'}) === '');
+}
+
+console.log('\nInvolved teams');
+{
+  check('a class-experience ticket about a member involves client servicing and training', suggestTeams({category: 'Class Experience', sub: 'Class Flow', memberInvolved: true}).join() === 'sales-client-servicing,training');
+  check('an equipment mention adds operations', suggestTeams({category: 'Class Experience', sub: 'Class Flow', memberInvolved: true, text: 'Bike 4 pedal came loose mid-class'}).includes('operations'));
+  check('nothing is suggested outside class experience', suggestTeams({category: 'Scheduling', sub: 'Time Change', memberInvolved: true}).length === 0);
+  const fields = planFields('Class Experience', 'Class Flow', ctx);
+  const data: IntakeData = seedData({studio: ctx.studios[0], reporter_name: 'Desk', reporter_contact: 'desk@physique57.in', summary: 'The class flow was rushed and transitions were skipped.'});
+  const input = toTicketInput({category: 'Class Experience', sub: 'Class Flow', fields, data, kind: 'issue', submissionKey: 'check-teams-000001', involvedTeams: ['sales-client-servicing', 'operations', 'operations']});
+  check('involved teams ride on the payload, de-duplicated', input.involvedTeams?.join() === 'sales-client-servicing,operations' && ticketInputSchema.safeParse(input).success, input.involvedTeams);
+  const none = toTicketInput({category: 'Class Experience', sub: 'Class Flow', fields, data, kind: 'issue', submissionKey: 'check-teams-000002', involvedTeams: []});
+  check('no teams picked sends none', none.involvedTeams === undefined);
 }
 
 console.log('\nThe payload maps onto the contract Iris already files through');

@@ -3,7 +3,7 @@
 import {useCallback, useEffect, useRef, useState} from 'react';
 import {api} from './ui';
 import {
-  DEFAULT_COLUMNS, DEFAULT_DASHBOARD, EMPTY_FILTERS, LEGACY_DEFAULT_COLUMNS,
+  DEFAULT_COLUMNS, DEFAULT_DASHBOARD, EMPTY_FILTERS, LEGACY_DEFAULT_COLUMNS, migrateDashboardPrefs,
   type DashboardPrefs, type FilterState, type SavedView,
 } from '@/lib/dashboard-contract';
 
@@ -46,12 +46,23 @@ export function useDashboardPrefs(): DashboardPrefsApi {
           const savedColumns = d.dashboard.columns || [];
           const isLegacyDefault = savedColumns.length === LEGACY_DEFAULT_COLUMNS.length
             && savedColumns.every((column, index) => column === LEGACY_DEFAULT_COLUMNS[index]);
-          setPrefs({
+          const savedFilters = {...EMPTY_FILTERS, ...(d.dashboard.filters || {})};
+          // "All tickets" is a promise: a fresh visit that lands on it shows every ticket,
+          // newest first. A status cut, search or grouping left behind by an earlier session
+          // used to survive the reload and quietly hide most of the board under that label.
+          // The other tabs are already narrow by design, so their filters are kept.
+          const allTab = !savedFilters.tab || savedFilters.tab === 'all';
+          const {prefs: next, patch} = migrateDashboardPrefs({
             ...DEFAULT_DASHBOARD,
             ...d.dashboard,
             columns: isLegacyDefault ? DEFAULT_COLUMNS : d.dashboard.columns,
-            filters: {...EMPTY_FILTERS, ...(d.dashboard.filters || {})},
+            filters: allTab ? EMPTY_FILTERS : savedFilters,
+            ...(allTab ? {groupBy: 'none' as const, sortKey: 'created' as const, sortDir: 'desc' as const} : {}),
           });
+          setPrefs(next);
+          // The upgrade is saved straight away (not debounced: `loaded` is still false here)
+          // so it runs once per person, and removing a new column afterwards sticks.
+          if (patch) void api('/api/preferences', {method: 'PATCH', body: JSON.stringify({dashboard: patch})}).catch(() => {});
         }
         if (Array.isArray(d.views)) setViews(d.views);
       })

@@ -48,7 +48,7 @@ export async function POST(req: Request, ctx: Ctx) {
     requireTicketAccess(actor, ticket);
     // The same test the resolution workspace uses: the assigned owner, or that owner's
     // reporting manager. Nobody else gets to move somebody else's follow-up target.
-    if (!(await canResolveTicket(actor, ticket.assignedStaffId, ticket.resolutionRequired)))
+    if (!(await canResolveTicket(actor, ticket.assignedStaffId, ticket.resolutionRequired, ticket.additionalOwners)))
       throw new ApiError('Only the assigned owner or their reporting manager can extend this.', 403);
     if (!ticket.resolutionRequired || !ticket.slaDueAt)
       throw new ApiError('This ticket has no follow-up target to extend.');

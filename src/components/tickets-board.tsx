@@ -13,12 +13,17 @@ import {
   Sparkles,
   Flame,
   Hash,
+  CircleDot,
+  CircleCheck,
+  Lock,
+  Archive,
+  Repeat,
+  Copy,
 } from "lucide-react";
 import {
   api,
   Avatar,
   Badge,
-  Status,
   Priority,
   useApp,
   Empty,
@@ -27,6 +32,11 @@ import {
 import { relativeTime, slaState } from "@/lib/utils";
 import { summarize, isOpen, isDone } from "@/lib/metrics";
 import type { TicketListRecord } from "@/lib/ticket-contract";
+import {
+  recurrenceInfo,
+  statusPhase,
+  type StatusPhase,
+} from "@/lib/dashboard-contract";
 /** Slowest acceptable refresh. The board also reloads on `iris:tickets-updated` and on tab focus. */
 const POLL_FLOOR = 60000;
 const BOARD_BOOT_TIME = Date.now();
@@ -275,6 +285,76 @@ export function SlaCountdown({
 
 /** Legacy wrapper for backward-compat */
 
+const STATUS_TEXT: Record<string, string> = {
+  in_progress: "In progress",
+  waiting_on_member: "Awaiting member",
+  waiting_on_vendor: "Awaiting vendor",
+};
+const PHASE_ICON: Record<StatusPhase, typeof CircleDot> = {
+  open: CircleDot,
+  resolved: CircleCheck,
+  closed: Lock,
+  recorded: Archive,
+};
+const statusText = (status: string) =>
+  STATUS_TEXT[status] ||
+  status.replaceAll("_", " ").replace(/^./, (c) => c.toUpperCase());
+
+/**
+ * Status as the board shows it. The shared `<Status>` badge tells statuses apart by hue
+ * alone, and resolved/closed/recorded all came out the same green — so on a long list the
+ * finished work read as loudly as the open work. Here each phase also gets its own glyph
+ * (open dot, check, lock, archive) so it survives greyscale and colour-blindness.
+ */
+export function StatusPill({ status }: { status: string }) {
+  const phase = statusPhase(status);
+  const Icon = PHASE_ICON[phase];
+  return (
+    <span
+      className={`badge status-pill status-${status} status-phase-${phase}`}
+    >
+      <Icon size={10} aria-hidden="true" />
+      {statusText(status)}
+    </span>
+  );
+}
+
+/**
+ * Recurrence markers. An automatic re-check (day 5 / day 10 after a repair) and a fault
+ * that has been reported more than once are both "this has happened before" — the one
+ * colour family nothing else on the board uses, so they can be spotted while scrolling.
+ */
+export function RecurrenceBadges({ ticket }: { ticket: TicketListRecord }) {
+  const r = recurrenceInfo(ticket);
+  if (!r.check && r.repeats < 2) return null;
+  const schedule =
+    r.index && r.of ? ` ${r.index} of ${r.of}` : r.of ? ` of ${r.of}` : "";
+  return (
+    <span className="recur-badges">
+      {r.check && (
+        <span
+          className="recur-badge"
+          title={`Automatic re-check${r.day ? ` ${r.day} days after resolution` : ""}${r.parent ? ` of ${r.parent}` : ""} — confirm the fault has not come back`}
+        >
+          <Repeat size={10} aria-hidden="true" />
+          Recurrence check{schedule}
+          {r.day ? ` · day ${r.day}` : ""}
+          {r.parent && <span className="recur-parent">↳ {r.parent}</span>}
+        </span>
+      )}
+      {r.repeats >= 2 && (
+        <span
+          className="recur-badge recur-badge-repeat"
+          title={`The same fault has been reported ${r.repeats} times`}
+        >
+          <Copy size={10} aria-hidden="true" />
+          Reported {r.repeats}×
+        </span>
+      )}
+    </span>
+  );
+}
+
 /** Where a ticket came from, as a one-glance chip. */
 const SOURCE_LABEL: Record<string, string> = {
   iris: "IRIS",
@@ -402,7 +482,12 @@ export function TicketTable({
             return (
               <tr
                 key={t.id}
-                className={"priority-row priority-row-" + t.priority}
+                className={
+                  "priority-row priority-row-" +
+                  t.priority +
+                  " tg-row-" +
+                  statusPhase(t.status)
+                }
                 onClick={() => open(t.id)}
               >
                 {onToggle && (
@@ -416,7 +501,8 @@ export function TicketTable({
                   </td>
                 )}
                 <td>
-                  <p className="ticket-name">{t.title}</p>
+                  <p className="ticket-name">{recurrenceInfo(t).title}</p>
+                  <RecurrenceBadges ticket={t} />
                   <div className="ticket-meta">
                     <span className="ticket-id">{t.ticketNumber}</span>
                     <span>·</span>
@@ -446,7 +532,7 @@ export function TicketTable({
                   <span className="category-sub">{t.subcategory}</span>
                 </td>
                 <td>
-                  <Status status={t.status} />
+                  <StatusPill status={t.status} />
                   {!t.resolutionRequired && (
                     <span className="category-sub">record only</span>
                   )}
@@ -502,7 +588,13 @@ export function TicketCard({
   const has = (f: KanbanField) => fields.includes(f);
   return (
     <button
-      className={"ticket-card priority-edge priority-edge-" + t.priority}
+      className={
+        "ticket-card priority-edge priority-edge-" +
+        t.priority +
+        " ticket-card-" +
+        statusPhase(t.status) +
+        (recurrenceInfo(t).check ? " ticket-card-recur" : "")
+      }
       onClick={() => (onSelect ? onSelect(t.id) : router.push("/tickets/" + t.id))}
     >
       <div className="between">
@@ -511,7 +603,8 @@ export function TicketCard({
         </span>
         {has("priority") && <Priority priority={t.priority} />}
       </div>
-      <h3>{t.title}</h3>
+      <h3>{recurrenceInfo(t).title}</h3>
+      <RecurrenceBadges ticket={t} />
       {has("member") && (
         <div className="ticket-card-who">
           <Avatar name={t.memberName || "Member"} />
@@ -544,7 +637,7 @@ export function TicketCard({
         )}
       </div>
       <div className="between ticket-card-foot">
-        {has("status") && <Status status={t.status} />}
+        {has("status") && <StatusPill status={t.status} />}
         {has("owner") && (
           <span
             className="ticket-card-owner"
@@ -885,7 +978,7 @@ export function FeedView({
                 </span>
               </span>
               <span className="feed-right">
-                <Status status={t.status} />
+                <StatusPill status={t.status} />
                 <Priority priority={t.priority} />
               </span>
             </button>

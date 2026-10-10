@@ -26,7 +26,7 @@ import type {GuidedTemplate} from '@/lib/ticket-contract';
 import {slaState} from '@/lib/utils';
 import {csvDownload, indiaDate} from '@/lib/display';
 import {applyFilters, isClosed} from '@/lib/ticket-filtering';
-import {COLUMN_META, EMPTY_FILTERS, type FilterState, type GroupBy, type TicketColumn} from '@/lib/dashboard-contract';
+import {COLUMN_META, EMPTY_FILTERS, accountabilityColumnText, type FilterState, type GroupBy, type TicketColumn} from '@/lib/dashboard-contract';
 import {groupNamesFor, groupValue, sortTickets} from '@/lib/ticket-grouping';
 import type {KanbanField, KanbanGroupBy} from './tickets-board';
 
@@ -202,7 +202,7 @@ export function CommandCenter({directory = false, assignedOnly = false}: {direct
         case 'sla': return t.slaDueAt ? slaState(t.slaDueAt, t.status, t.createdAt) : 'none';
         case 'resolved': return t.resolvedAt ? indiaDate(t.resolvedAt) : '';
         case 'timeToResolve': return t.resolvedAt ? String(Math.round((new Date(t.resolvedAt).getTime() - new Date(t.createdAt).getTime()) / 3600000)) + 'h' : '';
-        default: return '';
+        default: return accountabilityColumnText(t, c) ?? '';
       }
     };
     const ordered = sortTickets(tabbed, sortKey, sortDir);
@@ -389,8 +389,9 @@ export function CommandCenter({directory = false, assignedOnly = false}: {direct
           <span>{tabbed.length ? currentPage * pageSize + 1 : 0}–{Math.min((currentPage + 1) * pageSize, tabbed.length)} of {tabbed.length} tickets</span>
           <div className="pagination-controls">
             <button disabled={!currentPage} aria-label="Previous page" onClick={() => setPage((p) => Math.max(0, p - 1))}><ChevronLeft size={12}/></button>
-            {Array.from({length: Math.min(pageCount, 5)}, (_, i) => (
-              <button key={i} className={currentPage === i ? 'active' : ''} onClick={() => setPage(i)}>{i + 1}</button>
+            {/* A window of five around the current page, so every page is one click away. */}
+            {Array.from({length: Math.min(pageCount, 5)}, (_, i) => Math.max(0, Math.min(currentPage - 2, pageCount - 5)) + i).map((n) => (
+              <button key={n} className={currentPage === n ? 'active' : ''} onClick={() => setPage(n)}>{n + 1}</button>
             ))}
             <button disabled={currentPage >= pageCount - 1} aria-label="Next page" onClick={() => setPage((p) => p + 1)}><ChevronRight size={12}/></button>
           </div>

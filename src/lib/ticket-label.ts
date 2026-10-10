@@ -495,17 +495,27 @@ export interface LabelInput {
 
 export const LABEL_MAX = 76;
 
+/** Names the intake and the automations file under when no particular person is involved. */
+const PLACEHOLDER_NAME = /^(studio team( observation)?|automated follow-up|member|client|n\/?a|none|unknown|internal|staff|-)\b/i;
+
 /**
- * A short, readable description of what the ticket is about.
+ * A short, readable description of what the ticket is about: the issue in the reporter's
+ * own words first, then who it concerns and where — "Member upset the trainer skipped her
+ * modifications — Sanjanaa Aswani · Supreme HQ". The who-and-where tail is what tells two
+ * similar complaints apart on a busy board, so it is kept whole and only the issue is clipped.
  *
- * Prefers the reporter's own words. Falls back to a humanised subcategory with whatever
- * context distinguishes it — never to a bare taxonomy string, because that is the thing
- * this replaces.
+ * Falls back to a humanised subcategory — never to a bare taxonomy string, because that is
+ * the thing this replaces.
  */
 export function describeTicket(input: LabelInput, maxLength = LABEL_MAX): string {
   const studioShort = input.studio ? input.studio.split(',')[0].trim() : '';
   const format = input.classFormat ? input.classFormat.split('+')[0].trim() : '';
   const praise = input.kind === 'compliment' || input.sentiment === 'positive';
+  const member = input.memberName && !PLACEHOLDER_NAME.test(input.memberName.trim()) ? clean(input.memberName) : '';
+  const tail = [member, studioShort].filter(Boolean).join(' · ');
+  // The workspace's label length caps the issue, not the names after it: clipping "Sanjanaa
+  // Aswani" to "Sanjanaa A…" saves nothing anyone wanted saved.
+  const withTail = (issue: string) => tail ? `${clip(issue, maxLength)} — ${tail}` : clip(issue, maxLength);
 
   // A trainer assessment is a scored form, not an account of an incident. Its free-text
   // fields are fragments ("Development areas: No"), so the readable label is who was
@@ -521,16 +531,16 @@ export function describeTicket(input: LabelInput, maxLength = LABEL_MAX): string
 
   const statement = firstStatement(input.description || '');
   // Anything shorter than this is not a description, it is a fragment ("broken", "see above").
-  if (statement.length >= 14) return clip(sentenceCase(statement), maxLength);
+  if (statement.length >= 14) return withTail(sentenceCase(statement));
 
   const subject = input.subcategory ? humanise(input.subcategory) : input.category ? humanise(input.category) : 'Studio issue';
   if (praise) {
-    const forWhom = input.trainer || format || studioShort;
-    return clip(forWhom ? `Appreciation for ${forWhom}` : 'Member appreciation', maxLength);
+    const forWhom = input.trainer || format;
+    return withTail(forWhom ? `Appreciation for ${forWhom}` : 'Member appreciation');
   }
-  // Only add context that actually distinguishes this from its neighbours.
-  const context = [format ? `in ${format}` : '', studioShort ? `at ${studioShort}` : ''].filter(Boolean).join(' ');
-  return clip(sentenceCase(context ? `${subject} ${context}` : subject), maxLength);
+  // The class format and trainer distinguish a class complaint from its neighbours.
+  const context = [format ? `in ${format}` : '', input.trainer ? `with ${input.trainer.split(',')[0].trim()}` : ''].filter(Boolean).join(' ');
+  return withTail(sentenceCase(context ? `${subject} ${context}` : subject));
 }
 
 /** True when a stored title is one of the old taxonomy-joined strings, or is otherwise
@@ -542,6 +552,8 @@ export function isGenericLabel(title: string, subcategory?: string | null, categ
   if (t.includes(' · ')) return true;
   if (subcategory && t.toLowerCase() === subcategory.toLowerCase()) return true;
   if (category && t.toLowerCase() === category.toLowerCase()) return true;
+  // The intake form's old automatic title: "Engagement with Clients — Supreme HQ · Barre Studio".
+  if (subcategory && t.toLowerCase().startsWith(subcategory.toLowerCase() + ' — ')) return true;
   if (t.toLowerCase() === 'member appreciation') return true;
   if (t.length < 14) return true;
   return false;

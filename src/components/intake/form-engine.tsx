@@ -197,12 +197,14 @@ export function groupSections(fields: IntakeField[], data: IntakeData, opts: {hi
 }
 
 /** A section the flow renders itself (the hosted-class roster), placed among the plan's own. */
-export type InjectedSection = {name: string; after: string; body: ReactNode; answered: number; total: number};
+export type InjectedSection = {name: string; after: string; body: ReactNode; answered: number; total: number;
+  /** A required section (the hosted roster) counts its incomplete rows as missing answers. */
+  required?: number; missing?: number; errors?: number};
 export function withInjected(sections: SectionGroup[], injected: InjectedSection[] = []): SectionGroup[] {
   const out = [...sections];
   for (const x of injected) {
     const at = out.findIndex(s => s.name === x.after);
-    out.splice(at < 0 ? out.length : at + 1, 0, {name: x.name, slug: sectionSlug(x.name), fields: [], required: 0, missing: 0, answered: x.answered, errors: 0, total: x.total} as SectionGroup);
+    out.splice(at < 0 ? out.length : at + 1, 0, {name: x.name, slug: sectionSlug(x.name), fields: [], required: x.required ?? 0, missing: x.missing ?? 0, answered: x.answered, errors: x.errors ?? 0, total: x.total} as SectionGroup);
   }
   return out;
 }
@@ -275,6 +277,7 @@ export function IntakeContextHeader({data, patch, studio, hostedClass = false, f
   const showClass = involvesClass || hostedClass;
   // A sub-category that is always about a class keeps the switch on; one the desk turned on can be turned off.
   const classLocked = hostedClass || (Boolean(gatingIds?.has('class_date')) && !/yes/i.test(String(data._involves_class || '')));
+  const classSkipped = !hostedClass && isSkipped(data, 'class_date');
   return (
     <div className="ictx" aria-label="Ticket context">
       <div className="ictx-who">
@@ -303,9 +306,10 @@ export function IntakeContextHeader({data, patch, studio, hostedClass = false, f
           )}
           {showClass && (
             <div className="ictx-lookup" data-fid="class_date">
-              <div className="ictx-lookup-label"><label htmlFor="f-class_date">{hostedClass ? 'Hosted class(es)' : 'Class(es) / session(s)'} <span className="ifield-req">Required</span></label><button type="button" className={'ifield-skip' + (isSkipped(data, 'class_date') ? ' on' : '')} role="switch" aria-checked={isSkipped(data, 'class_date')} onClick={() => patch(skipKey('class_date'), isSkipped(data, 'class_date') ? 'No' : 'Yes')}><EyeOff size={10}/>{isSkipped(data, 'class_date') ? 'Skipped' : 'Skip'}</button></div>
-              {isSkipped(data, 'class_date') ? <div className="ifield-skipped-note"><EyeOff size={14}/>Session link intentionally skipped.</div> : <LookupField id="f-class_date" module="session" value={data.class_date} sessionTypes={hostedClass ? ['private'] : undefined} onChange={v => { patch('class_date', v); if (filled(v)) setFlag('_involves_class', true); }} studio={studioName} multi />}
-              {hostedClass && <span className="field-hint">Private hosted classes from the Momence account linked to your studio.</span>}
+              {/* A hosted-class ticket is a record of a roster, so its class link is never skippable. */}
+              <div className="ictx-lookup-label"><label htmlFor="f-class_date">{hostedClass ? 'Hosted class(es)' : 'Class(es) / session(s)'} <span className="ifield-req">Required</span></label>{!hostedClass && <button type="button" className={'ifield-skip' + (classSkipped ? ' on' : '')} role="switch" aria-checked={classSkipped} onClick={() => patch(skipKey('class_date'), classSkipped ? 'No' : 'Yes')}><EyeOff size={10}/>{classSkipped ? 'Skipped' : 'Skip'}</button>}</div>
+              {classSkipped ? <div className="ifield-skipped-note"><EyeOff size={14}/>Session link intentionally skipped.</div> : <LookupField id="f-class_date" module="session" value={data.class_date} sessionTypes={hostedClass ? ['private'] : undefined} onChange={v => { patch('class_date', v); if (filled(v)) setFlag('_involves_class', true); }} studio={studioName} multi />}
+              {hostedClass && <span className="field-hint">Private hosted classes from the Momence account linked to your studio. Linking loads everyone who booked into Attendees; if the class is not in Momence, add each attendee there by hand.</span>}
             </div>
           )}
         </div>

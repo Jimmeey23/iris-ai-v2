@@ -514,6 +514,10 @@ export function planFields(category: string, sub: string, ctx: PlanContext, conf
   if (!all.some(f => f.type === 'lookup' && f.module === 'member' && MEMBER_LOOKUP_IDS.includes(f.id))) all.push(materialise(MEMBER_LOOKUP_DEF, true, ctx, category));
   // Prompt for the exact spot inside the chosen room/area.
   if (!configured?.length && !all.some(f => f.id === 'specific_area') && relevant('specific_area', category, sub)) all.push(materialise({id: 'specific_area', label: 'Specific spot / equipment', type: 'text', desc: 'Exact location within the area — e.g. bike 3, mirror wall, front desk left.', conditional: true, dependsOn: 'area', condText: 'Asked when an area is selected', placeholder: 'e.g. bike 3, front row'}, false, ctx, category));
+  // The title is optional everywhere: left blank, the server writes a descriptive one
+  // ("what happened — member · studio") from the description, which reads far better on the
+  // board than the sub-category repeated back. A title the reporter types is kept as written.
+  all = all.map(f => f.id === 'title' ? {...f, required: false, desc: 'Optional. Leave blank and Iris writes one from what you describe; anything you type here is kept as written.', placeholder: 'Leave blank to generate from the description'} : f);
   const index = new Map(all.map(f => [f.id, f]));
   return all.map(f => {
     if (f.id === 'preferred_contact' || f.id === 'follow_up_channel') {
@@ -637,9 +641,18 @@ export function seedData(prev: IntakeData, reporter?: {name?: string; email?: st
   };
 }
 export const shortStudio = (s: unknown) => String(s || '').split(',')[0].trim();
-export function autoTitle(subName: string, data: IntakeData) {
-  const studio = shortStudio(data.studio);
-  return `${subName} — ${studio || 'studio'}${data.area ? ' · ' + data.area : ''}`;
+/** A local preview of the title the server will write when the reporter leaves it blank:
+ *  the first sentence of the summary, then the member and studio. Display only — the form
+ *  never files it, so the server's labeller always has the last word. Empty until there is
+ *  a summary to draw from. */
+export function titlePreview(data: IntakeData): string {
+  const summary = String(data.summary || '').replace(/\s+/g, ' ').trim();
+  if (!summary) return '';
+  let lead = (/^.+?[.!?](?=\s|$)/.exec(summary)?.[0] || summary).replace(/[.!?]+$/, '');
+  if (lead.length > 90) lead = lead.slice(0, 87).replace(/\s+\S*$/, '') + '…';
+  const member = ['member_name', 'member_named'].map(id => decodeLookups(data[id])[0]?.label).find(Boolean);
+  const tail = [member, shortStudio(data.studio)].filter(Boolean).join(' · ');
+  return tail ? `${lead} — ${tail}` : lead;
 }
 
 /* ------------------------------------------------------------------ write-up */
@@ -742,6 +755,8 @@ export function toTicketInput(args: {
   /** The hosted-class roster, one line per attendee as the desk filled it in. */
   hostedAttendees?: {name: string; memberId?: string; email?: string; session?: string; booking: string; attendance: string; outcome: string; followUp: string; flags: string[]; note: string}[];
   memberDetail?: {email?: string; phone?: string; membership?: string};
+  /** Departments that co-own the ticket beside the lead one (department ids). */
+  involvedTeams?: string[];
 }): TicketInput & {submissionKey: string} {
   const {category, sub, fields, kind, submissionKey} = args;
   const visible = visibleFields(fields, args.data);
@@ -817,7 +832,8 @@ export function toTicketInput(args: {
   const classFormat = args.classSnapshot?.name || (filled(data.class_format) ? String(data.class_format) : undefined);
   const trainer = filled(data.trainer) ? String(data.trainer) : args.classSnapshot?.trainer || undefined;
   return {
-    title: String(data.title || '').trim() || autoTitle(sub, data),
+    // Blank unless the reporter typed one: the server's labeller writes a descriptive title.
+    title: String(data.title || '').trim() || undefined,
     description,
     category, subcategory: sub, kind,
     studio: String(data.studio || ''),
@@ -836,6 +852,7 @@ export function toTicketInput(args: {
     impact: filled(data.member_impact) ? String(data.member_impact) : undefined,
     customFields: custom,
     momenceContext: args.momenceContext,
+    involvedTeams: args.involvedTeams?.length ? [...new Set(args.involvedTeams)].slice(0, 6) : undefined,
     source: 'iris',
     submissionKey,
   };

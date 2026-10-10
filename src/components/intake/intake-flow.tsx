@@ -9,16 +9,17 @@ import {TicketDialog} from '../ticket-detail';
 import {inferPriority} from '@/lib/routing';
 import {object} from '@/lib/display';
 import type {AdvancedDraft} from '@/lib/ticket-contract';
-import {MEMBER_LOOKUP_IDS, autoTitle, composeWriteup, encodeLookup, filled, gatingFor, isSkipped, linkedLookup, localDateTime, missingFields, prefillFor, priorityInputs, seedData, toTicketInput, visibleFields, type ClassSnapshot, type IntakeData, type IntakeValue, type TicketKind} from '@/lib/intake/plan';
+import {MEMBER_LOOKUP_IDS, composeWriteup, encodeLookup, filled, gatingFor, isMemberReporter, isSkipped, linkedLookup, localDateTime, missingFields, prefillFor, priorityInputs, seedData, titlePreview, toTicketInput, visibleFields, type ClassSnapshot, type IntakeData, type IntakeValue, type TicketKind} from '@/lib/intake/plan';
 import {matchStudio, sessionFacts, sessionSnapshot, type RosterEntry, type SessionDetail} from '@/lib/intake/class-desk';
 import {FormEngine, IntakeContextHeader, SECTION_META, SectionNav, groupSections, headerIds, sectionSlug, withInjected, type InjectedSection} from './form-engine';
-import {HOSTED_FLAGS, HostedRoster, type HostedRow} from './hosted-roster';
+import {HOSTED_FLAGS, HostedRoster, hostedRosterError, hostedRowMissing, type HostedRow} from './hosted-roster';
+import {InvolvedTeams, suggestTeams, teamName} from './involved-teams';
 import {alertFor, focusOf, tipsFor, type Tip} from './nuance';
 import {CategoryArt, CATEGORY_TONE, HeroBackdrop} from '../ticket-art';
 import {CategoryGrid, SubcategoryGrid} from './pickers';
 import {ClassDesk, type ClassDeskResult} from './class-desk';
 import {ReviewSheet} from './review-sheet';
-import {hostedFeedbackError} from '@/lib/hosted-feedback';
+import {hostedFeedbackError, isHostedClassTicket} from '@/lib/hosted-feedback';
 import {LookupChip} from './lookup-field';
 import type {IntakeCategory, IntakePlan, IntakeTaxonomy} from './types';
 import {InlineFormDesigner} from '@/components/inline-form-designer';
@@ -95,6 +96,8 @@ export function IntakeFlow({presetCategory, presetSubcategory, presetDesk, onLeg
   const [askPass, setAskPass] = useState(false);
   const [designUnlocked, setDesignUnlocked] = useState(false);
   const [attachments, setAttachments] = useState<UploadedFile[]>([]);
+  // Co-owning teams: the suggestion stands until the desk touches the chips.
+  const [teamPick, setTeamPick] = useState<string[] | null>(null);
   const presetDone = useRef(false);
 
   const rememberedStudio = () => { try { return localStorage.getItem(STUDIO_KEY) || ''; } catch { return ''; } };
@@ -112,11 +115,10 @@ export function IntakeFlow({presetCategory, presetSubcategory, presetDesk, onLeg
     if (reporter?.email) nextAuto.reporter_contact = reporter.email;
     // "Now" is an assumption until the desk touches it — a linked class may replace it.
     if (!filled(prefill.occurred_at) && filled(seed.occurred_at)) nextAuto.occurred_at = seed.occurred_at;
-    const title = autoTitle(s, seed);
-    seed.title = title; nextAuto.title = title;
+    // No title is seeded: left blank, the server writes a descriptive one from the summary.
     setCategory(c); setSub(s); setData(seed); setAuto(nextAuto); setErrors({}); setOpenSec(undefined); setHostedRows([]); setKind('issue');
     setClassDetail(detail); setClassEntries(entries); setMemberDetail(undefined); setResult(undefined); setFileError(''); setAttachments([]);
-    setSubmissionKey(crypto.randomUUID()); setStep('form');
+    setTeamPick(null); setSubmissionKey(crypto.randomUUID()); setStep('form');
     window.scrollTo({top: 0, behavior: 'smooth'});
   }, [taxonomy, user]);
 
@@ -158,16 +160,9 @@ export function IntakeFlow({presetCategory, presetSubcategory, presetDesk, onLeg
   useEffect(() => { if (studio) try { localStorage.setItem(STUDIO_KEY, studio); } catch {} }, [studio]);
 
   const patch = useCallback((id: string, v: IntakeValue) => {
-    setData(d => {
-      const next = {...d, [id]: v};
-      // The title follows the sub-category, studio and area until the desk writes its own.
-      if ((id === 'studio' || id === 'area') && sub && (!filled(d.title) || String(d.title) === String(auto.title))) {
-        const t = autoTitle(sub, next); next.title = t; setAuto(a => ({...a, title: t}));
-      }
-      return next;
-    });
+    setData(d => ({...d, [id]: v}));
     setErrors(e => { const fieldId = id.startsWith('_skip_') ? id.slice(6) : id; if (!e[fieldId]) return e; const n = {...e}; delete n[fieldId]; return n; });
-  }, [sub, auto.title]);
+  }, []);
 
   // Praise is recorded, not triaged: the three triage questions stop being mandatory for it.
   const praise = kind === 'compliment';
@@ -334,6 +329,7 @@ export function IntakeFlow({presetCategory, presetSubcategory, presetDesk, onLeg
     const e: Record<string, string> = {};
     for (const f of missing) e[f.id] = 'Required for this sub-category';
     for (const g of gating) e[g.id] = g.reason;
+    if (hostedError) e._hosted_comments = hostedError;
     if (summaryShort) e.summary = 'Describe what happened in at least 12 characters.';
     setErrors(e);
     setFileError('');
@@ -341,11 +337,10 @@ export function IntakeFlow({presetCategory, presetSubcategory, presetDesk, onLeg
   };
   const file = async () => {
     if (!plan || !category) return;
-    const rosterError = hostedError;
-    if (rosterError) { setFileError(rosterError); return; }
+    if (hostedError) { setFileError(hostedError); jump('Attendees'); return; }
     setBusy(true); setFileError('');
     try {
-      const input = toTicketInput({category: category.name, sub, fields, data, kind, submissionKey, classSnapshot, hostedAttendees: hostedClass ? hostedRows.filter(r => r.name.trim()).map(r => ({name: r.name, memberId: r.memberId, email: r.email, session: r.session, booking: r.booking, attendance: r.attendance, outcome: r.outcome, followUp: r.followUp, flags: r.flags.map(f => HOSTED_FLAGS.find(x => x.id === f)?.label || f), note: r.note})) : undefined, memberDetail: memberDetail ? {email: memberDetail.email, phone: memberDetail.phone, membership: memberDetail.membership} : undefined, momenceContext: memberDetail?.context});
+      const input = toTicketInput({category: category.name, sub, fields, data, kind, submissionKey, classSnapshot, involvedTeams: involvedTeams.length ? involvedTeams : undefined, hostedAttendees: hostedClass ? hostedRows.map(r => ({name: r.name, memberId: r.memberId, email: r.email, session: r.session, booking: r.booking, attendance: r.attendance, outcome: r.outcome, followUp: r.followUp, flags: r.flags.map(f => HOSTED_FLAGS.find(x => x.id === f)?.label || f), note: r.note})) : undefined, memberDetail: memberDetail ? {email: memberDetail.email, phone: memberDetail.phone, membership: memberDetail.membership} : undefined, momenceContext: memberDetail?.context});
       const {draft} = await api<{draft: AdvancedDraft}>('/api/tickets?preview=true', {method: 'POST', body: JSON.stringify(input)});
       const {ticket} = await api<{ticket: {id: number; ticketNumber: string}}>('/api/tickets?channel=form', {method: 'POST', body: JSON.stringify({...draft, submissionKey})});
       if (attachments.some(a => a.file)) {
@@ -371,7 +366,7 @@ export function IntakeFlow({presetCategory, presetSubcategory, presetDesk, onLeg
     window.addEventListener('beforeunload', warn);
     return () => window.removeEventListener('beforeunload', warn);
   }, [dirty]);
-  const reset = () => { setStep('category'); setCategory(undefined); setSub(''); setLoaded(undefined); setData({}); setAuto({}); setErrors({}); setResult(undefined); setClassDetail(null); setClassEntries({}); setMemberDetail(undefined); setHostedRows([]); setAttachments([]); window.scrollTo({top: 0}); };
+  const reset = () => { setTeamPick(null); setStep('category'); setCategory(undefined); setSub(''); setLoaded(undefined); setData({}); setAuto({}); setErrors({}); setResult(undefined); setClassDetail(null); setClassEntries({}); setMemberDetail(undefined); setHostedRows([]); setAttachments([]); window.scrollTo({top: 0}); };
   const cancel = () => { if (dirty && !window.confirm('Discard this ticket? The answers on the form will be lost.')) return; reset(); };
   const onClassBuild = (r: ClassDeskResult) => {
     const c = taxonomy?.categories.find(x => x.name === r.category);
@@ -383,10 +378,21 @@ export function IntakeFlow({presetCategory, presetSubcategory, presetDesk, onLeg
   const tone = category ? CATEGORY_TONE[category.name] || 'accent' : 'accent';
   const tips = useMemo(() => category && sub ? tipsFor(category.name, sub) : [], [category, sub]);
   const alert = step === 'form' ? alertFor(data) : null;
-  const hostedClass = category?.name === 'Brand Feedback' && /hosted class/i.test(sub);
-  const hostedError = hostedClass && hostedStatus !== 'ready'
-    ? hostedStatus === 'loading' ? 'Wait for the selected class roster to finish loading.' : 'Retry loading the selected class roster before filing feedback.'
-    : category ? hostedFeedbackError(category.name, sub, hostedRows) : null;
+  // Both hosted-class ticket types (the brand feedback form and the ops lead-capture record)
+  // are a roster of real people: the roster is required and cannot be skipped.
+  const hostedClass = Boolean(category && isHostedClassTicket(category.name, sub));
+  const hostedLinked = hostedClass && linkedLookup(data.class_date) !== null;
+  const hostedError = hostedClass && category
+    ? hostedRosterError(hostedRows, {status: hostedStatus, linked: hostedLinked}) || hostedFeedbackError(category.name, sub, hostedRows.map(r => ({name: r.name, attendance: r.attendance, note: r.note})))
+    : null;
+  const hostedIncomplete = hostedRows.filter(r => hostedRowMissing(r).length).length;
+  const hostedGate = hostedError ? [{id: '_hosted_comments', label: 'Attendee roster', reason: hostedError}] : [];
+  // Teams that co-own the ticket beside the lead department.
+  const leadDept = plan?.routing?.departmentId || category?.department.id || null;
+  const memberInvolved = Boolean(memberRef) || /yes|directly|indirectly/i.test(String(data._involves_member || '')) || isMemberReporter(data.reporter_type) || /member told me/i.test(String(data.reporter_type || ''));
+  const teamText = [data.summary, data.asset_type, data.specific_area, data.experience_dimension].filter(filled).map(v => Array.isArray(v) ? v.join(' ') : String(v)).join(' ');
+  const suggested = useMemo(() => category && sub ? suggestTeams({category: category.name, sub, memberInvolved, text: teamText}).filter(t => t !== leadDept) : [], [category, sub, memberInvolved, teamText, leadDept]);
+  const involvedTeams = (teamPick ?? suggested).filter(t => t !== leadDept);
   const baseSections = useMemo(() => groupSections(fields, data, {hidden: headerIds(fields), requiredOnly, gatingIds, errors}), [fields, data, requiredOnly, gatingIds, errors]);
   // The roster fills the head-count questions it can answer, never over a typed number.
   const onHostedRows = useCallback((next: HostedRow[] | ((prev: HostedRow[]) => HostedRow[]), loaded?: {firstTimers: number; booked: number}) => {
@@ -403,8 +409,10 @@ export function IntakeFlow({presetCategory, presetSubcategory, presetDesk, onLeg
   }, []);
   const injected: InjectedSection[] = hostedClass ? [{
     name: 'Attendees', after: baseSections.some(x => x.name === 'Class context') ? 'Class context' : 'Where & when',
-    answered: hostedRows.filter(r => r.attendance && r.outcome && r.note.trim()).length, total: hostedRows.length,
-    body: <HostedRoster sessions={data.class_date} rows={hostedRows} onRows={onHostedRows} onStatus={setHostedStatus} />,
+    answered: hostedRows.length - hostedIncomplete, total: hostedRows.length,
+    // Required: at least one row, and every row complete.
+    required: Math.max(1, hostedRows.length), missing: hostedRows.length ? hostedIncomplete : 1, errors: hostedError && errors._hosted_comments ? 1 : 0,
+    body: <HostedRoster sessions={data.class_date} rows={hostedRows} onRows={onHostedRows} onStatus={setHostedStatus} error={hostedError} />,
   }] : [];
   const navSections = withInjected(baseSections, injected);
   const focus = useMemo(() => focusOf(visible.filter(f => !headerIds(fields).has(f.id))), [visible, fields]);
@@ -518,7 +526,7 @@ export function IntakeFlow({presetCategory, presetSubcategory, presetDesk, onLeg
             <aside className="isheet-aside" aria-label="Progress and routing">
               <div className="isheet-aside-block isheet-progress">
                 <ProgressDial value={completion} />
-                <div><strong>{completedRequired} of {requiredVisible.length} required</strong><span>{missing.length + gating.length ? `${missing.length + gating.length} still to answer or link` : 'Everything the desk needs is here'}</span></div>
+                <div><strong>{completedRequired} of {requiredVisible.length} required</strong><span>{missing.length + gating.length + hostedGate.length ? `${missing.length + gating.length + hostedGate.length} still to answer or link` : 'Everything the desk needs is here'}</span></div>
               </div>
               {plan && <div className="isheet-aside-block"><SectionNav sections={navSections} onJump={jump} /></div>}
               <div className="isheet-aside-block">
@@ -527,6 +535,7 @@ export function IntakeFlow({presetCategory, presetSubcategory, presetDesk, onLeg
                   <div className="intake-route-row"><Building2 size={14} /><div><small>Department</small><b>{plan?.routing?.departmentName || category.department.name || '—'}</b></div></div>
                   <div className="intake-route-row">{plan?.routing?.owner ? <Avatar name={plan.routing.owner.name} tone="purple" /> : <Avatar name="" emptyDark />}<div><small>Owner{studio ? ` at ${studio.split(',')[0]}` : ''}</small><b>{plan?.routing?.owner?.name || 'Department queue'}</b>{plan?.routing?.owner?.role && <em>{plan.routing.owner.role}</em>}</div></div>
                 </div>
+                <InvolvedTeams lead={leadDept} value={involvedTeams} suggested={suggested} onChange={setTeamPick} />
               </div>
               <div className="isheet-aside-block">
                 <div className="isheet-aside-label">Linked records</div>
@@ -542,7 +551,11 @@ export function IntakeFlow({presetCategory, presetSubcategory, presetDesk, onLeg
 
           <footer className="isheet-foot">
             <span className="intake-footer-status">
-              {missing.length + gating.length ? <><span className="isheet-foot-dot" />{missing.length ? `${missing.length} required answer${missing.length > 1 ? 's' : ''}` : ''}{missing.length && gating.length ? ' and ' : ''}{gating.length ? `${gating.map(g => g.label.toLowerCase()).join(' & ')} to link` : ''}</> : <><Check size={13} className="accent" /> Ready to route to {plan?.routing?.owner?.name || plan?.routing?.departmentName || 'the desk'}</>}
+              {missing.length + gating.length + hostedGate.length ? <><span className="isheet-foot-dot" />{[
+                missing.length ? `${missing.length} required answer${missing.length > 1 ? 's' : ''}` : '',
+                gating.length ? `${gating.map(g => g.label.toLowerCase()).join(' & ')} to link` : '',
+                hostedError ? (hostedRows.length ? `${hostedIncomplete} attendee row${hostedIncomplete === 1 ? '' : 's'} to complete` : 'at least one attendee to add') : '',
+              ].filter(Boolean).join(' and ')}</> : <><Check size={13} className="accent" /> Ready to route to {plan?.routing?.owner?.name || plan?.routing?.departmentName || 'the desk'}{involvedTeams.length ? ` + ${involvedTeams.length} team${involvedTeams.length > 1 ? 's' : ''}` : ''}</>}
             </span>
             <div className="flex-row" style={{gap: 8}}>
               <button type="button" className="btn" onClick={cancel}>Cancel</button>
@@ -579,7 +592,8 @@ export function IntakeFlow({presetCategory, presetSubcategory, presetDesk, onLeg
 
       {plan && category && (
         <ReviewSheet open={review} onClose={() => setReview(false)} plan={plan} data={data} kind={kind} priority={priority} slaHours={slaHours} recordOnly={recordOnly}
-          missing={summaryShort ? [...missing, ...(missing.some(f => f.id === 'summary') ? [] : fields.filter(f => f.id === 'summary'))] : missing} gating={[...gating, ...(hostedError ? [{id: '_hosted_comments', label: 'Hosted class member comments', reason: hostedError}] : [])]} onFix={id => { if (id === '_hosted_comments') { setReview(false); jump('Attendees'); } else fix(id); }} onFile={file} busy={busy} error={fileError} classSnapshot={classSnapshot} />
+          missing={summaryShort ? [...missing, ...(missing.some(f => f.id === 'summary') ? [] : fields.filter(f => f.id === 'summary'))] : missing} gating={[...gating, ...hostedGate]} onFix={id => { if (id === '_hosted_comments') { setReview(false); jump('Attendees'); } else fix(id); }} onFile={file} busy={busy} error={fileError} classSnapshot={classSnapshot}
+          titlePreview={titlePreview(data)} involvedTeams={involvedTeams.map(teamName)} hostedRows={hostedClass ? hostedRows : undefined} />
       )}
       <PasscodeDialog open={askPass} onClose={() => setAskPass(false)} onUnlock={() => { setDesignUnlocked(true); setAskPass(false); setDesigning(true); }} />
       {category&&sub&&<InlineFormDesigner key={`${category.name}|||${sub}`} open={designing} onClose={()=>setDesigning(false)} category={category.name} subcategory={sub} onPublished={async()=>{const params=new URLSearchParams({category:category.name,subcategory:sub});if(studio)params.set('studio',studio);const[t,p]=await Promise.all([api<IntakeTaxonomy>('/api/intake'),api<IntakePlan>(`/api/intake?${params}`)]);setTaxonomy(t);setLoaded({key:wantKey,plan:p});}}/>}

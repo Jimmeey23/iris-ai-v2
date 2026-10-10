@@ -46,11 +46,12 @@ import type {
   TicketInput,
   PickerOption,
 } from "@/lib/ticket-contract";
-import { CATEGORY_MAP, STUDIOS, REPORTED_BY_OPTIONS } from "@/lib/constants";
+import { CATEGORY_DEPARTMENT, CATEGORY_MAP, STUDIOS, REPORTED_BY_OPTIONS } from "@/lib/constants";
 import { display, object, indiaDate, niceKey } from "@/lib/display";
 import { scoreAssessment } from "@/lib/guided-templates";
 import { AttachmentPreviewList, FileUpload, type UploadedFile } from "./file-upload";
-import {hostedFeedbackError} from '@/lib/hosted-feedback';
+import {hostedFeedbackError, isHostedClassTicket} from '@/lib/hosted-feedback';
+import { InvolvedTeams, suggestTeams } from "./intake/involved-teams";
 
 type HostedAttendee = {
   key: string;
@@ -375,6 +376,8 @@ export function TicketComposer({
     [hostedBusy, setHostedBusy] = useState(false);
   const [key, setKey] = useState("");
   const [skippedFields, setSkippedFields] = useState<Set<string>>(new Set());
+  // Co-owning teams: the suggestion stands until the reporter touches the chips.
+  const [teamPick, setTeamPick] = useState<string[] | null>(null);
   const [attachments, setAttachments] = useState<UploadedFile[]>([]);
   const [config, setConfig] = useState({
     taxonomy: CATEGORY_MAP,
@@ -383,7 +386,30 @@ export function TicketComposer({
   const isClass = involvesSession;
   const recordOnly = !requiresResolution;
   const memberInvolved = involvesMember;
-  const hostedTemplate = template?.id === "hosted-class-feedback";
+  // Both hosted-class ticket types carry a required attendee roster, whichever way they were
+  // opened (the guided template, or the category picked by hand).
+  const hostedTemplate = isHostedClassTicket(
+    String(form.category || template?.category || ""),
+    String(form.subcategory || template?.subcategory || ""),
+  );
+  const classSection = isClass || hostedTemplate;
+  const hostedError = hostedTemplate
+    ? hostedBusy
+      ? "Wait for the selected hosted class roster to finish loading."
+      : hostedFeedbackError(
+          String(form.category || ""),
+          String(form.subcategory || ""),
+          hostedAttendees,
+        )
+    : null;
+  const leadDept = CATEGORY_DEPARTMENT[String(form.category || "")] || null;
+  const suggestedTeams = suggestTeams({
+    category: String(form.category || ""),
+    sub: String(form.subcategory || ""),
+    memberInvolved: involvesMember,
+    text: String(form.description || ""),
+  }).filter((t) => t !== leadDept);
+  const involvedTeams = (teamPick ?? suggestedTeams).filter((t) => t !== leadDept);
   // Every open (or a different template/draft) starts from the prefill. Applied while
   // rendering rather than in an effect, so the previous ticket's state never paints
   // and nothing downstream sees an intermediate empty form.
@@ -421,6 +447,9 @@ export function TicketComposer({
       });
       setStep("details");
       setSkippedFields(new Set());
+      setTeamPick(
+        Array.isArray(initial?.involvedTeams) ? initial.involvedTeams : null,
+      );
       setAttachments([]);
       setDraft(undefined);
       setError("");
@@ -622,14 +651,13 @@ export function TicketComposer({
     }
   }
   async function review() {
-    if (hostedTemplate && hostedBusy) { setError('Wait for the selected hosted class roster to finish loading.'); return; }
-    const rosterError = hostedFeedbackError(String(form.category || ''), String(form.subcategory || ''), hostedAttendees);
-    if (rosterError) { setError(rosterError); return; }
+    if (hostedError) { setError(hostedError); return; }
     if (memberInvolved && !String(form.momenceMemberId || "")) {
       setError("Link the community member from Momence before continuing.");
       return;
     }
-    if (involvesSession && !String(form.momenceSessionId || "")) {
+    // A hosted class that is not in Momence is recorded from its hand-added roster instead.
+    if (involvesSession && !hostedTemplate && !String(form.momenceSessionId || "")) {
       setError("Link the Momence session before continuing.");
       return;
     }
@@ -661,6 +689,7 @@ export function TicketComposer({
             ...form,
             resolutionRequired: requiresResolution,
             customFields: { ...customFields, reportedBy },
+            involvedTeams: involvedTeams.length ? involvedTeams : undefined,
             templateId: template?.id,
             source: template ? "template" : "manual",
             submissionKey: key,
@@ -683,6 +712,7 @@ export function TicketComposer({
         ...form,
         resolutionRequired: requiresResolution,
         customFields: { ...customFields, reportedBy },
+        involvedTeams: teamPick ?? undefined,
         reportedBy,
         involvesMember,
         involvesSession,
@@ -815,7 +845,8 @@ export function TicketComposer({
             )}
             <button
               className="btn btn-primary"
-              disabled={busy || saving}
+              disabled={busy || saving || (step === "details" && Boolean(hostedError))}
+              title={step === "details" && hostedError ? hostedError : undefined}
               onClick={() => void (step === "review" ? submit() : review())}
             >
               {busy ? (
@@ -1142,6 +1173,12 @@ export function TicketComposer({
                   />
                 </Field>
               </div>
+              <InvolvedTeams
+                lead={leadDept}
+                value={involvedTeams}
+                suggested={suggestedTeams}
+                onChange={setTeamPick}
+              />
             </section>
             <section className="form-section">
               <h3>
@@ -1171,7 +1208,7 @@ export function TicketComposer({
                 </Field>
               </div>
             </section>
-            {isClass && (
+            {classSection && (
               <section className="form-section">
                 <h3>
                   <span className="step-number">3</span>Class &amp; trainer
@@ -1204,10 +1241,14 @@ export function TicketComposer({
                     <div className="card card-pad" style={{ padding: 14 }}>
                       <div className="between" style={{ marginBottom: 10 }}>
                         <div>
-                          <h4 style={{ marginBottom: 4 }}>Hosted attendees</h4>
+                          <h4 style={{ marginBottom: 4 }}>
+                            Hosted attendees{" "}
+                            <span className="ifield-req">Required</span>
+                          </h4>
                           <p className="muted" style={{ fontSize: 10 }}>
-                            Auto-loaded from selected session bookings. Add
-                            status and notes for each attendee.
+                            Auto-loaded from the selected hosted class. Every
+                            attendee row needs a status and a comment. No class
+                            in Momence? Add each attendee by hand.
                           </p>
                         </div>
                         <button
@@ -1245,8 +1286,9 @@ export function TicketComposer({
                       {hostedAttendees.length === 0 ? (
                         <div className="info-box">
                           <span>
-                            Select a session to auto-populate attendee rows. You
-                            can still add attendees manually.
+                            Turn on &ldquo;Involves a session&rdquo; and pick
+                            the hosted class to load everyone who booked, or add
+                            each attendee by hand. At least one row is required.
                           </span>
                         </div>
                       ) : (
@@ -1257,7 +1299,7 @@ export function TicketComposer({
                                 <th>ATTENDEE</th>
                                 <th>SESSION</th>
                                 <th>STATUS</th>
-                                <th>COMMENTS · REQUIRED</th>
+                                <th>COMMENTS *</th>
                                 <th>DETAILS</th>
                                 <th />
                               </tr>
@@ -1317,6 +1359,7 @@ export function TicketComposer({
                                     <input
                                       value={row.comments}
                                       required
+                                      aria-invalid={!row.comments.trim() || undefined}
                                       aria-label={`Required comment for ${row.attendee || 'member'}`}
                                       onChange={(e) =>
                                         setHostedAttendees((a) =>
@@ -1370,6 +1413,11 @@ export function TicketComposer({
                           </table>
                         </div>
                       )}
+                      {hostedError && !hostedBusy && (
+                        <div className="hroster-blocker" role="alert" style={{ marginTop: 10 }}>
+                          {hostedError}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -1377,7 +1425,7 @@ export function TicketComposer({
             )}
             <section className="form-section">
               <h3>
-                <span className="step-number">{isClass ? 4 : 3}</span>Where
+                <span className="step-number">{classSection ? 4 : 3}</span>Where
                 &amp; when
               </h3>
               <div className="form-grid">
@@ -1400,7 +1448,7 @@ export function TicketComposer({
             </section>
             <section className="form-section">
               <h3>
-                <span className="step-number">{isClass ? 5 : 4}</span>The
+                <span className="step-number">{classSection ? 5 : 4}</span>The
                 details
               </h3>
               <div className="form-grid">
@@ -1457,7 +1505,7 @@ export function TicketComposer({
             {template?.fields.length ? (
               <section className="form-section">
                 <h3>
-                  <span className="step-number">{isClass ? 6 : 5}</span>Template
+                  <span className="step-number">{classSection ? 6 : 5}</span>Template
                   specifics
                   {score !== null && <Badge tone="blue">Score {score}%</Badge>}
                 </h3>

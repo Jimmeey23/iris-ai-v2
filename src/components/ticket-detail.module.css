@@ -301,3 +301,133 @@
   .dialog:global(.ticket-detail-dialog) .shell :global(.td-person-reporter) { grid-column: auto; }
   .dialog:global(.ticket-detail-dialog) .shell :global(.td-tabs-row) { padding: 8px 12px; }
 }
+
+/* ── Settled tickets read as settled ───────────────────────────────────────── */
+.dialog:global(.ticket-detail-dialog) .shell .hero[data-settled] {
+  background:
+    repeating-linear-gradient(135deg, transparent 0 14px, color-mix(in srgb, var(--green) 3%, transparent) 14px 15px),
+    color-mix(in srgb, var(--surface-2) 70%, var(--surface));
+}
+.dialog:global(.ticket-detail-dialog) .shell .hero[data-settled] :global(.td-modal-title) { color: var(--secondary); }
+.dialog:global(.ticket-detail-dialog) .shell .hero[data-settled] :global(.td-people) { opacity: .82; }
+.settled {
+  display: inline-flex; align-items: center; gap: 8px; margin: 16px 0 0;
+  padding: 6px 12px 6px 10px; border-radius: 999px; font-size: 12.5px;
+  color: var(--green); background: color-mix(in srgb, var(--green) 10%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--green) 28%, transparent);
+}
+.settled strong { font-weight: 700; letter-spacing: .02em; text-transform: uppercase; font-size: 11.5px; }
+.settled span { color: var(--secondary); }
+
+/* ── Recurrence check banner ───────────────────────────────────────────────── */
+.recurrence {
+  display: flex; align-items: flex-start; gap: 12px; margin: 16px 0 0; padding: 12px 16px;
+  border-radius: 12px; color: var(--text);
+  background: color-mix(in srgb, var(--amber) 10%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--amber) 35%, transparent);
+  border-left: 4px solid var(--amber);
+}
+.recurrence > svg { flex: none; margin-top: 2px; color: var(--amber); }
+.recurrence > div { display: grid; gap: 3px; min-width: 0; }
+.recurrence strong { font-size: 13.5px; font-weight: 600; }
+.recurrence a { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
+.recurrence small { font-size: 12px; color: var(--secondary); overflow-wrap: anywhere; }
+
+/* ── Reported details ──────────────────────────────────────────────────────── */
+.rd { display: grid; gap: 18px; }
+.rdHead { display: flex; align-items: center; gap: 12px; }
+.rdHead h3 { font: 650 17px/1.3 var(--font-display); letter-spacing: -.01em; }
+.rdGroup { display: grid; gap: 10px; min-width: 0; }
+.rdGroup + .rdGroup { padding-top: 16px; border-top: 1px solid var(--border); }
+.rdGroup h4 {
+  display: flex; align-items: center; gap: 6px; margin: 0;
+  font-size: 10.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--muted);
+}
+.rdGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 20px; margin: 0; }
+.rdGrid > div { min-width: 0; }
+.rdGrid > .rdWide { grid-column: 1 / -1; }
+.rdGrid dt { margin: 0 0 3px; font-size: 11.5px; color: var(--muted); }
+.rdGrid dd { margin: 0; font-size: 13.5px; line-height: 1.55; color: var(--text); white-space: pre-wrap; overflow-wrap: anywhere; }
+.rdMuted { color: var(--muted); }
+.rdChips { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.rdChip {
+  display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 999px;
+  font-size: 11.5px; line-height: 1.5; white-space: normal;
+  color: var(--secondary); background: var(--surface-2); border: 1px solid var(--border);
+}
+.rdList { margin: 0; padding-left: 18px; display: grid; gap: 4px; }
+.rdNested { display: grid; gap: 4px; margin: 2px 0 0; padding: 8px 10px; border-radius: 8px; background: var(--surface-2); }
+.rdNested > div { display: grid; grid-template-columns: minmax(90px, 30%) minmax(0, 1fr); gap: 8px; }
+.rdNested dt { margin: 0; font-size: 11.5px; color: var(--muted); }
+.rdNested dd { margin: 0; font-size: 12.5px; }
+
+.rdTableWrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; }
+.rdTableWrap:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.rdTable { width: 100%; min-width: 760px; border-collapse: collapse; font-size: 12.5px; }
+.rdTable th, .rdTable td { padding: 10px 12px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--border); }
+.rdTable thead th {
+  position: sticky; top: 0; font-size: 10.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--muted); background: var(--surface-2);
+}
+.rdTable tbody tr:last-child > * { border-bottom: 0; }
+.rdTable tbody tr:hover { background: color-mix(in srgb, var(--accent) 4%, transparent); }
+.rdTable tbody th { font-weight: 400; min-width: 170px; }
+.rdTable tbody th strong { display: block; font-weight: 600; color: var(--text); }
+.rdTable tbody th small { display: block; font-size: 11.5px; color: var(--muted); overflow-wrap: anywhere; }
+.rdComment { min-width: 200px; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--secondary); }
+.rdState { display: inline-block; padding: 1px 8px; border-radius: 999px; font-weight: 600; font-size: 11.5px; background: var(--surface-2); }
+.rdState[data-tone="good"] { color: var(--green); background: color-mix(in srgb, var(--green) 10%, var(--surface)); }
+.rdState[data-tone="bad"] { color: var(--red); background: color-mix(in srgb, var(--red) 9%, var(--surface)); }
+
+/* Class snapshot */
+.csStats { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; margin: 0; }
+.csStats > div { padding: 10px 12px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--border); }
+.csStats dt { margin: 0 0 2px; font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.csStats dd { margin: 0; font: 650 18px/1.2 var(--font-display); color: var(--text); }
+.csFill { grid-column: span 2; }
+.csBar { display: block; height: 6px; margin-top: 6px; border-radius: 999px; background: var(--surface-3); overflow: hidden; }
+.csBar i { display: block; height: 100%; border-radius: inherit; background: var(--accent); }
+
+/* ── Owners ─────────────────────────────────────────────────────────────────── */
+.owners { display: grid; gap: 8px; margin: 10px 0 0; padding: 0; list-style: none; }
+.owners li { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.owners li > span:nth-child(2) { display: grid; flex: 1; min-width: 0; }
+.owners strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 600; }
+.owners small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11.5px; color: var(--muted); }
+.ownerRole {
+  flex: none; padding: 2px 8px; border-radius: 999px; font-size: 10.5px; font-weight: 700;
+  letter-spacing: .06em; text-transform: uppercase; color: var(--accent); background: var(--accent-soft);
+}
+.ownerAdd { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.ownerAdd select { flex: 1 1 160px; min-width: 0; }
+
+/* ── Commitments ────────────────────────────────────────────────────────────── */
+.commitList { display: grid; gap: 8px; margin: 10px 0 0; padding: 0; list-style: none; }
+.commitList li {
+  display: flex; align-items: flex-start; gap: 8px; padding: 8px 10px; border-radius: 10px;
+  font-size: 12.5px; line-height: 1.5; color: var(--secondary); background: var(--surface-2);
+  border: 1px solid var(--border); overflow-wrap: anywhere;
+}
+.commitList li > svg { flex: none; margin-top: 2px; }
+.commitList li strong { color: var(--text); font-weight: 600; }
+.commitList li small { display: block; font-size: 11px; color: var(--amber); }
+.commitList li[data-tone="red"] { border-color: color-mix(in srgb, var(--red) 30%, transparent); background: color-mix(in srgb, var(--red) 7%, var(--surface)); }
+.commitList li[data-tone="red"] > svg { color: var(--red); }
+.commitList li[data-tone="amber"] > svg { color: var(--amber); }
+.commitList li[data-tone="green"] { border-color: color-mix(in srgb, var(--green) 30%, transparent); background: color-mix(in srgb, var(--green) 8%, var(--surface)); }
+.commitList li[data-tone="green"] > svg { color: var(--green); }
+.commitKey { font-size: 13px !important; }
+.commitForm { display: grid; gap: 8px; margin-top: 10px; }
+.commitForm label { display: grid; gap: 4px; font-size: 11.5px; color: var(--muted); }
+.commitForm > div { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.commit :global(.td-sla-extend) { margin-top: 10px; }
+
+/* The full account is always shown — never clamped. */
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-case-file .td-narrative) {
+  display: block; max-height: none; overflow: visible; -webkit-line-clamp: unset; line-clamp: none; white-space: pre-wrap;
+}
+
+@container ticket-case (max-width: 599px) {
+  .rdGrid { grid-template-columns: minmax(0, 1fr); }
+  .rdNested > div { grid-template-columns: minmax(0, 1fr); gap: 0; }
+}

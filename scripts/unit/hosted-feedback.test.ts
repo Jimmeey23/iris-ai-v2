@@ -20,6 +20,12 @@ describe('Hosted class member comments', () => {
   it('accepts the legacy composer comment format', () => {
     assert.equal(validate([{attendee: 'Member A', comments: 'Member requested a follow-up call.'}]), null);
   });
+  it('applies to the ops hosted-class lead capture record too', () => {
+    assert.ok(hostedFeedbackError('Internal Operations & Admin', 'Hosted Class / Event Lead Capture & Tracking', []));
+  });
+  it('requires attendance on a roster row that carries the field', () => {
+    assert.match(validate([{name: 'Member A', attendance: '', note: 'Spoke to her after'}])!, /attendance/i);
+  });
   it('blocks malformed rows and unnamed walk-ins', () => {
     assert.ok(validate([null])); assert.ok(validate([{name: ' ', note: 'Comment'}]));
   });

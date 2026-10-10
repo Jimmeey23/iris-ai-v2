@@ -21,23 +21,14 @@ import {
   Wrench,
   FileText,
   MapPin,
-  Mail,
-  Phone,
-  Briefcase,
-  Crown,
-  Dumbbell,
-  AlertCircle,
   Repeat,
   Layers,
-  MessageSquare,
   Sparkles,
   Zap,
   Hash,
-  ArrowRight,
   Pencil,
   Trash2,
   BookmarkCheck,
-  type LucideIcon,
 } from "lucide-react";
 import {
   Modal,
@@ -56,6 +47,8 @@ import {
 import { ResolutionPanel, type ResolutionWorkspace } from "./resolution-panel";
 import styles from "./ticket-detail.module.css";
 import {TicketEvidence} from './ticket-evidence';
+import { ReportedDetails, HostedAttendees, ClassSnapshot } from "./ticket-detail/reported-details";
+import { OwnersPanel, CommitmentPanel, RecurrenceBanner, coOwnersOf } from "./ticket-detail/ownership";
 import { SlaCountdown } from "./tickets-board";
 import {
   SlaRing,
@@ -66,8 +59,8 @@ import {
 } from "./ticket-art";
 import { EntityDialog, DataTree } from "./momence-tools";
 import { slaState } from "@/lib/utils";
-import { indiaDate, object, display } from "@/lib/display";
-import { STATUS_LABELS, type StaffRecord } from "@/lib/constants";
+import { indiaDate, object } from "@/lib/display";
+import type { StaffRecord } from "@/lib/constants";
 import type { TicketRecord, TicketListRecord } from "@/lib/ticket-contract";
 type Resolution = import("./resolution-panel").Resolution;
 type Bundle = {
@@ -105,28 +98,6 @@ type Bundle = {
   conversationAttachments: {id: string; fileName: string; fileType: string; fileSize: number}[];
 };
 
-const FACT_ICONS: Record<string, LucideIcon> = {
-  "Reported by": UserRound,
-  Email: Mail,
-  Phone: Phone,
-  "Preferred contact": MessageSquare,
-  "Community member": UserRound,
-  "Member email": Mail,
-  "Member phone": Phone,
-  "Member follow-up preference": MessageSquare,
-  "Studio Space": MapPin,
-  "Signature Experience": Dumbbell,
-  "Studio Instructor": UserRound,
-  "Community access package": Crown,
-  Studio: MapPin,
-  "When it happened": CalendarDays,
-  "Class or session": Dumbbell,
-  Trainer: UserRound,
-  Membership: Crown,
-  "Asked for": Sparkles,
-  Impact: AlertCircle,
-};
-
 /** How a ticket with no workspace author reached IRIS, for the "Reported by" slot. */
 function reportedVia(source?: string | null) {
   return (
@@ -139,27 +110,6 @@ function reportedVia(source?: string | null) {
       template: "Via a template",
     } as Record<string, string>
   )[source || ""] || "Outside the workspace";
-}
-
-function FactTile({
-  label,
-  value,
-}: {
-  label: string;
-  value: string | null | undefined;
-}) {
-  const Icon = FACT_ICONS[label] || Briefcase;
-  return (
-    <div className="td-fact-tile">
-      <div className="td-fact-icon">
-        <Icon size={16} />
-      </div>
-      <div className="td-fact-body">
-        <dt>{label}</dt>
-        <dd>{display(value ?? "")}</dd>
-      </div>
-    </div>
-  );
 }
 
 const TABS = ["overview", "activity", "related"] as const;
@@ -543,7 +493,10 @@ export function TicketDialog({
   }
 
   const t = bundle?.ticket;
-  const memberRelated = Boolean(t && (t.momenceMemberId || t.memberEmail || t.memberPhone || (t.memberName && !/studio team observation|internal report/i.test(t.memberName))));
+  const coOwners = t ? coOwnersOf(t) : [];
+  const settled = t ? ["resolved", "closed"].includes(t.status) : false;
+  const recurrenceCount = Number(t?.customFields?.recurrenceCount) || 0;
+  const canManage = Boolean(bundle && (bundle.canEditDetails || bundle.canResolve));
   return (
     <>
       <Modal
@@ -597,8 +550,9 @@ export function TicketDialog({
           <div className={"ticket-detail-shell " + styles.shell}>
             <div className={styles.frame}>
               <header
-                className="td-masthead td-hero"
+                className={"td-masthead td-hero " + styles.hero}
                 data-tone={CATEGORY_TONE[t.category] || "accent"}
+                data-settled={settled ? t.status : undefined}
               >
                 <div className="td-masthead-body">
                   <div className="td-hero-top">
@@ -665,6 +619,19 @@ export function TicketDialog({
                     </div>
 
                   </div>
+                  {settled && (
+                    <p className={styles.settled} role="status">
+                      <CheckCircle2 size={15} aria-hidden="true" />
+                      <strong>{t.status === "closed" ? "Closed" : "Resolved"}</strong>
+                      <span>
+                        {t.status === "closed" && t.closedAt
+                          ? "on " + indiaDate(t.closedAt)
+                          : t.resolvedAt
+                            ? "on " + indiaDate(t.resolvedAt)
+                            : "This ticket is settled."}
+                      </span>
+                    </p>
+                  )}
                   <h2 className="td-modal-title">{t.title}</h2>
                   <div className="td-chips">
                     <Status status={t.status} />
@@ -675,7 +642,18 @@ export function TicketDialog({
                       <Badge tone="green">Record only</Badge>
                     )}
                     {t.isEscalated && <Badge tone="red">Escalated</Badge>}
+                    {recurrenceCount >= 2 && (
+                      <Badge tone="purple">
+                        <Repeat size={11} aria-hidden="true" /> Reported {recurrenceCount} times
+                      </Badge>
+                    )}
+                    {t.committedResolutionAt && !settled && (
+                      <Badge tone="green">
+                        <CalendarDays size={11} aria-hidden="true" /> Committed by {indiaDate(t.committedResolutionAt, true)}
+                      </Badge>
+                    )}
                   </div>
+                  <RecurrenceBanner ticket={t} onOpen={setChildId} />
                   {t.summary && t.summary !== t.title && (
                     <p className="td-summary td-summary-primary">{t.summary}</p>
                   )}
@@ -704,12 +682,18 @@ export function TicketDialog({
                       </dd>
                     </div>
                     <div className="td-person">
-                      <dt>Owner</dt>
+                      <dt>{coOwners.length ? `Owners · ${coOwners.length + 1}` : "Owner"}</dt>
                       <dd>
                         {t.assignedStaffName ? <Avatar name={t.assignedStaffName} owner /> : <span className="td-person-glyph"><UserRound size={14} /></span>}
                         <span>
                           <strong>{t.assignedStaffName || "Unassigned"}</strong>
-                          {t.departmentName && <small>{t.departmentName}</small>}
+                          {coOwners.length ? (
+                            <small title={coOwners.map((o) => o.name).join(", ")}>
+                              with {coOwners.map((o) => o.name).join(", ")}
+                            </small>
+                          ) : (
+                            t.departmentName && <small>{t.departmentName}</small>
+                          )}
                         </span>
                       </dd>
                     </div>
@@ -731,7 +715,11 @@ export function TicketDialog({
                           {t.resolutionRequired && t.slaDueAt ? (
                             <>
                               <SlaCountdown ticket={t as never} />
-                              <small>{indiaDate(t.slaDueAt)}</small>
+                              <small>
+                                {t.committedResolutionAt
+                                  ? "Committed " + indiaDate(t.committedResolutionAt)
+                                  : indiaDate(t.slaDueAt)}
+                              </small>
                             </>
                           ) : (
                             <strong>{t.resolutionRequired ? "No target set" : "Nothing to chase"}</strong>
@@ -854,40 +842,9 @@ export function TicketDialog({
                           </section>
                         )}
 
-                        <section className="td-context-sheet">
-                          <div className="td-section-head">
-                            <div><span className="eyebrow">KNOWN CONTEXT</span><h3>People, place and moment</h3></div>
-                            <Layers size={17}/>
-                          </div>
-                          <dl className="td-facts td-facts-grid">
-                            {[
-                              { k: "Community member", v: memberRelated ? t.memberName : null },
-                              { k: "Member email", v: memberRelated ? t.memberEmail : null },
-                              { k: "Member phone", v: memberRelated ? t.memberPhone : null },
-                              { k: "Member follow-up preference", v: memberRelated ? t.preferredContact : null },
-                              { k: "Studio Space", v: t.studio },
-                              {
-                                k: "When it happened",
-                                v: t.incidentAt
-                                  ? indiaDate(t.incidentAt)
-                                  : null,
-                              },
-                              { k: "Signature Experience", v: t.classFormat },
-                              { k: "Studio Instructor", v: t.trainer },
-                              { k: "Community access package", v: memberRelated ? t.membership : null },
-                              { k: "Asked for", v: t.requestedResolution },
-                              { k: "Impact", v: t.impact },
-                            ]
-                              .filter((f) => f.v && f.k !== "Asked for")
-                              .map((f) => (
-                                <FactTile
-                                  key={f.k}
-                                  label={f.k}
-                                  value={f.v}
-                                />
-                              ))}
-                          </dl>
-                        </section>
+                        <ReportedDetails ticket={t} />
+                        <HostedAttendees ticket={t} />
+                        <ClassSnapshot ticket={t} />
 
                         <details className="td-block td-similar-details">
                           <summary>
@@ -1100,19 +1057,6 @@ export function TicketDialog({
                           </div>
                         </div>
                       )}
-                      {/* An extension is part of the ticket's story, so it is stated here
-                          rather than left in the activity log for somebody to find. */}
-                      {t.slaExtendedAt && (
-                        <p className="td-sla-extension">
-                          <Clock3 size={13} aria-hidden="true" />
-                          <span>
-                            <strong>
-                              {t.slaExtendedByName || "The owner"} took {t.slaExtendedHours}h more
-                            </strong>
-                            {t.slaExtensionReason ? ` — ${t.slaExtensionReason}` : ""}
-                          </span>
-                        </p>
-                      )}
                       {bundle.canResolve &&
                         t.resolutionRequired &&
                         !!t.slaDueAt &&
@@ -1172,6 +1116,7 @@ export function TicketDialog({
                           </button>
                         ))}
                     </div>
+                    <CommitmentPanel ticket={t} canEdit={bundle.canResolve} busy={busy} onPatch={patch} />
                     <div className="td-panel">
                       <h3>Routing</h3>
                       <div className="detail-fields">
@@ -1262,6 +1207,7 @@ export function TicketDialog({
                             : "This ticket is a record only. Use the record actions above to update its status."}
                       </p>
                     </div>
+                    <OwnersPanel ticket={t} staff={staff} canEdit={canManage} busy={busy} onPatch={patch} />
                     <div className="td-panel">
                       <h3>People</h3>
                       <button
