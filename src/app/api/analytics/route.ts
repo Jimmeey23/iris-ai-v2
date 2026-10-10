@@ -8,6 +8,8 @@ import { metricSql } from "@/lib/reports";
 import { ticketScope } from "@/lib/tickets";
 import { dayBuckets, round1, slaCompliance, zonedDayEnd, zonedDayStart } from "@/lib/metrics";
 import { findRecurrence } from "@/lib/recurrence";
+import { analyticsIntel, reportWindow } from "@/lib/analytics-intel";
+import { queryKey, shortCache } from "@/lib/short-cache";
 export const dynamic = "force-dynamic";
 
 const n = (label: string, where: SQL) => sql<number>`count(*) filter (where ${where})::int`.as(label);
@@ -15,18 +17,14 @@ const n = (label: string, where: SQL) => sql<number>`count(*) filter (where ${wh
 export async function GET(req: NextRequest) {
   try {
     const user = await requireWorkspace();
+    const params = req.nextUrl.searchParams;
+    // A minute's reuse per person and view; the Refresh button sends `fresh` to bypass it.
+    const body = await shortCache(`analytics:${user.id}:${queryKey(params)}`, 60_000, async () => {
     const cfg = await getConfig();
     const tz = cfg.timezone;
     const nowMs = Date.now(), now = new Date(nowMs);
-    const range = req.nextUrl.searchParams.get("range") || "30";
-    const fromParam = req.nextUrl.searchParams.get("from"),
-      toParam = req.nextUrl.searchParams.get("to");
-    // Custom dates are whole days in the workspace timezone (IST by default).
-    const from = (fromParam ? zonedDayStart(fromParam, tz) : null) ??
-      (range === "all" ? 0 : nowMs - Math.min(Number(range) || 30, 730) * 86400000);
-    const to = (toParam ? zonedDayEnd(toParam, tz) : null) ?? nowMs;
-    const studio = req.nextUrl.searchParams.get("studio") || "",
-      department = req.nextUrl.searchParams.get("department") || "";
+    // The same window rule the drill-down uses, so a drilled list matches the number it came from.
+    const { range, from, to, studio, department } = reportWindow(req.nextUrl.searchParams, tz, nowMs, zonedDayStart, zonedDayEnd);
     // Range, studio, department and access all run in SQL against tickets_created_idx, and the
     // numbers come back as aggregates — no ticket rows are read into the route at all.
     const clauses: (SQL | undefined)[] = [
@@ -53,6 +51,12 @@ export async function GET(req: NextRequest) {
     const dimNames = Object.keys(dims) as (keyof typeof dims)[];
     const dimCols = Object.values(dims);
 
+    // What keeps coming back, and everything that reads it, start now and run alongside the
+    // breakdowns below rather than after them: same window, same scope.
+    const recurrenceP = findRecurrence(from ? new Date(from) : null, new Date(to), where, now);
+    const intelP = analyticsIntel({ scope: allTimeWhere, from, to, tz, now, recurrence: recurrenceP });
+    // Neither is awaited until the breakdowns are in; keep a rejection from going unhandled meanwhile.
+    recurrenceP.catch(() => {}); intelP.catch(() => {});
     const [[t], groups, createdTrend, resolvedTrend, ownerLifetime] = await Promise.all([
       db.select({
         all: sql<number>`count(*)::int`,
@@ -102,10 +106,11 @@ export async function GET(req: NextRequest) {
       by[dim][key] = (by[dim][key] || 0) + g.total;
       if (dim === "assignedStaffName") owners.push({ name: key, total: g.total, open: g.open, resolved: g.resolved, overdue: g.overdue });
     }
+    const [recurrence, intel] = await Promise.all([recurrenceP, intelP]);
     const createdBy = new Map(createdTrend.map((r) => [r.day, r.count]));
     const resolvedBy = new Map(resolvedTrend.map((r) => [r.day, r.count]));
     const breached = t.breachedOpen + t.breachedResolved;
-    return Response.json({
+    return {
       totals: {
         all: t.all,
         open: t.open,
@@ -130,7 +135,8 @@ export async function GET(req: NextRequest) {
       owners: owners.sort((a, b) => b.total - a.total),
       // What keeps coming back: the same unit, member, trainer, room or theme. Computed over
       // the same window and scope as everything else on the page.
-      recurrence: await findRecurrence(null, new Date(to), where),
+      recurrence,
+      ...intel,
       ownerLeaderboard: ownerLifetime.map(o => ({...o, name: o.name || 'Unassigned', medianHours: round1(o.medianHours === null ? null : Number(o.medianHours))})).sort((a, b) => b.closed - a.closed || b.assigned - a.assigned),
       scope: {
         from: from ? new Date(from).toISOString() : null,
@@ -139,7 +145,9 @@ export async function GET(req: NextRequest) {
         department,
       },
       computedAt: now.toISOString(),
-    });
+    };
+    }, { fresh: params.has("fresh") });
+    return Response.json(body);
   } catch (e) {
     return errorResponse(e);
   }

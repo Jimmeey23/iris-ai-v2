@@ -9,6 +9,7 @@
  * Run: npm run check:history:import
  */
 import {readFile} from 'fs/promises';
+import {existsSync} from 'fs';
 import {and,eq} from 'drizzle-orm';
 import {departments,staff,tickets} from '@/db/schema';
 import {db,seed} from './iris-replay-support/stub-db';
@@ -30,7 +31,14 @@ function section(title: string) { console.log('\n' + title); }
 type Row = Record<string, unknown>;
 
 async function main() {
-  const raw = JSON.parse(await readFile(process.cwd() + '/data/historic-tickets.json', 'utf8'));
+  const file = process.cwd() + '/data/historic-tickets.json';
+  // The export holds member and staff details, so it is gitignored and never reaches CI.
+  // Without it there is nothing to check; say so rather than crash the suite.
+  if (!existsSync(file)) {
+    console.log('\nSKIPPED — data/historic-tickets.json is not present (it is kept out of the repository). Run locally with the export in place.\n');
+    return;
+  }
+  const raw = JSON.parse(await readFile(file, 'utf8'));
   const rows: Row[] = Array.isArray(raw) ? raw : raw.tickets || raw.data || raw.records;
   if (!Array.isArray(rows)) throw new Error('No ticket array found in data/historic-tickets.json');
   console.log(`\n${rows.length} historic records read from data/historic-tickets.json`);
