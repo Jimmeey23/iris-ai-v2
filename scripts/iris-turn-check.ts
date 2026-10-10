@@ -9,7 +9,7 @@
  * Run: npm run check:iris
  */
 import {mergeProposedTurn, scanStreamedString, ackSeparator} from '@/lib/iris';
-import {streamTurn} from '@/components/iris-chat';
+import {streamTurn} from '@/components/iris-stream';
 
 let failed = 0;
 async function main() {

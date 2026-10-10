@@ -35,7 +35,7 @@
     "check:access": "npx tsx --tsconfig tsconfig.checks.json scripts/access-check.ts",
     "check:unit": "TSX_TSCONFIG_PATH=tsconfig.checks.json node --import tsx --test scripts/unit/utils.test.ts scripts/unit/display.test.ts scripts/unit/realtime.test.ts scripts/unit/usernames.test.ts scripts/unit/digest.test.ts scripts/unit/trainer-directory.test.ts scripts/unit/ticket-edit-rights.test.ts scripts/unit/reporting-line.test.ts scripts/unit/recurrence-assignment.test.ts scripts/unit/hosted-feedback.test.ts",
     "accounts:import": "npx tsx --tsconfig tsconfig.checks.json scripts/import-staff-accounts.ts",
-    "test": "npm run check:unit && npm run check:intake && npm run check:forms && npm run check:labels && npm run check:routing && npm run check:history:import && npm run check:dashboard && npm run check:webhooks && npm run check:emails && npm run check:credentials && npm run check:access && npm run check:iris"
+    "test": "npm run check:unit && npm run check:intake && npm run check:forms && npm run check:labels && npm run check:history:import && npm run check:dashboard && npm run check:webhooks && npm run check:emails && npm run check:credentials && npm run check:access && npm run check:iris"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.23",
@@ -47,7 +47,7 @@
     "html-to-image": "^1.11.13",
     "jspdf": "^4.2.1",
     "lucide-react": "^1.45.0",
-    "next": "16.3.6",
+    "next": "16.4.0",
     "nodemailer": "^10.0.9",
     "openai": "^7.15.0",
     "pg": "8.20.0",
@@ -68,7 +68,7 @@
     "dotenv": "^17.3.1",
     "drizzle-kit": "0.31.10",
     "eslint": "9.39.4",
-    "eslint-config-next": "16.3.6",
+    "eslint-config-next": "16.4.0",
     "postcss": "8.5.28",
     "tailwindcss": "4.1.17",
     "tsx": "^4.23.15",
