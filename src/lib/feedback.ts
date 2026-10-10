@@ -14,6 +14,7 @@ import {db} from '@/db';
 import {productFeedback, productFeedbackAttachments, deliveryLogs} from '@/db/schema';
 import {runIntegration, type MailAttachment} from './integrations';
 import {indiaDate} from './display';
+import {BRAND, FONT, MONO, emailDocument, fact, grid, label, pill, section} from './email-layout';
 import {emailSendingEnabled} from './tickets';
 import {
   FEEDBACK_KINDS,
@@ -128,29 +129,43 @@ export function feedbackEmail(row: {
     'Filed from the IRIS in-app Feedback tab. This is not a ticket — nothing was routed to studio staff.',
   ].join('\n');
 
-  const block = (label: string, value?: string | null) =>
-    value ? `<h3 style="margin:18px 0 4px;font:600 13px/1.3 system-ui;color:#6b7280;text-transform:uppercase;letter-spacing:.06em">${escapeHtml(label)}</h3><p style="margin:0;white-space:pre-wrap;font:14px/1.6 system-ui;color:#111827">${escapeHtml(value)}</p>` : '';
-  const html = `<div style="background:#f4f6fa;padding:24px;font-family:system-ui,-apple-system,Segoe UI,sans-serif">
-<div style="max-width:680px;margin:0 auto;background:#fff;border:1px solid #e5e7eb;border-radius:14px;overflow:hidden">
-<div style="padding:18px 22px;background:#0a0a0d;color:#fff">
-<div style="font:600 12px/1 system-ui;letter-spacing:.18em;text-transform:uppercase;opacity:.6">IRIS product feedback</div>
-<div style="font:600 19px/1.35 system-ui;margin-top:8px">${escapeHtml(row.title)}</div>
-<div style="font:13px/1.5 system-ui;opacity:.75;margin-top:6px">${escapeHtml(row.reference)} · ${escapeHtml(kind)} · ${escapeHtml(severity)}</div>
-</div>
-<div style="padding:8px 22px 22px">
-<table style="width:100%;border-collapse:collapse;font:13px/1.6 system-ui;color:#374151;margin-top:14px">
-<tr><td style="padding:4px 12px 4px 0;color:#6b7280">Page</td><td>${escapeHtml(row.pageLabel ? `${row.pageLabel} (${row.pagePath})` : row.pagePath)}</td></tr>
-<tr><td style="padding:4px 12px 4px 0;color:#6b7280">Reporter</td><td>${escapeHtml(row.reporterName)}${row.reporterEmail ? ` &lt;${escapeHtml(row.reporterEmail)}&gt;` : ''}${row.contactBack ? ' <strong>— wants a reply</strong>' : ''}</td></tr>
-<tr><td style="padding:4px 12px 4px 0;color:#6b7280">Filed</td><td>${escapeHtml(indiaDate(row.createdAt))} IST</td></tr>
-</table>
-${block('What happened', row.details)}
-${block('Steps to reproduce', row.stepsToReproduce)}
-${block('Expected', row.expected)}
-${block('Actual', row.actual)}
-${files.filter((f) => f.fileType.startsWith('image/')).map((f, i) => `<h3 style="margin:18px 0 6px;font:600 13px/1.3 system-ui;color:#6b7280;text-transform:uppercase;letter-spacing:.06em">${escapeHtml(f.fileName)}</h3><img src="cid:shot${i}" alt="${escapeHtml(f.fileName)}" style="max-width:100%;border:1px solid #e5e7eb;border-radius:10px"/>`).join('')}
-${ctx.length ? `<h3 style="margin:18px 0 4px;font:600 13px/1.3 system-ui;color:#6b7280;text-transform:uppercase;letter-spacing:.06em">Environment</h3><table style="width:100%;border-collapse:collapse;font:12px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;color:#374151">${ctx.map(([k, v]) => `<tr><td style="padding:2px 12px 2px 0;color:#6b7280;white-space:nowrap">${escapeHtml(k)}</td><td style="word-break:break-word">${escapeHtml(v)}</td></tr>`).join('')}</table>` : ''}
-<p style="margin:22px 0 0;font:12px/1.6 system-ui;color:#9ca3af">Filed from the IRIS in-app Feedback tab. This is not a ticket — nothing was routed to studio staff.</p>
-</div></div></div>`;
+  const severityTone =
+    row.severity === 'blocker' ? {fg: BRAND.red, bg: BRAND.redSoft} : row.severity === 'high' ? {fg: BRAND.gold, bg: BRAND.goldSoft} : {fg: BRAND.blue, bg: BRAND.blueSoft};
+  const block = (name: string, value?: string | null) =>
+    value
+      ? section(`${label(name)}<p style="margin:0;white-space:pre-wrap;font-family:${FONT};font-size:14.5px;line-height:1.65;color:${BRAND.body};">${escapeHtml(value)}</p>`, '0 36px 20px')
+      : '';
+  const images = files.filter((f) => f.fileType.startsWith('image/'));
+  const body = [
+    section(`
+      <p style="margin:0 0 12px;">${pill(severity, severityTone.fg, severityTone.bg)} ${pill(kind, BRAND.muted, BRAND.soft)}</p>
+      <h1 class="e-h1" style="margin:0 0 8px;font-family:${FONT};font-size:24px;line-height:1.3;font-weight:800;letter-spacing:-.02em;color:${BRAND.ink};">${escapeHtml(row.title)}</h1>
+      <p style="margin:0;font-family:${MONO};font-size:12px;line-height:1.5;color:${BRAND.faint};">${escapeHtml(row.reference)}</p>
+    `),
+    section(grid([
+      fact('Page', row.pageLabel ? `${row.pageLabel} (${row.pagePath})` : row.pagePath),
+      fact('Reporter', `${row.reporterName}${row.reporterEmail ? ` <${row.reporterEmail}>` : ''}`),
+      fact('Filed', `${indiaDate(row.createdAt)} IST`),
+      fact('Reply', row.contactBack ? 'Wants a reply' : 'No reply needed', row.contactBack ? BRAND.red : BRAND.ink),
+    ]), '0 36px 12px'),
+    block('What happened', row.details),
+    block('Steps to reproduce', row.stepsToReproduce),
+    block('Expected', row.expected),
+    block('Actual', row.actual),
+    images.map((f, i) => section(`${label(f.fileName)}<img src="cid:shot${i}" alt="${escapeHtml(f.fileName)}" width="100%" style="display:block;width:100%;max-width:100%;height:auto;border:1px solid ${BRAND.line};border-radius:10px;"/>`, '0 36px 20px')).join(''),
+    ctx.length
+      ? section(`${label('Environment')}<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:${BRAND.soft};border-radius:10px;"><tr><td style="padding:10px 14px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">${ctx.map(([k, v]) => `<tr><td valign="top" style="padding:3px 12px 3px 0;font-family:${MONO};font-size:12px;line-height:1.6;color:${BRAND.muted};white-space:nowrap;">${escapeHtml(k)}</td><td style="padding:3px 0;font-family:${MONO};font-size:12px;line-height:1.6;color:${BRAND.ink};word-break:break-word;">${escapeHtml(v)}</td></tr>`).join('')}</table></td></tr></table>`, '0 36px 32px')
+      : section('', '0 0 12px'),
+  ].join('');
+  const html = emailDocument({
+    title: subject,
+    preheader: `${row.reference} · ${kind} · ${severity} · ${row.reporterName}`,
+    context: 'Product feedback',
+    accent: severityTone.fg,
+    body,
+    width: 680,
+    footer: 'Filed from the IRIS in-app Feedback tab. This is not a ticket — nothing was routed to studio staff.',
+  });
 
   return {subject, text, html};
 }

@@ -150,26 +150,32 @@ const memberFacingUpdate=praise?`Thank you${input.memberName?' , '+input.memberN
 return{...input,title,summary,priority,severity:inferSeverity(priority),assignedStaffId:owner.id,assignedStaffName:owner.name,assignedStaffEmail:owner.email,assignedStaffRole:owner.role,departmentId,departmentName:dept.name,slaHours,slaLabel:noSla?'No SLA required':slaHours===1?'1 hour':slaHours+' hours',resolutionRequired:!noSla,tags,opsChecklist,memberFacingUpdate,internalBrief:input.description,routingReason:!cfg.autoAssign?'Automatic assignment disabled · parked in the department queue':override?`Administrator-defined routing rule for ${input.category}${cfg.routingOwners[input.category+'::'+input.studio]?' at '+studioShort:''} → ${owner.name}`:`${input.category} routes to ${dept.name}. ${owner.name} picked up as the active ${owner.role||'specialist'}${ids.length?` covering ${studioShort}`:''}, with a ${noSla?'record-only':slaHours+'h'} follow-up target at ${priority} priority.`};}
 
 type ExternalCreate={sourceRef?:string;createdAt?:Date;status?:string;resolvedAt?:Date;/** A backfilled record was never worked in this system, so it carries no SLA clock. */noSla?:boolean;/** An explicit follow-up deadline (recurrence checks are due days after the resolution, not hours after filing). */slaDueAt?:Date;/** Run inside the caller's transaction (as a savepoint) instead of opening a new one — the history import batches rows this way. */tx?:Tx};
-async function notificationRecipients(tx:Tx,ownerId:number|null,ownerEmail:string|null){
-  const emails=new Set<string>();if(ownerEmail)emails.add(ownerEmail.trim().toLowerCase());
-  if(ownerId){const[owner]=await tx.select({manager:staff.manager}).from(staff).where(eq(staff.id,ownerId));if(owner?.manager){const[manager]=await tx.select({email:staff.email}).from(staff).where(and(eq(staff.isActive,true),ilike(staff.name,owner.manager.trim())));if(manager?.email)emails.add(manager.email.trim().toLowerCase());}}
-  return[...emails].filter(Boolean);
+/** The owner and their reporting manager, each with the name they are greeted by and the
+ *  role their copy is written for. Deduped by address: a manager who owns their own ticket
+ *  gets one owner's copy, not two. */
+type MailRecipient={email:string;name:string|null;role:'owner'|'manager'};
+async function notificationRecipients(tx:Tx,ownerId:number|null,ownerEmail:string|null,ownerName:string|null){
+  const byEmail=new Map<string,MailRecipient>();const add=(email:string|null|undefined,name:string|null,role:MailRecipient['role'])=>{const key=email?.trim().toLowerCase();if(key&&!byEmail.has(key))byEmail.set(key,{email:key,name,role});};
+  add(ownerEmail,ownerName,'owner');
+  if(ownerId){const[owner]=await tx.select({manager:staff.manager}).from(staff).where(eq(staff.id,ownerId));if(owner?.manager){const[manager]=await tx.select({email:staff.email,name:staff.name}).from(staff).where(and(eq(staff.isActive,true),ilike(staff.name,owner.manager.trim())));if(manager?.email)add(manager.email,manager.name,'manager');}}
+  return[...byEmail.values()];
 }
 /** Where the ticket lives, for the button in the email. Falls back to a relative path when
  *  the deployment URL is not configured — better a broken-looking link than a wrong domain. */
 const ticketUrl=(id:number)=>{const base=process.env.NEXT_PUBLIC_APP_URL||(process.env.VERCEL_PROJECT_PRODUCTION_URL?`https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`:'');return base?`${base.replace(/\/$/,'')}/tickets/${id}`:'';};
-async function queueTicketEmails(tx:Tx,ticket:{id:number;ticketNumber:string;title:string;assignedStaffId:number|null;assignedStaffEmail:string|null;slaDueAt:Date|null;priority?:string|null;category?:string|null;subcategory?:string|null;studio?:string|null;memberName?:string|null;assignedStaffName?:string|null;summary?:string|null;escalatedFromName?:string|null},kind:TicketEmailKind,recipients?:string[]){
-  const targets=recipients||await notificationRecipients(tx,ticket.assignedStaffId,ticket.assignedStaffEmail);
+async function queueTicketEmails(tx:Tx,ticket:{id:number;ticketNumber:string;title:string;assignedStaffId:number|null;assignedStaffEmail:string|null;slaDueAt:Date|null;priority?:string|null;category?:string|null;subcategory?:string|null;studio?:string|null;memberName?:string|null;assignedStaffName?:string|null;departmentName?:string|null;createdAt?:Date|null;summary?:string|null;escalatedFromName?:string|null},kind:TicketEmailKind,recipients?:MailRecipient[],cc:MailRecipient[]=[]){
+  const targets=recipients||await notificationRecipients(tx,ticket.assignedStaffId,ticket.assignedStaffEmail,ticket.assignedStaffName??null);
   let queued=0;
   // The archive address rides on the first message only. Attaching it to every message would
   // put one copy per recipient in that mailbox — two or three copies of the same notification
   // for a ticket that has an owner and a manager.
   const bcc=ticketBcc();
-  for(const email of targets){
+  for(const{email,name,role}of targets){
     const[ledger]=await tx.insert(ticketNotifications).values({ticketId:ticket.id,kind,recipientEmail:email}).onConflictDoNothing().returning({id:ticketNotifications.id});
     if(!ledger)continue;
-    const{subject,text,html}=ticketEmailBody({...ticket,appUrl:ticketUrl(ticket.id)},kind);
-    await tx.insert(deliveryLogs).values({integrationId:'mailtrap',action:'send',nextAttemptAt:new Date(),payload:{to:[{email}],...(queued===0&&bcc.length?{bcc}:{}),subject,text,html}});queued++;
+    const copied=cc.filter(c=>c.email!==email);
+    const{subject,text,html}=ticketEmailBody({...ticket,appUrl:ticketUrl(ticket.id)},kind,{name,role,copied:copied.map(c=>c.name||c.email)});
+    await tx.insert(deliveryLogs).values({integrationId:'mailtrap',action:'send',nextAttemptAt:new Date(),payload:{to:[{email}],...(copied.length?{cc:copied.map(c=>({email:c.email}))}:{}),...(queued===0&&bcc.length?{bcc}:{}),subject,text,html}});queued++;
   }
   return queued;
 }
@@ -237,7 +243,7 @@ export function emailSendingEnabled(){return (process.env.SEND_EMAILS??'true').t
 export async function queueSlaReminderEmails(now=new Date()){
   if(!emailSendingEnabled())return 0;const cfg=await getConfig();if(!cfg.assignmentEmail)return 0;
   const dueBefore=new Date(now.getTime()+3*3600_000);
-  const rows=await db.select({id:tickets.id,ticketNumber:tickets.ticketNumber,title:tickets.title,assignedStaffId:tickets.assignedStaffId,assignedStaffEmail:tickets.assignedStaffEmail,slaDueAt:tickets.slaDueAt,priority:tickets.priority,category:tickets.category,subcategory:tickets.subcategory,studio:tickets.studio,memberName:tickets.memberName,assignedStaffName:tickets.assignedStaffName,summary:tickets.summary}).from(tickets).where(and(eq(tickets.resolutionRequired,true),sql`${tickets.status} not in ('resolved','closed','recorded')`,gt(tickets.slaDueAt,now),lte(tickets.slaDueAt,dueBefore)));
+  const rows=await db.select({id:tickets.id,ticketNumber:tickets.ticketNumber,title:tickets.title,assignedStaffId:tickets.assignedStaffId,assignedStaffEmail:tickets.assignedStaffEmail,slaDueAt:tickets.slaDueAt,priority:tickets.priority,category:tickets.category,subcategory:tickets.subcategory,studio:tickets.studio,memberName:tickets.memberName,assignedStaffName:tickets.assignedStaffName,summary:tickets.summary,departmentName:tickets.departmentName,createdAt:tickets.createdAt}).from(tickets).where(and(eq(tickets.resolutionRequired,true),sql`${tickets.status} not in ('resolved','closed','recorded')`,gt(tickets.slaDueAt,now),lte(tickets.slaDueAt,dueBefore)));
   let queued=0;for(const ticket of rows)queued+=await db.transaction(tx=>queueTicketEmails(tx,ticket,'sla-3h'));return queued;
 }
 /**
@@ -380,8 +386,13 @@ export async function applyEscalations(){
         ?`Past the follow-up target with no resolution and no extension: escalated from ${from} to their reporting manager ${to.name}.`
         :`Past the follow-up target with no resolution and no extension, and no reporting manager on record for ${from}: escalated to the ${row.departmentName} escalation owner ${to.name}.`});
       // Tell the manager out of band too. A board they are not looking at is not a handover.
-      if(emailSendingEnabled()&&cfg.assignmentEmail&&to.email)
-        await queueTicketEmails(tx,{...row,assignedStaffId:to.id,assignedStaffName:to.name,assignedStaffEmail:to.email,escalatedFromName:from},'escalated',[to.email]);
+      // The owner it came from is copied: the ticket has left their name, and they should
+      // learn that from the same message the manager reads rather than from the board.
+      if(emailSendingEnabled()&&cfg.assignmentEmail&&to.email){
+        const fromEmail=row.assignedStaffEmail?.trim().toLowerCase();
+        await queueTicketEmails(tx,{...row,assignedStaffId:to.id,assignedStaffName:to.name,assignedStaffEmail:to.email,escalatedFromName:from},'escalated',
+          [{email:to.email.trim().toLowerCase(),name:to.name,role:'manager'}],fromEmail?[{email:fromEmail,name:row.assignedStaffName,role:'owner'}]:[]);
+      }
       if(to.userId)
         await tx.insert(userNotifications).values({userId:to.userId,ticketId:row.id,kind:'escalation',
           title:`${row.ticketNumber} escalated to you — past its follow-up target`,
@@ -499,6 +510,30 @@ export function isAcTicket(t:{title:string;description:string;subcategory:string
 export const RECURRENCE_CHECK_DAYS=[5,10] as const;
 type ResolvedTicket={createdByUserId?:number|null;createdByName?:string|null;id:number;ticketNumber:string;title:string;description:string;subcategory:string;category:string;classFormat:string|null;studio:string|null;area?:string|null;assignedStaffId:number|null;assignedStaffName:string|null;assignedStaffEmail:string|null;departmentId:string|null;departmentName:string|null;memberName:string;trainer:string|null;resolvedAt?:Date|string|null;source?:string;customFields?:Record<string,unknown>|null};
 const shortDate=(d:Date)=>d.toLocaleDateString('en-IN',{timeZone:'Asia/Kolkata',day:'numeric',month:'short',year:'numeric'});
+/**
+ * The staff profile of whoever reported a ticket, for the bike and AC re-checks that go back
+ * to them. Most accounts are linked to their directory row; for one that is not, the account's
+ * email and then the name stamped on the ticket find the same person, so a missing link no
+ * longer leaves the check unassigned (or with the repair owner).
+ */
+async function reporterStaff(t:{createdByUserId?:number|null;createdByName?:string|null}){
+  const cols={id:staff.id,name:staff.name,email:staff.email};
+  if(t.createdByUserId){
+    const[linked]=await db.select(cols).from(appUsers).innerJoin(staff,eq(appUsers.staffId,staff.id))
+      .where(and(eq(appUsers.id,t.createdByUserId),eq(appUsers.active,true),eq(staff.isActive,true)));
+    if(linked)return linked;
+    const[byEmail]=await db.select(cols).from(appUsers).innerJoin(staff,sql`lower(${staff.email}) = lower(${appUsers.email})`)
+      .where(and(eq(appUsers.id,t.createdByUserId),eq(appUsers.active,true),eq(staff.isActive,true),ne(appUsers.email,''))).limit(1);
+    if(byEmail)return byEmail;
+  }
+  const name=t.createdByName?.trim();
+  if(name){
+    const matches=await db.select(cols).from(staff).where(and(eq(staff.isActive,true),ilike(staff.name,name))).limit(2);
+    // Only an unambiguous name: two people called the same thing is a guess, not a match.
+    if(matches.length===1)return matches[0];
+  }
+  return null;
+}
 /** When a PowerCycle bike, AC or microphone fault is resolved, raise two child tickets for the
  *  original reporter for AC/bikes (repair owner for microphones) — due 5 and 10 days after resolution — asking the studio to confirm the
  *  fault has not come back. A check is itself never re-checked, and each is raised once:
@@ -511,11 +546,7 @@ export async function maybeCreateRecurrenceChecks(resolved:ResolvedTicket){
   const num=bike?text.match(/bike\s*(?:no\.?|number|#)?\s*(\d{1,3})\b/i):mic?text.match(/\bmic(?:rophone)?\s*(?:no\.?|number|#)?\s*(\d{1,2})\b/i):null;
   const label=bike?(num?`Bike #${num[1]}`:'PowerCycle bike'):ac?'Air-conditioning system':(num?`Mic #${num[1]}`:'Studio microphone');
   const kind=bike?'bike':ac?'ac':'mic';
-  const [reporter] = (bike || ac) && resolved.createdByUserId
-    ? await db.select({id:staff.id,name:staff.name,email:staff.email}).from(appUsers)
-        .innerJoin(staff,eq(appUsers.staffId,staff.id))
-        .where(and(eq(appUsers.id,resolved.createdByUserId),eq(appUsers.active,true),eq(staff.isActive,true)))
-    : [];
+  const reporter=(bike||ac)?await reporterStaff(resolved):null;
   const owner=recurrenceOwner(kind,{id:resolved.assignedStaffId,name:resolved.assignedStaffName,email:resolved.assignedStaffEmail},reporter||null);
   const assignmentReason=(bike||ac)
     ? reporter?`Assigned to ${reporter.name}, who raised ${resolved.ticketNumber}, to verify the repair.`:`Unassigned: the original reporter of ${resolved.ticketNumber} has no active linked staff profile.`

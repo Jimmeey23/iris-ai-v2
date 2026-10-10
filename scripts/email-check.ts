@@ -5,6 +5,7 @@
  * rather than a copy that can drift.
  */
 import {ticketEmailBody, sampleAssignmentEmail, SAMPLE_TICKET} from '../src/lib/ticket-emails';
+import {firstName} from '../src/lib/email-layout';
 import {INTEGRATION_CATALOGUE} from '../src/lib/integration-catalogue';
 import {readFileSync} from 'fs';
 
@@ -33,6 +34,27 @@ const reminder = ticketEmailBody(ticket, 'sla-3h');
 check('subject marks it as due', /due in 3 hours/i.test(reminder.subject) && reminder.subject.includes('P57-01284'), reminder.subject);
 check('the two mails do not look alike', reminder.html !== assigned.html, 'the reminder reuses the assignment HTML');
 check('body differs from the assignment mail', reminder.text !== assigned.text);
+
+section('Greeting by first name');
+check('first name is the first word of the directory name', firstName('Anita Rao') === 'Anita', firstName('Anita Rao'));
+check('a title is not a first name', firstName('Dr. Meera Shah') === 'Meera', firstName('Dr. Meera Shah'));
+check('an email address is never used as a name', firstName('ops@physique57india.com') === null);
+check('a lowercase name is capitalised', firstName('rohan') === 'Rohan');
+const named = {...ticket, assignedStaffName: 'Anita Rao', escalatedFromName: 'Anita Rao'};
+const toOwner = ticketEmailBody(named, 'assigned', {name: 'Anita Rao', role: 'owner'});
+check('the owner is greeted by first name in HTML and text', toOwner.html.includes('Hi Anita,') && toOwner.text.startsWith('Hi Anita,'), toOwner.text.slice(0, 40));
+const toManager = ticketEmailBody(named, 'assigned', {name: 'Rahul Kapoor', role: 'manager'});
+check('the manager is greeted by their own first name', toManager.html.includes('Hi Rahul,') && toManager.text.startsWith('Hi Rahul,'));
+check('the manager is not told the ticket is theirs', !/assigned to you/i.test(toManager.subject) && /assigned to Anita/.test(toManager.subject), toManager.subject);
+const escalated = ticketEmailBody(named, 'escalated', {name: 'Rahul Kapoor', role: 'manager'});
+check('the escalation greets the manager by first name', escalated.html.includes('Hi Rahul,') && escalated.text.startsWith('Hi Rahul,'));
+check('the escalation names whose ticket it was', escalated.html.includes('Anita Rao'));
+check('the escalation subject is labelled Escalated', escalated.subject.startsWith('[Escalated] P57-01284'), escalated.subject);
+const copiedEscalation = ticketEmailBody(named, 'escalated', {name: 'Rahul Kapoor', role: 'manager', copied: ['Anita Rao']});
+check('the escalation says the owner is copied', copiedEscalation.html.includes('Anita Rao is copied on this email.') && copiedEscalation.text.includes('Anita Rao is copied on this email.'));
+check('a recipient with no usable name gets a neutral greeting', ticketEmailBody(named, 'escalated', {name: 'ops@x.com', role: 'manager'}).text.startsWith('Hello,'));
+check('the greeting escapes the name', !ticketEmailBody(named, 'assigned', {name: '<b>x</b>', role: 'owner'}).html.includes('<b>x</b>'));
+check('every ticket email is responsive', /@media only screen and \(max-width:620px\)/.test(toOwner.html) && toOwner.html.includes('name="viewport"'));
 
 section('Integrations-page preview');
 const preview = sampleAssignmentEmail();

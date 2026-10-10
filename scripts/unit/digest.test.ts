@@ -7,7 +7,7 @@
  */
 import {strict as assert} from 'node:assert';
 import {describe, it} from 'node:test';
-import {digestEmail, istDayKey, istDayStart, type Digest} from '../../src/lib/ticket-digest';
+import {digestEmail, digestInsights, istDayKey, istDayStart, type Digest, type DigestPulse} from '../../src/lib/ticket-digest';
 import {ticketBcc} from '../../src/lib/ticket-emails';
 
 describe('istDayStart', () => {
@@ -114,6 +114,58 @@ describe('digestEmail', () => {
     const {html} = digestEmail(digest(), now);
     assert.ok(html.startsWith('<!doctype html>'));
     assert.match(html, /<\/html>$/);
+  });
+});
+
+const pulse = (over: Partial<DigestPulse> = {}): DigestPulse => ({
+  last24h: {raised: 7, resolved: 3, escalated: 2},
+  week: {raised: 30, raisedPrev: 20, resolved: 22, onTime: 15, withTarget: 20, medianHours: 18.4},
+  aging: {under1d: 3, d1to3: 4, d3to7: 2, over7d: 2},
+  priorities: {critical: 1, high: 3, medium: 5, low: 2},
+  categories: [{category: 'Repair and Maintenance', open: 6, overdue: 3}],
+  rising: [{theme: 'Repair and Maintenance · AC and HVAC Issues', now: 6, before: 2}],
+  oldest: row({ticketNumber: 'P57-00001', createdAt: new Date('2026-09-20T02:30:00.000Z')}),
+  recurring: [{subject: 'Bike 6', note: '3 faults on 3 separate days — this unit is not staying fixed.', open: 1}],
+  ...over,
+});
+
+describe('digest insights', () => {
+  const rich = digest({
+    pulse: pulse(),
+    byStudio: [{studio: 'Kwality House, Kemps Corner', open: 9, overdue: 4}, {studio: 'Supreme HQ, Bandra', open: 3, overdue: 1}],
+    byOwner: [{owner: 'Anita Rao', open: 7, overdue: 4}],
+  });
+  const insights = digestInsights(rich, now);
+  it('says which way the backlog moved, with the numbers', () => {
+    assert.ok(insights.some(i => i.includes('backlog grew by 4') && i.includes('7 raised, 3 resolved')), insights.join(' | '));
+  });
+  it('names the studio holding most of the overdue work', () => {
+    assert.ok(insights.some(i => i.startsWith('Kwality House, Kemps Corner holds 4 of the 5 overdue')), insights.join(' | '));
+  });
+  it('reports the on-time rate and typical resolution time', () => {
+    assert.ok(insights.some(i => i.startsWith('75% of tickets resolved this week met their follow-up target') && i.includes('18h')), insights.join(' | '));
+  });
+  it('calls out the oldest open ticket', () => {
+    // A board with less going on, so the six-item cap does not crowd this line out.
+    const calm = digestInsights(digest({pulse: pulse({rising: [], recurring: []})}), now);
+    assert.ok(calm.some(i => i.includes('P57-00001 at 13 days')), calm.join(' | '));
+  });
+  it('never says more than six things', () => {
+    assert.ok(insights.length <= 6);
+  });
+  it('renders the analysis sections when the pulse is present', () => {
+    const {html, text} = digestEmail(rich, now, 'Jimmeey Gondaa');
+    assert.match(html, /What stands out/);
+    assert.match(html, /Last 24 hours/);
+    assert.match(html, /Shape of the open board/);
+    assert.match(html, /Patterns to fix at the source/);
+    assert.match(html, /Good morning, Jimmeey\./);
+    assert.match(text, /WHAT STANDS OUT/);
+    assert.match(text, /Good morning, Jimmeey\./);
+  });
+  it('stays quiet on a quiet board', () => {
+    const quiet = digestInsights(digest({pulse: pulse({last24h: {raised: 0, resolved: 0, escalated: 0}, week: {raised: 2, raisedPrev: 2, resolved: 1, onTime: 1, withTarget: 1, medianHours: 4}, aging: {under1d: 1, d1to3: 0, d3to7: 0, over7d: 0}, rising: [], recurring: []}), byStudio: [], byOwner: []}), now);
+    assert.equal(quiet.length, 0, quiet.join(' | '));
   });
 });
 
