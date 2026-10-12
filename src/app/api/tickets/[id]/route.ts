@@ -13,6 +13,7 @@ import {
 import {
   ApiError,
   canEditTicketDetails,
+  canChangeResolutionPathway,
   requireAgent,
   requireWorkspace,
   requireTicketAccess,
@@ -85,6 +86,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
           .optional(),
         priority: z.enum(["critical", "high", "medium", "low"]).optional(),
         assignedStaffId: z.number().int().positive().optional(),
+        resolutionRequired: z.boolean().optional(),
         isEscalated: z.boolean().optional(),
         title: z.string().min(3).max(240).optional(),
         summary: z.string().min(3).max(1000).optional(),
@@ -114,6 +116,39 @@ export async function PATCH(req: Request, ctx: Ctx) {
     ]);
     if (!current) throw new ApiError("Ticket not found", 404);
     requireTicketAccess(actor, current);
+
+    if (b.resolutionRequired !== undefined && !canChangeResolutionPathway(actor)) {
+      throw new ApiError(
+        "Only administrators can change whether a ticket requires resolution.",
+        403,
+      );
+    }
+
+    const targetResolutionRequired =
+      b.resolutionRequired !== undefined
+        ? b.resolutionRequired
+        : current.resolutionRequired;
+
+    let effectiveStatus = b.status;
+    if (
+      b.resolutionRequired !== undefined &&
+      b.resolutionRequired !== current.resolutionRequired
+    ) {
+      if (b.resolutionRequired) {
+        // Record-only -> Requires resolution: if current status is 'recorded', reopen as assigned or new
+        if (current.status === "recorded" && !effectiveStatus) {
+          effectiveStatus = (b.assignedStaffId ?? current.assignedStaffId)
+            ? "assigned"
+            : "new";
+        }
+      } else {
+        // Requires resolution -> Record-only: if not already closed, transition to 'recorded'
+        if (current.status !== "closed" && !effectiveStatus) {
+          effectiveStatus = "recorded";
+        }
+      }
+    }
+
     /**
      * The documented facts of the ticket: what happened, who it is about, where and when.
      *
@@ -196,24 +231,46 @@ export async function PATCH(req: Request, ctx: Ctx) {
     }
     // Same rule as makeDraft: an administrator's per-subcategory SLA override wins over the
     // priority's default response target.
-    const sla =
-      b.priority && current.resolutionRequired
-        ? (() => {
-            const hours = slaHoursFor(cfg, current.category, current.subcategory, b.priority);
-            return {
-              slaHours: hours,
-              slaDueAt: new Date(current.createdAt.getTime() + hours * 3600000),
-              severity: inferSeverity(b.priority),
-            };
-          })()
-        : b.priority
-          ? { severity: inferSeverity(b.priority) }
-          : {};
-    const { version, status, additionalOwnerIds: _coOwnerIds, committedResolutionAt, ...fields } = b;
+    let sla: {
+      slaHours?: number;
+      slaDueAt?: Date | null;
+      severity?: string;
+      isEscalated?: boolean;
+    } = {};
+
+    if (b.resolutionRequired !== undefined && !b.resolutionRequired) {
+      // Record-only: clear SLA timer and escalation
+      sla = {
+        slaHours: 0,
+        slaDueAt: null,
+        isEscalated: false,
+        ...(b.priority ? { severity: inferSeverity(b.priority) } : {}),
+      };
+    } else if (targetResolutionRequired) {
+      // Requires resolution: recalculate SLA if priority changed or newly required
+      if (b.priority || (b.resolutionRequired === true && !current.resolutionRequired)) {
+        const targetPriority = (b.priority ?? (["critical", "high", "medium", "low"].includes(current.priority) ? current.priority : "medium")) as "critical" | "high" | "medium" | "low";
+        const hours = slaHoursFor(cfg, current.category, current.subcategory, targetPriority);
+        sla = {
+          slaHours: hours,
+          slaDueAt: new Date(current.createdAt.getTime() + hours * 3600000),
+          severity: inferSeverity(targetPriority),
+        };
+      }
+    } else if (b.priority) {
+      sla = { severity: inferSeverity(b.priority) };
+    }
+
+    const { version, status: _requestedStatus, additionalOwnerIds: _coOwnerIds, committedResolutionAt, ...fields } = b;
+    void _requestedStatus;
     void _coOwnerIds;
     const workingFields = {
       ...coOwnerFields,
-      ...(committedResolutionAt !== undefined ? { committedResolutionAt: committedResolutionAt ? new Date(committedResolutionAt) : null } : {}),
+      ...(committedResolutionAt !== undefined
+        ? { committedResolutionAt: committedResolutionAt ? new Date(committedResolutionAt) : null }
+        : b.resolutionRequired === false
+          ? { committedResolutionAt: null }
+          : {}),
     };
     const sanitizedCustom = fields.customFields
       ? { ...(current.customFields || {}), ...stripReservedFields(fields.customFields) }
@@ -226,8 +283,22 @@ export async function PATCH(req: Request, ctx: Ctx) {
     const detail = Object.entries(b)
       .filter(([k]) => k !== "version")
       // Arrays of ids read as names in the log, not as "1,2".
-      .map(([k, v]) => k === "additionalOwnerIds" ? `co-owners: ${(coOwnerFields as {additionalOwners?: {name: string}[]}).additionalOwners?.map((o) => o.name).join(", ") || "none"}` : `${k}: ${v}`)
+      .map(([k, v]) => {
+        if (k === "additionalOwnerIds") {
+          return `co-owners: ${(coOwnerFields as { additionalOwners?: { name: string }[] }).additionalOwners?.map((o) => o.name).join(", ") || "none"}`;
+        }
+        if (k === "resolutionRequired") {
+          return `action pathway: ${v ? "resolution required" : "record only"}`;
+        }
+        return `${k}: ${v}`;
+      })
+      .concat(
+        effectiveStatus && effectiveStatus !== b.status && effectiveStatus !== current.status
+          ? [`status: ${effectiveStatus}`]
+          : []
+      )
       .join(" · ");
+    const status = effectiveStatus;
     // Resolving and closing go through the shared resolveTicket, which enforces the resolver,
     // the private resolution record, the reopen policy and the caller's revision, and raises
     // the recurrence checks.
@@ -236,7 +307,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
         ticketId: id,
         version,
         status,
-        extra: { ...patchPayload, ...ownerFields, ...sla },
+        extra: { ...patchPayload, ...ownerFields, ...sla, resolutionRequired: targetResolutionRequired },
         detail,
       });
       // The write landed: tell the other open boards, so a teammate sees this without
@@ -247,7 +318,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
         followUpTickets: followUps.map((f) => ({ id: f.id, ticketNumber: f.ticketNumber })),
       });
     }
-    if (status) await assertStatusTransition(actor, current, status, cfg);
+    if (status) await assertStatusTransition(actor, current, status, cfg, targetResolutionRequired);
     const result = await db.transaction(async (tx) => {
       const [t] = await tx
         .update(tickets)

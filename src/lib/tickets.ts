@@ -533,10 +533,10 @@ return{ticket,comments,activities,similar,linked,asset,canResolve,canEditDetails
 const TERMINAL=['resolved','closed'];
 /** Guards every status change: record-only use of Recorded, the resolver and the saved
  *  resolution on the way to resolved/closed, and the workspace's reopen policy. */
-export async function assertStatusTransition(actor:Identity,current:typeof tickets.$inferSelect,next:string,cfg:Config){
-  if(next==='recorded'&&current.resolutionRequired)throw new ApiError('Only record-only feedback can use Recorded status.');
-  if(TERMINAL.includes(next)&&!TERMINAL.includes(current.status)&&current.resolutionRequired){
-    if(!(await canResolveTicket(actor,current.assignedStaffId,current.resolutionRequired,current.additionalOwners)))throw new ApiError('Only the assigned owner or their reporting manager may resolve this ticket.',403);
+export async function assertStatusTransition(actor:Identity,current:typeof tickets.$inferSelect,next:string,cfg:Config,resolutionRequired:boolean=current.resolutionRequired){
+  if(next==='recorded'&&resolutionRequired)throw new ApiError('Only record-only feedback can use Recorded status.');
+  if(TERMINAL.includes(next)&&!TERMINAL.includes(current.status)&&resolutionRequired){
+    if(!(await canResolveTicket(actor,current.assignedStaffId,resolutionRequired,current.additionalOwners)))throw new ApiError('Only the assigned owner or their reporting manager may resolve this ticket.',403);
     const[r]=await db.select().from(ticketResolutions).where(eq(ticketResolutions.ticketId,current.id));
     // Action taken is the only required part of the write-up: any non-empty text counts.
     if(!r?.actionTaken.trim())throw new ApiError('Record the resolution action taken first.');
@@ -561,7 +561,7 @@ export async function resolveTicket(actor:Identity,input:{ticketId:number;versio
   if(!current)throw new ApiError('Ticket not found',404);
   requireTicketAccess(actor,current);
   if(current.version!==input.version)throw new ApiError('This ticket changed elsewhere. Refresh before saving.',409);
-  await assertStatusTransition(actor,current,status,cfg);
+  await assertStatusTransition(actor,current,status,cfg,(input.extra as {resolutionRequired?:boolean}|undefined)?.resolutionRequired??current.resolutionRequired);
   const now=new Date();
   const ticket=await db.transaction(async tx=>{
     const[t]=await tx.update(tickets).set({...input.extra,status,...statusTimestamps(current,status,now),version:sql`${tickets.version}+1`,updatedAt:now})

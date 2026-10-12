@@ -185,6 +185,7 @@ export function TicketDialog({
     preferredContact: "",
     requestedResolution: "",
     impact: "",
+    resolutionRequired: true,
   });
   const load = useCallback(
     () =>
@@ -284,6 +285,12 @@ export function TicketDialog({
       if (d.followUpTickets?.length)
         notify(
           `Recurrence checks ${d.followUpTickets.map((f) => f.ticketNumber).join(" and ")} raised, due 5 and 10 days from today.`,
+        );
+      else if (p.resolutionRequired !== undefined)
+        notify(
+          p.resolutionRequired
+            ? "Changed to requires resolution · follow-up SLA target active."
+            : "Changed to record only · informational record without SLA.",
         );
       else notify("Ticket updated.");
     } catch (e) {
@@ -412,6 +419,7 @@ export function TicketDialog({
       preferredContact: t.preferredContact || "",
       requestedResolution: t.requestedResolution || "",
       impact: t.impact || "",
+      resolutionRequired: Boolean(t.resolutionRequired),
     };
     setEdit(seed);
     setEditBaseline(seed);
@@ -1120,6 +1128,25 @@ export function TicketDialog({
                     <div className="td-panel">
                       <h3>Routing</h3>
                       <div className="detail-fields">
+                        <Field label="Action pathway">
+                          {user?.role === "admin" ? (
+                            <select
+                              disabled={busy}
+                              value={t.resolutionRequired ? "required" : "record_only"}
+                              onChange={(e) =>
+                                void patch({ resolutionRequired: e.target.value === "required" })
+                              }
+                            >
+                              <option value="required">Requires resolution</option>
+                              <option value="record_only">Record only</option>
+                            </select>
+                          ) : (
+                            <select disabled value={t.resolutionRequired ? "required" : "record_only"}>
+                              <option value="required">Requires resolution</option>
+                              <option value="record_only">Record only</option>
+                            </select>
+                          )}
+                        </Field>
                         <Field label="Priority">
                           <select
                             disabled={busy || !t.resolutionRequired}
@@ -1378,6 +1405,19 @@ export function TicketDialog({
           <div className="ticket-admin-edit-grid">
             <Field label="Title"><input value={edit.title} onChange={(e) => setEdit((v) => ({ ...v, title: e.target.value }))} /></Field>
             <Field label="Summary"><input value={edit.summary} onChange={(e) => setEdit((v) => ({ ...v, summary: e.target.value }))} /></Field>
+            {user?.role === "admin" && (
+              <Field label="Action pathway">
+                <select
+                  value={edit.resolutionRequired ? "required" : "record_only"}
+                  onChange={(e) =>
+                    setEdit((v) => ({ ...v, resolutionRequired: e.target.value === "required" }))
+                  }
+                >
+                  <option value="required">Requires resolution</option>
+                  <option value="record_only">Record only</option>
+                </select>
+              </Field>
+            )}
             <Field label="What happened"><textarea value={edit.description} onChange={(e) => setEdit((v) => ({ ...v, description: e.target.value }))} /></Field>
             <Field label="Requested outcome"><textarea value={edit.requestedResolution} onChange={(e) => setEdit((v) => ({ ...v, requestedResolution: e.target.value }))} /></Field>
             <Field label="Community member"><input value={edit.memberName} onChange={(e) => setEdit((v) => ({ ...v, memberName: e.target.value }))} /></Field>

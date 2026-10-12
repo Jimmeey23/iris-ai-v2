@@ -457,6 +457,16 @@ export function canEditTicketDetails(
   return ticket.createdByUserId !== null && ticket.createdByUserId !== undefined && ticket.createdByUserId === user.id;
 }
 
+/**
+ * Only administrators may change whether a created ticket requires resolution
+ * or is held for the record only.
+ */
+export function canChangeResolutionPathway(
+  user: Pick<Identity, "role"> | null | undefined,
+): boolean {
+  return Boolean(user && user.role === "admin");
+}
+
 export function requireTicketAccess(
   user: Identity,
   ticket: {

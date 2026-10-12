@@ -8,7 +8,7 @@
  */
 import {strict as assert} from 'node:assert';
 import {describe, it} from 'node:test';
-import {canEditTicketDetails, type Identity} from '../../src/lib/auth';
+import {canEditTicketDetails, canChangeResolutionPathway, type Identity} from '../../src/lib/auth';
 
 const person = (over: Partial<Identity> = {}): Identity => ({
   id: 7,
@@ -57,5 +57,21 @@ describe('canEditTicketDetails', () => {
     // The author is an app_users id, not a staff id; conflating them would hand the ticket to
     // whoever shares the staff row.
     assert.equal(canEditTicketDetails(person({id: 7, staffId: 21}), {createdByUserId: 21}), false);
+  });
+});
+
+describe('canChangeResolutionPathway', () => {
+  it('allows an administrator to change if a ticket is record only or requires resolution', () => {
+    assert.equal(canChangeResolutionPathway(person({role: 'admin'})), true);
+  });
+  it('refuses an agent from changing resolution pathway', () => {
+    assert.equal(canChangeResolutionPathway(person({role: 'agent'})), false);
+  });
+  it('refuses a manager from changing resolution pathway', () => {
+    assert.equal(canChangeResolutionPathway(person({role: 'manager'})), false);
+  });
+  it('refuses signed-out caller', () => {
+    assert.equal(canChangeResolutionPathway(null), false);
+    assert.equal(canChangeResolutionPathway(undefined), false);
   });
 });
