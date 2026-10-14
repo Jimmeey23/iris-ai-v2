@@ -9,6 +9,7 @@
  */
 import {timingSafeEqual} from 'node:crypto';
 import {maybeSendDigest} from '@/lib/ticket-digest';
+import {maybeSendWeeklyReport} from '@/lib/weekly-report';
 import {reportError} from '@/lib/observability';
 
 export const dynamic = 'force-dynamic';
@@ -28,7 +29,14 @@ export async function GET(req: Request) {
   try {
     const outcome = await maybeSendDigest();
     console.log(JSON.stringify({level: 'info', source: 'cron.digest', ...outcome}));
-    return Response.json({ok: true, ...outcome});
+    // The Hobby plan allows two daily crons and both are taken, so the weekly report rides on
+    // this one as its backstop: on a Monday nobody opened the app, it still goes out.
+    const weekly = await maybeSendWeeklyReport().catch(async error => {
+      await reportError(error, {source: 'cron.weekly-report', severity: 'fatal'});
+      return {sent: false as const, reason: 'error' as const};
+    });
+    console.log(JSON.stringify({level: 'info', source: 'cron.weekly-report', ...weekly}));
+    return Response.json({ok: true, ...outcome, weekly});
   } catch (error) {
     await reportError(error, {source: 'cron.digest', severity: 'fatal'});
     return Response.json({ok: false}, {status: 500});

@@ -56,6 +56,11 @@ export default function SettingsAutomationPanel({
         "Email the owner and reporting manager",
         "Requires an enabled Mailtrap connection and verified sender. Sends assignment notifications and one reminder three hours before an unresolved ticket’s SLA target.",
       )}
+      {booleanSetting(
+        "weeklyReportEmail",
+        "Weekly trend report",
+        "Every Monday morning, mails each administrator and manager a snapshot of the week just ended — patterns detected, a written briefing and recommended actions. Managers see only their own studios and teams. Needs the email setting above.",
+      )}
       <div className="info-box warning" style={{ marginTop: 20 }}>
         Enabling these controls authorizes automatic external delivery. Save
         your integrations first. Failed events stay in the delivery log and can

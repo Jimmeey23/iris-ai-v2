@@ -33,6 +33,12 @@ export const LIMITS = {
   upload: {max: 20, windowSeconds: 60},
   /** AI-assisted title/summary drafting from the intake form. */
   'intake-draft': {max: 20, windowSeconds: 60},
+  /** AI routing of a free-text description into a category on the intake form. */
+  /** The written briefing on the Trend dashboard — one model call, cached for fifteen minutes. */
+  /** Previewing or emailing oneself the weekly report: builds the whole report and may call the model. */
+  weeklyPreview: {max: 6, windowSeconds: 600},
+  'trend-briefing': {max: 12, windowSeconds: 60},
+  'intake-classify': {max: 20, windowSeconds: 60},
   /** Password sign-in, keyed by IP and email. Supabase limits too; this stops credential stuffing earlier. */
   login: {max: 10, windowSeconds: 300},
   /** Public self-sign-up, keyed by IP and email to slow down abuse of allowed domains. */

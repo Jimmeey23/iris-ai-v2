@@ -32,6 +32,8 @@ import { IrisMarquee } from "@/components/iris-marquee";
 import { DrillDrawer, type DrillRequest } from "@/components/analytics/drill-drawer";
 import type { Cluster } from "@/lib/recurrence";
 import type { BreakdownRow, Intel } from "@/lib/analytics-intel";
+import type { Finding } from "@/lib/trend-patterns";
+import { BriefingCard, PatternGrid } from "@/components/analytics/pattern-panel";
 
 type Report = Intel & {
   totals: {
@@ -51,6 +53,7 @@ type Report = Intel & {
   byPriority: Record<string, number>;
   ownerLeaderboard: { name: string; assigned: number; open: number; closed: number; overdue: number; critical: number; medianHours: number | null }[];
   recurrence: Cluster[];
+  patterns: Finding[];
   computedAt: string;
 };
 
@@ -142,6 +145,13 @@ export default function AnalyticsPage() {
   const open = (title: string, params: Record<string, string>, description?: string) => setDrill({ title, params, description });
   const dimDrill = (dim: string, value: string, extra: Record<string, string> = {}, what = "") =>
     open(`${value}${what ? " · " + what : ""}`, { ["f." + dim]: value, ...extra }, `${BREAKDOWNS.find((b) => b.id === dim)?.label || dim} in the selected period`);
+  const findingDrill = (f: Finding) => {
+    const d = f.drill;
+    if (!d) return;
+    if ("ids" in d) open(f.title, { ids: d.ids.join(",") }, f.detail);
+    else if ("filters" in d) open(f.title, Object.fromEntries(Object.entries(d.filters).map(([k, v]) => ["f." + k, String(v)])), f.detail);
+    else dimDrill(d.dim, d.value);
+  };
   const clusterDrill = (c: Cluster) => open(c.subject, { ids: c.ticketIds.join(",") }, `${KIND[c.kind]?.label || c.kind} pattern · ${c.note}`);
 
   const clusters = useMemo(() => (data?.recurrence || []).filter((c) => kind === "all" || c.kind === kind), [data, kind]);
@@ -279,6 +289,9 @@ export default function AnalyticsPage() {
               );
             })}
           </div>
+
+          <BriefingCard params={base} reload={reload} findings={data.patterns} onFinding={findingDrill} />
+          <PatternGrid findings={data.patterns} onFinding={findingDrill} />
 
           {data.insights.length > 0 && (
             <section className="card an-insights">

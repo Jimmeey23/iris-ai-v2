@@ -34,6 +34,8 @@ const EVERY = {
   /** The digest is claimed by the IST day it covers (see maybeSendDigest), so this only
    *  decides how often we bother checking whether today's has gone out. */
   digest: 900,
+  /** The weekly report is claimed by the week it covers, so this only decides how often we check. */
+  weekly: 1800,
 } satisfies Record<string, number>;
 
 export type SweepJob = keyof typeof EVERY;
@@ -128,5 +130,12 @@ export async function runDueWork(): Promise<{ran: SweepJob[]}> {
     })
   )
     ran.push('digest');
+  if (
+    await run('weekly', async () => {
+      const {maybeSendWeeklyReport} = await import('./weekly-report');
+      await maybeSendWeeklyReport();
+    })
+  )
+    ran.push('weekly');
   return {ran};
 }

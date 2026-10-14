@@ -4313,3 +4313,79 @@ input.hroster-name-input {
 .rv-hosted .rv-att-row span.need {
   color: var(--red);
 }
+
+/* Describe-it entry: free text in, a proposed drawer out */
+.intake-describe {
+  display: grid;
+  gap: 10px;
+  padding: 14px 18px;
+  margin-bottom: 12px;
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--hairline-strong);
+  background: var(--surface);
+}
+.intake-describe-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+  color: var(--accent);
+}
+.intake-describe-head strong { color: var(--text); }
+.intake-describe-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.intake-describe-row textarea {
+  flex: 1;
+  min-height: 52px;
+  resize: vertical;
+  font: inherit;
+  font-size: 13px;
+  padding: 9px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--hairline-strong);
+  background: var(--surface);
+  color: var(--text);
+}
+.intake-describe-error { color: var(--danger, #b42318); font-size: 12px; margin: 0; }
+.intake-describe-note { color: var(--secondary); font-size: 12px; margin: 0; }
+.intake-suggest {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  padding: 12px 14px;
+  border-radius: var(--radius-lg, 12px);
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  background: var(--accent-soft);
+}
+.intake-suggest[data-level="low"] { border-style: dashed; background: transparent; }
+.intake-suggest-main { flex: 1 1 260px; display: grid; gap: 2px; min-width: 0; }
+.intake-suggest-main strong { font-size: 14px; }
+.intake-suggest-main small { font-size: 11.5px; color: var(--secondary); }
+.intake-suggest-label { font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--secondary); }
+.intake-suggest-meter {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--hairline-strong);
+  overflow: hidden;
+  max-width: 220px;
+  margin: 4px 0;
+}
+.intake-suggest-meter i { display: block; height: 100%; background: var(--accent); }
+.intake-suggest-alts {
+  flex-basis: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: var(--secondary);
+}
+.intake-suggest-alts .tag { cursor: pointer; }
+@media (max-width: 640px) {
+  .intake-describe-row { flex-direction: column; }
+  .intake-describe-row .btn { width: 100%; }
+}

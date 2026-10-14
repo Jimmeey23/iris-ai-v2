@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import {getConfig,credentials} from './config';
+import {anyProvider,claudePass,claudeReady,openAIAvoided,providers,shouldUseClaude} from './llm';
 import {extractEntities,inferSentiment,classifyIssue,matchStudio} from './classifier';
 import {makeDraft,historicalExamples} from './tickets';
 import {listMomence,obj} from './momence';
@@ -742,7 +743,7 @@ export async function irisWelcome(
     ],
     collected: c,
     progress: { done: 0, total: 8 },
-    engine: (await credentials('chatgpt')).api_key ? 'openai' : 'guided',
+    engine: anyProvider(await providers()) ? 'openai' : 'guided',
   };
 }
 
@@ -753,8 +754,8 @@ let proposed:ProposedTurn=input.proposedTurn||{};
 // Declared out here because the model is asked from two places: before the flow on the
 // opening description, and after it on every later turn.
 const trustModelFields=priorField==='description'||!priorField;
-let askModel:(plannedField?:string)=>Promise<void>=async()=>{};const connection=await credentials('chatgpt');const key=connection._enabled==='false'?undefined:connection.api_key;let engine:'openai'|'guided'=cfg.aiEnabled&&key?'openai':'guided';let notice:string|undefined;let ai:OpenAI|undefined;
-if(engine==='openai')ai=new OpenAI({apiKey:key,timeout:20000,maxRetries:1});
+let askModel:(plannedField?:string)=>Promise<void>=async()=>{};const connection=await credentials('chatgpt');const key=connection._enabled==='false'?undefined:connection.api_key;let engine:'openai'|'guided'=cfg.aiEnabled&&(key||await claudeReady())?'openai':'guided';let notice:string|undefined;let ai:OpenAI|undefined;
+if(engine==='openai'&&key)ai=new OpenAI({apiKey:key,timeout:20000,maxRetries:1});
 if(raw.startsWith('A member told me')||raw.startsWith('I noticed something')||raw.startsWith('I want to log feedback')||raw.startsWith('I want to log a compliment')){c.kind=raw.includes('compliment')?'compliment':raw.includes('feedback')?'feedback':'issue';c.reportedBy=raw.startsWith('A member told me')?REPORTED_BY_OPTIONS[1]:raw.startsWith('I noticed')?REPORTED_BY_OPTIONS[0]:REPORTED_BY_OPTIONS[2];c.description='';c._welcomeProcessed=true;if(c.kind==='compliment')c.sentiment='positive';}
 else if(raw==='__accept_category__'){c._categoryConfirmed=true;}else if(raw==='__reject_category__'){delete c.category;delete c.subcategory;delete c._guess;c._categoryRejected=true;c._categoryInferred=false;c._categoryConfirmed=true;}else if(raw==='__manual_member__'){c.memberLookupDone=true;c.manualMember=true;}else if(raw==='__studio_report__'){c.memberLookupDone=true;c.memberName=c.reportedBy===REPORTED_BY_OPTIONS[1]?'Member (not named)':'Studio team observation';c.memberEmail='';c.studioReport=true;}else if(raw==='__manual_session__'){c.sessionLookupDone=true;c.manualSession=true;}else if(raw==='__hosted_class__'){c.hostedClass=true;c.classFormat=c.classFormat||'Studio Hosted Class';}else if(raw==='__manual_studio_time__'){
   // User chose to enter studio/time manually — fall through to normal processing
@@ -913,7 +914,7 @@ ${urgent?'- This report carries urgency signals: keep the reply short, lead with
 // The ack is the first key the model writes, so it reaches the reporter while the rest of the
 // turn — the field decision, the question, the options — is still being generated.
 type Pass={content:string;toolCalls:OpenAI.Chat.Completions.ChatCompletionMessageToolCall[]};
-const runPass=async(withTools:boolean):Promise<Pass>=>{
+const runOpenAIPass=async(withTools:boolean):Promise<Pass>=>{
   const body={model:cfg.aiModel,messages,...(withTools?{tools:toolDefs}:{}),response_format:{type:'json_object' as const},max_completion_tokens:1200};
   if(!input.onAckDelta){
     const r=await ai!.chat.completions.create(body);
@@ -965,6 +966,16 @@ const runPass=async(withTools:boolean):Promise<Pass>=>{
   }
   const toolCalls=[...slots.entries()].sort((a,b)=>a[0]-b[0]).map(([,v])=>({id:v.id,type:'function' as const,function:{name:v.name,arguments:v.args}}));
   return{content,toolCalls};
+};
+// OpenAI first; Claude Haiku answers the same pass when OpenAI is out of credits, rate-limited or
+// down (or the only model connected). The reply is returned in the shape the OpenAI pass produces,
+// so everything after this point is unchanged. A Claude pass is not streamed: the acknowledgement
+// arrives with the turn instead of ahead of it.
+const claudePassFor=async(withTools:boolean):Promise<Pass>=>{const r=await claudePass({messages:messages as never,tools:withTools?toolDefs as never:[]});return{content:r.content,toolCalls:r.toolCalls as Pass['toolCalls']};};
+const runPass=async(withTools:boolean):Promise<Pass>=>{
+  if(!ai||openAIAvoided()&&await claudeReady())return claudePassFor(withTools);
+  try{return await runOpenAIPass(withTools);}
+  catch(err){if(await shouldUseClaude(err))return claudePassFor(withTools);throw err;}
 };
 let pass=await runPass(true);
 const calls=pass.toolCalls;if(calls.length){messages.push({role:'assistant',content:pass.content||null,tool_calls:calls});for(const call of calls){if(call.type!=='function')continue;let output:unknown;try{const args=obj(JSON.parse(call.function.arguments));if(!['members','sessions'].includes(String(args.module)))throw new Error('Invalid module');const found=await listMomence(args.module as 'members'|'sessions',{query:String(args.query||''),pageSize:5});output={source:found.source,suggestions:found.items.map(i=>({id:i.id,name:i.name}))};}catch{output={error:'Lookup unavailable. Ask the user to search and select manually.'};}messages.push({role:'tool',tool_call_id:call.id,content:JSON.stringify(output)});}pass=await runPass(false);}

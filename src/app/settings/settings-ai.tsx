@@ -18,6 +18,11 @@ export default function SettingsAiPanel({
         "Enable OpenAI assistance",
         "Use your connected OpenAI model for extraction, personalisation and next-question phrasing. Guided assistance remains available without a key.",
       )}
+      {booleanSetting(
+        "aiFallback",
+        "Fall back to Claude when OpenAI is unavailable",
+        "If OpenAI runs out of credits, rejects the key or is down, requests are answered by Claude Haiku instead of dropping to guided mode. Needs an Anthropic key under Integrations → Claude (backup AI). Speech, transcription and floor-plan images stay on OpenAI.",
+      )}
       <div className="setting-row">
         <div>
           <h4>Model</h4>

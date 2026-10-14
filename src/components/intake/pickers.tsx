@@ -4,8 +4,10 @@ import {ArrowLeft, ArrowUpRight, CalendarDays, ChevronRight, Clock3, ListChecks,
 import {Avatar, Priority} from '../ui';
 import {CategoryArt, CATEGORY_TONE} from '../ticket-art';
 import type {IntakeTaxonomy, IntakeCategory} from './types';
+import {DescribeBox} from './describe-box';
+import type {IntakeSuggestion, Pick} from '@/lib/intake/suggest';
 
-export function CategoryGrid({taxonomy, onPick, onClassDesk}: {taxonomy: IntakeTaxonomy; onPick: (c: IntakeCategory) => void; onClassDesk: () => void}) {
+export function CategoryGrid({taxonomy, onPick, onClassDesk, onSuggest}: {taxonomy: IntakeTaxonomy; onPick: (c: IntakeCategory) => void; onClassDesk: () => void; onSuggest?: (pick: Pick, s: IntakeSuggestion) => void}) {
   const [q, setQ] = useState('');
   const rows = useMemo(() => {
     const s = q.trim().toLowerCase();
@@ -23,6 +25,7 @@ export function CategoryGrid({taxonomy, onPick, onClassDesk}: {taxonomy: IntakeT
         </div>
         <div className="search-input intake-search"><Search size={14} /><input value={q} onChange={e => setQ(e.target.value)} placeholder="Search categories or sub-categories…" aria-label="Search categories" /></div>
       </div>
+      {onSuggest && <DescribeBox onUse={onSuggest} />}
       <button type="button" className="intake-classdesk-cta" onClick={onClassDesk}>
         <span className="intake-classdesk-icon"><CalendarDays size={18} /></span>
         <span className="grow"><strong>Start from a class instead</strong><small>Pick the session out of Momence — roll call, capacity and coach come with it, and the ticket builds itself around the class.</small></span>

@@ -262,12 +262,14 @@ export function useSettingsPageController() {
   const booleanSetting = (
     key:
       | "aiEnabled"
+      | "aiFallback"
       | "historyRetrieval"
       | "autoTag"
       | "autoAssign"
       | "positiveNoSla"
       | "webhookOnCreate"
       | "assignmentEmail"
+      | "weeklyReportEmail"
       | "allowReopen"
       | "maskMemberContact",
     title: string,

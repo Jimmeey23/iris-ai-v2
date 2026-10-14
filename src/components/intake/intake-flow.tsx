@@ -122,6 +122,15 @@ export function IntakeFlow({presetCategory, presetSubcategory, presetDesk, onLeg
     window.scrollTo({top: 0, behavior: 'smooth'});
   }, [taxonomy, user]);
 
+  /** Accepts an IRIS suggestion: opens the form on that sub-category with what the description
+   *  implied pre-filled (badged auto, editable) and the kind IRIS read. */
+  const acceptSuggestion = (pick: {category: string; subcategory: string}, s: {prefill: IntakeData; kind: TicketKind}) => {
+    const c = taxonomy?.categories.find(x => x.name === pick.category);
+    if (!c || !c.subs.some(x => x.name === pick.subcategory)) { notify('That sub-category is not in this workspace.', 'error'); return; }
+    openSub(c, pick.subcategory, s.prefill);
+    setKind(s.kind);
+  };
+
   // The taxonomy, then any ?category=&subcategory= deep link (the board and the radar open
   // Iris this way) applied once it is known.
   useEffect(() => {
@@ -449,7 +458,7 @@ export function IntakeFlow({presetCategory, presetSubcategory, presetDesk, onLeg
       {loadError && <div className="error-box">{loadError} <button type="button" className="text-btn" onClick={() => location.reload()}>Retry</button></div>}
       {!taxonomy && !loadError && <div className="skeleton-cards intake-skeleton">{Array.from({length: 6}).map((_, i) => <div className="skeleton" key={i} style={{height: 150}} />)}</div>}
 
-      {taxonomy && step === 'category' && <CategoryGrid taxonomy={taxonomy} onPick={c => { setCategory(c); setStep('subcategory'); window.scrollTo({top: 0, behavior: 'smooth'}); }} onClassDesk={() => setStep('classdesk')} />}
+      {taxonomy && step === 'category' && <CategoryGrid taxonomy={taxonomy} onPick={c => { setCategory(c); setStep('subcategory'); window.scrollTo({top: 0, behavior: 'smooth'}); }} onClassDesk={() => setStep('classdesk')} onSuggest={acceptSuggestion} />}
       {taxonomy && step === 'subcategory' && category && <SubcategoryGrid category={category} onBack={() => setStep('category')} onPick={s => openSub(category, s)} />}
       {taxonomy && step === 'classdesk' && <ClassDesk taxonomy={taxonomy} onBack={() => setStep('category')} onBuild={onClassBuild} />}
 
