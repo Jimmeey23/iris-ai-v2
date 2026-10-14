@@ -59,6 +59,8 @@ export function MultiSelect({
   const [q, setQ] = useState('');
   const [live, setLive] = useState<PickerOption[]>([]);
   const [busy, setBusy] = useState(false);
+  const [lookupError, setLookupError] = useState('');
+  const [retry, setRetry] = useState(0);
   const [dataSource, setDataSource] = useState('');
   const [open, setOpen] = useState(false);
   const boxRef = useRef<HTMLDivElement>(null);
@@ -70,6 +72,7 @@ export function MultiSelect({
     const controller = new AbortController();
     const t = setTimeout(() => {
       setBusy(true);
+      setLookupError('');
       const params = new URLSearchParams({ module, q, page: '0', pageSize: module === 'sessions' ? '120' : '80' });
       if (module === 'sessions' && studio) params.set('studio', studio);
       if (module === 'sessions') for (const t of sessionTypeKey.split(',').filter(Boolean)) params.append('types[]', t);
@@ -79,14 +82,20 @@ export function MultiSelect({
         { signal: controller.signal },
       )
         .then((d) => {
+          if (controller.signal.aborted) return;
           setLive(d.items.map((r) => toOption(module, r)));
           setDataSource(d.source);
         })
-        .catch((e) => { if (e.name !== 'AbortError') setLive([]); })
-        .finally(() => setBusy(false));
+        .catch(() => {
+          if (controller.signal.aborted) return;
+          setLive([]);
+          setDataSource('');
+          setLookupError('Lookup failed. Please try again.');
+        })
+        .finally(() => { if (!controller.signal.aborted) setBusy(false); });
     }, 220);
     return () => { clearTimeout(t); controller.abort(); };
-  }, [module, q, open, studio, sessionTypeKey, upcoming]);
+  }, [module, q, open, studio, sessionTypeKey, upcoming, retry]);
 
   useEffect(() => {
     function onDocClick(e: MouseEvent) {
@@ -140,7 +149,8 @@ export function MultiSelect({
       </div>
       {open && (
         <div className="multiselect-list">
-          {pool.length === 0 && !busy && (
+          {lookupError && <div className="multiselect-empty" role="alert">{lookupError} <button type="button" onClick={() => setRetry((n) => n + 1)}>Retry</button></div>}
+          {pool.length === 0 && !busy && !lookupError && (
             <div className="multiselect-empty">{emptyHint || 'No matches yet — keep typing or enter details manually.'}</div>
           )}
           {pool.slice(0, 60).map((opt) => (

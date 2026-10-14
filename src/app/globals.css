@@ -18420,3 +18420,12 @@ small {
   font-weight: 600;
   color: var(--accent);
 }
+
+/* Native controls retain the table's typography and visible keyboard focus. */
+.ticket-grid .tg-th, .ticket-grid .tg-open-ticket {
+  border: 0; background: transparent; color: inherit; font: inherit;
+  padding: 0; text-align: inherit; cursor: pointer;
+}
+.ticket-grid .tg-th:focus-visible, .ticket-grid .tg-open-ticket:focus-visible {
+  outline: 2px solid #2563eb; outline-offset: 4px;
+}

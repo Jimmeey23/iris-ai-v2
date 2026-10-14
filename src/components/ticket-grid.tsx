@@ -47,14 +47,14 @@ function durationLabel(ms: number): string {
   return `${Math.round(hours / 24)}d`;
 }
 
-function Cell({column, ticket, staleDays, nowMs}: {column: TicketColumn; ticket: TicketListRecord; staleDays: number; nowMs: number}) {
+function Cell({column, ticket, staleDays, nowMs, onOpen}: {column: TicketColumn; ticket: TicketListRecord; staleDays: number; nowMs: number; onOpen?: () => void}) {
   const t = ticket;
   const stale = nowMs > 0 && nowMs - new Date(t.createdAt).getTime() > staleDays * 86400000 && isOpen(t);
   switch (column) {
     case 'label':
       return (
         <td className="tg-label-cell">
-          <p className="ticket-name" title={t.title}>{recurrenceInfo(t).title}</p>
+          <p className="ticket-name"><button type="button" className="tg-open-ticket" onClick={(e) => { e.stopPropagation(); onOpen?.(); }} title={t.title}>{recurrenceInfo(t).title}</button></p>
           <RecurrenceBadges ticket={t}/>
           <div className="ticket-meta">
             <span className="ticket-id">{t.ticketNumber}</span>
@@ -220,7 +220,7 @@ export function TicketGrid({
 
   const groups = useMemo(() => (groupBy === 'none' ? null : groupTickets(sorted, groupBy)), [sorted, groupBy]);
 
-  const span = columns.length + (onToggleSelect ? 1 : 0);
+  const span = columns.length + (onToggleSelect ? 1 : 0) + (columns.includes("label") ? 0 : 1);
   const allGroupNames = groups?.map(([name]) => name) ?? [];
   const allExpanded = allGroupNames.length > 0 && allGroupNames.every((n) => expandedGroups.includes(n));
 
@@ -228,6 +228,7 @@ export function TicketGrid({
     <thead>
       <tr>
         {onToggleSelect && <th className="tg-check"/>}
+        {!columns.includes("label") && <th scope="col">Open ticket</th>}
         {columns.map((c) => {
           const meta = COLUMN_META[c];
           const active = sortKey === c;
@@ -235,16 +236,15 @@ export function TicketGrid({
             <th
               key={c}
               className={'tg-sortable' + (active ? ' tg-sorted' : '') + (meta.align === 'right' ? ' tg-right' : '')}
-              onClick={() => onSort(c)}
               aria-sort={active ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
               title={`Sort by ${meta.label}`}
             >
-              <span className="tg-th">
+              <button type="button" className="tg-th" onClick={() => onSort(c)}>
                 {meta.label}
                 {active
                   ? (sortDir === 'asc' ? <ArrowUp size={11}/> : <ArrowDown size={11}/>)
                   : <ChevronsUpDown size={11} className="tg-sort-idle"/>}
-              </span>
+              </button>
             </th>
           );
         })}
@@ -268,7 +268,8 @@ export function TicketGrid({
           />
         </td>
       )}
-      {columns.map((c) => <Cell key={c} column={c} ticket={t} staleDays={staleDays} nowMs={nowMs}/>)}
+      {!columns.includes("label") && <td><button type="button" className="tg-open-ticket" onClick={(e) => { e.stopPropagation(); onSelect(t.id); }}>{t.ticketNumber}</button></td>}
+      {columns.map((c) => <Cell key={c} column={c} ticket={t} staleDays={staleDays} nowMs={nowMs} onOpen={() => onSelect(t.id)}/>)}
     </tr>
   );
 

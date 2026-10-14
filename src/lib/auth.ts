@@ -1,7 +1,7 @@
 import { cache } from "react";
 import { cookies } from "next/headers";
 import { createHash, randomBytes } from "crypto";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import type { User } from "@supabase/supabase-js";
 import { db } from "@/db";
 import { directReportIds } from "./reporting-line";
@@ -90,12 +90,6 @@ const PROFILE = {
   active: appUsers.active,
   supabaseUserId: appUsers.supabaseUserId,
 };
-
-function metadataName(user: User, email: string) {
-  return String(
-    user.user_metadata?.full_name || user.user_metadata?.name || email,
-  );
-}
 
 export const NOT_AUTHORISED_MESSAGE =
   "Your account is not authorised for this workspace. Ask an administrator for an invite.";
@@ -194,6 +188,7 @@ export async function resolveProfile(user: User): Promise<ProfileResult> {
     .from(appUsers)
     .where(eq(appUsers.supabaseUserId, user.id));
   if (row) {
+    if (!confirmed) return { identity: null, reason: "not_authorised" };
     if (avatarUrl && !row.avatarUrl)
       [row] = await db
         .update(appUsers)
@@ -223,11 +218,19 @@ export async function resolveProfile(user: User): Promise<ProfileResult> {
   }
   if (!canSelfProvision(email))
     return { identity: null, reason: "not_authorised" };
+  const [directoryEntry] = await db.select().from(staff)
+    .where(sql`lower(${staff.email}) = ${email}`).limit(1);
+  if (!directoryEntry?.isActive)
+    return { identity: null, reason: "not_authorised" };
   [row] = await db
     .insert(appUsers)
     .values({
       email,
-      name: metadataName(user, email),
+      name: directoryEntry.name,
+      staffId: directoryEntry.id,
+      studio: directoryEntry.location,
+      department: directoryEntry.department,
+      reportingManager: directoryEntry.manager,
       supabaseUserId: user.id,
       avatarUrl,
       googleSub,

@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
     login.searchParams.set("error", "oauth_failed");
     return NextResponse.redirect(login);
   }
-  // Links an invited profile or provisions one for an allowlisted domain; any
+  // Links an invited profile or provisions one from the active staff directory; any
   // other Supabase account is signed straight back out. A database failure here must not escape:
   // an unhandled throw renders a blank platform error page instead of the login
   // screen, which hides the real cause from the person signing in.

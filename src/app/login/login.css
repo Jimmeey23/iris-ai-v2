@@ -365,3 +365,5 @@
     gap: 12px;
   }
 }
+
+.auth-visual { background: url('/video/iris-intro-dark.webp') center / cover no-repeat; }

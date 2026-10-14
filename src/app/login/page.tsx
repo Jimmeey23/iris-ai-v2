@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowRight,
@@ -11,13 +11,9 @@ import {
   Mail,
   Sparkles,
   User,
-  Users2,
-  Building2,
 } from "lucide-react";
 import { IrisLockup } from "@/components/iris-mark";
-import { useApp, useMounted } from "@/components/ui";
-import { STUDIOS, DEPARTMENT_RECORDS } from "@/lib/constants";
-import { reportingManagerFor } from "@/lib/staff-directory";
+import { useApp } from "@/components/ui";
 import "./login.css";
 
 /** Fixed copy for every error code the auth routes redirect with. Anything
@@ -34,56 +30,22 @@ const ERROR_MESSAGES: Record<string, string> = {
   oauth_failed: "Sign-in could not be completed. Please try again.",
 };
 
-/**
- * The films behind the sign-in panel.
- *
- * Two are theme-matched — the dark and light cuts of the intro — and the rest are studio
- * films that read well against either. One is chosen per page load, so the page is not the
- * same picture every morning, and the theme-matched pair is weighted so the panel usually
- * suits the theme somebody is already in.
- */
-const AUTH_CLIPS = [
-  {src: '/video/iris-intro-dark.mp4', poster: '/video/iris-intro-dark.webp', theme: 'dark'},
-  {src: '/video/iris-intro-light.mp4', poster: '/video/iris-intro-light.webp', theme: 'light'},
-  {src: '/video/iris-intro-light1.mp4', poster: '/video/iris-intro-light.webp', theme: 'light'},
-  {src: '/video/create_a_cinematic_and_impactf.mp4', poster: '/video/iris-intro-dark.webp', theme: 'any'},
-  {src: '/video/b_create_a_cinematic_a.mp4', poster: '/video/iris-intro-dark.webp', theme: 'any'},
-  {src: '/video/b_the_agent_must_look_.mp4', poster: '/video/iris-intro-dark.webp', theme: 'any'},
-  {src: '/video/retry_this_is_a_support_assi.mp4', poster: '/video/iris-intro-dark.webp', theme: 'any'},
-] as const;
-
-/** Picks a film for this visit: one that suits the current theme, or a theme-neutral one. */
-function pickClip(theme: string) {
-  const suited = AUTH_CLIPS.filter(c => c.theme === theme || c.theme === 'any');
-  const pool = suited.length ? suited : AUTH_CLIPS;
-  return pool[Math.floor(Math.random() * pool.length)];
-}
-
 export default function LoginPage() {
   const router = useRouter();
-  const { refreshUser, theme } = useApp();
-  /**
-   * Chosen after mount rather than during render: picking at render time would make the
-   * server and the browser disagree about which film to show, and React would replace it
-   * mid-fade on hydration. The poster covers the moment before the choice lands, and a
-   * reload picks again — which is what makes it change on every visit.
-   */
-  // The hydration render must match the server, which has no theme and no random number, so
-  // it keeps AUTH_CLIPS[0]; `mounted` flips to true only on the re-render after hydration,
-  // and the pick happens then (and again whenever the theme flips).
-  const mounted = useMounted();
-  const clip = useMemo(
-    () => (mounted ? pickClip(theme) : AUTH_CLIPS[0]),
-    [mounted, theme],
-  );
+  const { refreshUser } = useApp();
+  const [playVideo, setPlayVideo] = useState(false);
+  useEffect(() => {
+    const media = window.matchMedia("(min-width: 1024px) and (prefers-reduced-motion: no-preference)");
+    const update = () => setPlayVideo(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
   const [mode, setMode] = useState<"login" | "signup" | "setup">("login"),
     [setupToken, setSetupToken] = useState(""),
     [email, setEmail] = useState(""),
     [name, setName] = useState(""),
     [password, setPassword] = useState(""),
-    [studio, setStudio] = useState(""),
-    [department, setDepartment] = useState(""),
-    [reportingManager, setReportingManager] = useState(""),
     [show, setShow] = useState(false),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
@@ -117,14 +79,17 @@ export default function LoginPage() {
           email,
           password,
           name: mode === "setup" || mode === "signup" ? name : undefined,
-          studio: mode === "signup" ? studio : undefined,
-          department: mode === "signup" ? department : undefined,
-          reportingManager: mode === "signup" ? reportingManager : undefined,
           setupToken: mode === "setup" ? setupToken : undefined,
         }),
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || "Unable to continue");
+      if (d.verificationRequired) {
+        setMode("login");
+        setPassword("");
+        setNotice("Check your inbox to confirm your work email, then sign in.");
+        return;
+      }
       // A provisioned account must set its own password before it may go anywhere
       // else; every other guard in the app refuses it until then.
       const me = await fetch("/api/auth").then((x) => x.json()).catch(() => null);
@@ -145,18 +110,17 @@ export default function LoginPage() {
   return (
     <main className="auth-page">
       <section className="auth-visual" aria-label="IRIS operations workspace">
-        <video
-          key={clip.src}
+        {playVideo && <video
           autoPlay
           muted
           loop
           playsInline
-          preload="metadata"
-          poster={clip.poster}
+          preload="none"
+          poster="/video/iris-intro-dark.webp"
           className="auth-video"
         >
-          <source src={clip.src} type="video/mp4" />
-        </video>
+          <source src="/video/iris-intro-dark.mp4" type="video/mp4" />
+        </video>}
         <div className="auth-veil" />
         <div className="auth-story">
           <div className="auth-kicker">
@@ -249,83 +213,7 @@ export default function LoginPage() {
                 </div>
               </label>
             )}
-            {/* Studio decides what the account can see — everything logged at
-                that location, not only this person's own tickets — so it is a
-                fixed list rather than free text, and the server checks it
-                again against the same records. */}
-            {mode === "signup" && (
-              <>
-                <div className="auth-signup-pair">
-                <label>
-                  Studio
-                  <div className="auth-input auth-input-select">
-                    <Building2 />
-                    <select
-                      required
-                      value={studio}
-                      onChange={(e) => setStudio(e.target.value)}
-                    >
-                      <option value="" disabled>
-                        Select your studio
-                      </option>
-                      {STUDIOS.map((s) => (
-                        <option key={s.id} value={s.name}>
-                          {s.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </label>
-                <label>
-                  Department
-                  <div className="auth-input auth-input-select">
-                    <Users2 />
-                    <select
-                      required
-                      value={department}
-                      onChange={(e) => {
-                        const next = e.target.value;
-                        setDepartment(next);
-                        // Filled in from the directory, and only while the field is either
-                        // empty or still showing the previous department's suggestion —
-                        // a name somebody typed themselves is never overwritten.
-                        const suggested = reportingManagerFor(next);
-                        if (suggested && (!reportingManager || reportingManager === reportingManagerFor(department))) {
-                          setReportingManager(suggested);
-                        }
-                      }}
-                    >
-                      <option value="" disabled>
-                        Select your department
-                      </option>
-                      {DEPARTMENT_RECORDS.filter((d) => d.active).map((d) => (
-                        <option key={d.id} value={d.name}>
-                          {d.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </label>
-                </div>
-                <label>
-                  Reporting manager
-                  <div className="auth-input">
-                    <User />
-                    <input
-                      required
-                      minLength={2}
-                      maxLength={80}
-                      value={reportingManager}
-                      onChange={(e) => setReportingManager(e.target.value)}
-                      placeholder="Who you report to"
-                    />
-                  </div>
-                  {department && reportingManager === reportingManagerFor(department) && (
-                    <small className="auth-hint">Filled in from the {department} team — change it if you report to someone else.</small>
-                  )}
-                </label>
-              </>
-            )}
+            {mode === "signup" && <p className="auth-hint">Your studio and department come from the staff directory. Confirm your work email using the link sent to your inbox.</p>}
             <label>
               Work email
               <div className="auth-input">

@@ -867,11 +867,11 @@ export const TRAINER_IMAGES: Record<string, string> = {
  *  trainers. Kept as its own map because the two groups come from different
  *  shoots and live in different folders; the lookup below reads both. */
 export const ASSOCIATE_IMAGES: Record<string, string> = {
-  "Deesha Changwani": "/associates/deesha-changwani.png",
-  "Imran Shaikh": "/associates/imran-shaikh.jpg",
-  "Nadiya Shaikh": "/associates/nadiya-shaikh.png",
+  "Deesha Changwani": "/associates/deesha-changwani.webp",
+  "Imran Shaikh": "/associates/imran-shaikh.webp",
+  "Nadiya Shaikh": "/associates/nadiya-shaikh.webp",
   // The file is named for a former surname; the directory lists her as Pinge.
-  "Shipra Pinge": "/associates/shipra-bhika.jpg",
+  "Shipra Pinge": "/associates/shipra-bhika.webp",
 };
 
 /** A trainer's headshot, or null. Matches the full name first, then a first name on its own

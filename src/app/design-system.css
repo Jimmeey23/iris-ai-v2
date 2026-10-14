@@ -1781,7 +1781,7 @@ textarea:focus-visible,
   --ovc-line: rgb(16 24 40 / 0.08);
   --ovc-ink: #101828;
   --ovc-muted: #667085;
-  --ovc-faint: #98a2b3;
+  --ovc-faint: #667085;
   --ovc-surface: #ffffff;
   --ovc-sunken: #f1f4f8;
   --ovc-spark-muted: #94a3b8;

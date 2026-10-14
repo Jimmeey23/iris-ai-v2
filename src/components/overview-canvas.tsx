@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { summarize, isSlaTracked, isBreached } from "@/lib/metrics";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowRight, Sparkles, Zap, TriangleAlert, Timer, ShieldCheck, RotateCcw, Filter } from "lucide-react";
 import type { TicketListRecord } from "@/lib/ticket-contract";
@@ -173,11 +174,9 @@ export function OverviewCanvas({
   const volumeTotal = useMemo(() => volume.reduce((a, b) => a + b, 0), [volume]);
   const peak = volume.indexOf(Math.max(...volume, 1));
 
-  const healthy = useMemo(() => {
-    const risky = new Set(slaRisk.map((t) => t.id));
-    return open.filter((t) => !risky.has(t.id));
-  }, [open, slaRisk]);
-  const compliance = open.length ? Math.round((healthy.length / open.length) * 100) : null;
+  const slaMetrics = useMemo(() => summarize(tickets, mountedAt), [tickets, mountedAt]);
+  const healthy = useMemo(() => tickets.filter((t) => isSlaTracked(t) && !isBreached(t, mountedAt)), [tickets, mountedAt]);
+  const compliance = slaMetrics.slaCompliance;
 
   /** Which card is showing its reverse. Clicking a card flips it; the filter
    *  is a deliberate second step on the back, so a stray click never rewrites
@@ -316,12 +315,12 @@ export function OverviewCanvas({
       value: compliance,
       suffix: "%",
       label: "SLA compliance",
-      sub: "Open within target",
+      sub: "All tracked tickets within target",
       data: bucketCounts(healthy, span),
       facts: [
         ["Within target", `${healthy.length}`],
         ["At risk", `${slaRisk.length}`],
-        ["Breached", `${overdue.length}`],
+        ["Breached", `${slaMetrics.breached}`],
       ] as [string, string][],
       studios: topStudios(slaRisk),
       onOpen: () => onFilter({ state: "open", slaStates: ["breached", "at_risk"] }, "Tickets at SLA risk"),
@@ -435,7 +434,7 @@ export function OverviewCanvas({
                   <span
                     key={i}
                     className={i === peak && volumeTotal > 0 ? "is-peak" : undefined}
-                    style={{ height: Math.max(8, (v / Math.max(...volume, 1)) * 100) + "%" }}
+                    style={{ height: (v / Math.max(...volume, 1)) * 100 + "%" }}
                     title={`${v} logged`}
                   />
                 ))}

@@ -64,7 +64,11 @@ export async function POST(req: Request) {
     const prompt = `This is the existing architectural floor plan render for "${studioName}". Make the smallest possible edit: relocate ONLY the following room(s), nothing else:\n${moved.join('\n')}\n\nEvery other room — ${unchanged.join(', ')} — must stay in exactly the same place, size, shape and appearance as in the source image. Do not change the camera angle, perspective, lighting, color palette, wall style, flooring texture, or any label on an unlisted room. Do not add or remove any room. This is a targeted edit of a real building's plan, not a new design.`;
 
     const client = new OpenAI({apiKey: c.api_key, timeout: 90000, maxRetries: 1});
-    const file = await toFile(imageBuffer, 'floorplan.png', {type: 'image/png'});
+    const imageType = currentSrc?.startsWith('data:')
+      ? currentSrc.slice(5, currentSrc.indexOf(';'))
+      : base.src.endsWith('.webp') ? 'image/webp' : 'image/png';
+    const extension = imageType === 'image/webp' ? 'webp' : imageType === 'image/jpeg' ? 'jpg' : 'png';
+    const file = await toFile(imageBuffer, `floorplan.${extension}`, {type: imageType});
     const image = await client.images.edit({
       model: 'gpt-image-1',
       image: file,

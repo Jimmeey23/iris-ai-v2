@@ -4,7 +4,7 @@ import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {ArrowLeft, ArrowRight, ArrowUpRight, Building2, CalendarClock, CalendarDays, Camera, Check, CheckCircle2, ChevronRight, ClipboardList, Clock3, FileAudio, IndianRupee, ListFilter, LockKeyhole, Megaphone, MessageSquareText, MonitorCog, Paperclip, PenLine, Quote, RotateCcw, Search, Settings2, ShieldAlert, Sparkles, UserRound, Wrench, Zap, type LucideIcon} from 'lucide-react';
 import {Avatar, Badge, Priority, useApp, api} from '../ui';
 import {PasscodeDialog} from '../passcode-dialog';
-import {DraftDocument} from '../ticket-composer';
+import {DraftDocument} from '../draft-document';
 import {TicketDialog} from '../ticket-detail';
 import {inferPriority} from '@/lib/routing';
 import {object} from '@/lib/display';

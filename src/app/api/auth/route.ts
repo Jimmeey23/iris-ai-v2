@@ -22,7 +22,6 @@ import { enforceRateLimit } from "@/lib/rate-limit";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { ensureSeeded } from "@/lib/seed";
-import { STUDIOS, DEPARTMENT_RECORDS } from "@/lib/constants";
 import { audit } from "@/lib/config";
 
 export const dynamic = "force-dynamic";
@@ -220,57 +219,24 @@ export async function POST(req: Request) {
           409,
         );
       }
-      const service = createSupabaseAdminClient();
-      const { data: created, error: createError } =
-        await service.auth.admin.createUser({
-          email,
-          password: b.password,
-          email_confirm: true,
-          user_metadata: { full_name: b.name },
-        });
-      if (createError) authError(createError.message);
-      const supabaseUserId = created.user!.id;
-
-      // Studio and department decide what this account can see, so neither is
-      // taken on trust from the form: each must match a known record, and an
-      // unrecognised value is rejected rather than quietly stored. The studio
-      // in particular widens read access to every ticket at that location.
-      const studio = b.studio?.trim() || "";
-      const department = b.department?.trim() || "";
-      if (!STUDIOS.some((x) => x.name === studio))
-        throw new ApiError("Please choose your studio from the list.", 400);
-      if (!DEPARTMENT_RECORDS.some((d) => d.name === department))
-        throw new ApiError("Please choose your department from the list.", 400);
-      const reportingManager = b.reportingManager?.trim() || null;
-
-      try {
-        const [u] = await db
-          .insert(appUsers)
-          .values({
-            email,
-            supabaseUserId,
-            name: b.name,
-            role: "agent",
-            studio,
-            department,
-            reportingManager,
-          })
-          .returning({ id: appUsers.id });
-        const { error } = await supabase.auth.signInWithPassword({
-          email,
-          password: b.password,
-        });
-        if (error) authError(error.message);
-        await audit(
-          { id: u.id, name: b.name },
-          "account.created",
-          "user:" + u.id,
-        );
-        return Response.json({ ok: true });
-      } catch (e) {
-        await service.auth.admin.deleteUser(supabaseUserId).catch(() => {});
-        throw e;
+      const [directoryEntry] = await db.select().from(staff)
+        .where(sql`lower(${staff.email}) = ${email}`).limit(1);
+      if (!directoryEntry?.isActive)
+        throw new ApiError("Ask an administrator to add your work email to the staff directory before signing up.", 403);
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password: b.password,
+        options: { emailRedirectTo: new URL("/auth/callback", req.url).toString() },
+      });
+      if (error) authError(error.message);
+      // Fail closed if the provider has email confirmation disabled. No workspace
+      // profile is created here; only a verified identity may claim directory scope.
+      if (data.session) {
+        await logout();
+        if (data.user) await createSupabaseAdminClient().auth.admin.deleteUser(data.user.id);
+        throw new ApiError("Email verification must be enabled by the workspace administrator before sign-up is available.", 503);
       }
+      return Response.json({ ok: true, verificationRequired: true });
     }
 
     // `setup` mints the first administrator, `invite` is an administrator minting
