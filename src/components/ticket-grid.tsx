@@ -1,6 +1,6 @@
 "use client";
 
-import {useEffect, useMemo, useState} from 'react';
+import {cloneElement, useEffect, useMemo, useState, type ReactElement} from 'react';
 import {ChevronDown, ChevronRight, ArrowDown, ArrowUp, ChevronsUpDown, TriangleAlert, ArrowUpFromLine, Hourglass} from 'lucide-react';
 import {Avatar, Badge, Priority} from './ui';
 import {RecurrenceBadges, SlaCountdown, StatusPill} from './tickets-board';
@@ -47,7 +47,15 @@ function durationLabel(ms: number): string {
   return `${Math.round(hours / 24)}d`;
 }
 
-function Cell({column, ticket, staleDays, nowMs, onOpen}: {column: TicketColumn; ticket: TicketListRecord; staleDays: number; nowMs: number; onOpen?: () => void}) {
+type CellProps = {column: TicketColumn; ticket: TicketListRecord; staleDays: number; nowMs: number; onOpen?: () => void};
+
+/** Tags every cell with its column so the stylesheet can drop the lower-value columns on narrow screens
+ *  (CellBody holds no hooks and always returns a <td>, which makes the clone safe). */
+function Cell(props: CellProps) {
+  return cloneElement(CellBody(props) as ReactElement<Record<string, unknown>>, {'data-col': props.column});
+}
+
+function CellBody({column, ticket, staleDays, nowMs, onOpen}: CellProps) {
   const t = ticket;
   const stale = nowMs > 0 && nowMs - new Date(t.createdAt).getTime() > staleDays * 86400000 && isOpen(t);
   switch (column) {
@@ -235,6 +243,7 @@ export function TicketGrid({
           return (
             <th
               key={c}
+              data-col={c}
               className={'tg-sortable' + (active ? ' tg-sorted' : '') + (meta.align === 'right' ? ' tg-right' : '')}
               aria-sort={active ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
               title={`Sort by ${meta.label}`}

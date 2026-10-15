@@ -13951,7 +13951,6 @@ small {
   .dialog-content .ticket-detail-shell .td-masthead { padding: 18px 16px 14px; }
   .dialog-content .ticket-detail-shell .td-rev { display: none; }
   .td-title-row { gap: 10px; }
-  .td-head-actions .icon-btn:nth-child(-n + 2) { display: none; }
   .dialog-content .ticket-detail-shell .td-tabs-row { padding: 0 12px; overflow-x: auto; }
   .dialog-content .ticket-detail-shell .td-tabs-row .td-copy { display: none; }
   .dialog-content .ticket-detail-shell .td-overview { padding: 14px 12px 18px; }
@@ -14694,8 +14693,8 @@ small {
   .ticket-detail-dialog .ticket-detail-shell .td-masthead { padding: 18px 16px 16px; }
   .ticket-detail-dialog .td-title-row { gap: 12px; }
   .ticket-detail-dialog .td-modal-title { font-size: 20px; }
-  .ticket-detail-dialog .td-head-actions .icon-btn { width: 36px; height: 36px; }
-  .ticket-detail-dialog .td-head-actions .icon-btn:not(:last-child) { display: none; }
+  .ticket-detail-dialog .td-head-actions { gap: 6px; }
+  .ticket-detail-dialog .td-head-actions .icon-btn { width: 40px; height: 40px; }
   .ticket-detail-dialog .td-tabs-row { padding-inline: 10px; }
   .ticket-detail-dialog .ticket-detail-shell .td-overview { padding: 12px; }
   .ticket-detail-dialog > .dialog-foot .muted { display: none; }
@@ -18428,4 +18427,254 @@ small {
 }
 .ticket-grid .tg-th:focus-visible, .ticket-grid .tg-open-ticket:focus-visible {
   outline: 2px solid #2563eb; outline-offset: 4px;
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   RESPONSIVE PASS — 15 Oct 2026
+   One breakpoint scale for everything below:
+     phone  ≤ 720px   ·   tablet ≤ 1023px   ·   laptop ≤ 1279px   ·   desktop above
+   The rules here sit at the end of the cascade on purpose: earlier blocks in this
+   file redefine the same components several times, and these are the final word.
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* Top bar: the left group may shrink, so a long page name can never push the
+   notification bell off the screen. */
+@media (max-width: 1023px) {
+  .topbar > .flex-row:first-child {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .topbar .breadcrumb {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+  }
+  .topbar .breadcrumb-current {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .topbar-actions {
+    flex: none;
+  }
+}
+@media (max-width: 720px) {
+  /* Phones keep the menu button and the current page; the collapse-sidebar button and the
+     "Workspace ›" trail only make sense next to a persistent sidebar. */
+  .topbar .desktop-sidebar-toggle,
+  .topbar .breadcrumb > :not(.breadcrumb-current) {
+    display: none;
+  }
+  .topbar .topbar-divider {
+    display: none;
+  }
+  .topbar .breadcrumb {
+    font-size: 12px;
+  }
+  /* Comfortable thumb targets for the bar's own buttons. */
+  .topbar .icon-btn {
+    width: 40px;
+    height: 40px;
+  }
+}
+
+/* Ticket table → cards. A seven-column table has nowhere to go on a phone; each row
+   becomes a card: title and meta line first, then status, priority and owner. */
+@media (max-width: 720px) {
+  .ticket-grid,
+  .ticket-grid tbody {
+    display: block;
+    width: 100%;
+  }
+  .ticket-grid thead {
+    display: none;
+  }
+  .ticket-grid tbody tr:not(.tg-group-row) {
+    height: auto;
+    max-height: none;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 10px;
+    padding: 13px 44px 13px 16px;
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 62%, transparent);
+  }
+  .ticket-grid tbody tr:not(.tg-group-row) > td {
+    display: none;
+    padding: 0;
+    border: 0;
+    min-width: 0;
+    height: auto;
+  }
+  .ticket-grid tbody tr > td.tg-label-cell,
+  .ticket-grid tbody tr > td:has(> .tg-open-ticket) {
+    display: block;
+    flex: 1 1 100%;
+    order: -1;
+  }
+  .ticket-grid tbody tr > td:has(.status-pill),
+  .ticket-grid tbody tr > td:has(.priority-badge),
+  .ticket-grid tbody tr > td:has(.mini-owner) {
+    display: block;
+  }
+  .ticket-grid tbody tr > td:has(.mini-owner) {
+    margin-left: auto;
+  }
+  .ticket-grid tbody tr > td.tg-check {
+    display: block;
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    width: auto;
+    order: 0;
+  }
+  .ticket-grid tbody tr > td.tg-check input {
+    width: 20px;
+    height: 20px;
+  }
+  .ticket-grid .ticket-name {
+    max-width: none;
+  }
+  .ticket-grid tr.tg-group-row,
+  .ticket-grid tr.tg-group-row > td {
+    display: block;
+    width: 100%;
+  }
+  .tg-group-head {
+    flex-wrap: wrap;
+  }
+}
+
+/* Resolution panel on a phone: one scrolling row of tabs, a compact stat strip, and the
+   Mark resolved bar pinned to the bottom of the sheet instead of 800px down the page. */
+@media (max-width: 720px) {
+  .resolution-v2 .rw-tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    scroll-snap-type: x proximity;
+    padding: 10px 12px 8px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .resolution-v2 .rw-tabs::-webkit-scrollbar {
+    display: none;
+  }
+  .resolution-v2 .rw-tabs button {
+    flex: 0 0 auto;
+    flex-direction: row;
+    gap: 6px;
+    min-height: 40px;
+    padding: 8px 12px;
+    font-size: 12px;
+    scroll-snap-align: start;
+    white-space: nowrap;
+  }
+  .resolution-v2 .rw-foot {
+    position: sticky;
+    bottom: 0;
+    z-index: 3;
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px));
+    background: var(--surface);
+    box-shadow: 0 -8px 20px -14px rgb(0 0 0 / 0.35);
+  }
+  .resolution-v2 .rw-foot p {
+    flex: 1;
+    font-size: 11.5px;
+  }
+  .resolution-v2 .rw-foot .btn {
+    flex: none;
+    min-height: 44px;
+    height: 44px;
+    padding: 0 18px;
+    font-size: 14px;
+  }
+}
+
+/* Phones: 16px text in form controls stops iOS Safari zooming the page on focus, and 44px is
+   the smallest comfortable tap target. */
+@media (max-width: 720px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+  select,
+  textarea {
+    font-size: 16px;
+  }
+  .btn,
+  .icon-btn {
+    min-height: 40px;
+  }
+  .btn.btn-sm {
+    min-height: 40px;
+    padding-inline: 14px;
+  }
+}
+
+/* Ticket table on tablets: Ticket, Status, Priority and Owner must stay on screen, so the lower-value
+   columns step aside as the width shrinks (they all remain on desktop, and in the CSV export). */
+@media (max-width: 1100px) {
+  .ticket-grid :is(th, td):is(
+      [data-col="kind"], [data-col="category"], [data-col="subcategory"], [data-col="department"],
+      [data-col="source"], [data-col="coOwners"], [data-col="reporter"], [data-col="created"],
+      [data-col="updated"], [data-col="revisedSla"], [data-col="extension"],
+      [data-col="committedResolution"], [data-col="escalation"], [data-col="resolved"],
+      [data-col="closed"], [data-col="timeToResolve"]
+    ) {
+    display: none;
+  }
+}
+@media (max-width: 900px) {
+  .ticket-grid th,
+  .ticket-grid td {
+    padding-inline: 10px;
+  }
+  .ticket-grid td.tg-label-cell {
+    min-width: 170px;
+  }
+  .data-table th:first-child,
+  .data-table td:first-child {
+    padding-left: 12px;
+  }
+  .ticket-grid .mini-owner small {
+    display: none;
+  }
+  .ticket-grid :is(th, td):is([data-col="member"], [data-col="studio"], [data-col="slaDue"], [data-col="ticketNumber"]) {
+    display: none;
+  }
+}
+
+/* Feed view on a phone: the status chips drop under the entry instead of squeezing the title into
+   86px, and a long category chip wraps instead of pushing the whole page wider than the screen. */
+@media (max-width: 720px) {
+  .feed-list {
+    padding: 4px 14px;
+  }
+  .feed-item {
+    flex-wrap: wrap;
+    gap: 6px 12px;
+  }
+  .feed-time {
+    width: 46px;
+  }
+  .feed-right {
+    order: 3;
+    flex: 1 1 100%;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    align-items: center;
+    gap: 6px;
+    margin-left: 0;
+    text-align: left;
+    padding-left: calc(46px + 9px + 24px);
+  }
+  .feed-body .chip {
+    white-space: normal;
+    max-width: 100%;
+    height: auto;
+    text-align: left;
+  }
 }

@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import {
   Gauge,
   Bot,
@@ -140,6 +140,17 @@ if (typeof window !== "undefined")
     shellCache.tickets = undefined;
   });
 
+/** True at phone widths, where the sidebar is an off-canvas drawer and the saved
+ *  "collapsed rail" preference has no meaning. Mirrors the 767px breakpoint in globals.css. */
+const PHONE_QUERY = "(max-width: 767px)";
+const subscribePhone = (cb: () => void) => {
+  const mq = window.matchMedia(PHONE_QUERY);
+  mq.addEventListener("change", cb);
+  return () => mq.removeEventListener("change", cb);
+};
+const usePhone = () =>
+  useSyncExternalStore(subscribePhone, () => window.matchMedia(PHONE_QUERY).matches, () => false);
+
 export function Shell({
   children,
   title = "Overview",
@@ -168,13 +179,16 @@ export function Shell({
   const { user, openAuth, refreshUser, notify, pollSeconds } = useApp();
   /** Live presence, shared with every avatar in the app — one poll, one truth. */
   const { online } = useDirectory();
+  const phone = usePhone();
   const [notices, setNotices] = useState<ShellNotice[]>(() => freshCache(shellCache.notices, user?.id) ?? []);
   const [mobile, setMobile] = useState(false),
-    [collapsed, setCollapsed] = useState(true),
+    [collapsedPref, setCollapsed] = useState(true),
     [searchOpen, setSearchOpen] = useState(false),
     [notifications, setNotifications] = useState(false),
     [query, setQuery] = useState(""),
     [items, setItems] = useState<ShellTicket[]>(() => freshCache(shellCache.tickets, user?.id) ?? []);
+  /** The rail preference only applies where there is a persistent sidebar. */
+  const collapsed = collapsedPref && !phone;
   /**
    * The topbar only claims elevation once there is content underneath it to lift
    * off. Passive listener, and it writes straight to the DOM attribute rather

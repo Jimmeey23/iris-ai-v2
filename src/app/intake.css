@@ -4389,3 +4389,50 @@ input.hroster-name-input {
   .intake-describe-row { flex-direction: column; }
   .intake-describe-row .btn { width: 100%; }
 }
+
+/* ── Responsive pass (15 Oct 2026): phones ──────────────────
+   The stepper keeps all four dots on one line and names only the current step; the
+   head stacks; the description box fills its card instead of sitting at a fixed width. */
+@media (max-width: 760px) {
+  .intake-head {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+    padding: 16px;
+  }
+  .intake-stepper {
+    width: 100%;
+    gap: 0;
+    flex-wrap: nowrap;
+  }
+  .intake-stepper li {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 4px 2px;
+  }
+  .intake-stepper li:first-child {
+    flex: 0 0 auto;
+  }
+  .intake-stepper li.current {
+    flex: 1 1 auto;
+  }
+  .intake-stepper li + li:before {
+    flex: 1;
+    width: auto;
+    min-width: 8px;
+  }
+  .intake-stepper li:not(.current) .intake-stepper-label {
+    display: none;
+  }
+  .intake-head-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .intake-head-actions .btn {
+    min-height: 44px;
+  }
+  .intake-describe-row textarea {
+    width: 100%;
+    min-height: 92px;
+  }
+}

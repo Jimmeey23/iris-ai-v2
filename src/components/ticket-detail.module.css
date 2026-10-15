@@ -431,3 +431,47 @@
   .rdGrid { grid-template-columns: minmax(0, 1fr); }
   .rdNested > div { grid-template-columns: minmax(0, 1fr); gap: 0; }
 }
+
+/* Phones (≤720px): the five resolution tabs stay on one swipeable row, and Mark resolved is pinned to the
+   bottom of the sheet rather than sitting 800px down a long page. Same specificity as the rules above,
+   so these win by order alone. */
+@media (max-width: 720px) {
+  .dialog:global(.ticket-detail-dialog) .shell .resolution :global(.rw-tabs) {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+  }
+  .dialog:global(.ticket-detail-dialog) .shell .resolution :global(.rw-tabs)::-webkit-scrollbar { display: none; }
+  .dialog:global(.ticket-detail-dialog) .shell .resolution :global(.rw-tabs button) {
+    flex: 0 0 auto;
+    flex-direction: row;
+    min-height: 44px;
+    padding: 8px 14px;
+    font-size: 13px;
+    white-space: nowrap;
+    scroll-snap-align: start;
+  }
+  .dialog:global(.ticket-detail-dialog) .shell .resolution :global(.rw-body) { padding: 14px 12px; }
+  .dialog:global(.ticket-detail-dialog) .shell .resolution :global(.rw-foot) {
+    position: sticky;
+    bottom: 0;
+    z-index: 3;
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px));
+    background: var(--surface);
+    box-shadow: 0 -8px 20px -14px rgb(0 0 0 / 0.35);
+  }
+  .dialog:global(.ticket-detail-dialog) .shell .resolution :global(.rw-foot p) { flex: 1; font-size: 11.5px; }
+  .dialog:global(.ticket-detail-dialog) .shell .resolution :global(.rw-foot .btn) {
+    flex: none;
+    min-height: 44px;
+    height: 44px;
+    padding: 0 18px;
+    font-size: 14px;
+  }
+}

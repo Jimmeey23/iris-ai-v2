@@ -50,22 +50,33 @@
 .feedback-tab:focus-visible svg {
   color: var(--accent-text);
 }
-/* On a phone the vertical tab has nowhere to live: it becomes a small round
-   button above the thumb, clear of the bottom navigation. */
-@media (max-width: 720px) {
+/* Below desktop width the vertical edge tab has nowhere to live — it would sit on the table's last
+   column, and on a phone it covers content outright. It becomes a quiet 44px round button in the
+   bottom corner, clear of the thumb zone's centre and of the home indicator. */
+@media (max-width: 1100px) {
   .feedback-tab {
     top: auto;
-    bottom: 84px;
-    right: 14px;
+    bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+    right: 12px;
     transform: none;
     writing-mode: horizontal-tb;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    justify-content: center;
+    gap: 0;
+    font-size: 0;
+    border: 1px solid var(--border-strong);
     border-radius: var(--radius-pill);
-    border-right: 1px solid var(--border-strong);
-    padding: 10px 14px;
-    letter-spacing: 0.04em;
+    opacity: 0.92;
+  }
+  .feedback-tab span {
+    display: none;
   }
   .feedback-tab svg {
     rotate: none;
+    width: 18px;
+    height: 18px;
   }
   .feedback-tab:hover,
   .feedback-tab:focus-visible {
