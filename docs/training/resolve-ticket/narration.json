@@ -1,0 +1,62 @@
+[
+[
+"i1",
+"Here's how to document and resolve a ticket that's assigned to you.",
+0
+],
+[
+"o1",
+"Open the Resolution panel. Only you and your manager can edit it.",
+0.5
+],
+[
+"o2",
+"The ring shows how complete your documentation is.",
+0.3
+],
+[
+"s1",
+"Steps is your work log. Add a short entry each time you do something.",
+0.4
+],
+[
+"f1",
+"Follow-ups are things you still need to chase. Set a due date, and tick it off when it's done.",
+0.4
+],
+[
+"c1",
+"Contact is your outreach log. Pick the channel and outcome, add a note, and log every attempt, even the missed ones.",
+0.4
+],
+[
+"a1",
+"Files is for evidence: receipts, screenshots, or recordings.",
+0.4
+],
+[
+"m1",
+"Summary is the formal write-up. Action taken is the only required field.",
+0.4
+],
+[
+"m2",
+"Be specific enough that someone could repeat it. Not just, fixed.",
+0.3
+],
+[
+"m3",
+"Root cause, preventive action, and member outcome are optional, but worth filling in. Then click Save write-up.",
+0.4
+],
+[
+"r1",
+"To finish, click Mark resolved. It only works once Action taken is filled in, and it saves your write-up for you.",
+0.5
+],
+[
+"z1",
+"Log as you go, write a clear action taken, then mark it resolved.",
+0.5
+]
+]

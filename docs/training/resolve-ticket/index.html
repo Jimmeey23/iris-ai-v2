@@ -1,0 +1,379 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Resolving a ticket assigned to you</title>
+<style>
+:root{
+  --bg:#08080b;--surface:#101015;--surface-2:#16161c;--surface-3:#1e1f26;--surface-4:#282933;--text:#f6f4ee;--muted:#8a879a;
+  --secondary:#b8b5c3;--border:#232430;--border-strong:#343542;--accent:#f4bb3d;--accent-text:#161206;
+  --green:#57d6a8;--green-bg:#57d6a81c;--red:#ff6b7a;--red-bg:#ff6b7a1c;--blue:#5fb3ff;--amber-bg:#f4bb3d1c;
+}
+*{box-sizing:border-box;margin:0}
+html,body{background:#000;height:100%}
+body{display:flex;align-items:center;justify-content:center;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Helvetica,Arial,sans-serif;color:var(--text)}
+#stage{position:relative;width:1280px;height:720px;background:var(--bg);overflow:hidden;flex:none}
+.abs{position:absolute}
+#head{left:56px;top:30px;width:1168px;display:flex;align-items:center;gap:14px}
+#head .id{color:var(--muted);font-size:15px}
+#head h1{font-size:22px;font-weight:650;letter-spacing:-.01em}
+.chip{font-size:12.5px;padding:4px 10px;border-radius:999px;border:1px solid var(--border-strong);color:var(--secondary);white-space:nowrap;display:inline-block}
+.chip.amber{background:var(--amber-bg);color:var(--accent);border-color:#f4bb3d44}
+.chip.green{background:var(--green-bg);color:var(--green);border-color:#57d6a844}
+.chip.blue{color:var(--blue);border-color:#5fb3ff44}
+.spacer{flex:1}
+#list{left:56px;top:96px;width:1168px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px}
+#list h2{font-size:14px;color:var(--muted);font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px}
+.row{display:flex;align-items:center;gap:14px;padding:14px;border-radius:10px;border:1px solid transparent;font-size:16px}
+.row .id{color:var(--muted);width:56px}
+.row.sel{background:var(--surface-3);border-color:var(--border-strong)}
+.row.dim{opacity:.55}
+#panel{left:56px;top:84px;width:1168px;height:500px;background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;display:flex;flex-direction:column}
+#panel .top{display:flex;align-items:center;gap:14px;padding:10px 20px;border-bottom:1px solid var(--border);height:62px}
+#ringwrap{display:flex;align-items:center;gap:12px}
+#ringwrap svg{display:block}
+#ringwrap .k{font-size:10.5px;letter-spacing:.12em;color:var(--muted);font-weight:700}
+#ringwrap strong{display:block;font-size:15px}
+#ringwrap .m{font-size:12.5px;color:var(--secondary)}
+.stage-sel{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted)}
+#stagebox{display:flex;align-items:center;gap:10px}
+.fake-select{min-width:130px;padding:7px 12px;border:1px solid var(--border-strong);border-radius:8px;background:var(--surface-2);color:var(--text);font-size:14px}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:8px;border:1px solid var(--border-strong);background:var(--surface-3);color:var(--text);font-size:14px;font-weight:550;white-space:nowrap}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-text)}
+.btn.off{opacity:.4}
+.tabs{display:flex;gap:6px;padding:8px 20px;border-bottom:1px solid var(--border);height:54px}
+.tab{padding:8px 14px;border-radius:8px;font-size:14px;color:var(--secondary);display:flex;gap:8px;align-items:center}
+.tab.on{background:var(--surface-3);color:var(--text)}
+.tab .n{font-size:11.5px;background:var(--surface-4);padding:1px 7px;border-radius:99px;color:var(--secondary)}
+.panes{flex:1;position:relative;overflow:hidden}
+.pane{display:none;padding:18px 20px}
+.pane.on{display:block}
+.field{background:var(--surface-2);border:1px solid var(--border-strong);border-radius:10px;padding:11px 14px;font-size:15.5px;min-height:44px;color:var(--text);line-height:1.4}
+.field .ph{color:var(--muted)}
+.caret::after{content:"";display:inline-block;width:2px;height:1.05em;background:var(--accent);margin-left:1px;vertical-align:-2px;animation:b 1s steps(1) infinite}
+@keyframes b{50%{opacity:0}}
+.line{display:flex;gap:12px;align-items:flex-start}
+.line .field{flex:1}
+.item{margin-top:12px;padding:11px 14px;border-left:3px solid var(--accent);background:var(--surface-2);border-radius:6px;font-size:15px;opacity:0}
+.item small{display:block;color:var(--muted);font-size:12px;margin-top:3px}
+.item.done{border-left-color:var(--green)}
+.item.done .t{text-decoration:line-through;color:var(--muted)}
+.picks{display:flex;gap:8px;margin-bottom:10px;align-items:center;padding:3px 0}
+.picks label{color:var(--muted);font-size:12.5px;width:64px}
+.pick{padding:6px 13px;border-radius:8px;border:1px solid var(--border-strong);font-size:14px;color:var(--secondary)}
+.pick.on{background:var(--amber-bg);border-color:var(--accent);color:var(--accent)}
+.drop{border:2px dashed var(--border-strong);border-radius:12px;padding:22px;display:flex;align-items:center;gap:16px;color:var(--secondary);font-size:15px}
+.drop strong{display:block;color:var(--text);font-size:15.5px}
+.drop small{color:var(--muted);font-size:12.5px}
+.sgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px 16px}
+.sgrid .lab{font-size:13px;font-weight:600;margin-bottom:4px;display:flex;gap:8px;align-items:center}
+.sgrid .lab i{font-style:normal;font-weight:500;color:var(--muted);font-size:12px}
+.req{font-size:10.5px;background:var(--accent);color:var(--accent-text);padding:2px 7px;border-radius:99px;font-weight:700;letter-spacing:.04em}
+.sgrid .field{min-height:58px;font-size:14px;padding:9px 12px}
+.sgrid .wide{grid-column:1 / 3}
+.warn{color:var(--red);background:var(--red-bg);border-radius:6px;padding:5px 10px;font-size:12.5px;margin-top:5px;opacity:0;height:0;overflow:visible}
+.field.bad{border-color:var(--red)}
+.field.good{border-color:var(--green)}
+.foot{height:58px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:flex-end;gap:16px;padding:0 20px}
+.foot p{color:var(--secondary);font-size:13.5px}
+#cap{left:0;right:0;bottom:0;height:128px;background:linear-gradient(transparent,#000d 38%);padding:0 56px 22px;display:flex;align-items:flex-end;gap:18px}
+#cap .badge{font-size:12.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--accent-text);background:var(--accent);padding:6px 11px;border-radius:7px;white-space:nowrap;margin-bottom:4px}
+#cap .txt b{display:block;font-size:22px;letter-spacing:-.01em;margin-bottom:2px}
+#cap .txt span{color:var(--secondary);font-size:17px;line-height:1.35;display:block}
+#ring{border:3px solid var(--accent);border-radius:12px;box-shadow:0 0 0 6px #f4bb3d22;pointer-events:none;opacity:0;z-index:7}
+#ring.t-req{border-color:var(--red);box-shadow:0 0 0 6px #ff6b7a26}
+#ring.t-good{border-color:var(--green);box-shadow:0 0 0 6px #57d6a826}
+#call{padding:6px 12px;border-radius:8px;background:var(--accent);color:var(--accent-text);font-size:14px;font-weight:700;pointer-events:none;opacity:0;white-space:nowrap;z-index:8;transform:translate(-100%,-55%);box-shadow:0 6px 18px #0009}
+#call.t-req{background:var(--red);color:#1a0508}
+#call.t-good{background:var(--green);color:#04170f}
+#cursor{width:26px;height:26px;pointer-events:none;z-index:9;filter:drop-shadow(0 2px 3px #000a)}
+#rip{width:46px;height:46px;border-radius:50%;border:3px solid var(--accent);pointer-events:none;opacity:0;z-index:8}
+.toast{left:720px;top:24px;border:1px solid #57d6a866;color:var(--green);padding:11px 18px;border-radius:10px;font-size:15px;font-weight:600;opacity:0;background:#0f2a22;z-index:12}
+#intro,#outro{inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:16px;z-index:20}
+#intro h1{font-size:52px;letter-spacing:-.025em;max-width:900px;line-height:1.1}
+#intro p{font-size:22px;color:var(--secondary)}
+#intro .tag{font-size:14px;color:var(--accent);letter-spacing:.14em;text-transform:uppercase;font-weight:700}
+#outro h2{font-size:40px;letter-spacing:-.02em;margin-bottom:8px}
+#outro ol{list-style:none;display:flex;flex-direction:column;gap:12px;text-align:left;font-size:22px;counter-reset:c}
+#outro li{counter-increment:c;display:flex;gap:16px;align-items:center;background:var(--surface);border:1px solid var(--border);padding:14px 22px;border-radius:12px;min-width:700px}
+#outro li::before{content:counter(c);width:34px;height:34px;border-radius:50%;background:var(--accent);color:var(--accent-text);font-weight:800;display:flex;align-items:center;justify-content:center;font-size:17px;flex:none}
+#bar{left:0;bottom:0;height:4px;background:var(--accent);z-index:30}
+#logo{inset:0;background:#000;z-index:40;display:none;overflow:hidden}
+#glow{left:640px;top:300px;width:900px;height:900px;margin:-450px 0 0 -450px;border-radius:50%;background:radial-gradient(circle,#f4bb3d55 0%,#f4bb3d1a 35%,transparent 65%);opacity:0}
+#lring1,#lring2{left:640px;top:300px;width:300px;height:300px;margin:-150px 0 0 -150px;border-radius:50%;border:2px solid #f4bb3d;opacity:0}
+#lmark{left:640px;top:300px;width:260px;height:260px;margin:-130px 0 0 -130px;border-radius:42px;opacity:0}
+#lword{left:0;right:0;top:468px;text-align:center;display:flex;flex-direction:column;gap:10px;align-items:center}
+#lname{font-size:58px;font-weight:700;letter-spacing:.2em;color:#f6f4ee;opacity:0}
+#lname b{color:#f4bb3d;font-weight:700;letter-spacing:.05em}
+#ltag{font-size:18px;letter-spacing:.34em;text-transform:uppercase;color:#b8b5c3;opacity:0}
+#play{inset:0;z-index:50;background:#000b;display:none;align-items:center;justify-content:center;font-size:28px;font-weight:700;cursor:pointer}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="head" class="abs">
+    <span class="id">#1042</span><h1>Member charged twice for 10-class pack</h1>
+    <span class="chip">High priority</span>
+    <span class="spacer"></span>
+    <span class="chip blue">Assigned to you</span>
+    <span class="chip amber" id="stchip">In progress</span>
+  </div>
+
+  <div id="list" class="abs">
+    <h2>Assigned to me</h2>
+    <div class="row dim"><span class="id">#1039</span><span>Studio speaker crackling in Room B</span><span class="spacer"></span><span class="chip">Medium</span></div>
+    <div class="row" id="row1"><span class="id">#1042</span><span>Member charged twice for 10-class pack</span><span class="spacer"></span><span class="chip">High</span></div>
+    <div class="row dim"><span class="id">#1044</span><span>Reformer spring replacement</span><span class="spacer"></span><span class="chip">Low</span></div>
+  </div>
+
+  <div id="panel" class="abs">
+    <div class="top">
+      <div id="ringwrap">
+        <svg width="42" height="42" viewBox="0 0 42 42"><circle cx="21" cy="21" r="17" fill="none" stroke="#282933" stroke-width="4"/><circle id="rc" cx="21" cy="21" r="17" fill="none" stroke="#f4bb3d" stroke-width="4" stroke-linecap="round" stroke-dasharray="106.8" transform="rotate(-90 21 21)"/><text id="rn" x="21" y="25.5" text-anchor="middle" font-size="12" font-weight="700" fill="#f6f4ee">0</text></svg>
+        <div><span class="k">RESOLUTION</span><strong>Case resolution</strong><span class="m" id="rm">0% documented</span></div>
+      </div>
+      <span class="spacer"></span>
+      <div id="sub" style="font-size:13px;color:var(--muted);padding:2px 4px">Editable by the assigned owner and their reporting manager</div>
+      <span class="spacer"></span>
+      <div class="stage-sel" id="stagebox"><span>Current stage</span><span class="fake-select" id="sel">In progress</span><span class="btn off" id="apply">Apply</span></div>
+    </div>
+    <div class="tabs">
+      <div class="tab on" id="tab-steps">Steps <span class="n" id="n-steps">0</span></div>
+      <div class="tab" id="tab-chase">Follow-ups <span class="n" id="n-chase">0</span></div>
+      <div class="tab" id="tab-member">Contact <span class="n" id="n-member">0</span></div>
+      <div class="tab" id="tab-files">Files <span class="n" id="n-files">0</span></div>
+      <div class="tab" id="tab-writeup">Summary <span class="n" id="n-writeup">0</span></div>
+    </div>
+    <div class="panes">
+      <div class="pane on" id="pane-steps">
+        <div class="line"><div class="field" id="f-step"></div><span class="btn primary" id="b-step">+ Add step</span></div>
+        <div class="item" id="s1"><span class="t">Called member and confirmed the double charge</span><small>You · just now</small></div>
+      </div>
+
+      <div class="pane" id="pane-chase">
+        <div class="line"><div class="field" id="f-chase"></div><div class="field" id="due" style="flex:none;width:210px;color:var(--secondary)">Tomorrow, 10:00 am</div><span class="btn primary" id="b-chase">+ Add follow-up</span></div>
+        <div class="item" id="fu1"><span class="t" id="fu1t">Check the refund reached the member's card</span><small id="fu1s">Open · due tomorrow, 10:00 am</small></div>
+      </div>
+
+      <div class="pane" id="pane-member">
+        <div class="picks" id="row-ch"><label>Channel</label><span class="pick on" id="p-call">Call</span><span class="pick" id="p-wa">WhatsApp</span><span class="pick">Email</span><span class="pick">SMS</span><span class="pick">In person</span></div>
+        <div class="picks" id="row-out"><label>Outcome</label><span class="pick">No answer</span><span class="pick on" id="po-reached">Reached</span><span class="pick">Left message</span><span class="pick">Awaiting reply</span><span class="pick">Declined</span></div>
+        <div class="line"><div class="field" id="f-contact" style="min-height:62px"></div><span class="btn primary" id="b-contact">+ Log contact</span></div>
+        <div class="item" id="c1"><span class="t"><b>WhatsApp · Reached</b> — Confirmed refund; member happy to wait 3 days</span><small>You · just now</small></div>
+      </div>
+
+      <div class="pane" id="pane-files">
+        <div class="drop" id="drop"><span style="font-size:26px">☁️</span><span><strong>Add evidence</strong><small>Documents, images or voice recordings · up to 15 MB each</small></span><span class="spacer"></span><span class="btn" id="b-file">Choose files</span></div>
+        <div id="ready" style="margin-top:12px;display:none;align-items:center;gap:12px;font-size:14px;color:var(--secondary)"><span>1 file ready</span><span class="btn primary" id="b-upload">Upload</span></div>
+        <div class="item" id="a1"><span class="t">📎 refund-receipt.pdf</span><small>84 KB · You · today</small></div>
+      </div>
+
+      <div class="pane" id="pane-writeup">
+        <div class="sgrid">
+          <div class="wide" id="w-action"><div class="lab">Action taken <span class="req">required to resolve</span><i>What fixed it?</i></div><div class="field" id="f-action" style="min-height:54px"></div><div style="position:relative"><div class="warn" id="warn">Too vague — say what you actually did, so the next person can repeat it.</div></div></div>
+          <div id="w-root"><div class="lab">Root cause <i>Why did this happen?</i></div><div class="field" id="f-root"></div></div>
+          <div id="w-prev"><div class="lab">Preventive action <i>What stops it happening again?</i></div><div class="field" id="f-prev"></div></div>
+          <div class="wide" id="w-out"><div class="lab">Member outcome <i>Where did this leave the member?</i></div><div class="field" id="f-out" style="min-height:44px"></div></div>
+        </div>
+        <div style="position:absolute;right:20px;bottom:10px"><span class="btn primary" id="b-save">Save write-up</span></div>
+      </div>
+    </div>
+    <div class="foot"><p id="hint">Action taken is needed before this can be resolved.</p><span class="btn primary off" id="b-resolve">✓ Mark resolved</span></div>
+  </div>
+
+  <div id="ring" class="abs"></div>
+  <div id="call" class="abs"></div>
+  <div id="toast1" class="toast abs">✓ Write-up saved.</div>
+  <div id="toast2" class="toast abs">✓ Ticket marked Resolved</div>
+
+  <div id="intro" class="abs"><span class="tag">Iris Support Hub · Staff guide</span><h1>Resolving a ticket assigned to you</h1><p>What each Resolution tab is for, what’s required, and how to resolve</p></div>
+  <div id="outro" class="abs"><h2>The short version</h2>
+    <ol><li>Log your steps and every contact</li><li>Write a specific “Action taken” — it’s required</li><li>Save the write-up, then Mark resolved</li></ol></div>
+  <div id="logo" class="abs"><div id="glow" class="abs"></div><div id="lring1" class="abs"></div><div id="lring2" class="abs"></div><img id="lmark" class="abs" src="iris-mark-dark.webp" alt="Iris"><div id="lword" class="abs"><span id="lname">IRIS <b>Ai</b></span><span id="ltag">Support Ticket Hub</span></div></div>
+
+  <div id="cap" class="abs"><span class="badge" id="cb"></span><div class="txt"><b id="ct"></b><span id="cs"></span></div></div>
+  <div id="rip" class="abs"></div>
+  <svg id="cursor" class="abs" viewBox="0 0 24 24"><path d="M4 2l15 9-6.5 1.6L9.6 19z" fill="#fff" stroke="#000" stroke-width="1.4" stroke-linejoin="round"/></svg>
+  <div id="bar" class="abs"></div>
+  <div id="play" class="abs">▶ Click to play with narration</div>
+</div>
+<audio id="aud" src="narration.mp3" preload="auto"></audio>
+<script src="timings.js"></script>
+<script>
+const $=s=>document.querySelector(s);
+const DUR=window.TOTAL;
+const clamp=(x,a=0,b=1)=>Math.min(b,Math.max(a,x));
+const ease=x=>x<.5?2*x*x:1-Math.pow(-2*x+2,2)/2;
+const easeOut=x=>1-Math.pow(1-x,3);
+const typed=(txt,t,t0,cps)=>txt.slice(0,Math.max(0,Math.floor((t-t0)*cps)));
+/* f(id,x): x is the fraction of that narration beat that has elapsed */
+const f=(id,x=0)=>B[id]+D[id]*x, end=id=>B[id]+D[id];
+const fade=(el,t,t0,d=.35)=>{const k=clamp((t-t0)/d);el.style.opacity=k;el.style.transform=`translateY(${(1-k)*8}px)`;};
+function field(el,txt,ph,typing){el.innerHTML=txt?txt:`<span class="ph">${ph}</span>`;el.classList.toggle('caret',!!typing);}
+function tab(name){document.querySelectorAll('.tab').forEach(e=>e.classList.remove('on'));$('#tab-'+name).classList.add('on');
+  document.querySelectorAll('.pane').forEach(e=>e.classList.remove('on'));$('#pane-'+name).classList.add('on');}
+
+const GOOD='Refunded the duplicate charge, emailed the receipt and confirmed with the member.';
+const TXT={step:'Called member and confirmed the double charge',chase:'Check the refund reached the member\u2019s card',contact:'Confirmed refund; member happy to wait',
+  root:'Payment timeout caused a retry',prev:'Flagged the retry bug to payments',out:'Refunded in full'};
+
+/* key moments (absolute seconds) */
+const K={
+ row:f('o1',.28), panel:f('o1',.5),
+ tabS:f('s1',.06), step0:f('s1',.42), addS:f('s1',.86),
+ tabF:f('f1',.04), fu0:f('f1',.22), addF:f('f1',.7), tickF:f('f1',.95),
+ tabC:f('c1',.03), wa:f('c1',.25), outc:f('c1',.45), note0:f('c1',.52), logC:f('c1',.86),
+ tabA:f('a1',.04), choose:f('a1',.38), upload:f('a1',.8),
+ tabW:f('m1',.04), vague0:f('m2',.55), clear:f('m3',0), good0:f('m3',.06), root0:f('m3',.36), prev0:f('m3',.5), out0:f('m3',.64), save:f('m3',.9),
+ resolve:f('r1',.7)
+};
+const tGoodDone=K.good0+2.8;
+
+const P=[
+ [f('o1',.02),[1000,520]],[f('o1',.2),'#row1'],[K.row,'#row1',1],[f('o2',.1),[760,330]],
+ [K.tabS,'#tab-steps',1],[K.step0,'#f-step'],[K.addS,'#b-step',1],
+ [K.tabF,'#tab-chase',1],[K.fu0,'#f-chase'],[K.addF,'#b-chase',1],[K.tickF,'#fu1',1],
+ [K.tabC,'#tab-member',1],[K.wa,'#p-wa',1],[K.outc,'#po-reached',1],[K.note0,'#f-contact'],[K.logC,'#b-contact',1],
+ [K.tabA,'#tab-files',1],[K.choose,'#b-file',1],[K.upload,'#b-upload',1],
+ [K.tabW,'#tab-writeup',1],[f('m2',.4),'#f-action'],[K.save,'#b-save',1],
+ [K.resolve,'#b-resolve',1],[f('z1',-.2),[1000,560]]
+];
+function cursorAt(t){
+  let i=0;while(i+1<P.length&&P[i+1][0]<=t)i++;
+  const pt=a=>{if(Array.isArray(a))return a;const r=$(a).getBoundingClientRect(),s=$('#stage').getBoundingClientRect(),k=s.width/1280;return[(r.left-s.left+r.width*.5)/k,(r.top-s.top+r.height*.5)/k];};
+  let [x,y]=pt(P[i][1]);const nx=P[i+1];
+  if(nx&&t>nx[0]-.7){const k=ease(clamp((t-(nx[0]-.7))/.7));const[x2,y2]=pt(nx[1]);x+=(x2-x)*k;y+=(y2-y)*k;}
+  return[x,y];
+}
+
+/* highlights: [from, to, selector, label, tone] — later entries win when they overlap */
+const H=[
+ [f('o1',.6),end('o1'),'#sub','Only the owner + your manager can edit'],
+ [B.o2,end('o2'),'#ringwrap','How complete your documentation is'],
+ [f('s1',.1),f('s1',.4),'#tab-steps','Steps = your work log'],
+ [f('s1',.42),f('s1',.84),'#f-step','Short, factual entry'],
+ [f('f1',.08),f('f1',.3),'#tab-chase','Follow-ups = still to chase'],
+ [f('f1',.55),f('f1',.72),'#due','Set a due date'],
+ [f('f1',.8),end('f1'),'#fu1','Tick it off when done'],
+ [f('c1',.07),f('c1',.24),'#tab-member','Contact = outreach log'],
+ [f('c1',.25),f('c1',.44),'#row-ch','Channel'],
+ [f('c1',.45),f('c1',.62),'#row-out','Outcome'],
+ [f('c1',.7),end('c1'),'#b-contact','Log every attempt — even missed ones'],
+ [f('a1',.08),f('a1',.36),'#tab-files','Files = your evidence'],
+ [f('a1',.4),f('a1',.78),'#drop','Receipts · screenshots · recordings'],
+ [f('m1',.08),f('m1',.34),'#tab-writeup','Summary = formal write-up'],
+ [f('m1',.4),end('m1'),'#w-action','REQUIRED to resolve','req'],
+ [f('m2',.0),f('m3',0),'#w-action','Be specific — could someone repeat it?','req'],
+ [f('m3',.05),f('m3',.34),'#w-action','Specific + repeatable ✓','good'],
+ [f('m3',.36),f('m3',.5),'#w-root','Root cause (optional)'],
+ [f('m3',.5),f('m3',.64),'#w-prev','Preventive action (optional)'],
+ [f('m3',.64),f('m3',.8),'#w-out','Member outcome (optional)'],
+ [f('m3',.8),end('m3'),'#b-save','Save write-up'],
+ [f('r1',.08),f('r1',.5),'#b-resolve','Needs Action taken first'],
+ [f('r1',.5),f('r1',.69),'#b-resolve','Saves your write-up too'],
+ [f('r1',.8),end('r1')+.2,'#stchip','Resolved ✓','good']
+];
+function highlight(t){
+  const r=$('#ring'),c=$('#call');let h=null;for(const x of H)if(t>=x[0]&&t<x[1]){h=x;}
+  if(!h){r.style.opacity=0;c.style.opacity=0;return;}
+  const a=$(h[2]).getBoundingClientRect(),s=$('#stage').getBoundingClientRect(),k=s.width/1280;
+  const L=(a.left-s.left)/k,T=(a.top-s.top)/k,W=a.width/k,Hh=a.height/k;
+  const tone=h[4]||'';const fd=clamp((t-h[0])/.2)*clamp((h[1]-t)/.2);
+  r.className='abs '+(tone&&'t-'+tone);c.className='abs '+(tone&&'t-'+tone);
+  Object.assign(r.style,{left:L-6+'px',top:T-6+'px',width:W+12+'px',height:Hh+12+'px',opacity:fd});
+  c.textContent=h[3];const cw=c.offsetWidth/k;Object.assign(c.style,{left:Math.max(cw+10,Math.min(1270,L+W+6))+'px',top:T-6+'px',opacity:fd});
+}
+
+const TAGS=[['i1','Intro','Resolving your ticket'],['o1','Overview','Open the Resolution panel'],['s1','Tab 1 of 5','Steps — your work log'],['f1','Tab 2 of 5','Follow-ups — still to chase'],
+  ['c1','Tab 3 of 5','Contact — your outreach log'],['a1','Tab 4 of 5','Files — your evidence'],['m1','Tab 5 of 5','Summary — the formal write-up'],['r1','Resolve','Mark the ticket resolved'],['z1','Recap','The short version']];
+function captions(t){
+  let c=TAGS[0];for(const x of TAGS)if(t>=B[x[0]])c=x;
+  $('#cb').textContent=c[1];$('#ct').textContent=c[2];
+  let line='';for(const id in B){if(t>=B[id])line=T[id];}$('#cs').textContent=line;
+}
+
+function logo(t){
+  const L=$('#logo'),lt=t-LOGO;
+  L.style.display=lt>-.4?'block':'none';L.style.opacity=clamp((lt+.4)/.4);
+  if(lt<-.4)return;
+  $('#glow').style.opacity=clamp((lt-.1)/1.2)*(0.85+0.15*Math.sin(lt*3));
+  const m=$('#lmark'),k=easeOut(clamp((lt-.2)/1.1));
+  m.style.opacity=k;m.style.transform=`scale(${.72+.28*k})`;m.style.filter=`blur(${(1-k)*14}px) drop-shadow(0 0 ${28*k}px #f4bb3d88)`;
+  [['#lring1',.9],['#lring2',1.5]].forEach(([id,s0])=>{const q=clamp((lt-s0)/1.3),e=$(id);e.style.opacity=q>0&&q<1?.7*(1-q):0;e.style.transform=`scale(${1+q*1.6})`;});
+  const n=easeOut(clamp((lt-1.5)/.8)),g=easeOut(clamp((lt-2.0)/.8));
+  $('#lname').style.opacity=n;$('#lname').style.transform=`translateY(${(1-n)*14}px)`;$('#ltag').style.opacity=g;$('#ltag').style.transform=`translateY(${(1-g)*10}px)`;
+}
+
+function seek(t){
+  t=clamp(t,0,DUR-.001);
+  const tIn=f('o1',-.05),zIn=f('z1',-.1);
+  $('#intro').style.display=t<tIn?'flex':'none';$('#intro').style.opacity=t<tIn-.5?1:clamp((tIn-t)/.5);
+  $('#outro').style.display=(t>=zIn&&t<LOGO)?'flex':'none';$('#outro').style.opacity=clamp((t-zIn)/.5)*(1-clamp((t-(LOGO-.4))/.4));
+  [.0,.35,.7].forEach((o,i)=>{document.querySelectorAll('#outro li')[i].style.opacity=clamp((t-(zIn+.4+o*D.z1*1.1))/.35);});
+  const inList=t<K.panel;
+  $('#list').style.display=inList?'block':'none';$('#panel').style.display=inList?'none':'flex';
+  $('#panel').style.opacity=clamp((t-K.panel)/.45);
+  $('#row1').classList.toggle('sel',t>f('o1',.2));
+  $('#cap').style.opacity=(t<tIn||t>=zIn)?0:1;
+  captions(t);
+  const T2=[[0,'steps'],[K.tabF,'chase'],[K.tabC,'member'],[K.tabA,'files'],[K.tabW,'writeup']];
+  let cur='steps';for(const x of T2)if(t>=x[0])cur=x[1];tab(cur);
+  /* steps */
+  field($('#f-step'),t<K.addS?typed(TXT.step,t,K.step0,(TXT.step.length)/(K.addS-K.step0-.5)):'','What did you just do? Type @ to tag a teammate.',t>K.step0&&t<K.addS);
+  fade($('#s1'),t,K.addS+.05);$('#n-steps').textContent=+(t>=K.addS);
+  /* follow-ups */
+  field($('#f-chase'),t<K.addF?typed(TXT.chase,t,K.fu0,TXT.chase.length/(K.addF-K.fu0-1)):'','What needs chasing?',t>K.fu0&&t<K.addF);
+  fade($('#fu1'),t,K.addF+.05);const tick=t>K.tickF;$('#fu1').classList.toggle('done',tick);$('#fu1s').textContent=tick?'Done':'Open · due tomorrow, 10:00 am';
+  $('#n-chase').textContent=(t>=K.addF&&!tick)?1:0;
+  /* contact */
+  $('#p-wa').classList.toggle('on',t>K.wa);$('#p-call').classList.toggle('on',t<=K.wa);
+  field($('#f-contact'),t<K.logC?typed(TXT.contact,t,K.note0,TXT.contact.length/(K.logC-K.note0-.6)):'','What was said?',t>K.note0&&t<K.logC);
+  fade($('#c1'),t,K.logC+.05);$('#n-member').textContent=+(t>=K.logC);
+  /* files */
+  $('#ready').style.display=(t>K.choose&&t<K.upload)?'flex':'none';
+  fade($('#a1'),t,K.upload+.05);$('#n-files').textContent=+(t>=K.upload);$('#a1').style.marginTop='14px';
+  /* summary */
+  let act='',bad=false,good=false,typing=false;
+  if(t>=K.vague0&&t<K.clear){act=typed('Fixed',t,K.vague0,6);bad=t>K.vague0+.8;typing=true;}
+  else if(t>=K.clear&&t<K.good0){act='Fixed'.slice(0,Math.max(0,5-Math.floor((t-K.clear)*10)));typing=true;}
+  else if(t>=K.good0){act=typed(GOOD,t,K.good0,GOOD.length/2.6);good=act.length>=GOOD.length;typing=!good;}
+  field($('#f-action'),act,'What fixed it?',typing);
+  $('#f-action').classList.toggle('bad',bad);$('#f-action').classList.toggle('good',good);
+  $('#warn').style.opacity=bad?1:0;$('#warn').style.height=bad?'auto':'0';$('#warn').style.position='absolute';
+  const sp=(a,b)=>Math.max(...[TXT[a].length/1.1]);
+  field($('#f-root'),typed(TXT.root,t,K.root0,32),'Why did this happen?',t>K.root0&&t<K.root0+TXT.root.length/32+.1);
+  field($('#f-prev'),typed(TXT.prev,t,K.prev0,32),'What stops it happening again?',t>K.prev0&&t<K.prev0+TXT.prev.length/32+.1);
+  field($('#f-out'),typed(TXT.out,t,K.out0,32),'Where did this leave the member?',t>K.out0&&t<K.out0+TXT.out.length/32+.1);
+  $('#n-writeup').textContent=+(t>=K.save+.2);
+  $('#toast1').style.opacity=clamp((t-K.save-.2)/.3)*(1-clamp((t-K.save-2.4)/.4));
+  /* resolve */
+  const ready=good;const resolved=t>=K.resolve+.15;
+  $('#hint').style.display=(ready||resolved)?'none':'block';
+  const rb=$('#b-resolve');rb.className='btn primary'+((ready&&!resolved)?'':' off');rb.textContent=resolved?'✓ Resolved':'✓ Mark resolved';
+  $('#sel').textContent=resolved?'Resolved':'In progress';$('#apply').className='btn '+(resolved?'':'off');
+  $('#stchip').textContent=resolved?'Resolved':'In progress';$('#stchip').className='chip '+(resolved?'green':'amber');
+  $('#toast2').style.opacity=clamp((t-K.resolve-.2)/.3)*(1-clamp((t-K.resolve-2.6)/.4));
+  const comp=((t>=K.save+.2?1:0)+(t>=K.addS?1:0)+((t>=K.addF&&!tick)?.5:1)+(t>=K.logC?1:0))/4;
+  $('#rc').style.strokeDashoffset=106.8*(1-comp);$('#rn').textContent=Math.round(comp*100);$('#rm').textContent=Math.round(comp*100)+'% documented';
+  highlight(t);
+  const cu=$('#cursor'),show=t>=f('o1',.02)&&t<zIn;
+  if(!show){cu.style.opacity=0;$('#rip').style.opacity=0;}
+  else{cu.style.opacity=1;const[x,y]=cursorAt(t);cu.style.left=x-4+'px';cu.style.top=y-3+'px';
+    let rk=0,rx=0,ry=0;for(const p of P){if(p[2]&&t>=p[0]&&t<p[0]+.4){rk=(t-p[0])/.4;[rx,ry]=cursorAt(p[0]);}}
+    const rp=$('#rip');rp.style.opacity=rk?1-rk:0;rp.style.left=rx-23+'px';rp.style.top=ry-23+'px';rp.style.transform=`scale(${.4+rk*.9})`;}
+  logo(t);
+  $('#bar').style.opacity=t>=LOGO?0:1;$('#bar').style.width=(t/LOGO*100)+'%';
+}
+window.seek=seek;window.DUR=DUR;
+const manual=location.search.includes('manual');
+if(!manual){
+  const a=$('#aud'),pl=$('#play');pl.style.display='flex';let playing=false;
+  const loop=()=>{seek(playing?a.currentTime:0);if(a.ended&&playing){playing=false;pl.textContent='▶ Replay';pl.style.display='flex';}requestAnimationFrame(loop);};
+  pl.onclick=()=>{a.currentTime=0;a.play().catch(()=>{});playing=true;pl.style.display='none';};
+  requestAnimationFrame(loop);
+  const fit=()=>{const s=Math.min(innerWidth/1280,innerHeight/720);$('#stage').style.transform=`scale(${s})`;};addEventListener('resize',fit);fit();
+}
+</script>
+</body>
+</html>
