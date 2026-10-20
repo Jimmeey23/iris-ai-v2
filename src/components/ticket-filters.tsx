@@ -1,9 +1,9 @@
 "use client";
 
-import {useMemo, useState} from 'react';
+import {useEffect, useMemo, useRef, useState} from 'react';
 import {
-  AlarmClock, Bookmark, CalendarClock, CheckCircle2, ChevronDown, CircleDot, Clock3, Columns3, Filter,
-  Flame, Hourglass, LayoutList, RotateCcw, Rows3, Save, SlidersHorizontal, UserCheck, UserX, X,
+  AlarmClock, Bookmark, CalendarClock, Check, CheckCircle2, ChevronDown, CircleDot, Clock3, Filter,
+  Flame, Hourglass, RotateCcw, Save, SlidersHorizontal, UserCheck, UserX, X,
 } from 'lucide-react';
 import {Field, SearchField} from './ui';
 import {applyFilters} from '@/lib/ticket-filtering';
@@ -23,6 +23,8 @@ import type {TicketListRecord} from '@/lib/ticket-contract';
  * one — the commonest way to lose half an hour is not noticing a filter is still applied.
  */
 
+const cap = (x: string) => x.replace(/^./, (c) => c.toUpperCase());
+const SOURCE_NAMES: Record<string, string> = {iris: 'IRIS', fillout: 'Form', history: 'Imported'};
 const PRIORITIES = ['critical', 'high', 'medium', 'low'];
 const KINDS = ['issue', 'request', 'compliment', 'feedback', 'assessment'];
 const SOURCES = ['iris', 'manual', 'template', 'voice', 'fillout', 'history', 'system'];
@@ -40,35 +42,66 @@ const AGE_BUCKETS: {id: FilterState['ageBucket']; label: string}[] = [
   {id: 'ancient', label: 'Older than 30 days'},
 ];
 
-/** A multi-select rendered as toggle chips — faster to read and to change than a listbox. */
-function ChipSelect({label, options, value, onChange}: {
+/** A compact dropdown multi-select: a trigger that reads like a select, a checkbox list inside. */
+function MultiSelect({label, options, value, onChange, allLabel}: {
   label: string;
   options: {id: string; label: string}[];
   value: string[];
   onChange: (next: string[]) => void;
+  allLabel: string;
 }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: MouseEvent) => { if (!ref.current?.contains(e.target as Node)) setOpen(false); };
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('mousedown', away);
+    document.addEventListener('keydown', esc);
+    return () => { document.removeEventListener('mousedown', away); document.removeEventListener('keydown', esc); };
+  }, [open]);
   const toggle = (id: string) => onChange(value.includes(id) ? value.filter((v) => v !== id) : [...value, id]);
+  const shown = query ? options.filter((o) => o.label.toLowerCase().includes(query.toLowerCase())) : options;
+  const summary = !value.length ? allLabel
+    : value.length === 1 ? options.find((o) => o.id === value[0])?.label ?? value[0]
+    : `${value.length} selected`;
   return (
-    <div className="tf-chipset">
-      <span className="tf-chipset-label">{label}</span>
-      <div className="tf-chips">
-        {options.map((o) => (
-          <button
-            key={o.id}
-            type="button"
-            className={'tf-chip' + (value.includes(o.id) ? ' tf-chip-on' : '')}
-            aria-pressed={value.includes(o.id)}
-            onClick={() => toggle(o.id)}
-          >
-            {o.label}
-          </button>
-        ))}
-        {value.length > 0 && (
-          <button type="button" className="tf-chip tf-chip-clear" onClick={() => onChange([])} aria-label={`Clear ${label}`}>
-            <X size={10}/>
-          </button>
-        )}
-      </div>
+    <div className="field tfx-ms" ref={ref}>
+      <label>{label}</label>
+      <button
+        type="button"
+        className={'tfx-control tfx-ms-trigger' + (value.length ? ' has-value' : '')}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <span className="tfx-ms-value">{summary}</span>
+        <ChevronDown size={13} className="tfx-ms-caret"/>
+      </button>
+      {open && (
+        <div className="tfx-ms-pop" role="listbox" aria-multiselectable="true" aria-label={label}>
+          {options.length > 8 && (
+            <input className="tfx-ms-search" autoFocus placeholder={`Search ${label.toLowerCase()}…`} value={query} onChange={(e) => setQuery(e.target.value)}/>
+          )}
+          <div className="tfx-ms-list">
+            {shown.map((o) => {
+              const on = value.includes(o.id);
+              return (
+                <button type="button" role="option" aria-selected={on} key={o.id} className={'tfx-ms-opt' + (on ? ' on' : '')} onClick={() => toggle(o.id)}>
+                  <span className="tfx-ms-box">{on && <Check size={11}/>}</span>
+                  <span>{o.label}</span>
+                </button>
+              );
+            })}
+            {!shown.length && <span className="tfx-ms-empty">No matches</span>}
+          </div>
+          <div className="tfx-ms-foot">
+            <button type="button" onClick={() => onChange([])} disabled={!value.length}>Clear</button>
+            <button type="button" onClick={() => setOpen(false)}>Done</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -164,7 +197,6 @@ function quickFilters(myName?: string): QuickFilter[] {
 /** Removable tokens for every active filter, so each one can be dropped on its own. */
 function activeTokens(f: FilterState): {key: string; label: string; clear: Partial<FilterState>}[] {
   const t: {key: string; label: string; clear: Partial<FilterState>}[] = [];
-  const cap = (s: string) => s.replace(/^./, (c) => c.toUpperCase());
   if (f.q.trim()) t.push({key: 'q', label: `“${f.q.trim()}”`, clear: {q: ''}});
   if (f.state !== 'any') t.push({key: 'state', label: f.state === 'open' ? 'Open only' : 'Closed only', clear: {state: 'any'}});
   if (f.studio) t.push({key: 'studio', label: f.studio.split(',')[0], clear: {studio: ''}});
@@ -189,7 +221,6 @@ export function TicketFilters(props: TicketFiltersProps) {
     columns, onColumns, density, onDensity, pageSize, onPageSize, views, onApplyView,
     onSaveView, onDeleteView, taxonomy, studios, myName,
   } = props;
-  const [showColumns, setShowColumns] = useState(false);
 
   // The pickers offer what is actually in the data, not every value that could exist.
   const owners = useMemo(
@@ -214,11 +245,6 @@ export function TicketFilters(props: TicketFiltersProps) {
 
   const count = activeFilterCount(f);
   const tokens = activeTokens(f);
-
-  const toggleColumn = (c: TicketColumn) => {
-    if (COLUMN_META[c].always) return;
-    onColumns(columns.includes(c) ? columns.filter((x) => x !== c) : [...TICKET_COLUMNS].filter((x) => columns.includes(x) || x === c));
-  };
 
   return (
     <section className={'tfx' + (open ? ' tfx-open' : '')}>
@@ -285,35 +311,50 @@ export function TicketFilters(props: TicketFiltersProps) {
       {open && (
         <div className="tfx-panel">
           <div className="tfx-section">
-            <h4 className="tfx-section-title">Scope</h4>
             <div className="tfx-fields">
               <Field label="State">
-                <select value={f.state} onChange={(e) => onChange({state: e.target.value as FilterState['state']})}>
+                <select className="tfx-control" value={f.state} onChange={(e) => onChange({state: e.target.value as FilterState['state']})}>
                   <option value="any">Open &amp; closed</option>
                   <option value="open">Open only</option>
                   <option value="closed">Closed only</option>
                 </select>
               </Field>
               <Field label="Studio">
-                <select value={f.studio} onChange={(e) => onChange({studio: e.target.value})}>
+                <select className="tfx-control" value={f.studio} onChange={(e) => onChange({studio: e.target.value})}>
                   <option value="">All studios</option>
-                  {studios.map((s) => <option key={s} value={s}>{s}</option>)}
+                  {studios.map((s) => <option key={s} value={s}>{s.split(',')[0]}</option>)}
                 </select>
               </Field>
               <Field label="Category">
-                <select value={f.category} onChange={(e) => onChange({category: e.target.value, subcategory: ''})}>
+                <select className="tfx-control" value={f.category} onChange={(e) => onChange({category: e.target.value, subcategory: ''})}>
                   <option value="">All categories</option>
                   {Object.keys(taxonomy).map((c) => <option key={c} value={c}>{c}</option>)}
                 </select>
               </Field>
               <Field label="Subcategory">
-                <select value={f.subcategory} disabled={!f.category} onChange={(e) => onChange({subcategory: e.target.value})}>
+                <select className="tfx-control" value={f.subcategory} disabled={!f.category} onChange={(e) => onChange({subcategory: e.target.value})}>
                   <option value="">{f.category ? 'All subcategories' : 'Pick a category first'}</option>
                   {subcategories.map((s) => <option key={s} value={s}>{s}</option>)}
                 </select>
               </Field>
+              <MultiSelect label="Status" allLabel="Any status" value={f.statuses} onChange={(statuses) => onChange({statuses})}
+                options={Object.entries(STATUS_LABELS).map(([id, label]) => ({id, label: String(label)}))}/>
+              <MultiSelect label="Priority" allLabel="Any priority" value={f.priorities} onChange={(priorities) => onChange({priorities})}
+                options={PRIORITIES.map((p) => ({id: p, label: cap(p)}))}/>
+              <MultiSelect label="Type" allLabel="Any type" value={f.kinds} onChange={(kinds) => onChange({kinds})}
+                options={KINDS.map((k) => ({id: k, label: cap(k)}))}/>
+              <MultiSelect label="Follow-up" allLabel="Any follow-up" value={f.slaStates} onChange={(v) => onChange({slaStates: v as FilterState['slaStates']})}
+                options={SLA_STATES.map((s) => ({id: s.id, label: s.label}))}/>
+              <MultiSelect label="Owner" allLabel="Anyone" value={f.owners} onChange={(o) => onChange({owners: o})}
+                options={[{id: '', label: 'Unassigned'}, ...owners.map((o) => ({id: o, label: o}))]}/>
+              {departments.length > 0 && (
+                <MultiSelect label="Department" allLabel="All departments" value={f.departments} onChange={(d) => onChange({departments: d})}
+                  options={departments.map((d) => ({id: d, label: d}))}/>
+              )}
+              <MultiSelect label="Logged via" allLabel="Any source" value={f.sources} onChange={(sources) => onChange({sources})}
+                options={SOURCES.map((s) => ({id: s, label: SOURCE_NAMES[s] || cap(s)}))}/>
               <Field label="Logged within">
-                <select value={f.from || f.to ? 'custom' : f.range} onChange={(e) => {
+                <select className="tfx-control" value={f.from || f.to ? 'custom' : f.range} onChange={(e) => {
                   const v = e.target.value;
                   if (v === 'custom') onChange({range: 'custom'});
                   else onChange({range: v, from: '', to: ''});
@@ -329,81 +370,41 @@ export function TicketFilters(props: TicketFiltersProps) {
               </Field>
               {(f.range === 'custom' || f.from || f.to) && (
                 <>
-                  <Field label="From"><input type="date" value={f.from} onChange={(e) => onChange({from: e.target.value, range: 'custom'})}/></Field>
-                  <Field label="To"><input type="date" value={f.to} onChange={(e) => onChange({to: e.target.value, range: 'custom'})}/></Field>
+                  <Field label="From"><input className="tfx-control" type="date" value={f.from} onChange={(e) => onChange({from: e.target.value, range: 'custom'})}/></Field>
+                  <Field label="To"><input className="tfx-control" type="date" value={f.to} onChange={(e) => onChange({to: e.target.value, range: 'custom'})}/></Field>
                 </>
               )}
               <Field label="Age">
-                <select value={f.ageBucket} onChange={(e) => onChange({ageBucket: e.target.value as FilterState['ageBucket']})}>
+                <select className="tfx-control" value={f.ageBucket} onChange={(e) => onChange({ageBucket: e.target.value as FilterState['ageBucket']})}>
                   {AGE_BUCKETS.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}
                 </select>
               </Field>
             </div>
           </div>
 
-          <div className="tfx-section">
-            <h4 className="tfx-section-title">Attributes</h4>
-            <div className="tfx-chipgrid">
-              <ChipSelect label="Status" value={f.statuses} onChange={(statuses) => onChange({statuses})}
-                options={Object.entries(STATUS_LABELS).map(([id, label]) => ({id, label: String(label)}))}/>
-              <ChipSelect label="Priority" value={f.priorities} onChange={(priorities) => onChange({priorities})}
-                options={PRIORITIES.map((p) => ({id: p, label: p}))}/>
-              <ChipSelect label="Type" value={f.kinds} onChange={(kinds) => onChange({kinds})}
-                options={KINDS.map((k) => ({id: k, label: k}))}/>
-              <ChipSelect label="Follow-up" value={f.slaStates} onChange={(v) => onChange({slaStates: v as FilterState['slaStates']})}
-                options={SLA_STATES.map((s) => ({id: s.id, label: s.label}))}/>
-              <ChipSelect label="Logged via" value={f.sources} onChange={(sources) => onChange({sources})}
-                options={SOURCES.map((s) => ({id: s, label: s}))}/>
-              {owners.length > 1 && (
-                <ChipSelect label="Owner" value={f.owners} onChange={(o) => onChange({owners: o})}
-                  options={[{id: '', label: 'Unassigned'}, ...owners.slice(0, 24).map((o) => ({id: o, label: o.split(' ')[0]}))]}/>
-              )}
-              {departments.length > 1 && (
-                <ChipSelect label="Department" value={f.departments} onChange={(d) => onChange({departments: d})}
-                  options={departments.map((d) => ({id: d, label: d}))}/>
-              )}
-            </div>
-          </div>
-
-          <div className="tfx-section">
+          <div className="tfx-section tfx-section-display">
             <h4 className="tfx-section-title">Display</h4>
-            <div className="tfx-fields tfx-fields-display">
+            <div className="tfx-display">
               <Field label="Group rows by">
-                <select value={groupBy} onChange={(e) => onGroupBy(e.target.value as GroupBy)}>
+                <select className="tfx-control" value={groupBy} onChange={(e) => onGroupBy(e.target.value as GroupBy)}>
                   {GROUP_BY.map((g) => <option key={g} value={g}>{GROUP_LABELS[g]}</option>)}
                 </select>
               </Field>
               <Field label="Rows per page">
-                <select value={String(pageSize)} onChange={(e) => onPageSize(Number(e.target.value))}>
+                <select className="tfx-control" value={String(pageSize)} onChange={(e) => onPageSize(Number(e.target.value))}>
                   {[10, 25, 50, 100, 200].map((n) => <option key={n} value={n}>{n}</option>)}
                 </select>
               </Field>
-              <div className="tfx-seg" role="group" aria-label="Row density">
-                <button className={density === 'comfortable' ? 'on' : ''} onClick={() => onDensity('comfortable')} title="Comfortable rows">
-                  <Rows3 size={12}/>Comfortable
-                </button>
-                <button className={density === 'compact' ? 'on' : ''} onClick={() => onDensity('compact')} title="Compact rows">
-                  <LayoutList size={12}/>Compact
-                </button>
-              </div>
-              <button className={'btn btn-sm' + (showColumns ? ' btn-soft' : '')} onClick={() => setShowColumns((v) => !v)} aria-expanded={showColumns}>
-                <Columns3 size={12}/>Columns ({columns.length})
-              </button>
+              <Field label="Density">
+                <select className="tfx-control" value={density} onChange={(e) => onDensity(e.target.value as 'comfortable' | 'compact')}>
+                  <option value="comfortable">Comfortable</option>
+                  <option value="compact">Compact</option>
+                </select>
+              </Field>
+              <MultiSelect label="Columns" allLabel="None" value={columns}
+                onChange={(next) => onColumns(TICKET_COLUMNS.filter((c) => COLUMN_META[c].always || next.includes(c)))}
+                options={TICKET_COLUMNS.filter((c) => !COLUMN_META[c].always).map((c) => ({id: c, label: COLUMN_META[c].label}))}/>
             </div>
-            {showColumns && (
-              <div className="tf-columns tfx-columns">
-                {TICKET_COLUMNS.map((c) => {
-                  const meta = COLUMN_META[c];
-                  const on = columns.includes(c);
-                  return (
-                    <label key={c} className={'tf-column' + (on ? ' tf-column-on' : '') + (meta.always ? ' tf-column-locked' : '')}>
-                      <input type="checkbox" checked={on} disabled={meta.always} onChange={() => toggleColumn(c)}/>
-                      <span>{meta.label}</span>
-                    </label>
-                  );
-                })}
-              </div>
-            )}
           </div>
 
           <footer className="tfx-foot">
