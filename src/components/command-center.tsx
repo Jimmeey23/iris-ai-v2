@@ -99,6 +99,11 @@ export function CommandCenter({directory = false, assignedOnly = false}: {direct
   const clearFilters = () => { resetFilters(); setPage(0); };
 
   const filtered = useMemo(() => applyFilters(queue, f), [queue, f]);
+  // Owner filters match on the name tickets carry, which can differ from the login name.
+  const myName = useMemo(
+    () => tickets.find((t) => staffId != null && t.assignedStaffId === staffId)?.assignedStaffName || (staffId != null ? user?.name : undefined) || undefined,
+    [tickets, staffId, user],
+  );
 
   // The tab is a further cut on top of the filters, not a replacement for them.
   const tabbed = useMemo(() => {
@@ -313,6 +318,7 @@ export function CommandCenter({directory = false, assignedOnly = false}: {direct
         onDeleteView={(name) => void deleteView(name).then(() => notify(`“${name}” removed.`))}
         taxonomy={CATEGORY_MAP}
         studios={STUDIOS.map((s) => s.name)}
+        myName={assignedOnly ? undefined : myName}
       />
 
       {view === 'board' && (
