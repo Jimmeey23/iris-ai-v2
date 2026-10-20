@@ -59,8 +59,8 @@ console.log(OTHER_OPTION === 'Something else…' ? 'PASS  sentinel is the expect
   const f = planFields('Tech Issues', 'Mic Not Working', ctx);
   const g = (id) => f.find(x => x.id === id);
   const shows = (id, data) => isVisible(g(id), data);
-  ok(!shows('report_channel', {reporter_type: 'Member'}), 'report_channel: not asked when the member raises it (the app already knows)');
-  ok(shows('report_channel', {reporter_type: 'Front desk / associate'}), 'report_channel: asked when staff relay it from elsewhere');
+  ok(shows('report_channel', {reporter_type:'A member told me about it'}),'report_channel: captures how member feedback was communicated');
+  ok(!shows('report_channel',{reporter_type:'Staff observation'}),'report_channel: hidden for an internal observation');
   ok(!shows('affected_count', {member_impact: 'No impact'}), 'affected_count: not asked when nobody was affected');
   ok(shows('affected_count', {member_impact: 'Could not proceed as normal'}), 'affected_count: asked when somebody was');
 }
@@ -83,7 +83,7 @@ for (const key of Object.keys(planData.subs)) {
     if (!['select', 'multiselect', 'radio'].includes(x.type) || !x.options?.length) continue;
     lists++;
     // Studio is deliberately closed — see NO_OTHER in plan.ts.
-    if (x.id === 'studio' || x.allowOther || x.options.some(o => /other|something else|not listed|unsure|don't know|prefer not|none of/i.test(o))) escapes++;
+    if (x.id === 'studio' || x.allowOther || x.options.some(o => /other|something else|not listed|not known|not recorded|unsure|don't know|prefer not|none of/i.test(o))) escapes++;
   }
 }
 console.log(`\n${forms} forms · ${lists} closed lists`);

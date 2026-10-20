@@ -1,0 +1,525 @@
+{
+  "mode": "read-only",
+  "generatedAt": "2026-10-20T08:24:21.954Z",
+  "scanned": 774,
+  "truncated": false,
+  "findings": [
+    {
+      "ticketNumber": "P57-02052",
+      "parentTicketNumber": "P57-02049",
+      "code": "verification_without_repair",
+      "recommendation": "Review and close the incorrectly generated verification task with an explanatory activity. Preserve the original report."
+    },
+    {
+      "ticketNumber": "P57-02051",
+      "parentTicketNumber": "P57-02049",
+      "code": "verification_without_repair",
+      "recommendation": "Review and close the incorrectly generated verification task with an explanatory activity. Preserve the original report."
+    },
+    {
+      "ticketNumber": "P57-02045",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01987",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01986",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01985",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01984",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01983",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01982",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01981",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01980",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01979",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01978",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01977",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01976",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01975",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01974",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01973",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01972",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01971",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01970",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01969",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01968",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01967",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01966",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01965",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01964",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01963",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01962",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01961",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01960",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01959",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01958",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01957",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01956",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01955",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01954",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01953",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01952",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01951",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01950",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01949",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01948",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01947",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01946",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01945",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01944",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01943",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01942",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01941",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01940",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01939",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01938",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01937",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01936",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01935",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01934",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01933",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01932",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01931",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01930",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01929",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01928",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01927",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01926",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01925",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01924",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01923",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01922",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01921",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01920",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01919",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01918",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01917",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01916",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01915",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01914",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01913",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01912",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01911",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01910",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01909",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01908",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01907",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01906",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01905",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01904",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01903",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01902",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01901",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01900",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01899",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01898",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01897",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01896",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01895",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01894",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01893",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01892",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01891",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01890",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01889",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    },
+    {
+      "ticketNumber": "P57-01888",
+      "code": "review_entry_type",
+      "recommendation": "Review whether this record represents feedback, a compliment or an issue intentionally saved for reference."
+    }
+  ]
+}

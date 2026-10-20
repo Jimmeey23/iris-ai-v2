@@ -290,7 +290,7 @@ export default function SettingsBoardPanel({
           <div>
             <h4>Escalate after a missed target</h4>
             <p>
-              Hours past the follow-up target before a ticket is raised to
+              Hours past the resolution target before a ticket is raised to
               critical. Zero switches escalation off.
             </p>
           </div>

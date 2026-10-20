@@ -195,7 +195,7 @@ export function CommitmentPanel({
             <span>
               Committed resolution:{" "}
               <strong>{committed ? indiaDate(committed) : "not committed yet"}</strong>
-              {lateCommit && <small>Later than the follow-up target</small>}
+              {lateCommit && <small>Later than the resolution target</small>}
             </span>
           </li>
         )}

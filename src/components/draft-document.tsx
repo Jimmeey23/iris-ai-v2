@@ -95,7 +95,7 @@ export function DraftDocument({
           <Badge tone={draft.resolutionRequired ? "amber" : "green"}>
             <Clock3 size={10} />
             {draft.slaHours
-              ? `${draft.slaHours}h follow-up target`
+              ? `${draft.slaHours}h resolution target`
               : "No SLA required"}
           </Badge>
           {draft.momenceMemberId && (
@@ -153,7 +153,7 @@ export function DraftDocument({
         <section className="draft-block">
           <h3>01 / Reporter &amp; operational context</h3>
           <div className="draft-grid">
-            {memberRelated && value("Community member", draft.memberName)}
+            {memberRelated && value("Member", draft.memberName)}
             {memberRelated &&
               draft.memberEmail &&
               value("Member email", draft.memberEmail)}
@@ -169,7 +169,7 @@ export function DraftDocument({
               draft.incidentAt ? indiaDate(draft.incidentAt) : undefined,
             )}
             {draft.classFormat &&
-              value("Signature Experience", draft.classFormat)}
+              value("Class", draft.classFormat)}
             {draft.trainer && value("Studio Instructor(s)", draft.trainer)}
             {memberRelated &&
               draft.membership &&
@@ -230,12 +230,12 @@ export function DraftDocument({
             {value("Priority", draft.priority)}
             {value("Severity", draft.severity)}
             {value(
-              "Follow-up target",
+              "Resolution target",
               draft.slaLabel ||
                 (draft.slaHours ? draft.slaHours + " hours" : "Not required"),
             )}
             {value(
-              "Action pathway",
+              "Action required",
               draft.resolutionRequired ? "Resolution required" : "Record only",
             )}
           </div>

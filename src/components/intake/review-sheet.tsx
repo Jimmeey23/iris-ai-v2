@@ -35,13 +35,13 @@ export function ReviewSheet({open, onClose, plan, data, kind, priority, slaHours
   const owner = plan.routing?.owner;
   const studio = String(data.studio || '').split(',')[0];
   return (
-    <Modal open={open} onClose={onClose} size="wide" title="Read it back before it routes" resetKey={String(open)}
-      description={`${plan.sub.category} › ${plan.sub.name} · once filed, ${owner ? owner.name : (plan.routing?.departmentName || 'the department')} owns the clock${recordOnly ? '' : ' and the SLA starts'}.`}
+    <Modal open={open} onClose={onClose} size="wide" title="Review the ticket before submitting" resetKey={String(open)}
+      description={`${plan.sub.category} › ${plan.sub.name} · ${recordOnly?'Saved for reference, with no resolution deadline.':`Resolution target: ${slaHours} hours. Assignment is confirmed when you submit.`}`}
       footer={<>
-        <span className="muted" style={{fontSize: 11.5}}>{blockers.length ? <span className="intake-blocker-count"><AlertTriangle size={12} /> {blockers.length} blocker{blockers.length > 1 ? 's' : ''} to clear</span> : <span className="flex-row" style={{gap: 6}}><Check size={13} className="accent" /> Nothing missing — ready for the desk</span>}</span>
+        <span className="muted" style={{fontSize: 11.5}}>{blockers.length ? <span className="intake-blocker-count"><AlertTriangle size={12} /> {blockers.length} blocker{blockers.length > 1 ? 's' : ''} to clear</span> : <span className="flex-row" style={{gap: 6}}><Check size={13} className="accent" /> Required details complete</span>}</span>
         <div className="flex-row" style={{gap: 8}}>
           <button type="button" className="btn" onClick={onClose} disabled={busy}>Keep editing</button>
-          <button type="button" className="btn btn-primary" onClick={onFile} disabled={busy || blockers.length > 0}>{busy ? <Loader2 size={14} className="animate-spin" /> : <Zap size={14} />}{recordOnly ? 'File as a record' : 'File & start SLA'}</button>
+          <button type="button" className="btn btn-primary" onClick={onFile} disabled={busy || blockers.length > 0}>{busy ? <Loader2 size={14} className="animate-spin" /> : <Zap size={14} />}{recordOnly ? 'Save as a record' : 'Submit ticket'}</button>
         </div>
       </>}>
       <div className="review">
@@ -56,7 +56,7 @@ export function ReviewSheet({open, onClose, plan, data, kind, priority, slaHours
           <div className="rv-prio">
             <Badge tone="blue">{kind}</Badge>
             <Priority priority={priority} />
-            <Badge tone={recordOnly ? 'green' : 'amber'}><Clock3 size={10} />{recordOnly ? 'Record only · no SLA' : `${slaHours}h follow-up target`}</Badge>
+            <Badge tone={recordOnly ? 'green' : 'amber'}><Clock3 size={10} />{recordOnly ? 'Record only · no SLA' : `${slaHours}h resolution target`}</Badge>
           </div>
         </div>
         <div className="rv-route">

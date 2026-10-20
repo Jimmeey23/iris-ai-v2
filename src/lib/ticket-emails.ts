@@ -79,14 +79,14 @@ function copyFor(ticket: TicketEmailSubject, kind: TicketEmailKind, role: 'owner
     return {
       subject: `[Escalated] ${ref}`,
       textLede:
-        `This ticket passed its follow-up target${from ? ` with ${from}` : ''} without being resolved or extended, ` +
+        `This ticket passed its resolution target${from ? ` with ${from}` : ''} without being resolved or extended, ` +
         `so it has been escalated to you as the reporting manager and reassigned to your name.`,
       context: 'Escalation',
       accent: BRAND.red,
       eyebrow: 'Escalated to you',
       heading: 'This ticket has been escalated to you',
       lede:
-        `It passed its follow-up target${from ? ` with ${from}` : ''} with no resolution and no extension, so IRIS has ` +
+        `It passed its resolution target${from ? ` with ${from}` : ''} with no resolution and no extension, so IRIS has ` +
         `reassigned it to you${fromFirst ? ` as ${fromFirst}'s reporting manager` : ''}. It needs a decision today.`,
       steps: [
         fromFirst ? `Decide who owns it now — keep it, or hand it back to ${fromFirst} with a clear instruction.` : 'Decide who owns it now — keep it, or hand it to someone with a clear instruction.',
@@ -103,8 +103,8 @@ function copyFor(ticket: TicketEmailSubject, kind: TicketEmailKind, role: 'owner
     return role === 'manager'
       ? {
           subject: `Due in 3 hours — ${ref}`,
-          textLede: `This ticket, assigned to ${owner}, is still open and reaches its follow-up target in about three hours.`,
-          context: 'Follow-up target',
+          textLede: `This ticket, assigned to ${owner}, is still open and reaches its resolution target in about three hours.`,
+          context: 'Resolution target',
           accent: BRAND.gold,
           eyebrow: 'Heads-up for you',
           heading: `${ownerFirst}'s ticket is due in three hours`,
@@ -119,12 +119,12 @@ function copyFor(ticket: TicketEmailSubject, kind: TicketEmailKind, role: 'owner
         }
       : {
           subject: `Due in 3 hours — ${ref}`,
-          textLede: 'This ticket is still open and reaches its follow-up target in about three hours.',
-          context: 'Follow-up target',
+          textLede: 'This ticket is still open and reaches its resolution target in about three hours.',
+          context: 'Resolution target',
           accent: BRAND.gold,
-          eyebrow: 'Follow-up target approaching',
+          eyebrow: 'Resolution target approaching',
           heading: 'Three hours left on this ticket',
-          lede: 'It is still open and its follow-up target is close. If it passes unresolved and unextended, IRIS escalates it to your reporting manager.',
+          lede: 'It is still open and its resolution target is close. If it passes unresolved and unextended, IRIS escalates it to your reporting manager.',
           steps: [
             'Resolve it now if you can, with a short note on what was done.',
             'Otherwise log what is holding it up, so the next person is not starting cold.',
@@ -144,7 +144,7 @@ function copyFor(ticket: TicketEmailSubject, kind: TicketEmailKind, role: 'owner
         accent: BRAND.blue,
         eyebrow: 'For your awareness',
         heading: `New ticket for ${ownerFirst}`,
-        lede: `IRIS routed this to ${owner}, who reports to you. Nothing is needed from you yet — you will hear again if it comes close to its follow-up target.`,
+        lede: `IRIS routed this to ${owner}, who reports to you. Nothing is needed from you yet — you will hear again if it comes close to its resolution target.`,
         steps: [],
         cta: 'View the ticket',
         footer: `You are receiving this because ${owner} reports to you. ${notMonitored}`,
@@ -186,7 +186,7 @@ function renderHtml(ticket: TicketEmailSubject, kind: TicketEmailKind, copy: Cop
 
   const dueFact = due
     ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:${copy.urgent || overdue ? BRAND.redSoft : BRAND.soft};border-radius:10px;"><tr><td style="padding:12px 14px;">
-        ${label('Follow-up target', copy.urgent || overdue ? BRAND.red : BRAND.faint)}
+        ${label('Resolution target', copy.urgent || overdue ? BRAND.red : BRAND.faint)}
         <p style="margin:0;font-family:${FONT};font-size:14.5px;line-height:1.4;color:${copy.urgent || overdue ? BRAND.red : BRAND.ink};font-weight:700;">${esc(relative(due, now))}</p>
         <p style="margin:2px 0 0;font-family:${FONT};font-size:12px;line-height:1.4;color:${BRAND.muted};">${esc(indiaDate(due))}</p>
       </td></tr></table>`
@@ -271,7 +271,7 @@ export function ticketBcc(): {email: string}[] {
 export function ticketEmailBody(ticket: TicketEmailSubject, kind: TicketEmailKind, recipient?: TicketEmailRecipient, now = new Date()) {
   const role = recipient?.role ?? 'owner';
   const copy = copyFor(ticket, kind, role);
-  const deadline = ticket.slaDueAt ? `\nFollow-up target: ${indiaDate(ticket.slaDueAt)}.` : '';
+  const deadline = ticket.slaDueAt ? `\nResolution target: ${indiaDate(ticket.slaDueAt)}.` : '';
   const facts = [
     ticket.priority ? `Priority: ${ticket.priority}` : '',
     [ticket.category, ticket.subcategory].filter(Boolean).join(' · '),

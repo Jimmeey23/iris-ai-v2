@@ -31,6 +31,6 @@ export async function GET(req:NextRequest){try{
 export async function POST(req:NextRequest){try{sameOrigin(req);const actor=await intakeActor();await enforceRateLimit('ticketCreate');await ensureSeeded();const body=await req.json();
 // Untrusted: the public schema refuses `history`/`system` sources, reserved customFields are
 // stripped and a supplied priority can only raise the inferred one — see makeDraft.
-const draft=await makeDraft(body);if(req.nextUrl.searchParams.get('preview')==='true')return Response.json({draft});// The form-based intake files through here too; `channel` only labels the row — routing,
+const draft=await makeDraft(body);if(actor.id){draft.customFields.reporterName=actor.name;draft.customFields.reporterContact=actor.email;}if(req.nextUrl.searchParams.get('preview')==='true')return Response.json({draft});// The form-based intake files through here too; `channel` only labels the row — routing,
 // SLA and idempotency are identical whichever surface filed it.
 const channel=req.nextUrl.searchParams.get('channel');let ticket=await createTicketFromDraft(draft,draft.source,channel==='form'||channel==='chat'?channel:'workspace');if(actor.id){const[owned]=await db.update(tickets).set({createdByUserId:actor.id,createdByName:actor.name}).where(eq(tickets.id,ticket.id)).returning();ticket=owned||ticket;}after(()=>deliverPending());after(()=>signalChanged('tickets'));return Response.json({ticket},{status:201});}catch(e){return errorResponse(e);}}

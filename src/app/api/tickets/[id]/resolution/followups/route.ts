@@ -1,7 +1,7 @@
-import {and,eq} from 'drizzle-orm';
+import {and,eq,sql} from 'drizzle-orm';
 import {z} from 'zod';
 import {db} from '@/db';
-import {ticketFollowUps,ticketActivities,staff} from '@/db/schema';
+import {ticketFollowUps,ticketActivities,staff,tickets} from '@/db/schema';
 import {ApiError,errorResponse,sameOrigin} from '@/lib/auth';
 import {requireResolutionAccess,getResolutionWorkspace} from '@/lib/tickets';
 import {after} from 'next/server';
@@ -29,6 +29,8 @@ export async function POST(req:Request,ctx:Ctx){try{
     ownerStaffId=p.id;ownerName=p.name;
   }
   await db.transaction(async tx=>{
+    const [active]=await tx.select().from(tickets).where(eq(tickets.id,id)).for('update');
+    if(!active||['resolved','closed','recorded'].includes(active.status))throw new ApiError('Reopen this ticket before adding follow-up work.',409);
     await tx.insert(ticketFollowUps).values({ticketId:id,note:b.note,dueAt:due,ownerStaffId:ownerStaffId??null,ownerName,createdByUserId:user.id,createdByName:user.name});
     await tx.insert(ticketActivities).values({ticketId:id,actorName:user.name,action:'resolution.followup',detail:`Follow-up due ${due.toISOString().slice(0,10)}: ${b.note.slice(0,140)}`});
   });

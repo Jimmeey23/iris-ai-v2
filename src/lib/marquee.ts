@@ -60,7 +60,7 @@ export async function marqueeFor(page: MarqueePage): Promise<MarqueeItem[]> {
     {label: 'OPEN NOW', value: plural(counts.open, 'ticket'), tone: counts.open ? 'accent' : 'green', badge: 'LIVE'},
   ];
   if (counts.critical) base.push({label: 'CRITICAL', value: plural(counts.critical, 'ticket') + ' needing attention now', tone: 'red', badge: 'URGENT'});
-  if (counts.overdue) base.push({label: 'PAST TARGET', value: plural(counts.overdue, 'ticket') + ' past the follow-up target', tone: 'red'});
+  if (counts.overdue) base.push({label: 'PAST TARGET', value: plural(counts.overdue, 'ticket') + ' past the resolution target', tone: 'red'});
   else if (counts.breaching) base.push({label: 'DUE SOON', value: plural(counts.breaching, 'ticket') + ' due within 3 hours', tone: 'amber'});
   if (counts.unassigned) base.push({label: 'UNASSIGNED', value: plural(counts.unassigned, 'ticket') + ' waiting for an owner', tone: 'amber'});
 

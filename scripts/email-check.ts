@@ -25,9 +25,9 @@ check('body leads with the number and the title', assigned.text.startsWith('P57-
 check('an HTML part is built', Boolean(assigned.html?.startsWith('<!doctype html>')), String(assigned.html).slice(0, 40));
 check('HTML names the ticket', Boolean(assigned.html?.includes('P57-01284')), 'ticket number missing from the HTML');
 check('HTML escapes what it interpolates', !/<script/i.test(ticketEmailBody({...ticket, title: '<script>x</script>'}, 'assigned').html ?? ''), 'unescaped title reached the HTML');
-check('body states the follow-up target', assigned.text.includes('Follow-up target:'), assigned.text);
+check('body states the resolution target', assigned.text.includes('Resolution target:'), assigned.text);
 check('a ticket with no target omits the deadline line',
-  !ticketEmailBody({...ticket, slaDueAt: null}, 'assigned').text.includes('Follow-up target:'));
+  !ticketEmailBody({...ticket, slaDueAt: null}, 'assigned').text.includes('Resolution target:'));
 
 section('SLA reminder email');
 const reminder = ticketEmailBody(ticket, 'sla-3h');
@@ -65,7 +65,7 @@ check('is built from the assignment builder, not a copy',
   preview.text.slice(0, 60));
 check('is visibly a sample', /sample/i.test(preview.subject + preview.text));
 check('says no ticket was created', preview.text.includes('No ticket was created.'), preview.text);
-check('carries a follow-up target, like a real assignment', preview.text.includes('Follow-up target:'), preview.text);
+check('carries a resolution target, like a real assignment', preview.text.includes('Resolution target:'), preview.text);
 
 section('Catalogue contract');
 // Every declared Mailtrap action must have a branch in runIntegration. 'send-assignment-preview'

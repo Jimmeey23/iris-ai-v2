@@ -25,7 +25,7 @@ export function hoursFromNow(hours: number) {
   return new Date(Date.now() + hours * 60 * 60 * 1000);
 }
 
-/** Clock state of a follow-up target. "soon" starts when less than the workspace's
+/** Clock state of a resolution target. "soon" starts when less than the workspace's
  *  `slaWarningPercent` of the created→due window is left (see lib/metrics.ts); pass
  *  `createdAt` so the window is known. */
 export function slaState(dueAt?: string | Date | null, status?: string, createdAt?: string | Date | null) {

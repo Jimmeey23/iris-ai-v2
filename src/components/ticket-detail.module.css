@@ -475,3 +475,16 @@
     font-size: 14px;
   }
 }
+
+/* A single dedicated resolution screen keeps the primary action in one place. */
+.workspace[data-section="resolution"] { grid-template-columns: minmax(0,1fr) !important; }
+.workspace[data-section="resolution"] .main { display:none; }
+.workspace[data-section="resolution"] .resolution { grid-column:1 / -1; width:100%; max-width:960px; margin-inline:auto; }
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-tabs-row) { flex-wrap:wrap; background:var(--surface); gap:8px; }
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-tabs-row .tabs) { overflow-x:auto; min-width:0; }
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-tabs-row button) { min-height:44px; }
+@container ticket-case (max-width:599px) {
+ .dialog:global(.ticket-detail-dialog) .shell :global(.td-people) { grid-template-columns:repeat(2,minmax(0,1fr)); }
+ .dialog:global(.ticket-detail-dialog) .shell :global(.td-person-reporter) { grid-column:1 / -1; }
+ .workspace { padding:12px; gap:12px; }
+}

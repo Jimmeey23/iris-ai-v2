@@ -1,0 +1,66 @@
+{
+  "scope": "Local default CATEGORY_MAP and generated plans; excludes database-published overrides",
+  "forms": 299,
+  "totalFieldOccurrences": 11055,
+  "minFields": 23,
+  "maxFields": 62,
+  "averageFields": 36.97324414715719,
+  "moreThan35": 147,
+  "moreThan4Textareas": 66,
+  "probes": {
+    "positiveHeadset": {
+      "category": "Repair and Maintenance",
+      "subcategory": "Audio, Mic & Headphone Malfunction"
+    },
+    "cleanlinessCompliment": {
+      "category": "Repair and Maintenance",
+      "subcategory": "Housekeeping & Cleaning Issues"
+    },
+    "historicalFaultMention": {
+      "category": "Repair and Maintenance",
+      "subcategory": "Audio, Mic & Headphone Malfunction"
+    },
+    "cities": [
+      [
+        "Mumbai",
+        "mumbai"
+      ],
+      [
+        "Bengaluru",
+        "bengaluru"
+      ],
+      [
+        "Bandra",
+        "mumbai"
+      ],
+      [
+        "Unknown location",
+        "mumbai"
+      ],
+      [
+        "Delhi",
+        "mumbai"
+      ]
+    ],
+    "skipAll": [],
+    "eventFieldsWithSessionOff": [
+      "How this reached us",
+      "Who hosted the class",
+      "Who was in the room",
+      "What happened to the class",
+      "Effect on the experience",
+      "Attendance vs. what Momence shows",
+      "Notes on the audience",
+      "Notes on the host / coach",
+      "Notes on membership compatibility",
+      "What the class needed",
+      "Booking friction members hit",
+      "Will they come back?",
+      "Attendees needing a follow-up",
+      "What was offered",
+      "Summary of what each attendee said",
+      "Attendees this ticket is about"
+    ],
+    "sentimentWriteup": "Music Quality at Kwality House. Logged by the desk (front desk / associate). The member came across negative, churn risk high."
+  }
+}

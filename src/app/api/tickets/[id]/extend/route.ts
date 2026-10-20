@@ -5,12 +5,12 @@
  * moves that column defers the escalation by exactly the hours granted with no second clock
  * to keep in step. The columns beside it are the record of who moved it and why.
  *
- * One extension per ticket. An owner who can defer indefinitely has no follow-up target at
+ * One extension per ticket. An owner who can defer indefinitely has no resolution target at
  * all, which is the thing the target exists to prevent; a second extension is a conversation
  * with the manager, not a button. The reason is mandatory and ends up in the activity log,
  * because "needs more time" with no reason is what the breach already said.
  */
-import {eq, sql} from 'drizzle-orm';
+import {eq, and, isNull, sql} from 'drizzle-orm';
 import {z} from 'zod';
 import {after} from 'next/server';
 import {db} from '@/db';
@@ -47,11 +47,11 @@ export async function POST(req: Request, ctx: Ctx) {
     if (!ticket) throw new ApiError('Ticket not found', 404);
     requireTicketAccess(actor, ticket);
     // The same test the resolution workspace uses: the assigned owner, or that owner's
-    // reporting manager. Nobody else gets to move somebody else's follow-up target.
+    // reporting manager. Nobody else gets to move somebody else's resolution target.
     if (!(await canResolveTicket(actor, ticket.assignedStaffId, ticket.resolutionRequired, ticket.additionalOwners)))
       throw new ApiError('Only the assigned owner or their reporting manager can extend this.', 403);
     if (!ticket.resolutionRequired || !ticket.slaDueAt)
-      throw new ApiError('This ticket has no follow-up target to extend.');
+      throw new ApiError('This ticket has no resolution target to extend.');
     if (['resolved', 'closed', 'recorded'].includes(ticket.status))
       throw new ApiError('This ticket is already settled — there is nothing to extend.');
     if (ticket.slaExtendedAt)
@@ -65,7 +65,7 @@ export async function POST(req: Request, ctx: Ctx) {
     // extending early should both buy the same number of hours.
     const due = new Date(ticket.slaDueAt.getTime() + input.hours * 3600_000);
     await db.transaction(async tx => {
-      await tx
+      const [extended] = await tx
         .update(tickets)
         .set({
           slaDueAt: due,
@@ -77,12 +77,13 @@ export async function POST(req: Request, ctx: Ctx) {
           version: sql`${tickets.version} + 1`,
           updatedAt: now,
         })
-        .where(eq(tickets.id, id));
+        .where(and(eq(tickets.id, id),eq(tickets.version,ticket.version),isNull(tickets.slaExtendedAt))).returning({id:tickets.id});
+      if(!extended)throw new ApiError('This ticket changed elsewhere. Refresh before extending it.',409);
       await tx.insert(ticketActivities).values({
         ticketId: id,
         actorName: actor.name,
         action: 'sla.extended',
-        detail: `Follow-up target moved out by ${input.hours}h — ${input.reason}`.slice(0, 500),
+        detail: `Resolution target moved out by ${input.hours}h — ${input.reason}`.slice(0, 500),
       });
     });
     after(() => signalChanged('tickets'));

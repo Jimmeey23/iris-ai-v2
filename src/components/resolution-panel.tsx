@@ -34,6 +34,7 @@ export type Resolution = {
   preventiveAction: string;
   memberOutcome: string;
   followUpAt?: string | null;
+  updatedAt?:string;
 };
 export type ResolutionStep = {
   id: number;
@@ -201,7 +202,7 @@ export function ResolutionPanel({
   const { notify } = useApp();
   const [section, setSection] = useState<
     "log" | "chase" | "member" | "files" | "writeup"
-  >(workspace.resolution?.actionTaken ? "writeup" : "log");
+  >("writeup");
   const [writing, setWriting] = useState(false);
   const [resolving, setResolving] = useState(false);
   const saving = writing || resolving;
@@ -254,7 +255,7 @@ export function ResolutionPanel({
   // resolving saves it first (see the Mark resolved button), so an owner who typed the write-up
   // and went straight for the button is not told to go back and press Save.
   const savedActionTaken = Boolean(workspace.resolution?.actionTaken?.trim());
-  const readyToResolve = savedActionTaken || Boolean(draft.actionTaken.trim());
+  const readyToResolve = !openFollowUps.length && (savedActionTaken || Boolean(draft.actionTaken.trim()));
   const hasWriteUp = SUMMARY_FIELDS.some((f) =>
     workspace.resolution?.[f.key]?.trim(),
   );
@@ -317,7 +318,7 @@ export function ResolutionPanel({
       if (dirty)
         await call("", {
           method: "PUT",
-          body: JSON.stringify({ ...merged, followUpAt: merged.followUpAt || undefined }),
+          body: JSON.stringify({ ...merged, expectedUpdatedAt:workspace.resolution?.updatedAt||null, followUpAt: merged.followUpAt || undefined }),
         });
       await onPatch({ status: target });
     } finally {
@@ -375,11 +376,11 @@ export function ResolutionPanel({
   // reassignment) and the server said no — fall back to a locked view rather than
   // repeat the same error on every click.
   const tabs = [
-    { id: "log", label: "Steps", count: workspace.steps.length, icon: ListChecks },
-    { id: "chase", label: "Follow-ups", count: openFollowUps.length, icon: BellRing },
+    { id: "log", label: "Resolution steps", count: workspace.steps.length, icon: ListChecks },
+    { id: "chase", label: "Follow-up tasks", count: openFollowUps.length, icon: BellRing },
     { id: "member", label: "Contact", count: workspace.contacts.length, icon: ContactRound },
     { id: "files", label: "Files", count: workspace.attachments.length, icon: Paperclip },
-    { id: "writeup", label: "Summary", count: hasWriteUp ? 1 : 0, icon: FileCheck2 },
+    { id: "writeup", label: "Resolve ticket", count: hasWriteUp ? 1 : 0, icon: FileCheck2 },
   ] as const;
 
   return (
@@ -812,6 +813,7 @@ export function ResolutionPanel({
                     method: "PUT",
                     body: JSON.stringify({
                       ...draft,
+                      expectedUpdatedAt:workspace.resolution?.updatedAt||null,
                       followUpAt: draft.followUpAt || undefined,
                     }),
                   }).then(() => notify("Write-up saved."))

@@ -141,7 +141,7 @@ export function HeroBackdrop({tone='accent'}:{tone?:string}){
 /* ── SLA ring ─────────────────────────────────────────────────────────────── */
 
 /** How much of the follow-up window has been spent, as a ring. Reuses `.progress-ring`. */
-export function SlaRing({createdAt,slaDueAt,status,size=74}:{createdAt:string;slaDueAt?:string|null;status:string;size?:number}){
+export function SlaRing({createdAt,slaDueAt,status,resolvedAt,size=74}:{createdAt:string;slaDueAt?:string|null;resolvedAt?:string|null;status:string;size?:number}){
   // Ticks with the countdown beside it so the ring and the number never disagree.
   const[now,setNow]=useState(()=>new Date(createdAt).getTime());
   useEffect(()=>{const first=setTimeout(()=>setNow(Date.now()),0);const t=setInterval(()=>setNow(Date.now()),30000);return()=>{clearTimeout(first);clearInterval(t);};},[]);
@@ -153,10 +153,11 @@ export function SlaRing({createdAt,slaDueAt,status,size=74}:{createdAt:string;sl
   // No follow-up window means there is nothing to fill: show the bare track, not a
   // full ring, which would otherwise read as "complete".
   const pct=!slaDueAt?0:done?1:Math.min(1,spent);
-  const tone=!slaDueAt?'muted':done?'green':spent>=1?'red':spent>=0.75?'amber':'green';
+  const late=Boolean(done&&resolvedAt&&new Date(resolvedAt).getTime()>due);
+  const tone=!slaDueAt?'muted':late?'red':done?'green':spent>=1?'red':spent>=0.75?'amber':'green';
   const r=(size-9)/2, c=2*Math.PI*r;
-  const label=!slaDueAt?'—':done?'done':Math.round(Math.min(spent,1.35)*100)+'%';
-  return <div className="progress-ring sla-ring" style={{width:size,height:size,color:`var(--${tone})`}} role="img" aria-label={`Follow-up window ${label} elapsed`}>
+  const label=!slaDueAt?'—':late?'late':done?'done':Math.round(Math.min(spent,1.35)*100)+'%';
+  return <div className="progress-ring sla-ring" style={{width:size,height:size,color:`var(--${tone})`}} role="img" aria-label={`Resolution target ${label} elapsed`}>
     <svg viewBox={`0 0 ${size} ${size}`}>
       <circle className="pr-track" cx={size/2} cy={size/2} r={r} strokeWidth="5"/>
       <circle className="pr-value" cx={size/2} cy={size/2} r={r} strokeWidth="5" strokeLinecap="round"
@@ -200,7 +201,8 @@ const SENTIMENT:Record<string,{tone:string;level:number;face:string}>={
 
 /** A face plus a four-step meter — sentiment read at a glance, not as a word. */
 export function SentimentArt({sentiment}:{sentiment:string}){
-  const s=SENTIMENT[sentiment]||SENTIMENT.neutral;
+  if(!SENTIMENT[sentiment])return <p className="muted">Not provided</p>;
+  const s=SENTIMENT[sentiment];
   return <div className="sentiment-art" style={{color:`var(--${s.tone})`}}>
     <svg viewBox="0 0 200 140" fill="none" aria-hidden="true" className="sentiment-face">
       <circle cx="100" cy="72" r="46" stroke="currentColor" strokeOpacity=".35" strokeWidth="1.7"/>

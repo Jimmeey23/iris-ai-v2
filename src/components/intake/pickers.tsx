@@ -21,7 +21,7 @@ export function CategoryGrid({taxonomy, onPick, onClassDesk, onSuggest}: {taxono
         <div>
           <div className="eyebrow">Step 1 of 4</div>
           <h2>What is this about?</h2>
-          <p>Pick the drawer it belongs in. The department, owner and follow-up target come with it.</p>
+          <p>Select the category that best describes the report. Assignment is confirmed after you choose a studio.</p>
         </div>
         <div className="search-input intake-search"><Search size={14} /><input value={q} onChange={e => setQ(e.target.value)} placeholder="Search categories or sub-categories…" aria-label="Search categories" /></div>
       </div>
@@ -77,7 +77,7 @@ export function SubcategoryGrid({category, onBack, onPick}: {category: IntakeCat
               <Priority priority={s.priority} />
             </div>
             <div className="intake-sub-meta">
-              <span title="Follow-up target at the default priority"><Clock3 size={11} />{s.slaHours}h target</span>
+              <span title="Resolution target at the default priority"><Clock3 size={11} />{s.slaHours}h target</span>
               <span title="Required questions · optional questions"><ListChecks size={11} />{s.requiredCount} required · {s.fieldCount - s.requiredCount} optional</span>
               {s.hist > 0 && <span title={`${s.hist} earlier tickets in the Support Hub archive`}><UserRound size={11} />{s.hist} in the archive</span>}
             </div>

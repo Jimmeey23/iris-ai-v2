@@ -58,7 +58,7 @@ const row = (over: Partial<Digest['buckets'][number]['rows'][number]> = {}) => (
 const digest = (over: Partial<Digest> = {}): Digest => ({
   asOf: istDayStart(now),
   buckets: [
-    {key: 'overdue', label: 'Overdue', blurb: 'Past the follow-up target and still open.', rows: [row()]},
+    {key: 'overdue', label: 'Overdue', blurb: 'Past the resolution target and still open.', rows: [row()]},
     {key: 'today', label: 'Due today', blurb: 'The target falls before midnight tonight.', rows: []},
     {key: 'overnight', label: 'Raised overnight', blurb: 'Filed since midnight, target still ahead.', rows: []},
     {key: 'unassigned', label: 'Waiting for an owner', blurb: 'Nobody has picked these up.', rows: []},
@@ -143,7 +143,7 @@ describe('digest insights', () => {
     assert.ok(insights.some(i => i.startsWith('Kwality House, Kemps Corner holds 4 of the 5 overdue')), insights.join(' | '));
   });
   it('reports the on-time rate and typical resolution time', () => {
-    assert.ok(insights.some(i => i.startsWith('75% of tickets resolved this week met their follow-up target') && i.includes('18h')), insights.join(' | '));
+    assert.ok(insights.some(i => i.startsWith('75% of tickets resolved this week met their resolution target') && i.includes('18h')), insights.join(' | '));
   });
   it('calls out the oldest open ticket', () => {
     // A board with less going on, so the six-item cap does not crowd this line out.

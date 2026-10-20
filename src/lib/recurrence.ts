@@ -30,7 +30,7 @@ export type Cluster = {
   subject: string;
   count: number;
   open: number;
-  /** Open and past the follow-up target. */
+  /** Open and past the resolution target. */
   overdue: number;
   /** Distinct days it was reported on: four reports on one morning is one event, not four. */
   days: number;
@@ -175,7 +175,7 @@ const PHRASE: Record<RecurrenceKind, {note: (r: Row) => string; action: (r: Row)
     action: () => 'Review the format with the training team: music, choreography, difficulty and how it is set up.',
   },
   department: {
-    note: r => `${plural(r.overdue, 'ticket')} past the follow-up target in this team, ${plural(r.open, 'open')} in total.`,
+    note: r => `${plural(r.overdue, 'ticket')} past the resolution target in this team, ${plural(r.open, 'open')} in total.`,
     action: () => 'Rebalance the queue or have the department head clear the overdue list this week.',
   },
   owner: {

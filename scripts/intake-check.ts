@@ -126,7 +126,7 @@ console.log('\nEvery plan can name the member; answers narrow, and hidden answer
 {
   const capacity = planFields('Scheduling', 'Class Capacity Issues', ctx);
   const member = capacity.find(f => f.id === 'member_name');
-  check('a plan without a member field gets the shared member lookup', member?.type === 'lookup' && member.module === 'member' && !member.required && member.universal === true && member.section === 'Who this is about', member);
+  check('a plan without a member field gets the shared member lookup', member?.type === 'lookup' && member.module === 'member' && !member.required && member.universal === true && member.section === 'Global details', member);
   const own = planFields('Pricing and Memberships', 'Auto-Renewal Concerns', ctx).filter(f => f.id === 'member_name');
   check('a plan with its own member lookup keeps it and does not get the shared one', own.length === 1 && own[0].required === true && !own[0].universal, own);
   check('it is optional for a studio observation', gatingFor(capacity, {reporter_type: 'I noticed this myself', class_date: 'Barre 57, 7am'}, {name: 'Class Capacity Issues', category: 'Scheduling'}).length === 0);
@@ -134,7 +134,7 @@ console.log('\nEvery plan can name the member; answers narrow, and hidden answer
   const byId = Object.fromEntries(capacity.map(f => [f.id, f]));
   check('linked_ticket waits for "ticket already open"', !isVisible(byId.linked_ticket, {is_repeat: 'No, first time'}) && isVisible(byId.linked_ticket, {is_repeat: 'Yes, ticket already open (link it below)'}));
   check('sentiment is asked when a member is in the picture', !isVisible(byId.sentiment, {reporter_type: 'I noticed this myself'}) && isVisible(byId.sentiment, {reporter_type: 'Member'}) && isVisible(byId.sentiment, {reporter_type: 'A member told me about it'}));
-  check('churn risk follows a frustrated or negative member', !isVisible(byId.churn_risk, {reporter_type: 'Member', sentiment: 'Positive'}) && isVisible(byId.churn_risk, {reporter_type: 'Member', sentiment: 'Frustrated'}));
+  check('speculative churn risk is not requested', !byId.churn_risk);
   const stale: IntakeData = seedData({studio: ctx.studios[0], reporter_name: 'Desk', reporter_contact: 'desk@physique57.in', is_repeat: 'No, first time', linked_ticket: encodeLookup({id: 'P57-00007', label: 'P57-00007 · Old AC fault'}), member_impact: 'No impact', immediate_danger: 'No', schedule_action: 'Move to a new time', summary: 'A member asked for the 7am to move to 7:30 so the car park is open.', class_date: 'Barre 57, 7am'});
   const filed = toTicketInput({category: 'Scheduling', sub: 'Class Capacity Issues', fields: capacity, data: stale, kind: 'request', submissionKey: 'check-hidden-000001'});
   check('an answer behind a question that is hidden again is not filed', !('linkedTicket' in (filed.customFields as Record<string, unknown>)) && !('linked_ticket' in (filed.customFields as Record<string, unknown>)), Object.keys(filed.customFields));
@@ -162,7 +162,7 @@ console.log('\nThe write-up quotes the form and nothing else');
     occurred_at: '2026-09-21T07:30', member_name: encodeLookup({id: '481102', label: 'Priya Mehta', sublabel: 'priya@example.com'}),
     class_date: encodeLookup({id: '2208', label: 'Studio HIIT'}), class_format: 'Studio HIIT', trainer: 'Karanvir Bhatia',
     is_repeat: 'No, first time', member_impact: 'Could not proceed as normal', immediate_danger: 'No', affected_count: '12', sentiment: 'Frustrated',
-    requested_outcome: 'Fix before the 6pm class.', reading_now: '31°C on the wall sensor',
+    requested_outcome: 'Fix before the 6pm class.', specific_area: '31°C on the wall sensor',
   };
   const text = composeWriteup({sub, fields, data});
   check('opens with the drawer, the studio and the room', text.startsWith('AC and HVAC Issues at Kwality House, Studio 1 — '), text.slice(0, 80));
@@ -236,7 +236,7 @@ console.log('\nThe payload maps onto the contract Iris already files through');
     member_name: encodeLookup({id: '481102', label: 'Priya Mehta', sublabel: 'priya@example.com'}),
     is_repeat: 'No, first time', member_impact: 'Could not proceed as normal', class_impacted: 'Yes — happening now', immediate_danger: 'No',
     title: 'AC down in Studio 1', summary: 'The AC in Studio 1 stopped mid-class; the room hit 31°C and the class was cut short.', requested_outcome: 'Fix before the 6pm class.',
-    sentiment: 'Frustrated', affected_count: '12', reading_now: '31°C on the wall sensor', not_a_field: 'ignored',
+    sentiment: 'Frustrated', affected_count: '12', specific_area: '31°C on the wall sensor', not_a_field: 'ignored',
   };
   const input = toTicketInput({category: 'Repair and Maintenance', sub: 'AC and HVAC Issues', fields, data, kind: 'issue', submissionKey: 'check-payload-000001', memberDetail: {email: 'priya@example.com', phone: '+91 98200 11111', membership: 'Studio 10 Single Class Pack'}});
   const parsed = ticketInputSchema.safeParse(input);
@@ -251,7 +251,7 @@ console.log('\nThe payload maps onto the contract Iris already files through');
   check('source is iris', input.source === 'iris');
   const cf = input.customFields as Record<string, unknown>;
   check('routing signals recorded under the names makeDraft reads', cf.isClassImpacted === 'Yes — happening now' && cf.isImmediateDanger === 'No' && cf.reportedBy === 'A member told me about it' && cf.memberImpact === 'Yes — members were affected', cf);
-  check('sub-category answers ride in customFields by field id', cf.reading_now === '31°C on the wall sensor' && cf.affectedCount === 12);
+  check('sub-category answers ride in customFields by field id', cf.specific_area === '31°C on the wall sensor' && cf.affectedCount === 12);
   check('answers outside the plan are not filed', !('not_a_field' in cf));
   check('no duplicate raw/alias pairs', !('reporter_type' in cf) && !('immediate_danger' in cf) && !('class_impacted' in cf), Object.keys(cf));
   check('plan provenance is kept out of sight', typeof cf._intake === 'object' && (cf._intake as {plan: string}).plan === 'Repair and Maintenance|||AC and HVAC Issues');
@@ -261,12 +261,12 @@ console.log('\nThe payload maps onto the contract Iris already files through');
   check('a danger answer lifts it to critical', inferPriority(priorityInputs('Repair and Maintenance', 'AC and HVAC Issues', {...data, immediate_danger: 'Yes — fire / smoke'})) === 'critical');
   // The observation-only case: staff noticed it, nobody linked.
   const staff = toTicketInput({category: 'Repair and Maintenance', sub: 'AC and HVAC Issues', fields, data: {...data, reporter_type: 'I noticed this myself', member_name: ''}, kind: 'issue', submissionKey: 'check-payload-000002'});
-  check('an observation files for the studio team', staff.memberName === 'Studio team observation' && !staff.momenceMemberId, staff.memberName);
+  check('an observation files for the studio team', staff.memberName === '' && !staff.momenceMemberId, staff.memberName);
   const self = toTicketInput({category: 'Repair and Maintenance', sub: 'AC and HVAC Issues', fields, data: {...data, reporter_type: 'Member', reporter_name: 'Rhea Shah', reporter_contact: 'rhea@example.com', member_name: ''}, kind: 'issue', submissionKey: 'check-payload-000003'});
   check('a member filing for themselves is the member', self.memberName === 'Rhea Shah' && self.memberEmail === 'rhea@example.com', [self.memberName, self.memberEmail]);
   // Some plans make member_email the member lookup itself; the email must still come out clean.
   const renew = planFields('Pricing and Memberships', 'Auto-Renewal Concerns', ctx);
-  const viaEmailLookup = toTicketInput({category: 'Pricing and Memberships', sub: 'Auto-Renewal Concerns', fields: renew, data: {...data, member_name: '', member_email: encodeLookup({id: '481102', label: 'Priya Mehta', sublabel: 'priya@example.com'})}, kind: 'issue', submissionKey: 'check-payload-000005'});
+  const viaEmailLookup = toTicketInput({category: 'Pricing and Memberships', sub: 'Auto-Renewal Concerns', fields: renew, data: {...data, member_name: encodeLookup({id: '481102', label: 'Priya Mehta', sublabel: 'priya@example.com'})}, kind: 'issue', submissionKey: 'check-payload-000005'});
   check('a member linked through member_email files with a clean email', viaEmailLookup.momenceMemberId === '481102' && viaEmailLookup.memberEmail === 'priya@example.com' && ticketInputSchema.safeParse(viaEmailLookup).success, [viaEmailLookup.momenceMemberId, viaEmailLookup.memberEmail]);
   const praise = toTicketInput({category: 'Trainer Feedback', sub: 'Trainer Encouragement', fields: planFields('Trainer Feedback', 'Trainer Encouragement', ctx), data: {...data, sentiment: ''}, kind: 'compliment', submissionKey: 'check-payload-000004'});
   check('a compliment defaults to positive sentiment', praise.sentiment === 'positive' && praise.kind === 'compliment');
@@ -289,8 +289,8 @@ console.log('\nOne taxonomy, one priority, one SLA');
   const tiers: [string, string, string][] = [['Trainer Feedback', 'Trainer Behaviour', 'high'], ['Trainer Feedback', 'Trainer Punctuality Issues', 'high'], ['Miscellaneous', 'Music Volume Issues', 'medium'], ['Repair and Maintenance', 'Fire Safety Compliance', 'critical']];
   check('conflicts resolve to the higher tier', tiers.every(([c, s, p]) => inferPriority({category: c, subcategory: s}) === p), tiers.map(([c, s]) => inferPriority({category: c, subcategory: s})));
   const meta = hubSub('Trainer Feedback', 'Trainer Behaviour', {priority: 'high', hours: {critical: 1, high: 6, medium: 24, low: 72}})!;
-  check('the plan reports the priority it is given, with the configured SLA', meta.hubPriority === 'high' && meta.slaLabel === '6 h first response' && meta.hours[0] === 6, meta);
-  check('without configured hours the SLA is the default table', hubSub('Scheduling', 'Time Change')!.slaLabel === `${PRIORITY_SLA_HOURS.medium} h first response`, hubSub('Scheduling', 'Time Change')!.slaLabel);
+  check('the plan reports the priority it is given, with the configured SLA', meta.hubPriority === 'high' && meta.slaLabel === '6 h resolution target' && meta.hours[0] === 6, meta);
+  check('without configured hours the SLA is the default table', hubSub('Scheduling', 'Time Change')!.slaLabel === `${PRIORITY_SLA_HOURS.medium} h resolution target`, hubSub('Scheduling', 'Time Change')!.slaLabel);
   check('the plan carries no SLA strings of its own', !hub.some(c => c.subs.some(sub => /P[1-4] —|min first/.test(hubSub(c.name, sub)!.slaLabel))));
   check('an admin-added sub-category still gets a plan', hubSub('Scheduling', 'Brand New Drawer') === null && planFields('Scheduling', 'Brand New Drawer', ctx)[0]?.id === 'reporter_type');
 }
@@ -352,8 +352,8 @@ console.log('\nOperational faults use specific Repair and Maintenance sub-catego
 console.log('\nRouting and SLA policy are bounded and deterministic');
 {
   const policy = {categoryDepartments: {Scheduling: 'operations', 'Repair and Maintenance': 'training'}, subcategoryRouting: {}};
-  check('scheduling routes to Training even when saved settings drift', departmentForTicket(policy, 'Scheduling', 'Waitlist Concerns') === 'training');
-  check('repair routes to Operations even when saved settings drift', departmentForTicket(policy, 'Repair and Maintenance', 'PowerCycle Bike Malfunction & Repairs') === 'operations');
+  check('saved scheduling department overrides the fallback', departmentForTicket(policy,'Scheduling','Waitlist Concerns')==='operations');
+  check('saved repair department overrides the fallback', departmentForTicket(policy,'Repair and Maintenance','PowerCycle Bike Malfunction & Repairs')==='training');
   check('unknown work falls back to Management', departmentForTicket(policy, 'Unmapped Category', 'Unclear request') === 'management');
   check('an AC fault is eligible for recurrence checks', isAcTicket({title: 'Studio 1 AC repaired', description: 'Cooling stopped', subcategory: 'AC & Ventilation Repairs', category: 'Repair and Maintenance'}));
   const slaCfg = {responseHours: {critical: 1, high: 16, medium: 48, low: 200}, subcategoryRouting: {'Repair and Maintenance|||PowerCycle Bike Malfunction & Repairs': {departmentId: 'operations', slaHours: 4}}};

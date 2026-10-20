@@ -430,7 +430,7 @@ export function StudioOpsRadar({ initialStudio = 'kwality' }: { initialStudio?: 
               </span>
             </div>
             <p className="telemetry-subtitle">
-              Every room on the plan, coloured by its open tickets and their follow-up targets
+              Every room on the plan, coloured by its open tickets and their resolution targets
             </p>
           </div>
         </div>

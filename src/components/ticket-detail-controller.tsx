@@ -54,7 +54,7 @@ type Bundle = {
   }[];
 };
 
-const TABS = ["overview", "activity", "related"] as const;
+const TABS = ["overview", "resolution", "activity", "related"] as const;
 export function useTicketDialogController({
   id,
   open,
@@ -89,6 +89,7 @@ export function useTicketDialogController({
     }
   }, [railOpen]);
   const closeResolution = () => {
+    setTab("overview");
     setRailOpen(false);
     resolutionToggle.current?.focus({ preventScroll: true });
   };
@@ -295,7 +296,7 @@ export function useTicketDialogController({
       await load();
       onUpdated?.();
       window.dispatchEvent(new Event("iris:tickets-updated"));
-      notify(`Follow-up target moved out by ${extendHours} hours.`);
+      notify(`Resolution target moved out by ${extendHours} hours.`);
     } catch (e) {
       notify(
         e instanceof Error ? e.message : "Could not extend the target",

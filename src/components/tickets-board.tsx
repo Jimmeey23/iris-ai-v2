@@ -1,4 +1,5 @@
 "use client";
+import {entryTypeLabel} from "@/lib/display";
 import { useEffect, useCallback, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -39,6 +40,7 @@ import {
 } from "@/lib/dashboard-contract";
 /** Slowest acceptable refresh. The board also reloads on `iris:tickets-updated` and on tab focus. */
 const POLL_FLOOR = 60000;
+let ticketFlight:{scope:string;promise:Promise<TicketListRecord[]>}|undefined;
 const BOARD_BOOT_TIME = Date.now();
 export function useTickets(poll = true) {
   const [tickets, setTickets] = useState<TicketListRecord[]>([]),
@@ -50,6 +52,9 @@ export function useTickets(poll = true) {
   // nextCursor until the server says there is nothing left. No setState here — this
   // only fetches; `applyTickets` below is the callback that updates state.
   const fetchAll = useCallback(async () => {
+    const scope=JSON.stringify(user);
+    if(ticketFlight?.scope===scope)return ticketFlight.promise;
+    const request=(async()=>{
     let all: TicketListRecord[] = [];
     let cursor: string | null = null;
     do {
@@ -62,7 +67,10 @@ export function useTickets(poll = true) {
       cursor = d.nextCursor;
     } while (cursor);
     return all;
-  }, []);
+    })();
+    ticketFlight={scope,promise:request};
+    try{return await request;}finally{if(ticketFlight?.promise===request)ticketFlight=undefined;}
+  }, [user]);
   const applyTickets = useCallback((all: TicketListRecord[]) => {
     setTickets(all);
     setError("");
@@ -258,9 +266,9 @@ export function SlaCountdown({
   }
   if (["resolved", "closed"].includes(ticket.status)) {
     return (
-      <div className={`sla-countdown done ${large ? "sla-countdown-lg" : ""}`}>
+      <div className={`sla-countdown ${ticket.resolvedAt&&new Date(ticket.resolvedAt)>new Date(ticket.slaDueAt)?'breached':'done'} ${large ? "sla-countdown-lg" : ""}`}>
         <span className="sla-countdown-value">✓</span>
-        <span className="sla-countdown-label">Resolved</span>
+        <span className="sla-countdown-label">{ticket.resolvedAt&&new Date(ticket.resolvedAt)>new Date(ticket.slaDueAt)?'Resolved late':'Resolved within target'}</span>
       </div>
     );
   }
@@ -422,7 +430,7 @@ export function TicketMeta({
         ) : (
           <MessageSquare size={9} />
         )}
-        {t.kind}
+        {entryTypeLabel(t)}
       </span>
       <span className="chip">
         <Hash size={9} />
@@ -525,7 +533,7 @@ export function TicketTable({
                       className="chip chip-kind"
                       data-tone={KIND_TONE[t.kind] || ""}
                     >
-                      {t.kind}
+                      {entryTypeLabel(t)}
                     </span>
                     <span className="chip">{t.category}</span>
                   </div>
@@ -967,7 +975,7 @@ export function FeedView({
                     className="chip chip-kind"
                     data-tone={KIND_TONE[t.kind] || ""}
                   >
-                    {t.kind}
+                    {entryTypeLabel(t)}
                   </span>
                   <span className="chip">
                     {t.category} › {t.subcategory}

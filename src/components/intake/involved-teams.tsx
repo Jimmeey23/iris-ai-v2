@@ -1,5 +1,6 @@
 "use client";
 import {Check, Crown, Sparkles} from 'lucide-react';
+import {equipmentRepairRoute} from '@/lib/equipment-routing';
 import {DEPARTMENT_RECORDS} from '@/lib/constants';
 
 export const INVOLVABLE_TEAMS: {id: string; name: string}[] = DEPARTMENT_RECORDS.filter(d => d.active).map(d => ({id: d.id, name: d.name}));
@@ -16,7 +17,7 @@ export function suggestTeams({category, sub, memberInvolved, text = ''}: {catego
   if (category !== 'Class Experience') return [];
   const out: string[] = [];
   if (memberInvolved) out.push('sales-client-servicing', 'training');
-  if (FACILITY_SIGNAL.test(`${sub} ${text}`)) out.push('operations');
+  if (equipmentRepairRoute({category,subcategory:sub,description:text})) out.push('operations');
   return out;
 }
 

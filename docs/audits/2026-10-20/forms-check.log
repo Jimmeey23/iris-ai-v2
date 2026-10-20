@@ -1,0 +1,40 @@
+
+> check:forms
+> npx tsx scripts/forms-check.mjs
+
+PASS  Mic Not Working: asset_type prefilled "Microphone" (wanted "Microphone")
+PASS  Mic Not Working: prefillFor seeds the value
+PASS  Mic Not Working: "Microphone" is a real option on the list
+PASS  Speakers Static Noise: asset_type prefilled "Speaker" (wanted "Speaker")
+PASS  Speakers Static Noise: prefillFor seeds the value
+PASS  Speakers Static Noise: "Speaker" is a real option on the list
+PASS  AC and HVAC Issues: asset_type prefilled "Air conditioning system" (wanted "Air conditioning system")
+PASS  AC and HVAC Issues: prefillFor seeds the value
+PASS  AC and HVAC Issues: "Air conditioning system" is a real option on the list
+PASS  PowerCycle Bike Fault (Stages SC3): asset_type prefilled "PowerCycle bike" (wanted "PowerCycle bike")
+PASS  PowerCycle Bike Fault (Stages SC3): prefillFor seeds the value
+PASS  PowerCycle Bike Fault (Stages SC3): "PowerCycle bike" is a real option on the list
+PASS  Scheduling/Time Change gains no equipment field
+PASS  members_affected injected where the roster picker is absent
+PASS  hidden when the count is blank
+PASS  hidden when the count is 0
+PASS  shown when the count is 3
+PASS  shown when the count is 12
+PASS  it is a multi-select Momence member lookup
+PASS  escape hatch added to 16/21 closed lists on this form
+PASS  studio stays closed (routing depends on it)
+PASS  a list that already had its own escape gets no second one
+PASS  sentinel is the expected string
+PASS  report_channel: not asked when the member raises it (the app already knows)
+PASS  report_channel: asked when staff relay it from elsewhere
+PASS  affected_count: not asked when nobody was affected
+PASS  affected_count: asked when somebody was
+
+296 forms · 6253 closed lists
+PASS  every closed list has a way out (6253/6253)
+PASS  every form that counts affected members can name them (296/296)
+   equipment pre-filled on 9 forms
+PASS  no required field is hidden behind an unreachable condition
+   21.2 questions visible before the first answer
+
+all passed

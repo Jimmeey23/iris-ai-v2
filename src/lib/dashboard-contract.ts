@@ -51,10 +51,7 @@ export const COLUMN_META: Record<TicketColumn, {label: string; align?: 'right' |
 };
 
 export const LEGACY_DEFAULT_COLUMNS: TicketColumn[] = ['label', 'kind', 'category', 'status', 'priority', 'owner', 'created', 'sla'];
-export const DEFAULT_COLUMNS: TicketColumn[] = [
-  'label', 'member', 'kind', 'category', 'studio', 'status', 'priority', 'owner', 'coOwners',
-  'department', 'source', 'age', 'sla', 'revisedSla', 'extension', 'committedResolution', 'escalation',
-];
+export const DEFAULT_COLUMNS: TicketColumn[] = ['label','studio','status','priority','owner','sla'];
 
 /**
  * Bumped when a release wants existing people to see something their saved layout would
@@ -226,7 +223,7 @@ export function statusPhase(status: string): StatusPhase {
   return status === 'resolved' || status === 'closed' || status === 'recorded' ? status : 'open';
 }
 
-/** The follow-up target as it stood before anyone asked for extra time. */
+/** The resolution target as it stood before anyone asked for extra time. */
 export function originalSlaDueAt(t: Pick<TicketListRecord, 'slaDueAt' | 'slaExtendedHours'>): string | null {
   if (!t.slaDueAt || !(t.slaExtendedHours > 0)) return null;
   return new Date(ms(t.slaDueAt) - t.slaExtendedHours * 3600000).toISOString();

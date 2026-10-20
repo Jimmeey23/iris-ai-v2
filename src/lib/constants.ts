@@ -756,7 +756,7 @@ export const STATUS_LABELS: Record<string, string> = {
   closed: "Closed",
 };
 
-/** Default first-response hours per priority — the one SLA table. The workspace's
+/** Default resolution-target hours per priority — the one SLA table. The workspace's
  *  `responseHours` (Settings) defaults to this and is what tickets are actually filed with. */
 export type SlaHours = Record<"critical" | "high" | "medium" | "low", number>;
 export const PRIORITY_SLA_HOURS: SlaHours = {

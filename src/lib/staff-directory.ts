@@ -357,7 +357,7 @@ export const STAFF: StaffRecord[] = [
     role: "Regional Head of Ops - South",
     department: "Operations",
     location: "Bengaluru",
-    manager: "Mitali Kumar",
+    manager: "Saachi Shetty",
     studioId: 3,
     categories: [
       "Scheduling",

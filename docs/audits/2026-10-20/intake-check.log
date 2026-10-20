@@ -1,0 +1,170 @@
+
+> check:intake
+> npx tsx --tsconfig tsconfig.checks.json scripts/intake-check.ts
+
+⚠️  Node.js 20 and below are deprecated and will no longer be supported in future versions of @supabase/supabase-js. Please upgrade to Node.js 22 or later. For more information, visit: https://github.com/orgs/supabase/discussions/45715
+
+Every workspace sub-category has a plan the contract accepts
+  PASS  299 plans built
+  PASS  every plan is covered by the Support Hub data
+  PASS  no plan repeats a field id
+  PASS  no required field hides behind an unanswerable dependency
+  PASS  every filled plan passes ticketInputSchema
+
+The shared block and its dependencies
+  PASS  universal block comes first
+  PASS  file uploads are not offered
+  PASS  area depends on studio
+  PASS  a timetable request does not ask for a room
+  PASS  a hosted class skips the room and triage block
+  PASS  the ops hosted-class record also skips the room and triage block
+  PASS  a laptop fault is not asked for a payment reference
+  PASS  medical response follows an injury, not a "No"
+  PASS  class_format depends on the class lookup
+  PASS  linked_ticket depends on is_repeat
+  PASS  studio options come from the workspace list
+  PASS  trainer options come from the workspace list
+  PASS  a conditional field is hidden until its dependency is answered
+  PASS  a required field is never hidden
+  PASS  developer notes were stripped from hints
+
+Lookups keep their record and read back as text
+  PASS  encodes as "Label [#id] · sublabel"
+  PASS  decodes back
+  PASS  a typed name is kept and marked manual
+  PASS  a typed name is not a Momence link
+  PASS  multi lookups round-trip
+
+Gating: link, do not type
+  PASS  the sub-category carries a member lookup
+  PASS  staff filing on behalf of a member must link the member
+  PASS  …and the gate clears once linked
+  PASS  a class-bound sub-category needs the class
+  PASS  a timetable request does not
+  PASS  a blocked class needs the class wherever it is filed
+  PASS  a typed class satisfies the gate, labelled as typed
+
+Every plan can name the member; answers narrow, and hidden answers do not file
+  PASS  a plan without a member field gets the shared member lookup
+  PASS  a plan with its own member lookup keeps it and does not get the shared one
+  PASS  it is optional for a studio observation
+  PASS  …and a gate when staff pass on what a member told them
+  PASS  linked_ticket waits for "ticket already open"
+  PASS  sentiment is asked when a member is in the picture
+  PASS  churn risk follows a frustrated or negative member
+  PASS  an answer behind a question that is hidden again is not filed
+
+A timestamp answers "How recent?" in the taxonomy’s words
+  PASS  2026-09-22T18:20 → Just now
+  PASS  2026-09-22T07:30 → Earlier today
+  PASS  2026-09-21T23:50 → Yesterday
+  PASS  2026-09-18T09:00 → Earlier this week
+  PASS  2026-09-12T09:00 → Last week
+  PASS  every answer it gives is one of the options
+  PASS  a class about to start reads as just now; one hours away as ongoing
+  PASS  older than the options reach stays blank
+  PASS  garbage stays blank
+
+The write-up quotes the form and nothing else
+  PASS  opens with the drawer, the studio and the room
+  PASS  says who told the desk and who logged it
+  PASS  names the class and the coach
+  PASS  carries the triage answers
+  PASS  quiet answers stay out ("No" danger, "first time")
+  PASS  the sub-category’s own answers ride along by label
+  PASS  ends with the ask
+  PASS  is deterministic
+  PASS  with two answers it writes two facts, not a story
+  PASS  never longer than the description column allows
+
+Hosted-class tickets require a complete attendee roster
+  PASS  both hosted sub-categories are hosted-class tickets
+  PASS  an empty roster blocks filing, linked or not
+  PASS  a roster still loading blocks filing
+  PASS  a row without a comment blocks filing
+  PASS  a row without an outcome blocks filing
+  PASS  a row without attendance blocks filing
+  PASS  a hand-added roster with no class linked can file
+  PASS  the ops hosted roster rides on the ticket
+  PASS  the server accepts the roster the form files
+
+Titles are left to the server unless the reporter typed one
+  PASS  the title is never a required question
+  PASS  no typed title sends no title
+  PASS  a typed title is kept as written
+  PASS  the preview reads like the server label
+  PASS  no summary, no preview
+
+Involved teams
+  PASS  a class-experience ticket about a member involves client servicing and training
+  PASS  an equipment mention adds operations
+  PASS  nothing is suggested outside class experience
+  PASS  involved teams ride on the payload, de-duplicated
+  PASS  no teams picked sends none
+
+The payload maps onto the contract Iris already files through
+  PASS  parses under ticketInputSchema
+  PASS  member column from the linked lookup
+  PASS  member contact from Momence detail
+  PASS  session id from the class lookup
+  PASS  incidentAt is an ISO instant
+  PASS  summary becomes the description
+  PASS  member_impact becomes the impact column
+  PASS  sentiment lower-cased into the enum
+  PASS  source is iris
+  PASS  routing signals recorded under the names makeDraft reads
+  PASS  sub-category answers ride in customFields by field id
+  PASS  answers outside the plan are not filed
+  PASS  no duplicate raw/alias pairs
+  PASS  plan provenance is kept out of sight
+  PASS  the session context is recorded
+  PASS  the live priority is the one routing will file
+  PASS  a danger answer lifts it to critical
+  PASS  an observation files for the studio team
+  PASS  a member filing for themselves is the member
+  PASS  a member linked through member_email files with a clean email
+  PASS  a compliment defaults to positive sentiment
+
+One taxonomy, one priority, one SLA
+  PASS  every Support Hub sub-category is in the workspace taxonomy
+  PASS  every category routes to a department
+  PASS  no sub-category files below the Support Hub tier (298 checked)
+  PASS  conflicts resolve to the higher tier
+  PASS  the plan reports the priority it is given, with the configured SLA
+  PASS  without configured hours the SLA is the default table
+  PASS  the plan carries no SLA strings of its own
+  PASS  an admin-added sub-category still gets a plan
+
+The class desk reads a session the way the review sheet expects
+  PASS  roll counts
+  PASS  fill and over-book
+  PASS  the class is linked, not typed
+  PASS  format, coach and studio come from the session
+  PASS  the flagged attendee becomes the member
+  PASS  attendee notes are summarised
+  PASS  a disruption marks the class as impacted
+  PASS  the desk lists share the plan’s options
+  PASS  the snapshot carries the flagged attendee
+  PASS  a class-desk ticket passes the contract
+  PASS  it files against the session and the member
+  PASS  the roll rides along for the owner
+  PASS  nothing is left required
+
+Operational faults use specific Repair and Maintenance sub-categories
+  PASS  PowerCycle Bike Malfunction & Repairs is selectable and routed
+  PASS  Studio Lighting Malfunction & Repairs is selectable and routed
+  PASS  Resistance Bands & Small Equipment Repairs is selectable and routed
+  PASS  Strength Studio Equipment Repairs is selectable and routed
+  PASS  Audio, Mic & Headphone Malfunction is selectable and routed
+  PASS  Housekeeping & Cleaning Issues is selectable and routed
+  PASS  Washroom & Plumbing Repairs is selectable and routed
+
+Routing and SLA policy are bounded and deterministic
+  PASS  scheduling routes to Training even when saved settings drift
+  PASS  repair routes to Operations even when saved settings drift
+  PASS  unknown work falls back to Management
+  PASS  an AC fault is eligible for recurrence checks
+  PASS  SLA values cannot fall below 12 hours
+  PASS  SLA values cannot exceed 72 hours
+
+all passed

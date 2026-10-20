@@ -28,7 +28,7 @@ export function groupValue(t: TicketListRecord, groupBy: GroupBy): string {
     case 'department': return t.departmentName || 'No department';
     case 'kind': return t.kind;
     case 'source': return SOURCE_LABEL[t.source] || t.source;
-    case 'slaState': return ({ok: 'On track', due: 'Due soon', breached: 'Overdue', none: 'No follow-up target'})[slaBucketOf(t)];
+    case 'slaState': return ({ok: 'On track', due: 'Due soon', breached: 'Overdue', none: 'No resolution target'})[slaBucketOf(t)];
     case 'month': return monthKey(t.createdAt);
     default: return '';
   }

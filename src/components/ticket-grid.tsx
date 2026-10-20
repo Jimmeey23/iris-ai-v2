@@ -1,4 +1,5 @@
 "use client";
+import {entryTypeLabel} from "@/lib/display";
 
 import {cloneElement, useEffect, useMemo, useState, type ReactElement} from 'react';
 import {ChevronDown, ChevronRight, ArrowDown, ArrowUp, ChevronsUpDown, TriangleAlert, ArrowUpFromLine, Hourglass} from 'lucide-react';
@@ -19,7 +20,7 @@ import type {TicketListRecord} from '@/lib/ticket-contract';
  *
  * Two things it has to do that a plain list cannot. First, sort and show the columns each
  * desk actually works from — the front desk cares about the member and the studio, the
- * maintenance lead cares about age and the follow-up target, and neither should have to
+ * maintenance lead cares about age and the resolution target, and neither should have to
  * read past the other's columns. Second, group: twenty tickets across five studios is a
  * different question from twenty tickets in one, and that only becomes visible when the
  * rows fold up into their groups with the totals on the header.
@@ -52,7 +53,7 @@ type CellProps = {column: TicketColumn; ticket: TicketListRecord; staleDays: num
 /** Tags every cell with its column so the stylesheet can drop the lower-value columns on narrow screens
  *  (CellBody holds no hooks and always returns a <td>, which makes the clone safe). */
 function Cell(props: CellProps) {
-  return cloneElement(CellBody(props) as ReactElement<Record<string, unknown>>, {'data-col': props.column});
+  return cloneElement(CellBody(props) as ReactElement<Record<string, unknown>>, {'data-col': props.column,'data-label':COLUMN_META[props.column].label});
 }
 
 function CellBody({column, ticket, staleDays, nowMs, onOpen}: CellProps) {
@@ -73,7 +74,7 @@ function CellBody({column, ticket, staleDays, nowMs, onOpen}: CellProps) {
       );
     case 'ticketNumber': return <td><span className="ticket-id mono">{t.ticketNumber}</span></td>;
     case 'member': return <td>{t.memberName || <span className="muted">—</span>}</td>;
-    case 'kind': return <td><span className="chip chip-kind" data-tone={KIND_TONE[t.kind] || ''}>{t.kind}</span></td>;
+    case 'kind': return <td><span className="chip chip-kind" data-tone={KIND_TONE[t.kind] || ''}>{entryTypeLabel(t)}</span></td>;
     case 'category': return <td>{t.category}</td>;
     case 'subcategory': return <td><span className="category-sub">{t.subcategory || '—'}</span></td>;
     case 'studio': return <td>{t.studio ? t.studio.split(',')[0] : <span className="muted">—</span>}</td>;

@@ -5,3 +5,6 @@ let displayTimezone='Asia/Kolkata';
 export function setDisplayTimezone(timezone:string){try{new Intl.DateTimeFormat('en',{timeZone:timezone});displayTimezone=timezone;}catch{}}
 export function indiaDate(v:unknown,short=false){if(!v)return'—';const d=new Date(String(v));return Number.isNaN(d.getTime())?String(v):new Intl.DateTimeFormat('en-IN',{timeZone:displayTimezone,day:'numeric',month:'short',...(short?{}:{year:'numeric',hour:'numeric',minute:'2-digit'})}).format(d);}
 export function csvDownload(name:string,rows:unknown[][]){const safe=(v:unknown)=>{let s=String(v??'');if(/^[=+\-@\t\r]/.test(s))s="'"+s;return'"'+s.replaceAll('"','""')+'"';};const blob=new Blob(['\ufeff'+rows.map(row=>row.map(safe).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
+
+/** Preserve the filed kind while displaying the current action pathway accurately. */
+export function entryTypeLabel(t:{kind:string;resolutionRequired:boolean}){return !t.resolutionRequired&&t.kind==='issue'?'Record':t.kind;}

@@ -73,6 +73,18 @@ export function buildReportCatalogue(ctx:CatalogueContext):ReportDef[]{
   const resolutionCol=[{key:'resolutionHours',label:'Resolution (h)'}];
   const resolutionRow=(t:TicketLike)=>({resolutionHours:t.resolvedAt?hoursBetween(t.createdAt,t.resolvedAt).toFixed(1):'—'});
   const reports:ReportDef[]=[];
+  reports.push({
+    id:'hosted-classes',name:'Hosted class reports',group:'Partnerships',
+    description:'User-created hosted class records, attendee feedback, attendance and follow-up requests.',
+    where:and(sql`${tickets.subcategory} ~* 'hosted class'`,inArray(tickets.category,['Brand Feedback','Internal Operations & Admin']),ne(tickets.source,'system')),
+    needsCustomFields:true,
+    columns:[...baseColumns,{key:'class',label:'Class'},{key:'instructor',label:'Instructor'},{key:'partner',label:'Partner / host'},{key:'attendees',label:'Attendees logged'},{key:'attended',label:'Attended'},{key:'followUps',label:'Follow-up requested'},{key:'feedback',label:'Attendee feedback'}],
+    row:t=>{const cf=t.customFields||{};const rows=Array.isArray(cf.hostedAttendees)?cf.hostedAttendees.filter((r):r is Record<string,unknown>=>Boolean(r&&typeof r==='object')):[];
+      return {...baseRow(t),class:t.classFormat||'—',instructor:t.trainer||'—',partner:String(cf.partner_name||cf.partnerName||'—'),attendees:rows.length,
+        attended:rows.filter(r=>/^(attended|came late|left early|present|checked.in|yes)$/i.test(String(r.attendance||''))).length,
+        followUps:rows.filter(r=>r.followUp&&!/^(none( needed)?|no|not needed|no follow.up)$/i.test(String(r.followUp))).length,
+        feedback:rows.map(r=>`${r.name||r.attendee||'Attendee'}: ${r.note||r.comments||'No comment'}${r.followUp?' | Follow-up: '+r.followUp:''}`).join('\n')};},
+  });
   for(const category of ctx.categories){
     reports.push(makeSimple(slugify('category-'+category),`${category} — full log`,`Every ticket logged under ${category}, across all studios and statuses.`,'By category',eq(tickets.category,category)));
   }
@@ -85,8 +97,8 @@ export function buildReportCatalogue(ctx:CatalogueContext):ReportDef[]{
   reports.push(
     makeSimple('all-open','Open tickets register','Every ticket that has not yet reached resolved / closed / recorded.','Operational',metricSql.open),
     makeSimple('all-resolved','Resolved & closed register','Every ticket marked resolved or closed, for audit and QA.','Operational',metricSql.done,[{key:'resolvedAt',label:'Resolved'},...resolutionCol],t=>({resolvedAt:t.resolvedAt||'—',...resolutionRow(t)})),
-    makeSimple('sla-breached','Overdue (SLA breached, still open)','Open tickets whose follow-up target has passed without resolution.','Compliance',metricSql.breachedOpen(now),[{key:'slaDueAt',label:'Was due'},{key:'overdueHours',label:'Overdue by (h)'}],t=>({slaDueAt:t.slaDueAt||'—',overdueHours:t.slaDueAt?hoursBetween(t.slaDueAt,now.toISOString()).toFixed(1):'—'})),
-    makeSimple('sla-resolved-late','Resolved late (SLA breached)','Tickets resolved after their follow-up target had passed.','Compliance',metricSql.breachedResolved(),[{key:'slaDueAt',label:'Was due'},{key:'resolvedAt',label:'Resolved'},{key:'lateHours',label:'Late by (h)'}],t=>({slaDueAt:t.slaDueAt||'—',resolvedAt:t.resolvedAt||'—',lateHours:t.slaDueAt&&t.resolvedAt?hoursBetween(t.slaDueAt,t.resolvedAt).toFixed(1):'—'})),
+    makeSimple('sla-breached','Overdue (SLA breached, still open)','Open tickets whose resolution target has passed without resolution.','Compliance',metricSql.breachedOpen(now),[{key:'slaDueAt',label:'Was due'},{key:'overdueHours',label:'Overdue by (h)'}],t=>({slaDueAt:t.slaDueAt||'—',overdueHours:t.slaDueAt?hoursBetween(t.slaDueAt,now.toISOString()).toFixed(1):'—'})),
+    makeSimple('sla-resolved-late','Resolved late (SLA breached)','Tickets resolved after their resolution target had passed.','Compliance',metricSql.breachedResolved(),[{key:'slaDueAt',label:'Was due'},{key:'resolvedAt',label:'Resolved'},{key:'lateHours',label:'Late by (h)'}],t=>({slaDueAt:t.slaDueAt||'—',resolvedAt:t.resolvedAt||'—',lateHours:t.slaDueAt&&t.resolvedAt?hoursBetween(t.slaDueAt,t.resolvedAt).toFixed(1):'—'})),
     makeSimple('sla-at-risk','SLA due soon',`Open tickets with less than ${ctx.slaWarningPercent}% of their follow-up window left.`,'Compliance',metricSql.dueSoon(now,ctx.slaWarningPercent),[{key:'slaDueAt',label:'Due'}],t=>({slaDueAt:t.slaDueAt||'—'})),
     makeSimple('critical-open','Critical priority — open','All open tickets carrying critical priority.','Compliance',and(eq(tickets.priority,'critical'),metricSql.open)),
     makeSimple('high-open','High priority — open','All open tickets carrying high priority.','Compliance',and(eq(tickets.priority,'high'),metricSql.open)),

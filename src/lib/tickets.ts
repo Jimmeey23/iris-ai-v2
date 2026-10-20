@@ -3,22 +3,24 @@ import {recurrenceOwner} from './recurrence-assignment';
 import {reportingManagerId} from './reporting-line';
 import {describeTicket} from './ticket-label';
 import {randomUUID} from 'crypto';
-import {hostedFeedbackError} from './hosted-feedback';
+import {hostedFeedbackError,isHostedClassTicket} from './hosted-feedback';
 import {db,type Tx} from '@/db';
 import {tickets,staff,departments,assets,appSettings,ticketActivities,ticketComments,ticketLinks,ticketResolutions,ticketResolutionSteps,ticketFollowUps,ticketContactLog,ticketResolutionAttachments,chatAttachments,chatSessions,deliveryLogs,ticketNotifications,appUsers,userNotifications} from '@/db/schema';
 import {ticketInputSchema,publicTicketInputSchema,type TicketInput,type AdvancedDraft,type TicketOwner} from './ticket-contract';
 import {getConfig,type WorkspaceConfig} from './config';
 import {ApiError,canAccessTicket,canEditTicketDetails,coveredStudios,currentUser,requireTicketAccess,type Identity} from './auth';
-import {CITY_OWNERS,ESCALATION_OWNERS,ROUND_ROBIN_DEPARTMENTS,cityOf,inferPriority,inferSeverity,studioIdsFor} from './routing';
+import {ROUND_ROBIN_DEPARTMENTS,cityOf,inferPriority,inferSeverity,studioIdsFor} from './routing';
 import {buildTemplate} from './templates';
 import {ticketNumberFor,slugify} from './utils';
 import {scoreAssessment} from './guided-templates';
 import {configuredTemplates} from './template-store';
 import {indiaDate} from './display';
-import {equipmentRepairRoute} from './equipment-routing';
+import {equipmentRepairRoute, repairVerificationKind} from './equipment-routing';
+import {BEHAVIOR_VERSION, evaluateTicketPolicy, transitionError, transitionTimestamps} from './ticket-policy';
 import {emitTicketEvent,eventEnabled} from './ticket-events';
 import {ticketBcc,ticketEmailBody,type TicketEmailKind} from './ticket-emails';
 import {resolveTrainer} from './trainer-directory';
+import {planFields, fieldsForKind, missingFields, gatingFor, FORM_SCHEMA_VERSION, type IntakeData} from './intake/plan';
 
 type Priority='low'|'medium'|'high'|'critical';
 type Config=WorkspaceConfig;
@@ -32,17 +34,9 @@ export function slaHoursFor(cfg:Pick<Config,'responseHours'|'subcategoryRouting'
 /** customFields keys only the server writes: the routing brief, automation markers, the chat's
  *  own session keys and the repeat counter. `_intake` stays — the form intake legitimately
  *  records which plan the answers came from (see README). */
-const RESERVED_FIELD=/^(clientInvolved|autoFollowUp|followUpType|followUpReason|parent[A-Z].*|recurrence.*|recheck.*|firstResolvedAt|lastRepeatAt|closedOnImport)$/;
+const RESERVED_FIELD=/^(auditCorrection.*|clientInvolved|autoFollowUp|followUpType|followUpReason|parent[A-Z].*|recurrence.*|recheck.*|firstResolvedAt|lastRepeatAt|closedOnImport)$/;
 export function stripReservedFields(cf:Record<string,unknown>):Record<string,unknown>{return Object.fromEntries(Object.entries(cf).filter(([k])=>k==='_intake'||(!k.startsWith('_')&&!RESERVED_FIELD.test(k))));}
 const ticketArea=(fields:Record<string,unknown>)=>String(fields.area||fields.specific_area||fields.affected_room||fields.incident_location||'').trim()||null;
-/** Kinds that may be filed record-only (no SLA, no resolution), per the README. */
-/** Kinds that are a record of something said, not a job to be done: a compliment, a trainer
- *  assessment, and feedback of any sentiment. Feedback used to count only when it was
- *  positive, which left a member's negative comment holding an SLA and a resolution workspace
- *  that nobody could ever meaningfully close — there is no "fix" for an opinion. Anything in
- *  feedback that does need work is filed as the issue it is, not as feedback. */
-const RECORD_ONLY_KINDS=new Set(['compliment','assessment','feedback']);
-const recordOnlyEligible=(input:{kind:string})=>RECORD_ONLY_KINDS.has(input.kind);
 /** Names the intake and the automations file under when nobody outside the team is involved. */
 const PLACEHOLDER_MEMBER=/^(studio team( observation)?|automated follow-up|member|client|n\/?a|none|unknown|internal|staff|-)\b/i;
 /** Whether a client (member or prospect) is directly involved: someone linked in Momence, a
@@ -67,68 +61,61 @@ type Routing=Awaited<ReturnType<typeof resolveRouting>>;
 /** Per-run caches for bulk callers (history import), so a thousand rows do not read the
  *  configuration and the routing tables a thousand times. */
 export type DraftContext={cfg?:Config;routing?:Map<string,Routing>};
-const TRAINING_CATEGORIES=new Set(['Scheduling','Trainer Feedback','Class Experience']);
-const OPERATIONS_CATEGORIES=new Set(['Repair and Maintenance','Studio Amenities and Facilities','Operating Systems','Tech Issues','Theft and Lost Items','Internal Operations & Admin']);
-const OPERATIONS_WORK=/\b(maintenance|repair|malfunction|fault|broken|issue|sop|standard operating procedure|process|policy|facility|facilities|housekeeping|cleaning|equipment|system|plumbing|electrical|inventory|security|safety)\b/i;
-/** Training owns only schedules, trainers and method/class delivery. Operational work wins
- * over saved workspace overrides; an unknown category has a safe Management fallback. */
+/** Saved form/category routes are authoritative; unknown categories use Management. */
 export function departmentForTicket(cfg:Pick<Config,'categoryDepartments'|'subcategoryRouting'>,category:string,subcategory=''){
-  if(TRAINING_CATEGORIES.has(category))return'training';
-  if(OPERATIONS_CATEGORIES.has(category)||OPERATIONS_WORK.test(`${category} ${subcategory}`))return'operations';
-  const configured=cfg.subcategoryRouting[category+'|||'+subcategory]?.departmentId||cfg.categoryDepartments[category];
-  return configured&&configured!=='training'?configured:'management';
+  return cfg.subcategoryRouting[category+'|||'+subcategory]?.departmentId || cfg.categoryDepartments[category] || 'management';
 }
-/** Department and owner for a category at a studio — the same rule makeDraft applies, exposed
- *  so the intake form can show who will pick a ticket up before it is filed. */
-export async function resolveRouting(cfg:Awaited<ReturnType<typeof getConfig>>,category:string,studio:string,subcategory?:string){
-const subRule=subcategory?cfg.subcategoryRouting[category+'|||'+subcategory]:undefined;
-const departmentId=departmentForTicket(cfg,category,subcategory);const[dept]=await db.select().from(departments).where(eq(departments.id,departmentId));if(!dept?.active)throw new ApiError('The routing department is inactive. Ask an administrator to update the routing rule.');
-const people=await db.select().from(staff).where(and(eq(staff.isActive,true),eq(staff.department,dept.name)));
-const ids=studioIdsFor(studio);const override=subRule?.ownerId||cfg.routingOwners[category+'::'+studio]||cfg.routingOwners[category];
-// Named city owners come after a rule an administrator set on the sub-category itself.
-const city=cityOf(studio);const named=CITY_OWNERS[departmentId]?.[city||'mumbai'];
-let cityOwner:typeof people[number]|undefined;
-if(cfg.autoAssign&&city&&named&&!subRule?.ownerId){const candidates=named.map(re=>people.find(p=>re.test(p.name))).filter((p):p is typeof people[number]=>Boolean(p));
-  if(candidates.length===1)cityOwner=candidates[0];
-  else if(candidates.length>1){const load=await db.select({id:tickets.assignedStaffId,n:sql<number>`count(*)::int`}).from(tickets).where(and(inArray(tickets.assignedStaffId,candidates.map(c=>c.id)),sql`${tickets.status} not in ('resolved','closed','recorded')`)).groupBy(tickets.assignedStaffId);
-    const open=(id:number)=>load.find(l=>l.id===id)?.n||0;cityOwner=[...candidates].sort((a,b)=>open(a.id)-open(b.id))[0];}}
-// Shared out in turn: whoever on this studio's team has gone longest without a ticket takes
-// the next one. Ties and never-assigned people sort first, so a new associate starts working
-// straight away rather than waiting for the rota to reach them.
-let rotaOwner:typeof people[number]|undefined;
-if(cfg.autoAssign&&!cityOwner&&!subRule?.ownerId&&!override&&ROUND_ROBIN_DEPARTMENTS.has(departmentId)){
-  const team=people.filter(p=>p.studioId&&ids.includes(p.studioId));
-  const pool=team.length?team:people.filter(p=>cityOf(p.location)===city);
-  if(pool.length){
-    const last=await db.select({id:tickets.assignedStaffId,at:sql<string|null>`max(${tickets.createdAt})`}).from(tickets)
-      .where(inArray(tickets.assignedStaffId,pool.map(p=>p.id))).groupBy(tickets.assignedStaffId);
-    const lastAt=(id:number)=>{const row=last.find(l=>l.id===id);return row?.at?new Date(row.at).getTime():0;};
-    rotaOwner=[...pool].sort((a,b)=>lastAt(a.id)-lastAt(b.id)||a.id-b.id)[0];
-  }
+/** Stable directory IDs and explicit coverage take precedence over legacy location hints. */
+export function staffCoversStudio(cfg:Config,p:{id:number;studioId:number|null;location:string},studio:string){
+  const coverage=cfg.staffStudioCoverage?.[String(p.id)];
+  if(coverage)return coverage.includes(studio);
+  const ids=studioIdsFor(studio);
+  return Boolean(p.studioId&&ids.includes(p.studioId)) || Boolean(cityOf(studio)&&cityOf(p.location)===cityOf(studio));
 }
-const owner=cfg.autoAssign?(cityOwner||rotaOwner||people.find(p=>p.id===override)||people.sort((a,b)=>{const score=(p:typeof a)=>(p.categories.includes(category)?10:0)+(p.studioId&&ids.includes(p.studioId)?8:0)+(/Head|Coordinator|Ops Manager|Chief/.test(p.role)?3:0);return score(b)-score(a);})[0]):{id:null,name:'Unassigned',email:'',role:'Department queue'};if(!owner)throw new ApiError('No active owner is available in the routing department.');
-return{departmentId,dept,owner,ids,override};}
-/** Co-owners for the other teams a ticket involves, plus anyone named outright. Each team's
- *  owner is picked the way the lead one is — the named city owner first, then whoever on that
- *  team works at the studio, then its lead — so a cross-team ticket lands with real people
- *  rather than three department queues. The lead owner and duplicates are dropped. */
-async function coOwnersFor(args:{lead:number|null;leadDepartment:string;teams:string[];ids:number[];studio:string;category:string}):Promise<TicketOwner[]>{
+export async function resolveRouting(cfg:Config,category:string,studio:string,subcategory='',opts:{tx?:Tx;departmentId?:string}={}){
+  const store=opts.tx||db;
+  const subRule=opts.departmentId?undefined:cfg.subcategoryRouting[category+'|||'+subcategory];
+  const departmentId=opts.departmentId||departmentForTicket(cfg,category,subcategory);
+  const [dept]=await store.select().from(departments).where(eq(departments.id,departmentId));
+  if(!dept?.active)throw new ApiError('The responsible department is inactive. Update its routing rule.');
+  const ids=studioIdsFor(studio);
+  const override=opts.departmentId?undefined:subRule?.ownerId||cfg.routingOwners[category+'::'+studio]||cfg.routingOwners[category];
+  const queue={id:null,name:'Unassigned',email:'',role:'Department queue'};
+  const result=(owner:typeof queue|typeof staff.$inferSelect,reason:string)=>({departmentId,dept,owner,ids,override,reason});
+  if(!cfg.autoAssign)return result(queue,'Automatic assignment is disabled; responsible department queue.');
+  if(!studio||!cfg.studios.includes(studio))return result(queue,'Select a recognised studio before an owner can be assigned.');
+  const people=await store.select().from(staff).where(and(eq(staff.isActive,true),eq(staff.department,dept.name)));
+  if(override){const owner=people.find(p=>p.id===override);if(!owner)throw new ApiError('The configured owner is inactive or outside the responsible department.');if(cfg.staffStudioCoverage?.[String(owner.id)]&&!staffCoversStudio(cfg,owner,studio))return result(queue,'The configured owner does not cover this studio; responsible department queue.');return result(owner,'Configured owner override.');}
+  const city=cityOf(studio);
+  const seats=city?cfg.cityOwnerIds?.[departmentId]?.[city]||[]:[];
+  const named=people.filter(p=>seats.includes(p.id)&&staffCoversStudio(cfg,p,studio));
+  const eligible=people.filter(p=>staffCoversStudio(cfg,p,studio));
+  const pool=named.length?named:eligible;
+  if(!pool.length)return result(queue,'No active eligible owner covers this studio; department queue.');
+  const load=await store.select({id:tickets.assignedStaffId,n:sql<number>`count(*) filter (where ${tickets.status} not in ('resolved','closed','recorded'))::int`,at:sql<string|null>`max(${tickets.createdAt})`})
+    .from(tickets).where(inArray(tickets.assignedStaffId,pool.map(p=>p.id))).groupBy(tickets.assignedStaffId);
+  const usage=(id:number)=>load.find(x=>x.id===id);
+  const rota=ROUND_ROBIN_DEPARTMENTS.has(departmentId);
+  const sorted=[...pool].sort((a,b)=>rota
+    ?new Date(usage(a.id)?.at||0).getTime()-new Date(usage(b.id)?.at||0).getTime()||a.id-b.id
+    :(usage(a.id)?.n||0)-(usage(b.id)?.n||0)||Number(b.categories.includes(category))-Number(a.categories.includes(category))||a.id-b.id);
+  return result(sorted[0],rota?'Studio coverage and round-robin assignment.':'Studio coverage and lowest open workload.');
+}
+async function coOwnersFor(args:{lead:number|null;leadDepartment:string;teams:string[];ids:number[];studio:string;category:string;cfg?:Config;tx?:Tx}):Promise<TicketOwner[]>{
+  const cfg=args.cfg||await getConfig();const store=args.tx||db;
   const out=new Map<number,TicketOwner>();
-  const keep=(p:{id:number;name:string;email:string;department:string})=>{if(p.id!==args.lead&&!out.has(p.id))out.set(p.id,{id:p.id,name:p.name,email:p.email,departmentName:p.department});};
-  if(args.ids.length)for(const p of await db.select().from(staff).where(and(inArray(staff.id,args.ids),eq(staff.isActive,true))))keep(p);
-  const teams=[...new Set(args.teams)].filter(t=>t!==args.leadDepartment);
-  if(teams.length){
-    const depts=await db.select().from(departments).where(and(inArray(departments.id,teams),eq(departments.active,true)));
-    const ids=studioIdsFor(args.studio);const city=cityOf(args.studio)||'mumbai';
-    for(const dept of depts){
-      const people=await db.select().from(staff).where(and(eq(staff.isActive,true),eq(staff.department,dept.name)));
-      const named=CITY_OWNERS[dept.id]?.[city]?.map(re=>people.find(p=>re.test(p.name))).find(Boolean);
-      const score=(p:typeof people[number])=>(p.studioId&&ids.includes(p.studioId)?8:0)+(p.categories.includes(args.category)?4:0)+(/Head|Coordinator|Ops Manager|Chief|Manager/.test(p.role)?3:0);
-      const pick=named||[...people].sort((a,b)=>score(b)-score(a)||a.id-b.id)[0];
-      if(pick)keep(pick);
-    }
+  const keep=(p:{id:number;name:string;email:string;departmentName?:string|null})=>{if(p.id!==args.lead)out.set(p.id,p);};
+  if(args.ids.length){
+    const people=await store.select().from(staff).where(and(inArray(staff.id,args.ids),eq(staff.isActive,true)));
+    if(people.length!==new Set(args.ids).size||people.some(p=>!staffCoversStudio(cfg,p,args.studio)))throw new ApiError('Choose active co-owners who cover this studio.');
+    for(const p of people)keep({id:p.id,name:p.name,email:p.email,departmentName:p.department});
   }
-  return[...out.values()].slice(0,6);
+  for(const departmentId of [...new Set(args.teams)].filter(t=>t!==args.leadDepartment)){
+    const r=await resolveRouting(cfg,args.category,args.studio,'',{departmentId,tx:args.tx});
+    if(r.owner.id!==null)keep({id:r.owner.id,name:r.owner.name,email:r.owner.email,departmentName:r.dept.name});
+    else throw new ApiError(`No eligible co-owner is available in ${r.dept.name}. Choose an owner or remove that team.`);
+  }
+  return [...out.values()].slice(0,6);
 }
 /** Builds a ticket draft. Callers default to untrusted — the public endpoint and the chat —
  *  where the source is restricted, reserved customFields are stripped, a supplied priority
@@ -136,11 +123,21 @@ async function coOwnersFor(args:{lead:number|null;leadDepartment:string;teams:st
  *  `trusted` is for server-side callers (history import) that carry their own facts. */
 export async function makeDraft(raw:unknown,opts:{trusted?:boolean}&DraftContext={}):Promise<AdvancedDraft>{const trusted=Boolean(opts.trusted);const input:TicketInput=trusted?ticketInputSchema.parse(raw):publicTicketInputSchema.parse(raw);const cfg=opts.cfg||await getConfig();
 if(!trusted)input.customFields=stripReservedFields(input.customFields);
+const intake=input.customFields._intake as {plan?:string;version?:string;answers?:IntakeData}|undefined;
+if(intake?.plan){
+  if(intake.version!==FORM_SCHEMA_VERSION||!intake.answers)throw new ApiError('This form has been updated. Refresh the form before submitting.',409);
+  if(intake.plan!==`${input.category}|||${input.subcategory}`)throw new ApiError('The form does not match the selected category.');
+  const fields=fieldsForKind(planFields(input.category,input.subcategory,{studios:cfg.studios,formats:cfg.formats,trainers:cfg.trainers,memberships:cfg.memberships},cfg.formOverrides[intake.plan]),input.kind,input.category);
+  const missing=missingFields(fields,intake.answers);const gates=gatingFor(fields,intake.answers,{category:input.category,name:input.subcategory});
+  if(missing.length||gates.length)throw new ApiError(`Complete the required details: ${[...missing.map(f=>f.label),...gates.map(g=>g.label)].join(', ')}.`);
+}
+if(!cfg.studios.includes(input.studio)&&!trusted)throw new ApiError('Choose a studio from the workspace list.');
 // A trainer's name is free text on the way in, so the same person arrives as "Siddhartha"
 // and "Siddhartha Kusuma" and their reviews land in two places. Resolved to one canonical
 // name at the point of writing, which is the only way to stop the split growing; the
 // Trainers page still folds the spellings already on file. An ambiguous first name is left
 // exactly as written — see lib/trainer-directory.
+if(PLACEHOLDER_MEMBER.test(input.memberName))input.memberName='';
 if(input.trainer){
   const resolved=resolveTrainer(input.trainer);
   if(resolved.via!=='ambiguous')input.trainer=resolved.name;
@@ -153,32 +150,27 @@ if(repairRoute){input.category=repairRoute.category;input.subcategory=repairRout
 if(input.customFields.assetId!==undefined){const assetId=Number(input.customFields.assetId);const[asset]=Number.isInteger(assetId)&&assetId>0?await db.select({id:assets.id}).from(assets).where(eq(assets.id,assetId)):[];if(asset)input.customFields.assetId=asset.id;else delete input.customFields.assetId;}
 if(!cfg.taxonomy[input.category]?.includes(input.subcategory))throw new ApiError('Choose a subcategory belonging to the selected category.');
 const template=input.templateId?(await configuredTemplates()).find(t=>t.id===input.templateId):undefined;
-if(template)for(const field of template.fields.filter(f=>f.required)){const val=input.customFields[field.id];if(val===undefined||val===null||val==='')throw new ApiError(`${field.label} is required.`);if(field.type==='rating'&&(!Number.isFinite(Number(val))||Number(val)<0||Number(val)>5))throw new ApiError(`${field.label} must be scored from 0 to 5.`);}
+if(template)for(const field of template.fields.filter(f=>f.required&&(!f.dependsOn||(f.dependsOnValue?String(input.customFields[f.dependsOn]||'')===f.dependsOnValue:Boolean(input.customFields[f.dependsOn]))))){const val=input.customFields[field.id];if(val===undefined||val===null||val==='')throw new ApiError(`${field.label} is required.`);if(field.type==='rating'&&(!Number.isFinite(Number(val))||Number(val)<0||Number(val)>5))throw new ApiError(`${field.label} must be scored from 0 to 5.`);}
 const calculatedScore=template?scoreAssessment(template.fields,input.customFields):null;if(calculatedScore!==null)input.customFields.evaluationScore=calculatedScore;
 // `positiveNoSla` still governs praise, because that is what the setting is named for and
 // what an administrator who turns it off expects to change. Everything in RECORD_ONLY_KINDS
 // is record-only regardless: a comment is not work, whoever asks.
 const praise=input.kind==='compliment'||input.kind==='feedback'&&input.sentiment==='positive';
-// A ticket that involves a client directly is never record-only and never below high: a
-// member who has spoken to the studio is owed a reply, whatever the ticket's kind. History
-// imports are closed records and keep the facts they carried.
+// Member linkage informs context, never urgency or whether work is required.
 const clientInvolved=input.source!=='history'&&input.source!=='system'&&await involvesClient(input);
 if(clientInvolved)input.customFields.clientInvolved=true;
-const noSla=!clientInvolved&&(input.resolutionRequired===false||recordOnlyEligible(input)||(praise&&cfg.positiveNoSla));
-// The intake answers ride in customFields — they are not columns on the schema — so
-// they have to be read back out here or the reporter's own urgency signal never
-// reaches the priority rules.
-// Guided templates saved before the field was renamed still send `classImpact`.
-const inferred=inferPriority({category:input.category,subcategory:input.subcategory,isClassImpacted:String(input.customFields.isClassImpacted||input.customFields.classImpact||''),isImmediateDanger:String(input.customFields.isImmediateDanger||''),impact:input.impact,memberImpact:String(input.customFields.memberImpact||''),cycleSeverity:String(input.customFields.cycleSeverity||'')});
-const ruled:Priority=noSla?'low':input.category==='Safety and Security'?'critical':trusted&&input.priority?input.priority:maxPriority(inferred,input.priority);
-const priority:Priority=clientInvolved?maxPriority('high',ruled):ruled;
+const policy=evaluateTicketPolicy(input,cfg);
+const noSla=!policy.resolutionRequired;
+const priority:Priority=policy.priority;
+input.customFields._policy={version:BEHAVIOR_VERSION,reason:policy.reason};
 const routeKey=input.category+'::'+input.studio+'::'+input.subcategory;let routing=opts.routing?.get(routeKey);if(!routing){routing=await resolveRouting(cfg,input.category,input.studio,input.subcategory);opts.routing?.set(routeKey,routing);}
 const{departmentId,dept,owner,ids,override}=routing;
 const studioShort=input.studio.split(',')[0].trim();
 // A title that reads on its own in a list. It used to be the taxonomy joined with middots,
 // which told a reader which drawer the ticket was in rather than what had happened; see
 // ticket-label.ts. Classification is still shown, as chips beside the label.
-const title=input.title?.trim()||(cfg.labelStyle==='classification'
+const purposeTitle=/punctual|late arrival|arriv.*late/i.test(input.subcategory)&&input.category==='Trainer Feedback'?`Instructor late for class${input.trainer?' — '+input.trainer:''} · ${studioShort}`:isHostedClassTicket(input.category,input.subcategory)?`Hosted class report${input.classFormat?' — '+input.classFormat:''} · ${studioShort}`:undefined;
+const title=input.title?.trim()||purposeTitle||(cfg.labelStyle==='classification'
   // The older taxonomy title, kept for workspaces that prefer their rows filed by drawer.
   ? [praise?'Member appreciation':input.subcategory,input.classFormat?.split('+')[0].trim(),studioShort].filter(Boolean).join(' · ')
   : describeTicket({description:input.description,subcategory:input.subcategory,category:input.category,kind:input.kind,studio:input.studio,classFormat:input.classFormat,trainer:input.trainer,sentiment:input.sentiment,memberName:input.memberName},cfg.labelMaxLength));
@@ -188,15 +180,15 @@ const narrative=input.description.replace(/\s+/g,' ').trim();
 // The form files an exact instant for incidentAt where the chat records a phrase; the summary
 // reads the same either way.
 const when=/^\d{4}-\d{2}-\d{2}T/.test(input.incidentAt)?indiaDate(input.incidentAt):input.incidentAt;
-const summary=input.summary?.trim()||[`${input.kind==='issue'?'Reported':'Logged'} by ${input.memberName} at ${studioShort}`,input.classFormat?`during ${input.classFormat}${input.trainer?` with ${input.trainer}`:''}`:null,when?`(${when})`:null].filter(Boolean).join(' ')+' — '+narrative.slice(0,280)+(narrative.length>280?'…':'');
+const summary=input.summary?.trim()||[`${input.memberName?'Member report: '+input.memberName:'Internal observation'} at ${studioShort}`,input.classFormat?`during ${input.classFormat}${input.trainer?` with ${input.trainer}`:''}`:null,when?`(${when})`:null].filter(Boolean).join(' ')+' — '+narrative.slice(0,280)+(narrative.length>280?'…':'');
 const slaHours=noSla?0:slaHoursFor(cfg,input.category,input.subcategory,priority);const base=buildTemplate(input.category,input.subcategory,cfg,{priority,slaHours});
 const opsChecklist=noSla
   ?['Record the feedback accurately, in the reporter\u2019s own words','Share the recognition with the named team member and their manager','File under the studio\u2019s monthly highlights']
-  :[`Acknowledge ${input.memberName} on ${input.preferredContact.toLowerCase()} within ${Math.max(1,Math.round(slaHours/4))}h`,...base.opsChecklist,...(input.category==='Safety and Security'?['Escalate to the studio manager on duty immediately','Record the incident in the safety register']:[]),...(input.momenceMemberId?['Check the member\u2019s Momence booking and billing history for related issues']:[]),...(String(input.customFields.memberImpact||'').toLowerCase().startsWith('yes')?[`Contact the members whose session was affected${input.customFields.impactedMembers?` (${String(input.customFields.impactedMembers).slice(0,120)})`:''} and agree the credit or makeup owed`,'Note the affected members against their Momence bookings so the front desk can see it']:[]),'Confirm the outcome with the member before closing'];
+  :[clientInvolved?'Acknowledge the member using their stated contact preference, where provided':'Acknowledge the reporting team',...base.opsChecklist,...(input.category==='Safety and Security'?['Escalate to the studio manager on duty immediately','Record the incident in the safety register']:[]),...(input.momenceMemberId?['Check the member\u2019s Momence booking and billing history for related issues']:[]),...(String(input.customFields.memberImpact||'').toLowerCase().startsWith('yes')?[`Contact the members whose session was affected${input.customFields.impactedMembers?` (${String(input.customFields.impactedMembers).slice(0,120)})`:''} and confirm the requested resolution and any authorised accommodation`,'Note the affected members against their Momence bookings so the front desk can see it']:[]),clientInvolved?'Record the member response to the resolution, if received':'Confirm the outcome with the reporting team'];
 const tags=cfg.autoTag?[...new Set([slugify(input.category),slugify(input.subcategory),slugify(studioShort),input.kind,noSla?'no-sla':priority,'sentiment-'+input.sentiment,'via-'+input.source,...(input.impact?['impact-'+slugify(input.impact)]:[]),...(input.classFormat?['format-'+slugify(input.classFormat.split('+')[0])]:[]),...(input.trainer?['trainer-'+slugify(input.trainer.split(',')[0])]:[]),...(input.membership?['membership-'+slugify(input.membership)]:[]),...(input.momenceMemberId?['momence-linked']:[]),...(input.kind==='assessment'?['trainer-evaluation']:[]),...(clientInvolved?['client-involved']:[])].filter(Boolean))]:[];
-const additionalOwners=await coOwnersFor({lead:owner.id,leadDepartment:departmentId,teams:input.involvedTeams||[],ids:input.additionalOwnerIds||[],studio:input.studio,category:input.category});
-const memberFacingUpdate=praise?`Thank you${input.memberName?' , '+input.memberName.split(' ')[0]:''} for sharing this. Your feedback will be recorded for our ${dept.name} team.`:`Hi ${input.memberName.split(' ')[0]}, thank you for sharing your experience. ${owner.name} from ${dept.name} will review your request. The internal follow-up target is ${slaHours} hours; a resolution time has not yet been confirmed.`;
-return{...input,title,summary,priority,severity:inferSeverity(priority),additionalOwners,assignedStaffId:owner.id,assignedStaffName:owner.name,assignedStaffEmail:owner.email,assignedStaffRole:owner.role,departmentId,departmentName:dept.name,slaHours,slaLabel:noSla?'No SLA required':slaHours===1?'1 hour':slaHours+' hours',resolutionRequired:!noSla,tags,opsChecklist,memberFacingUpdate,internalBrief:input.description,routingReason:!cfg.autoAssign?'Automatic assignment disabled · parked in the department queue':override?`Administrator-defined routing rule for ${input.category}${cfg.routingOwners[input.category+'::'+input.studio]?' at '+studioShort:''} → ${owner.name}`:`${input.category} routes to ${dept.name}. ${owner.name} picked up as the active ${owner.role||'specialist'}${ids.length?` covering ${studioShort}`:''}, with a ${noSla?'record-only':slaHours+'h'} follow-up target at ${priority} priority.${clientInvolved?' A client is directly involved, so it is held at high priority or above with a resolution required.':''}${additionalOwners.length?` Co-owned with ${additionalOwners.map(o=>`${o.name}${o.departmentName?` (${o.departmentName})`:''}`).join(', ')}.`:''}`};}
+const additionalOwners=await coOwnersFor({lead:owner.id,leadDepartment:departmentId,teams:input.involvedTeams||[],ids:input.additionalOwnerIds||[],studio:input.studio,category:input.category,cfg});
+const memberFacingUpdate=praise?`Thank you${input.memberName?' , '+input.memberName.split(' ')[0]:''} for sharing this. Your feedback will be recorded for our ${dept.name} team.`:`Thank you for sharing this report. ${owner.name} from ${dept.name} will review your request. The internal resolution target is ${slaHours} hours; a resolution time has not yet been confirmed.`;
+return{...input,title,summary,priority,severity:inferSeverity(priority),additionalOwners,assignedStaffId:owner.id,assignedStaffName:owner.name,assignedStaffEmail:owner.email,assignedStaffRole:owner.role,departmentId,departmentName:dept.name,slaHours,slaLabel:noSla?'No SLA required':slaHours===1?'1 hour':slaHours+' hours',resolutionRequired:!noSla,tags,opsChecklist,memberFacingUpdate,internalBrief:input.description,routingReason:`${routing.reason} ${dept.name} · ${owner.name}. ${policy.reason}`};}
 
 type ExternalCreate={sourceRef?:string;createdAt?:Date;status?:string;resolvedAt?:Date;/** A backfilled record was never worked in this system, so it carries no SLA clock. */noSla?:boolean;/** An explicit follow-up deadline (recurrence checks are due days after the resolution, not hours after filing). */slaDueAt?:Date;/** Run inside the caller's transaction (as a savepoint) instead of opening a new one — the history import batches rows this way. */tx?:Tx};
 /** Everyone a ticket email goes to. The owners (lead plus any co-owners) are addressed; their
@@ -250,18 +242,26 @@ async function queueTicketEmails(tx:Tx,ticket:EmailTicket,kind:TicketEmailKind,r
 export async function createTicketFromDraft(draft:AdvancedDraft,source=draft.source,channel='workspace',external?:ExternalCreate){return(await insertTicketFromDraft(draft,source,channel,external)).row;}
 /** `created` is false when the submission key or source reference already had a ticket. */
 async function insertTicketFromDraft(draft:AdvancedDraft,source=draft.source,channel='workspace',external?:ExternalCreate){
+if(isHostedClassTicket(draft.category,draft.subcategory))draft={...draft,resolutionRequired:false,kind:'feedback',slaHours:0,priority:'low'};
 if(source!=='history'&&source!=='system'){const error=hostedFeedbackError(draft.category,draft.subcategory,draft.customFields?.hostedAttendees);if(error)throw new ApiError(error);}
 const cfg=source==='history'?null:await getConfig();const submissionKey=draft.submissionKey||randomUUID();
 const findExisting=(tx:Tx)=>tx.select().from(tickets).where(external?.sourceRef?or(eq(tickets.submissionKey,submissionKey),eq(tickets.sourceRef,external.sourceRef)):eq(tickets.submissionKey,submissionKey));
 const work=async(tx:Tx)=>{await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${submissionKey}))`);const[existing]=await findExisting(tx);if(existing)return{row:existing,created:false};
+if(cfg&&source!=='system'&&source!=='history'){
+  await tx.execute(sql`select pg_advisory_xact_lock(578105)`);
+  const r=await resolveRouting(cfg,draft.category,draft.studio,draft.subcategory,{tx});
+  draft={...draft,assignedStaffId:r.owner.id,assignedStaffName:r.owner.name,assignedStaffEmail:r.owner.email,assignedStaffRole:r.owner.role,departmentId:r.departmentId,departmentName:r.dept.name,routingReason:r.reason,
+    additionalOwners:await coOwnersFor({lead:r.owner.id,leadDepartment:r.departmentId,teams:draft.involvedTeams||[],ids:draft.additionalOwnerIds||[],studio:draft.studio,category:draft.category,cfg,tx})};
+}
 // An imported record may carry a date the exporting system invented; a ticket filed in the
 // future would sit above every genuinely new one for ever in a newest-first list, so the
 // stamp is never allowed past the moment of the insert.
 const filedAt=new Date();const now=external?.createdAt&&external.createdAt.getTime()<filedAt.getTime()?external.createdAt:filedAt;
 // An Unassigned (queue-parked) ticket is not "assigned" to anyone yet.
-const status=external?.status||(draft.resolutionRequired?(draft.assignedStaffId?'assigned':'new'):'recorded');const closed=['resolved','closed'].includes(status);const backfill=Boolean(external?.noSla);const resolvedAt=closed?external?.resolvedAt||now:null;
+const recordOnly=!draft.resolutionRequired;
+const status=recordOnly?'closed':external?.status||(draft.assignedStaffId?'assigned':'new');const closed=['resolved','closed'].includes(status);const backfill=Boolean(external?.noSla);const resolvedAt=closed&&!recordOnly?external?.resolvedAt||now:null;
 const area=ticketArea(draft.customFields);
-const[row]=await tx.insert(tickets).values({ticketNumber:'P57-'+randomUUID(),title:draft.title,summary:draft.summary,description:draft.description,category:draft.category,subcategory:draft.subcategory,status,priority:draft.priority,severity:draft.severity,sentiment:draft.sentiment,kind:draft.kind,resolutionRequired:backfill?false:draft.resolutionRequired,impact:draft.impact,studio:draft.studio,area,classFormat:draft.classFormat,trainer:draft.trainer,membership:draft.membership,incidentAt:draft.incidentAt,memberName:draft.memberName,memberEmail:draft.memberEmail,memberPhone:draft.memberPhone,momenceMemberId:draft.momenceMemberId,momenceSessionId:draft.momenceSessionId,preferredContact:draft.preferredContact,requestedResolution:draft.requestedResolution,assignedStaffId:draft.assignedStaffId,assignedStaffName:draft.assignedStaffName,assignedStaffEmail:draft.assignedStaffEmail,departmentId:draft.departmentId,departmentName:draft.departmentName,slaHours:backfill?0:draft.slaHours,slaDueAt:backfill||!draft.slaHours?null:external?.slaDueAt||new Date(now.getTime()+draft.slaHours*3600000),source,channel,tags:draft.tags,templateId:draft.templateId,customFields:{...draft.customFields,_brief:{opsChecklist:draft.opsChecklist,memberFacingUpdate:draft.memberFacingUpdate,routingReason:draft.routingReason}},momenceContext:draft.momenceContext||null,assetId:typeof draft.customFields?.assetId==='number'?draft.customFields.assetId:null,additionalOwners:draft.additionalOwners||[],submissionKey,sourceRef:external?.sourceRef,createdAt:now,updatedAt:now,resolvedAt,closedAt:status==='closed'?resolvedAt:null}).onConflictDoNothing().returning();
+const[row]=await tx.insert(tickets).values({ticketNumber:'P57-'+randomUUID(),title:draft.title,summary:draft.summary,description:draft.description,category:draft.category,subcategory:draft.subcategory,status,priority:draft.priority,severity:draft.severity,sentiment:draft.sentiment,kind:draft.kind,resolutionRequired:backfill?false:draft.resolutionRequired,impact:draft.impact,studio:draft.studio,area,classFormat:draft.classFormat,trainer:draft.trainer,membership:draft.membership,incidentAt:draft.incidentAt,memberName:draft.memberName,memberEmail:draft.memberEmail,memberPhone:draft.memberPhone,momenceMemberId:draft.momenceMemberId,momenceSessionId:draft.momenceSessionId,preferredContact:draft.preferredContact,requestedResolution:draft.requestedResolution,assignedStaffId:draft.assignedStaffId,assignedStaffName:draft.assignedStaffName,assignedStaffEmail:draft.assignedStaffEmail,departmentId:draft.departmentId,departmentName:draft.departmentName,slaHours:backfill?0:draft.slaHours,slaDueAt:backfill||!draft.slaHours?null:external?.slaDueAt||new Date(now.getTime()+draft.slaHours*3600000),source,channel,tags:draft.tags,templateId:draft.templateId,customFields:{...draft.customFields,_brief:{opsChecklist:draft.opsChecklist,memberFacingUpdate:draft.memberFacingUpdate,routingReason:draft.routingReason}},momenceContext:draft.momenceContext||null,assetId:typeof draft.customFields?.assetId==='number'?draft.customFields.assetId:null,additionalOwners:draft.additionalOwners||[],submissionKey,sourceRef:external?.sourceRef,createdAt:now,updatedAt:now,resolvedAt,closedAt:status==='closed'?now:null}).onConflictDoNothing().returning();
 // A concurrent insert with the same key or source reference won the race: return that row rather than a 500.
 if(!row){const[winner]=await findExisting(tx);if(!winner)throw new ApiError('This ticket could not be saved. Try again.',409);return{row:winner,created:false};}
 const number=ticketNumberFor(row.id);await tx.update(tickets).set({ticketNumber:number}).where(eq(tickets.id,row.id));await tx.insert(ticketActivities).values({ticketId:row.id,actorName:source==='history'?'History import':'IRIS',action:'created',detail:`${draft.assignedStaffName} · ${draft.departmentName} · ${backfill?'No SLA · closed historical record':draft.slaLabel}`,createdAt:now});
@@ -269,7 +269,7 @@ if(area&&draft.studio){const related=await tx.select({id:tickets.id}).from(ticke
 const savedRow={...row,ticketNumber:number};
 // A history backfill imports thousands of rows that were never worked here; firing a
 // webhook for each would flood the workflow with events for closed historical records.
-if(cfg&&source!=='history')await emitTicketEvent(tx,{type:'ticket.created',ticket:savedRow,cfg,actor:{name:'IRIS'}});if(emailSendingEnabled()&&cfg?.assignmentEmail&&source!=='history')await queueTicketEmails(tx,savedRow,'assigned');
+if(cfg&&source!=='history')await emitTicketEvent(tx,{type:'ticket.created',ticket:savedRow,cfg,actor:{name:'IRIS'}});if(savedRow.resolutionRequired&&emailSendingEnabled()&&cfg?.assignmentEmail&&source!=='history')await queueTicketEmails(tx,savedRow,'assigned');
 return{row:savedRow,created:true};};
 return external?.tx?external.tx.transaction(work):db.transaction(work);}
 /** List views never read `customFields` or the long-form text, which are ~85% of the
@@ -324,7 +324,7 @@ export async function queueSlaReminderEmails(now=new Date()){
   let queued=0;for(const ticket of rows)queued+=await db.transaction(tx=>queueTicketEmails(tx,ticket,'sla-3h'));return queued;
 }
 /**
- * Webhook sweep for breached follow-up targets. Nothing else notices a breach:
+ * Webhook sweep for breached resolution targets. Nothing else notices a breach:
  * applyEscalations() only runs when `escalateAfterBreachHours` is configured, and it
  * defaults to off.
  *
@@ -381,7 +381,7 @@ export async function searchTickets(user:Identity|undefined,q:string,limit=20){
 export function maskMemberName(name:string){const parts=(name||'').trim().split(/\s+/).filter(Boolean);if(!parts.length)return 'Member';return parts[0]+(parts.length>1?' '+parts[parts.length-1][0].toUpperCase()+'.':'');}
 
 /**
- * Raises the priority of tickets that are far enough past their follow-up target, when the
+ * Raises the priority of tickets that are far enough past their resolution target, when the
  * workspace has asked for that.
  *
  * Driven by /api/cron/outbox. The run is still claimed through app_settings so two overlapping
@@ -414,10 +414,11 @@ async function escalationTarget(tx:Tx,row:{assignedStaffId:number|null;departmen
       }
     }
   }
-  const pattern=row.departmentId?ESCALATION_OWNERS[row.departmentId]:undefined;
-  if(!pattern)return undefined;
+  const cfg=await getConfig();
+  const escalationId=row.departmentId?cfg.escalationOwnerIds[row.departmentId]:undefined;
+  if(!escalationId)return undefined;
   const candidates=await tx.select({id:staff.id,name:staff.name,email:staff.email}).from(staff).where(and(eq(staff.isActive,true),eq(staff.department,row.departmentName||'')));
-  const fallback=candidates.find(person=>pattern.test(person.name));
+  const fallback=candidates.find(person=>person.id===escalationId);
   return fallback?withAccount(fallback,'department'):undefined;
 }
 export async function applyEscalations(){
@@ -432,19 +433,19 @@ export async function applyEscalations(){
     .returning({key:appSettings.key});
   if(!claimed.length)return 0;
   const cutoff=new Date(Date.now()-hours*3600000);
-  // Raising to critical moves the follow-up target with it — the same per-subcategory rule
+  // Raising to critical moves the resolution target with it — the same per-subcategory rule
   // makeDraft and the PATCH route apply.
   const overrides=Object.entries(cfg.subcategoryRouting).filter(([,r])=>r.slaHours);
   const slaExpr=overrides.length?sql`(case ${tickets.category}||'|||'||${tickets.subcategory} ${sql.join(overrides.map(([k,r])=>sql`when ${k} then ${r.slaHours}::int`),sql` `)} else ${cfg.responseHours.critical}::int end)`:sql`${cfg.responseHours.critical}::int`;
   return db.transaction(async tx=>{
-    const rows=await tx.update(tickets).set({priority:'critical',severity:inferSeverity('critical'),isEscalated:true,slaHours:slaExpr,slaDueAt:sql`${tickets.createdAt} + ${slaExpr} * interval '1 hour'`,version:sql`${tickets.version}+1`,updatedAt:new Date()})
+    const rows=await tx.update(tickets).set({priority:'critical',severity:inferSeverity('critical'),isEscalated:true,slaHours:sql`case when ${tickets.customFields}->>'autoFollowUp' = 'true' then ${tickets.slaHours} else ${slaExpr} + ${tickets.slaExtendedHours} end`,slaDueAt:sql`case when ${tickets.customFields}->>'autoFollowUp' = 'true' then ${tickets.slaDueAt} else ${tickets.createdAt} + (${slaExpr} + ${tickets.slaExtendedHours}) * interval '1 hour' end`,version:sql`${tickets.version}+1`,updatedAt:new Date()})
       .where(and(
         eq(tickets.resolutionRequired,true),
         ne(tickets.priority,'critical'),
         sql`${tickets.status} not in ('resolved','closed','recorded')`,
         sql`${tickets.slaDueAt} is not null and ${tickets.slaDueAt} < ${cutoff}`,
       )).returning();
-    if(rows.length)await tx.insert(ticketActivities).values(rows.map(r=>({ticketId:r.id,actorName:'IRIS',action:'escalated',detail:`Raised to critical — more than ${hours}h past the follow-up target.`})));
+    if(rows.length)await tx.insert(ticketActivities).values(rows.map(r=>({ticketId:r.id,actorName:'IRIS',action:'escalated',detail:`Raised to critical — more than ${hours}h past the resolution target.`})));
     // Raising the priority on its own leaves the ticket with the person who has already missed
     // the target. It goes up the line instead: first to the owner's own reporting manager,
     // because that is who can actually get an answer out of them, and only if there is no
@@ -460,8 +461,8 @@ export async function applyEscalations(){
         version:sql`${tickets.version} + 1`,
       }).where(eq(tickets.id,row.id));
       await tx.insert(ticketActivities).values({ticketId:row.id,actorName:'IRIS',action:'escalated.reassigned',detail:to.via==='manager'
-        ?`Past the follow-up target with no resolution and no extension: escalated from ${from} to their reporting manager ${to.name}.`
-        :`Past the follow-up target with no resolution and no extension, and no reporting manager on record for ${from}: escalated to the ${row.departmentName} escalation owner ${to.name}.`});
+        ?`Past the resolution target with no resolution and no extension: escalated from ${from} to their reporting manager ${to.name}.`
+        :`Past the resolution target with no resolution and no extension, and no reporting manager on record for ${from}: escalated to the ${row.departmentName} escalation owner ${to.name}.`});
       // Tell the manager out of band too. A board they are not looking at is not a handover.
       // The owner it came from is copied: the ticket has left their name, and they should
       // learn that from the same message the manager reads rather than from the board.
@@ -472,7 +473,7 @@ export async function applyEscalations(){
       }
       if(to.userId)
         await tx.insert(userNotifications).values({userId:to.userId,ticketId:row.id,kind:'escalation',
-          title:`${row.ticketNumber} escalated to you — past its follow-up target`,
+          title:`${row.ticketNumber} escalated to you — past its resolution target`,
           body:`${row.title} · was with ${from}`.slice(0,240),fromName:'IRIS'});
     }
     // No `changes` block: RETURNING gives the post-update row, so the prior priority is
@@ -534,24 +535,19 @@ const TERMINAL=['resolved','closed'];
 /** Guards every status change: record-only use of Recorded, the resolver and the saved
  *  resolution on the way to resolved/closed, and the workspace's reopen policy. */
 export async function assertStatusTransition(actor:Identity,current:typeof tickets.$inferSelect,next:string,cfg:Config,resolutionRequired:boolean=current.resolutionRequired){
-  if(next==='recorded'&&resolutionRequired)throw new ApiError('Only record-only feedback can use Recorded status.');
+  const error=transitionError(current.status,next,resolutionRequired,cfg.allowReopen);
+  if(error)throw new ApiError(error,409);
+  if(current.status===next)return;
+  const permitted=(!resolutionRequired&&actor.role==='admin')||await canResolveTicket(actor,current.assignedStaffId,current.resolutionRequired,current.additionalOwners);
+  if(!permitted)throw new ApiError('Only a ticket owner or their reporting manager can change status; administrators can manage record-only entries.',403);
   if(TERMINAL.includes(next)&&!TERMINAL.includes(current.status)&&resolutionRequired){
-    if(!(await canResolveTicket(actor,current.assignedStaffId,resolutionRequired,current.additionalOwners)))throw new ApiError('Only the assigned owner or their reporting manager may resolve this ticket.',403);
     const[r]=await db.select().from(ticketResolutions).where(eq(ticketResolutions.ticketId,current.id));
-    // Action taken is the only required part of the write-up: any non-empty text counts.
-    if(!r?.actionTaken.trim())throw new ApiError('Record the resolution action taken first.');
+    if(!r?.actionTaken.trim())throw new ApiError('Record the action taken before resolving this ticket.');
+    const[pending]=await db.select({id:ticketFollowUps.id}).from(ticketFollowUps).where(and(eq(ticketFollowUps.ticketId,current.id),eq(ticketFollowUps.done,false))).limit(1);
+    if(pending)throw new ApiError('Complete the outstanding follow-up tasks before resolving this ticket.',409);
   }
-  // Reopening is a policy decision: some teams want resolution to be final, with a fresh
-  // ticket raised instead of an old one being reopened weeks later.
-  if(!TERMINAL.includes(next)&&next!=='recorded'&&TERMINAL.includes(current.status)&&!cfg.allowReopen)throw new ApiError('Reopening resolved tickets is switched off for this workspace. Log a new ticket that links to this one.',409);
 }
-/** resolvedAt/closedAt for a status change: closing stamps a missing resolution time too, and
- *  any non-terminal status clears both. */
-export function statusTimestamps(current:{resolvedAt:Date|null;closedAt:Date|null},next:string,now=new Date()){
-  if(next==='resolved')return{resolvedAt:current.resolvedAt&&current.closedAt?current.resolvedAt:now,closedAt:null};
-  if(next==='closed')return{resolvedAt:current.resolvedAt??now,closedAt:current.closedAt??now};
-  return{resolvedAt:null,closedAt:null};
-}
+export const statusTimestamps=transitionTimestamps;
 /** The one way a ticket reaches resolved or closed — the ticket page, the ops radar and any
  *  future surface. Enforces access, the resolver rule, the resolution record, the reopen
  *  policy and the caller's own revision, then raises equipment recurrence checks. */
@@ -563,29 +559,49 @@ export async function resolveTicket(actor:Identity,input:{ticketId:number;versio
   if(current.version!==input.version)throw new ApiError('This ticket changed elsewhere. Refresh before saving.',409);
   await assertStatusTransition(actor,current,status,cfg,(input.extra as {resolutionRequired?:boolean}|undefined)?.resolutionRequired??current.resolutionRequired);
   const now=new Date();
+  if(current.status===status&&!input.extra)return{ticket:current,followUps:[]};
   const ticket=await db.transaction(async tx=>{
-    const[t]=await tx.update(tickets).set({...input.extra,status,...statusTimestamps(current,status,now),version:sql`${tickets.version}+1`,updatedAt:now})
+    await tx.execute(sql`select id from ${tickets} where ${tickets.id}=${input.ticketId} for update`);
+    if(!TERMINAL.includes(current.status)&&(input.extra?.resolutionRequired??current.resolutionRequired)){const[pending]=await tx.select({id:ticketFollowUps.id}).from(ticketFollowUps).where(and(eq(ticketFollowUps.ticketId,current.id),eq(ticketFollowUps.done,false))).limit(1);if(pending)throw new ApiError('Complete outstanding follow-up tasks before resolving.',409);}
+    const[t]=await tx.update(tickets).set({...input.extra,status,...((input.extra?.resolutionRequired??current.resolutionRequired)?statusTimestamps(current,status,now):{resolvedAt:current.resolvedAt,closedAt:current.closedAt??now}),version:sql`${tickets.version}+1`,updatedAt:now})
       .where(and(eq(tickets.id,input.ticketId),eq(tickets.version,input.version))).returning();
     if(!t)throw new ApiError('This ticket changed elsewhere. Refresh before saving.',409);
     await tx.insert(ticketActivities).values({ticketId:t.id,actorName:actor.name,action:input.action||'updated',detail:input.detail||`status: ${status}`,createdAt:now});
     // A resolution is one event, not a status change plus a resolution.
-    await emitTicketEvent(tx,{type:'ticket.resolved',ticket:t,cfg,actor,changes:{status:{from:current.status,to:status}}});
+    if(!TERMINAL.includes(current.status)&&t.resolutionRequired) {
+      await emitTicketEvent(tx,{type:'ticket.resolved',ticket:t,cfg,actor,changes:{status:{from:current.status,to:status}}});
+      if(!t.customFields.autoFollowUp&&repairVerificationKind(t))await tx.insert(appSettings).values({key:`resolution-checks:${t.id}`,value:{pending:true,ticketId:t.id,resolvedAt:t.resolvedAt?.toISOString()},updatedAt:now}).onConflictDoNothing();
+    } else if(current.status!==status)await emitTicketEvent(tx,{type:'ticket.status_changed',ticket:t,cfg,actor,changes:{status:{from:current.status,to:status}}});
     return t;
   });
-  const followUps=TERMINAL.includes(current.status)?[]:await maybeCreateRecurrenceChecks(ticket);
+  // The transaction is committed. Failed verification work stays durably pending for a sweep.
+  let followUps: (typeof tickets.$inferSelect)[]=[];
+  try{followUps=await processResolutionChecks(ticket.id);}catch(error){console.error('Resolution verification pending',ticket.id,error instanceof Error?error.message:'unknown error');}
   return{ticket,followUps};
 }
-const BIKE_PATTERN=/\b(bike|bikes|cycle|cycling|powercycle|power cycle|spin bike|pedal|flywheel|resistance knob)\b/i;
-export function isPowerCycleBikeTicket(t:{title:string;description:string;subcategory:string;classFormat:string|null;category:string}):boolean{const haystack=`${t.title} ${t.description} ${t.subcategory} ${t.classFormat||''}`;if(!BIKE_PATTERN.test(haystack))return false;return['Repair and Maintenance','Tech Issues','Studio Amenities and Facilities'].includes(t.category)||/powercycle/i.test(t.classFormat||'');}
-const MIC_PATTERN=/\b(mic|mics|microphone|microphones|headset mic|lapel mic|mic pack)\b/i;
-const AC_PATTERN=/\b(a\.?c\.?|air ?con(?:ditioner|ditioning)?|hvac|cooling unit|ventilation)\b/i;
-const EQUIPMENT_CATEGORIES_FOR_CHECKS=['Repair and Maintenance','Tech Issues','Studio Amenities and Facilities','Class Experience','Miscellaneous','Operating Systems'];
-/** A studio microphone fault: the headset, handheld or its receiver. */
-export function isMicTicket(t:{title:string;description:string;subcategory:string;category:string}):boolean{return MIC_PATTERN.test(`${t.title} ${t.description} ${t.subcategory}`)&&EQUIPMENT_CATEGORIES_FOR_CHECKS.includes(t.category);}
-export function isAcTicket(t:{title:string;description:string;subcategory:string;category:string}):boolean{return AC_PATTERN.test(`${t.title} ${t.description} ${t.subcategory}`)&&EQUIPMENT_CATEGORIES_FOR_CHECKS.includes(t.category);}
+/** Durable, retryable verification jobs; existing historical resolutions are never backfilled. */
+export async function processResolutionChecks(ticketId?:number){
+  const jobs=await db.select().from(appSettings).where(ticketId?eq(appSettings.key,`resolution-checks:${ticketId}`):sql`${appSettings.key} like 'resolution-checks:%' and ${appSettings.value}->>'pending' = 'true'`).limit(25);
+  const created:(typeof tickets.$inferSelect)[]=[];
+  for(const job of jobs){
+    await db.transaction(async tx=>{
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${job.key}))`);
+      const[current]=await tx.select().from(appSettings).where(eq(appSettings.key,job.key));
+      if(!current?.value?.pending)return;
+      const[ticket]=await tx.select().from(tickets).where(eq(tickets.id,Number(current.value.ticketId)));
+      if(!ticket||!TERMINAL.includes(ticket.status))return;
+      created.push(...await maybeCreateRecurrenceChecks(ticket));
+      await tx.update(appSettings).set({value:{...current.value,pending:false,completedAt:new Date().toISOString()},updatedAt:new Date()}).where(eq(appSettings.key,job.key));
+    });
+  }
+  return created;
+}
+export function isPowerCycleBikeTicket(t:{title:string;description:string;subcategory:string;classFormat:string|null;category:string}){return repairVerificationKind(t)==='bike';}
+export function isMicTicket(t:{title:string;description:string;subcategory:string;category:string}){return repairVerificationKind(t)==='mic';}
+export function isAcTicket(t:{title:string;description:string;subcategory:string;category:string}){return repairVerificationKind(t)==='ac';}
 /** The two re-checks raised when a bike, AC or mic fault is resolved: days after resolution. */
 export const RECURRENCE_CHECK_DAYS=[5,10] as const;
-type ResolvedTicket={createdByUserId?:number|null;createdByName?:string|null;id:number;ticketNumber:string;title:string;description:string;subcategory:string;category:string;classFormat:string|null;studio:string|null;area?:string|null;assignedStaffId:number|null;assignedStaffName:string|null;assignedStaffEmail:string|null;departmentId:string|null;departmentName:string|null;memberName:string;trainer:string|null;resolvedAt?:Date|string|null;source?:string;customFields?:Record<string,unknown>|null};
+type ResolvedTicket={resolutionRequired?:boolean;createdByUserId?:number|null;createdByName?:string|null;id:number;ticketNumber:string;title:string;description:string;subcategory:string;category:string;classFormat:string|null;studio:string|null;area?:string|null;assignedStaffId:number|null;assignedStaffName:string|null;assignedStaffEmail:string|null;departmentId:string|null;departmentName:string|null;memberName:string;trainer:string|null;resolvedAt?:Date|string|null;source?:string;customFields?:Record<string,unknown>|null};
 const shortDate=(d:Date)=>d.toLocaleDateString('en-IN',{timeZone:'Asia/Kolkata',day:'numeric',month:'short',year:'numeric'});
 /**
  * The staff profile of whoever reported a ticket, for the bike and AC re-checks that go back
@@ -616,7 +632,7 @@ async function reporterStaff(t:{createdByUserId?:number|null;createdByName?:stri
  *  fault has not come back. A check is itself never re-checked, and each is raised once:
  *  resolving, re-opening and resolving again does not duplicate them. */
 export async function maybeCreateRecurrenceChecks(resolved:ResolvedTicket){
-  if(resolved.customFields?.autoFollowUp)return [];
+  if(resolved.resolutionRequired===false||resolved.customFields?.autoFollowUp)return [];
   const bike=isPowerCycleBikeTicket(resolved);const ac=!bike&&isAcTicket(resolved);const mic=!bike&&!ac&&isMicTicket(resolved);
   if(!bike&&!ac&&!mic)return [];
   const text=resolved.title+' '+resolved.description;
@@ -646,14 +662,14 @@ export async function maybeCreateRecurrenceChecks(resolved:ResolvedTicket){
       title:`[Recurrence check ${i+1} of ${RECURRENCE_CHECK_DAYS.length} · day ${days}] ${label} — confirm the fault has not returned`,
       summary:`Day-${days} re-check after ${resolved.ticketNumber} (${resolved.subcategory}) was resolved on ${shortDate(base)}. Confirm ${label.toLowerCase()} has worked without the original fault since then.`,
       description:`Automatically raised when ${resolved.ticketNumber} — "${resolved.title}" — was resolved on ${shortDate(base)}.\n\nThis is re-check ${i+1} of ${RECURRENCE_CHECK_DAYS.length}, due ${shortDate(due)} (${days} days after the resolution). Reconfirm that the issue has not happened again in that time.\n\nOriginal issue: ${resolved.description}\n\nWhat to do:\n${checklist.map((c,n)=>`${n+1}. ${c}`).join('\n')}`,
-      category:resolved.category,subcategory:resolved.subcategory,kind:'issue',studio:resolved.studio||'Studio to confirm',classFormat:resolved.classFormat||undefined,trainer:resolved.trainer||undefined,membership:undefined,
+      category:'Repair and Maintenance',subcategory:bike?'PowerCycle Bike Malfunction & Repairs':ac?'AC & Ventilation Repairs':'Audio, Mic & Headphone Malfunction',kind:'request',studio:resolved.studio||'Studio to confirm',classFormat:resolved.classFormat||undefined,trainer:resolved.trainer||undefined,membership:undefined,
       incidentAt:`Re-check due ${shortDate(due)}`,memberName:'Automated follow-up · Studio Ops',memberEmail:undefined,memberPhone:undefined,momenceMemberId:undefined,momenceSessionId:undefined,
       preferredContact:'Internal log only',requestedResolution:`Confirm ${label.toLowerCase()} has had no recurrence of the original fault since ${shortDate(base)}.`,
       priority:'medium',severity:inferSeverity('medium'),sentiment:'neutral',
       tags:['auto-follow-up','recurrence-check',`${kind}-recheck`,`day-${days}-check`],
       customFields:{area:resolved.area||resolved.customFields?.area,parentTicketId:resolved.id,parentTicketNumber:resolved.ticketNumber,autoFollowUp:true,followUpType:'recurrence-check',recheckEquipment:kind,recheckDay:days,recheckOf:RECURRENCE_CHECK_DAYS.length,recheckDueAt:due.toISOString(),firstResolvedAt:base.toISOString(),recurrenceConfirmationRequired:true,relapseDetailsAllowed:true,followUpReason:`Confirm no recurrence ${days} days after resolution`,followUpAssignment:(bike||ac)?'original-reporter':'repair-owner',originalReporterUserId:resolved.createdByUserId||null},
       assignedStaffId:owner.id,assignedStaffName:owner.name||'Unassigned',assignedStaffEmail:owner.email||'',assignedStaffRole:'Follow-up owner',
-      departmentId:resolved.departmentId||'operations',departmentName:resolved.departmentName||'Operations',slaHours,slaLabel:`${days} days from the first resolution`,resolutionRequired:true,
+      departmentId:'operations',departmentName:'Operations',slaHours,slaLabel:`${days} days from the first resolution`,resolutionRequired:true,
       additionalOwners:[],opsChecklist:checklist,memberFacingUpdate:'',internalBrief:`Day-${days} recurrence check for ${resolved.ticketNumber} — ${label}.`,routingReason:`Auto-raised ${days}-day recurrence check. ${assignmentReason}`};
     const{row:child,created:isNew}=await insertTicketFromDraft(draft,'system','automation',{sourceRef:key,slaDueAt:due});
     if(!isNew)continue;
@@ -735,7 +751,7 @@ export async function appendRepeatReport(input: {
     // attention and a vendor, not another four-hour follow-up.
     const escalate = recurrence >= 3 && !ticket.isEscalated;
     const nextPriority = escalate ? maxPriority(raised, 'high') : raised;
-    // A raised priority moves the follow-up target with it, exactly as a PATCH would.
+    // A raised priority moves the resolution target with it, exactly as a PATCH would.
     const slaHours = nextPriority !== current && ticket.resolutionRequired ? slaHoursFor(cfg, ticket.category, ticket.subcategory, nextPriority) : null;
 
     await tx.insert(ticketComments).values({

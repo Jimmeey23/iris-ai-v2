@@ -489,7 +489,7 @@ export function IrisChatView({
                 />
                 <h3>{turn.ticket.ticketNumber} · logged</h3>
                 <p className="secondary" style={{ fontSize: 12, marginTop: 6 }}>
-                  Saved to Command with routing and a follow-up target already
+                  Saved to Command with routing and a resolution target already
                   set.
                 </p>
                 <button

@@ -1,5 +1,5 @@
 import {z} from 'zod';
-import {and, desc, eq, inArray, isNull} from 'drizzle-orm';
+import {and, desc, eq, inArray, isNull,sql} from 'drizzle-orm';
 import {db} from '@/db';
 import {tickets, userNotifications} from '@/db/schema';
 import {after} from 'next/server';
@@ -20,7 +20,7 @@ export async function GET() {
     const rows = await db
       .select({
         id: userNotifications.id, kind: userNotifications.kind, title: userNotifications.title,
-        body: userNotifications.body, fromName: userNotifications.fromName, readAt: userNotifications.readAt,
+        body: userNotifications.body, fromName: userNotifications.fromName, readAt: sql<Date|null>`case when ${tickets.resolutionRequired}=false then coalesce(${userNotifications.readAt},${userNotifications.createdAt}) else ${userNotifications.readAt} end`,
         createdAt: userNotifications.createdAt, ticketId: userNotifications.ticketId,
         ticketNumber: tickets.ticketNumber,
       })

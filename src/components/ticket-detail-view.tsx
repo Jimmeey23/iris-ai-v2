@@ -1,4 +1,5 @@
 "use client";
+import {entryTypeLabel} from "@/lib/display";
 import { indiaDate } from "@/lib/display";
 import {
   BellRing,
@@ -47,7 +48,7 @@ function reportedVia(source?: string | null) {
   );
 }
 
-const TABS = ["overview", "activity", "related"] as const;
+const TABS = ["overview", "resolution", "activity", "related"] as const;
 const TicketOverviewPanel = dynamic(() => import("./ticket-detail-overview"), {
   loading: () => <p role="status">Loading overview…</p>,
 });
@@ -344,7 +345,7 @@ export function TicketDialogView({
                     {t.departmentName && (
                       <Badge tone="blue">{t.departmentName}</Badge>
                     )}
-                    <Badge>{t.kind}</Badge>
+                    <Badge>{entryTypeLabel(t)}</Badge>
                     {!t.resolutionRequired && (
                       <Badge tone="green">Record only</Badge>
                     )}
@@ -395,7 +396,7 @@ export function TicketDialogView({
                           <UserRound size={14} />
                         </span>
                         <span>
-                          <strong>{t.memberName || "Not recorded"}</strong>
+                          <strong>{!t.memberName||/^(studio team|automated follow-up|internal)/i.test(t.memberName)?"Internal observation":t.memberName}</strong>
                           {t.membership && <small>{t.membership}</small>}
                         </span>
                       </dd>
@@ -447,7 +448,7 @@ export function TicketDialogView({
                     </div>
                     <div className="td-person td-person-due">
                       <dt>
-                        {t.resolutionRequired ? "Follow-up target" : "Record"}
+                        {t.resolutionRequired ? "Resolution target" : "Record"}
                       </dt>
                       <dd>
                         <span className="td-person-glyph">
@@ -468,7 +469,7 @@ export function TicketDialogView({
                             <strong>
                               {t.resolutionRequired
                                 ? "No target set"
-                                : "Nothing to chase"}
+                                : "No action needed"}
                             </strong>
                           )}
                         </span>
@@ -505,43 +506,17 @@ export function TicketDialogView({
                   label="Ticket sections"
                   variant="underline"
                   value={tab}
-                  onChange={setTab}
-                  items={TABS.map((s) => ({
+                  onChange={(value)=>{setTab(value);setRailOpen(value==="resolution");}}
+                  items={TABS.filter(s=>s!=="resolution"||t.resolutionRequired).map((s) => ({
                     id: s,
-                    label: s[0].toUpperCase() + s.slice(1),
+                    label: s==="overview"?"Details":s==="resolution"?"Resolve ticket":s[0].toUpperCase() + s.slice(1),
                     count:
                       s === "related"
                         ? bundle.linked.length + bundle.similar.length
                         : undefined,
                   }))}
                 />
-                <button
-                  type="button"
-                  className={"rail-toggle" + (railOpen ? " active" : "")}
-                  ref={resolutionToggle}
-                  onClick={() => {
-                    setTab("overview");
-                    setRailOpen((v) => !v);
-                  }}
-                  aria-expanded={railOpen}
-                  aria-controls={"ticket-resolution-" + id}
-                  title={
-                    bundle.canResolve
-                      ? undefined
-                      : "Visible to everyone with ticket access; editable by the owner and reporting manager"
-                  }
-                >
-                  <FileText size={12} />
-                  {railOpen ? "Hide resolution" : "Open resolution"}
-                  {bundle.steps.length +
-                    bundle.followUps.filter((f) => !f.done).length >
-                    0 && (
-                    <span>
-                      {bundle.steps.length +
-                        bundle.followUps.filter((f) => !f.done).length}
-                    </span>
-                  )}
-                </button>
+                {t.resolutionRequired && !["resolved","closed"].includes(t.status) && bundle.canResolve && <button type="button" className="btn" onClick={()=>{setTab("overview");setRailOpen(false);setExtendOpen(true);}}><Clock3 size={14}/>Request more time</button>}
                 <button
                   className="td-copy"
                   onClick={() => {
@@ -562,12 +537,12 @@ export function TicketDialogView({
               </div>
               <div
                 className={styles.workspace}
-                data-split={railOpen || tab === "overview" ? "true" : "false"}
+                data-split={tab === "overview" ? "true" : "false"}
                 data-resolution={railOpen ? "open" : "closed"}
                 data-section={tab}
                 aria-label="Ticket workspace"
               >
-                <div className={styles.main}>
+                <div className={styles.main} hidden={tab === "resolution"}>
                   {tab === "overview" && <TicketOverviewPanel model={model} />}
                   {tab === "activity" && <TicketActivityPanel model={model} />}
 
@@ -576,7 +551,7 @@ export function TicketDialogView({
                 {tab === "overview" && !railOpen && (
                   <SidebarPanel model={model} />
                 )}
-                {railOpen && (
+                {tab === "resolution" && (
                   <div
                     className={styles.resolution}
                     id={"ticket-resolution-" + id}

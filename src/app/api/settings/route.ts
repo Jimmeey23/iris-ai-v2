@@ -151,6 +151,30 @@ export async function PUT(req: Request) {
               rule,
           );
       }
+      for(const [key,rule] of Object.entries(b.config.subcategoryRouting)){
+        const [category,subcategory]=key.split('|||');
+        if(!b.config.taxonomy[category]?.includes(subcategory))throw new ApiError('Routing rule refers to an unknown form: '+key);
+        const dept=deps.find(d=>d.id===rule.departmentId&&d.active);
+        if(!dept)throw new ApiError('Choose an active responsible department for '+key);
+        if(rule.ownerId&&!activeStaff.some(p=>p.id===rule.ownerId&&p.isActive&&p.department===dept.name))throw new ApiError('The form owner must be active in its responsible department: '+key);
+      }
+      for(const [deptId,cities] of Object.entries(b.config.cityOwnerIds)){
+        const dept=deps.find(d=>d.id===deptId&&d.active);
+        if(!dept)throw new ApiError('City assignment refers to an inactive department.');
+        for(const ids of Object.values(cities))if(ids.some(id=>!activeStaff.some(p=>p.id===id&&p.isActive&&p.department===dept.name)))throw new ApiError('City owners must be active in the responsible department.');
+      }
+      for(const [id,studios] of Object.entries(b.config.staffStudioCoverage))if(!activeStaff.some(p=>String(p.id)===id)||studios.some(name=>!b.config.studios.includes(name)))throw new ApiError('Staff coverage must refer to existing staff and studio records.');
+      for(const [key,fields] of Object.entries(b.config.formOverrides)){
+        const [category,subcategory]=key.split('|||');
+        if(!b.config.taxonomy[category]?.includes(subcategory))throw new ApiError('Form override refers to an unknown category: '+key);
+        const byId=new Map(fields.map(f=>[f.id,f]));
+        for(const field of fields){
+          if(field.when){try{new RegExp(field.when);}catch{throw new ApiError('Invalid field condition: '+field.label);}}
+          if(field.conditional&&!field.dependsOn)throw new ApiError('Choose a dependency for '+field.label);
+          const visited=new Set<string>([field.id]);let parent=field.dependsOn;
+          while(parent&&byId.has(parent)){if(visited.has(parent))throw new ApiError('Circular form condition: '+field.label);visited.add(parent);parent=byId.get(parent)?.dependsOn;}
+        }
+      }
       const updated = b.version + 1;
       await tx
         .insert(appSettings)

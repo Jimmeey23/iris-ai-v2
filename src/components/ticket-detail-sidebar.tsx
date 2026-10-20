@@ -48,7 +48,7 @@ export default function SidebarPanel({
           !t.resolutionRequired || !t.slaDueAt
             ? "none"
             : ["resolved", "closed"].includes(t.status)
-              ? "done"
+              ? (t.resolvedAt&&t.slaDueAt&&new Date(t.resolvedAt)>new Date(t.slaDueAt)?"breached":"done")
               : slaState(t.slaDueAt, t.status, t.createdAt)
         }
       >
@@ -78,7 +78,7 @@ export default function SidebarPanel({
               <strong>
                 {t.status === "closed" ? "Closed Record" : "Recorded"}
               </strong>
-              <span>Informational Log</span>
+              <span>Recorded for reference</span>
               <small>No SLA or resolution target required</small>
             </div>
           </div>
@@ -88,15 +88,16 @@ export default function SidebarPanel({
               createdAt={t.createdAt}
               slaDueAt={t.slaDueAt}
               status={t.status}
+              resolvedAt={t.resolvedAt}
               size={108}
             />
             <div className="td-resolution-copy">
               <strong>
                 {["resolved", "closed"].includes(t.status)
-                  ? "Complete"
+                  ? (t.resolvedAt&&t.slaDueAt&&new Date(t.resolvedAt)>new Date(t.slaDueAt)?"Resolved after target":"Resolved within target")
                   : "In progress"}
               </strong>
-              <span>Follow-up window</span>
+              <span>Resolution target</span>
               <SlaCountdown ticket={t as never} large />
               <small>
                 {t.slaDueAt
@@ -174,7 +175,7 @@ export default function SidebarPanel({
       <div className="td-panel">
         <h3>Routing</h3>
         <div className="detail-fields">
-          <Field label="Action pathway">
+          <Field label="Action required">
             {user?.role === "admin" ? (
               <select
                 disabled={busy}
@@ -216,11 +217,12 @@ export default function SidebarPanel({
               onChange={(e) =>
                 void patch({
                   assignedStaffId: Number(e.target.value),
+                  ...(user?.role==='admin'?{assignmentReason:window.prompt('Reason for this assignment (required for a coverage or department exception):')||undefined}:{}),
                 })
               }
             >
               {staff
-                .filter((p) => p.isActive)
+                .filter((p) => p.isActive && (p.department===t.departmentName || user?.role==='admin'))
                 .map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.name}
@@ -412,8 +414,8 @@ export default function SidebarPanel({
         ) : null}
       </div>
       <div className="td-panel td-panel-sentiment">
-        <h3>How they felt</h3>
-        <SentimentArt sentiment={t.sentiment || "neutral"} />
+        <h3>Member’s expressed sentiment</h3>
+        <SentimentArt sentiment={t.sentiment || "unknown"} />
       </div>
     </aside>
   );

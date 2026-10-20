@@ -78,7 +78,7 @@ body { background: var(--bg); -webkit-font-smoothing: antialiased; }
 }
 .sidebar .nav-link.active::before, .sidebar .nav-link.active::after { display: none; }
 .topbar, [data-theme] .topbar {
-  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  background: var(--surface);
   border-bottom: 1px solid var(--border);
   box-shadow: none;
 }
@@ -738,3 +738,54 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="
 .pt-spark rect { fill: var(--border-strong, var(--muted)); opacity: .55; }
 .pt-spark rect.last { fill: var(--accent); opacity: 1; }
 @media (max-width: 640px) { .pt-actions li { grid-template-columns: 1fr; } .pt-when { justify-self: start; } }
+
+/* Clear operational hierarchy, shared across overview, tickets and reports. */
+.topbar, .topbar[data-scrolled="true"] { background: var(--surface); backdrop-filter: none; }
+.tickets-panel { border: 1px solid var(--border); border-radius: 16px; overflow: hidden; box-shadow: var(--shadow-1); container: ticket-list / inline-size; }
+.tickets-panel .section-head { padding: 20px 24px; gap: 16px; flex-wrap: wrap; border-bottom: 1px solid var(--border); }
+.tickets-panel .section-head h2 { font-size: 19px; letter-spacing: -.02em; }
+.tickets-panel .tabs-toolbar { overflow-x: auto; flex-wrap: nowrap; padding: 8px 16px; }
+.tickets-panel .tabs-toolbar button { white-space: nowrap; min-height: 44px; }
+.tickets-panel table th { font-family: var(--font-body); text-transform: none; letter-spacing: 0; font-weight: 600; color: var(--secondary); }
+.tickets-panel table td { vertical-align: middle; }
+.tickets-panel [data-col="label"] { min-width: 240px; max-width: 430px; }
+.tickets-panel [data-col="label"] button { white-space: normal; text-align: left; line-height: 1.45; overflow-wrap: anywhere; }
+.ovc-card { border-radius: 16px; border: 1px solid var(--border); box-shadow: var(--shadow-1); }
+.ovc-hero { background: var(--surface); }
+.ovc-bloom { display: none; }
+.ovc-title { font-size: clamp(23px,2.4vw,34px); max-width: 32ch; }
+.ovc-strip { flex-wrap: wrap; gap: 16px; }
+.report-shell { align-items: start; gap: 24px; }
+.report-nav { border-radius: 14px; overflow: hidden; }
+.report-nav-item { min-height: 44px; line-height: 1.4; padding: 10px 14px; }
+.report-nav-item.active { font-weight: 650; border-left: 3px solid var(--accent); }
+.chart-card, .rp-head { border: 1px solid var(--border); border-radius: 16px; padding: 24px; box-shadow: var(--shadow-1); min-width: 0; }
+.chart-card h3 { font-size: 17px; letter-spacing: -.01em; }
+.report-grid { gap: 24px; align-items: start; }
+@container ticket-list (max-width: 950px) {
+  .tickets-panel [data-col="category"], .tickets-panel [data-col="coOwners"], .tickets-panel [data-col="revisedSla"], .tickets-panel [data-col="extension"], .tickets-panel [data-col="committedResolution"], .tickets-panel [data-col="escalation"], .tickets-panel [data-col="timeToResolve"], .tickets-panel [data-col="source"], .tickets-panel [data-col="department"] { display:none; }
+}
+@media (max-width: 720px) {
+  .report-shell, .report-grid, .ovc-row { grid-template-columns: minmax(0,1fr); }
+  .report-nav { max-height: 240px; }
+  .chart-card, .rp-head { padding: 16px; }
+  .tickets-panel .section-head { padding: 16px; }
+  .tickets-panel .section-head > .flex-row { flex-wrap: wrap; }
+  .tickets-panel [data-col="created"], .tickets-panel [data-col="due"], .tickets-panel [data-col="member"], .tickets-panel [data-col="kind"], .tickets-panel [data-col="age"] { display:none; }
+  .tickets-panel [data-col="label"] { min-width: 190px; max-width: 260px; }
+  .report-grid > *, .ovc-row > *, .report-shell > * { min-width: 0; }
+}
+@media (prefers-reduced-motion: reduce) { .ovc *, .tickets-panel *, .report-grid * { animation: none !important; transition: none !important; } }
+/* At phone width each table row becomes a readable ticket summary. */
+@media (max-width:600px) {
+ .tickets-panel .tg-table, .tickets-panel table { min-width:0 !important; width:100%; }
+ .tickets-panel table thead { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
+ .tickets-panel table tbody { display:block; }
+ .tickets-panel table tr:has(td[data-col="label"]) { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; padding:16px; border-bottom:1px solid var(--border); }
+ .tickets-panel table tr:has(td[data-col="label"]) > td { border:0; padding:0; min-width:0; max-width:none; white-space:normal; }
+ .tickets-panel table td[data-col="label"] { grid-column:1 / -1; width:auto; padding-right:24px; }
+ .tickets-panel table td[data-col="studio"], .tickets-panel table td[data-col="status"], .tickets-panel table td[data-col="priority"], .tickets-panel table td[data-col="owner"], .tickets-panel table td[data-col="sla"] { display:flex; flex-direction:column; align-items:flex-start; gap:4px; }
+ .tickets-panel table td[data-col]:not([data-col="label"])::before { content:attr(data-label); font-size:11px; font-weight:600; color:var(--muted); }
+ .tickets-panel table .tg-check { grid-column:1 / -1; }
+ .tickets-panel table .sla-countdown { align-items:flex-start; text-align:left; }
+}

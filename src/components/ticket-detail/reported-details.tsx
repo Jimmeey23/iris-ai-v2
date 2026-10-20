@@ -1,4 +1,5 @@
 "use client";
+import {simpleLanguage} from "@/lib/plain-language";
 import type { ReactNode } from "react";
 import {
   CalendarDays,
@@ -288,7 +289,7 @@ export function ReportedDetails({ ticket }: { ticket: TicketRecord }) {
           <dl className={styles.rdGrid}>
             {g.rows.map((r) => (
               <div key={r.key} className={r.wide ? styles.rdWide : undefined}>
-                <dt>{r.label}</dt>
+                <dt>{simpleLanguage(r.label)}</dt>
                 <dd>
                   <AnswerValue value={r.value} />
                 </dd>

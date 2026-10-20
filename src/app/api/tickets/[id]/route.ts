@@ -31,10 +31,12 @@ import {
   slaHoursFor,
   stripReservedFields,
   canResolveTicket,
-  clientInvolvedTicket,
+  resolveRouting,
+  staffCoversStudio,
 } from "@/lib/tickets";
 import { getConfig } from "@/lib/config";
 import { emitTicketEvent } from "@/lib/ticket-events";
+import {evaluateTicketPolicy} from '@/lib/ticket-policy';
 import { inferSeverity } from "@/lib/routing";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { after } from "next/server";
@@ -71,6 +73,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
     const b = z
       .object({
         version: z.number().int(),
+        assignmentReason:z.string().trim().min(10).max(600).optional(),
         status: z
           .enum([
             "new",
@@ -93,7 +96,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
         description: z.string().min(12).max(20000).optional(),
         requestedResolution: z.string().max(2000).optional(),
         impact: z.string().max(2000).optional(),
-        memberName: z.string().min(2).max(120).optional(),
+        memberName: z.string().max(120).optional(),
         memberEmail: z.union([z.string().email(), z.literal("")]).optional(),
         memberPhone: z.string().max(30).optional(),
         studio: z.string().min(1).max(160).optional(),
@@ -124,12 +127,17 @@ export async function PATCH(req: Request, ctx: Ctx) {
       );
     }
 
-    const targetResolutionRequired =
+    let targetResolutionRequired =
       b.resolutionRequired !== undefined
         ? b.resolutionRequired
         : current.resolutionRequired;
 
-    let effectiveStatus = b.status;
+    if(b.resolutionRequired===false&&(current.category==='Safety and Security'||/^yes/i.test(String(current.customFields.isImmediateDanger||''))))throw new ApiError('Safety incidents require action and cannot be changed to record-only.');
+    const updatedPolicy=evaluateTicketPolicy({category:current.category,subcategory:current.subcategory,kind:current.kind as 'issue',priority:b.priority||current.priority as 'medium',resolutionRequired:targetResolutionRequired,impact:b.impact??current.impact??undefined,customFields:{...current.customFields,...stripReservedFields(b.customFields||{})}},cfg);
+    targetResolutionRequired=updatedPolicy.resolutionRequired;
+    if(b.priority&&b.priority!==updatedPolicy.priority)throw new ApiError(`The reported impact requires ${updatedPolicy.priority} priority or above.`);
+    const policyRaised=updatedPolicy.priority!==current.priority||updatedPolicy.resolutionRequired!==current.resolutionRequired;
+    let effectiveStatus = !targetResolutionRequired ? "closed" : b.status;
     if (
       b.resolutionRequired !== undefined &&
       b.resolutionRequired !== current.resolutionRequired
@@ -144,7 +152,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
       } else {
         // Requires resolution -> Record-only: if not already closed, transition to 'recorded'
         if (current.status !== "closed" && !effectiveStatus) {
-          effectiveStatus = "recorded";
+          effectiveStatus = "closed";
         }
       }
     }
@@ -201,14 +209,13 @@ export async function PATCH(req: Request, ctx: Ctx) {
     if (b.additionalOwnerIds !== undefined) {
       const ids = [...new Set(b.additionalOwnerIds)].filter((sid) => sid !== (b.assignedStaffId ?? current.assignedStaffId));
       const people = ids.length
-        ? await db.select({ id: staff.id, name: staff.name, email: staff.email, departmentName: staff.department }).from(staff).where(and(inArray(staff.id, ids), eq(staff.isActive, true)))
+        ? await db.select().from(staff).where(and(inArray(staff.id, ids), eq(staff.isActive, true)))
         : [];
-      if (people.length !== ids.length) throw new ApiError("Choose active staff members as co-owners.");
-      coOwnerFields = { additionalOwners: ids.map((sid) => people.find((p) => p.id === sid)!) };
+      if (people.length !== ids.length || people.some(p=>!staffCoversStudio(cfg,p,b.studio||current.studio||''))) throw new ApiError("Choose active co-owners who cover this studio.");
+      coOwnerFields = { additionalOwners: ids.map((sid) => {const p=people.find(p=>p.id===sid)!;return {id:p.id,name:p.name,email:p.email,departmentName:p.department};}) };
     }
-    // A ticket about a client never drops below high — the same rule makeDraft applies on filing.
-    if (b.priority && clientInvolvedTicket(current) && (b.priority === "low" || b.priority === "medium"))
-      throw new ApiError("This ticket involves a client directly, so it stays at high priority or above.");
+    const canWork=actor.role==='admin'||await canResolveTicket(actor,current.assignedStaffId,current.resolutionRequired,current.additionalOwners);
+    if((b.assignedStaffId!==undefined||b.priority!==undefined||b.isEscalated!==undefined)&&!canWork&&!canEditTicketDetails(actor,current))throw new ApiError('Only the ticket owners, their manager, author or an administrator can change routing or priority.',403);
     let ownerFields = {};
     if (b.assignedStaffId) {
       const [p] = await db
@@ -221,13 +228,18 @@ export async function PATCH(req: Request, ctx: Ctx) {
         .from(departments)
         .where(eq(departments.name, p.department));
       if (!d?.active) throw new ApiError("Owner department is inactive");
+      if((p.department!==current.departmentName||!staffCoversStudio(cfg,p,b.studio||current.studio||''))&&!(actor.role==='admin'&&b.assignmentReason))throw new ApiError('Choose an owner in the responsible department who covers this studio. An administrator may record a reason for an exception.');
       ownerFields = {
         assignedStaffId: p.id,
         assignedStaffName: p.name,
         assignedStaffEmail: p.email,
-        departmentId: d.id,
-        departmentName: d.name,
+        departmentId: current.departmentId,
+        departmentName: current.departmentName,
       };
+    }
+    if(b.studio&&b.studio!==current.studio){
+      if(!cfg.studios.includes(b.studio))throw new ApiError('Choose a studio from the workspace list.');
+      if(!b.assignedStaffId){const r=await resolveRouting(cfg,current.category,b.studio,current.subcategory);ownerFields={assignedStaffId:r.owner.id,assignedStaffName:r.owner.name,assignedStaffEmail:r.owner.email,departmentId:r.departmentId,departmentName:r.dept.name};}
     }
     // Same rule as makeDraft: an administrator's per-subcategory SLA override wins over the
     // priority's default response target.
@@ -248,12 +260,12 @@ export async function PATCH(req: Request, ctx: Ctx) {
       };
     } else if (targetResolutionRequired) {
       // Requires resolution: recalculate SLA if priority changed or newly required
-      if (b.priority || (b.resolutionRequired === true && !current.resolutionRequired)) {
-        const targetPriority = (b.priority ?? (["critical", "high", "medium", "low"].includes(current.priority) ? current.priority : "medium")) as "critical" | "high" | "medium" | "low";
+      if (b.priority || policyRaised || (b.resolutionRequired === true && !current.resolutionRequired)) {
+        const targetPriority = updatedPolicy.priority as "critical" | "high" | "medium" | "low";
         const hours = slaHoursFor(cfg, current.category, current.subcategory, targetPriority);
         sla = {
-          slaHours: hours,
-          slaDueAt: new Date(current.createdAt.getTime() + hours * 3600000),
+          slaHours: current.customFields.autoFollowUp?current.slaHours:hours + current.slaExtendedHours,
+          slaDueAt: current.customFields.autoFollowUp?current.slaDueAt:new Date(current.createdAt.getTime() + (hours + current.slaExtendedHours) * 3600000),
           severity: inferSeverity(targetPriority),
         };
       }
@@ -261,7 +273,8 @@ export async function PATCH(req: Request, ctx: Ctx) {
       sla = { severity: inferSeverity(b.priority) };
     }
 
-    const { version, status: _requestedStatus, additionalOwnerIds: _coOwnerIds, committedResolutionAt, ...fields } = b;
+    const { version, status: _requestedStatus, assignmentReason: _assignmentReason, additionalOwnerIds: _coOwnerIds, committedResolutionAt, ...fields } = b;
+    void _assignmentReason;
     void _requestedStatus;
     void _coOwnerIds;
     const workingFields = {
@@ -277,6 +290,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
       : undefined;
     const patchPayload = {
       ...fields,
+      ...(policyRaised?{priority:updatedPolicy.priority,resolutionRequired:updatedPolicy.resolutionRequired}:{}),
       ...workingFields,
       ...(sanitizedCustom ? { customFields: sanitizedCustom } : {}),
     };

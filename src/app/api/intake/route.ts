@@ -22,7 +22,7 @@ export const dynamic='force-dynamic';
  * is offered with the shared field block, and a Support Hub sub-category the workspace does not
  * file under is not offered at all — makeDraft would refuse it anyway.
  *
- * One priority and one follow-up target per sub-category: the priority is Iris's routing tier
+ * One priority and one resolution target per sub-category: the priority is Iris's routing tier
  * (which already carries the higher of its own and the Hub's), and the target is the
  * workspace's responseHours or the sub-category's own routing rule. `hubPriority` repeats the
  * same priority for older clients; the plan's department hints are metadata only.
@@ -40,8 +40,8 @@ export async function GET(req:NextRequest){try{
     const priority=inferPriority({category:q.category,subcategory:q.subcategory});const slaHours=cfg.subcategoryRouting[`${q.category}|||${q.subcategory}`]?.slaHours??null;
     const meta=hubSub(q.category,q.subcategory,{priority,hours:cfg.responseHours,slaHours});
     let routing:{departmentId:string;departmentName:string;owner:{name:string;role:string}|null;autoAssign:boolean}|null=null;
-    try{const r=await resolveRouting(cfg,q.category,q.studio||ctx.studios[0]||'',q.subcategory);routing={departmentId:r.departmentId,departmentName:r.dept.name,owner:r.owner.id===null?null:{name:r.owner.name,role:r.owner.role},autoAssign:cfg.autoAssign};}catch{routing=null;}
-    return Response.json({fields,sub:meta||{key:`${q.category}|||${q.subcategory}`,category:q.category,name:q.subcategory,hubPriority:priority,slaLabel:slaLabelFor(priority,cfg.responseHours,slaHours),hours:[slaHours??cfg.responseHours[priority],null],hist:0,fieldCount:fields.length,requiredCount:fields.filter(f=>f.required).length},routing,reporter:actor.id?{name:actor.name,email:actor.email}:null});
+    try{const r=await resolveRouting(cfg,q.category,q.studio||'',q.subcategory);routing={departmentId:r.departmentId,departmentName:r.dept.name,owner:r.owner.id===null?null:{name:r.owner.name,role:r.owner.role},autoAssign:cfg.autoAssign};}catch{routing=null;}
+    return Response.json({fields,slaOverride:slaHours,sub:meta||{key:`${q.category}|||${q.subcategory}`,category:q.category,name:q.subcategory,hubPriority:priority,slaLabel:slaLabelFor(priority,cfg.responseHours,slaHours),hours:[slaHours??cfg.responseHours[priority],null],hist:0,fieldCount:fields.length,requiredCount:fields.filter(f=>f.required).length},routing,reporter:actor.id?{name:actor.name,email:actor.email}:null});
   }
   const configured=await momenceConfigured();
   const categories=await Promise.all(Object.entries(cfg.taxonomy).map(async([name,subs])=>{

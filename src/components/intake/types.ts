@@ -20,6 +20,7 @@ export type IntakeTaxonomy = {
   plan: {repo: string; commit: string; generatedAt: string};
 };
 export type IntakePlan = {
+  slaOverride?: number|null;
   fields: IntakeField[];
   sub: IntakeSubMeta;
   routing: {departmentId: string; departmentName: string; owner: IntakeOwner; autoAssign: boolean} | null;

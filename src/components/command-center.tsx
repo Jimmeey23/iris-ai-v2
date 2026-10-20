@@ -254,6 +254,7 @@ export function CommandCenter({directory = false, assignedOnly = false}: {direct
         </div>
         <div className="flex-row">
           <button className="icon-btn" aria-label="Export tickets" title="Export what is on screen" onClick={exportTickets}><Download size={13}/></button>
+          <button className="btn" onClick={()=>update({columns:['label','studio','status','priority','owner','sla']})} title="Show the essential ticket columns">Compact list</button>
           <div className="view-switch" role="group" aria-label="Workspace view">
             <button aria-label="List view" aria-pressed={view === 'list'} title="List view" className={view === 'list' ? 'active' : ''} onClick={() => setView('list')}><List size={14}/></button>
             <button aria-label="Board view" aria-pressed={view === 'board'} title="Board view" className={view === 'board' ? 'active' : ''} onClick={() => setView('board')}><Columns3 size={14}/></button>
@@ -451,27 +452,27 @@ export function CommandCenter({directory = false, assignedOnly = false}: {direct
         {!directory && view === 'list' && (
           <aside className="cockpit-right-sidebar" aria-label="Supporting operational intelligence">
             <section className="insights-widget">
-              <h3><Sparkles size={15} className="accent"/>IRIS intelligence <Badge tone="purple">LIVE</Badge></h3>
-              <p className="sub">Small signals. Meaningful action.</p>
+              <h3><Sparkles size={15} className="accent"/>Follow-up summary <Badge tone="purple">LIVE</Badge></h3>
+              <p className="sub">Current priorities and assigned owners.</p>
               <div className="insight-line">
                 <div className="insight-icon"><TriangleAlert size={13}/></div>
                 <div>
                   <strong>{slaRisk.length} ticket{slaRisk.length === 1 ? '' : 's'} need a timely follow-up</strong>
-                  <p>{slaRisk.length ? 'Bring at-risk and overdue tickets to the top of the team’s list.' : 'Every follow-up target is currently on track.'}</p>
+                  <p>{slaRisk.length ? 'Bring at-risk and overdue tickets to the top of the team’s list.' : 'Every resolution target is currently on track.'}</p>
                   <button className="text-btn" style={{fontSize: 10, marginTop: 7}} onClick={() => { changeFilters({tab: 'sla'}); update({filtersOpen: true}); }}>Review priority tickets <ArrowRight size={11}/></button>
                 </div>
               </div>
               <div className="insight-line">
                 <div className="insight-icon" style={{color: 'var(--accent)', background: 'var(--accent-soft)'}}><Users size={13}/></div>
                 <div>
-                  <strong>{new Set(open.filter((t) => t.assignedStaffId).map((t) => t.assignedStaffId)).size} people carrying the load</strong>
+                  <strong>{new Set(open.filter((t) => t.assignedStaffId).map((t) => t.assignedStaffId)).size} assigned owners</strong>
                   <p>Tickets are matched automatically to the right department and studio owner.</p>
                 </div>
               </div>
               <div className="insight-footer"><span>Based on your live ticket data</span><RefreshCw size={11}/></div>
             </section>
             <section className="studio-pulse">
-              <div className="between"><h3>Studio pulse</h3><Link className="text-btn" href="/radar">Ops Radar <ArrowUpRight size={14}/></Link></div>
+              <div className="between"><h3>Open tickets by studio</h3><Link className="text-btn" href="/radar">Ops Radar <ArrowUpRight size={14}/></Link></div>
               <p className="muted" style={{fontSize: 10, marginTop: 5}}>Active tickets across your studios · Live Radar</p>
               {STUDIOS.map((s, i) => {
                 const count = open.filter((t) => t.studio === s.name).length;
@@ -484,7 +485,7 @@ export function CommandCenter({directory = false, assignedOnly = false}: {direct
               })}
             </section>
             <section className="quick-templates">
-              <div className="between"><h3>A head start</h3><Link href="/templates" className="text-btn" style={{fontSize: 10}}>View all <ChevronRight size={11}/></Link></div>
+              <div className="between"><h3>Common forms</h3><Link href="/templates" className="text-btn" style={{fontSize: 10}}>View all <ChevronRight size={11}/></Link></div>
               {QUICK_TEMPLATES.map((t) => (
                 <button className="quick-template" key={t.id} onClick={() => setTemplate(t)}>
                   <div className="quick-template-icon"><CalendarDays size={14}/></div>

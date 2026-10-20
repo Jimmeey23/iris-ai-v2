@@ -9,7 +9,7 @@
  * Four buckets, in the order somebody should read them: overdue, due today, raised
  * overnight, unassigned. A ticket appears in exactly one — the first it qualifies for — so
  * the counts add up and nothing is read twice. Record-only rows (feedback, compliments,
- * assessments) are left out entirely: they have no follow-up target and nothing to chase.
+ * assessments) are left out entirely: they have no resolution target and nothing to chase.
  */
 import {and, asc, desc, eq, gte, isNotNull, isNull, lt, ne, or, sql} from 'drizzle-orm';
 import {db} from '@/db';
@@ -176,7 +176,7 @@ export async function buildDigest(now = new Date()): Promise<Digest> {
   const take = (rows: DigestRow[]) => rows.filter(row => !seen.has(row.id) && (seen.add(row.id), true));
 
   const buckets: DigestBucket[] = [
-    {key: 'overdue', label: 'Overdue', blurb: 'Past the follow-up target and still open.', rows: take(overdue)},
+    {key: 'overdue', label: 'Overdue', blurb: 'Past the resolution target and still open.', rows: take(overdue)},
     {key: 'today', label: 'Due today', blurb: 'The target falls before midnight tonight.', rows: take(dueToday)},
     {key: 'overnight', label: 'Raised overnight', blurb: 'Filed since midnight, target still ahead.', rows: take(overnight)},
     {key: 'unassigned', label: 'Waiting for an owner', blurb: 'Nobody has picked these up.', rows: take(unassigned)},
@@ -271,7 +271,7 @@ export function digestInsights(digest: Digest, now = new Date()): string[] {
     if (withTarget >= 3) {
       const pct = Math.round((onTime / withTarget) * 100);
       const verdict = pct >= 90 ? 'strong' : pct >= 75 ? 'holding up' : 'below where it should be';
-      out.push(`${pct}% of tickets resolved this week met their follow-up target (${onTime} of ${withTarget}) — ${verdict}.${medianHours !== null ? ` Typical time to resolve: ${hoursLabel(medianHours)}.` : ''}`);
+      out.push(`${pct}% of tickets resolved this week met their resolution target (${onTime} of ${withTarget}) — ${verdict}.${medianHours !== null ? ` Typical time to resolve: ${hoursLabel(medianHours)}.` : ''}`);
     }
 
     const {raised, raisedPrev} = pulse.week;
@@ -427,7 +427,7 @@ function trendCards(pulse: DigestPulse) {
     statCard('Last 7 days', [
       ['Raised', `${week.raised}${change !== null ? ` (${change > 0 ? '+' : ''}${change}%)` : ''}`],
       ['Resolved', String(week.resolved)],
-      ['Met follow-up target', onTimePct === null ? '—' : `${onTimePct}%`, onTimePct === null ? undefined : onTimePct >= 90 ? BRAND.green : onTimePct >= 75 ? BRAND.gold : BRAND.red],
+      ['Met resolution target', onTimePct === null ? '—' : `${onTimePct}%`, onTimePct === null ? undefined : onTimePct >= 90 ? BRAND.green : onTimePct >= 75 ? BRAND.gold : BRAND.red],
       ['Typical time to resolve', week.medianHours === null ? '—' : hoursLabel(week.medianHours)],
     ]),
   ]);
@@ -554,7 +554,7 @@ export function digestEmail(digest: Digest, now = new Date(), recipientName?: st
     accent: totals.overdue ? BRAND.red : BRAND.gold,
     body,
     width: 680,
-    footer: 'Sent each morning to IRIS administrators. Counts cover tickets that carry a follow-up target — feedback, compliments and trainer assessments are recorded rather than chased, so they are not listed here.',
+    footer: 'Sent each morning to IRIS administrators. Counts cover tickets that carry a resolution target — feedback, compliments and trainer assessments are recorded rather than chased, so they are not listed here.',
   });
 
   return {

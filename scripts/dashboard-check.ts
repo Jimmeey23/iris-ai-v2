@@ -93,7 +93,7 @@ check('the biggest group is first', groupTickets(rows, 'category')[0][1].length 
 check('an unassigned owner still gets a group', groupValue(rows[4], 'owner') === 'Unassigned');
 check('a ticket with no department still groups', groupValue(rows[4], 'department') === 'No department');
 check('SLA grouping reads in English', groupValue(rows[0], 'slaState') === 'Overdue');
-check('a record-only ticket groups as having no target', groupValue(rows[3], 'slaState') === 'No follow-up target');
+check('a record-only ticket groups as having no target', groupValue(rows[3], 'slaState') === 'No resolution target');
 check('group names are unique', new Set(groupNamesFor(rows, 'priority')).size === groupNamesFor(rows, 'priority').length);
 check('no grouping yields no groups', groupTickets(rows, 'none').length === 0 && groupNamesFor(rows, 'none').length === 0);
 

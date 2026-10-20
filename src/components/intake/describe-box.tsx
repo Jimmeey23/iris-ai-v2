@@ -42,7 +42,7 @@ export function DescribeBox({onUse}: {onUse: (pick: Pick, s: IntakeSuggestion) =
   const pct = Math.round((top?.confidence ?? 0) * 100);
   return (
     <section className="intake-describe" aria-label="Describe what happened">
-      <div className="intake-describe-head"><Sparkles size={15} /><strong>Describe it — IRIS picks the drawer</strong></div>
+      <div className="intake-describe-head"><Sparkles size={15} /><strong>Describe the issue to suggest a category</strong></div>
       <div className="intake-describe-row">
         <textarea
           value={text} rows={2} maxLength={2000}

@@ -28,7 +28,7 @@ function TextArea({f, id, value, invalid, onChange}: {f: IntakeField; id: string
       <textarea id={id} rows={open ? 9 : f.id === 'summary' ? 4 : 3} value={value} placeholder={f.placeholder || ''} aria-invalid={invalid || undefined} onChange={e => onChange(e.target.value)} />
       <span className="intake-ta-foot">
         <span className={'mono' + (short ? ' warn' : '')}>{trimmed.length} chars · {words} word{words === 1 ? '' : 's'}{short ? ' · at least 12 characters' : ''}</span>
-        <button type="button" className="text-btn" onClick={() => setOpen(o => !o)} title={open ? 'Tuck this box away' : 'Give this answer more room'}>{open ? 'collapse' : 'expand'}</button>
+        <button type="button" className="text-btn" aria-label={`${open ? 'Collapse' : 'Expand'} ${f.label}`} onClick={() => setOpen(o => !o)} title={open ? 'Tuck this box away' : 'Give this answer more room'}>{open ? 'collapse' : 'expand'}</button>
       </span>
     </div>
   );
@@ -47,7 +47,7 @@ function DateTime({id, value, invalid, onChange}: {id: string; value: string; in
     return () => document.removeEventListener('mousedown', away);
   }, [open]);
   return <div className="idt" ref={box}>
-    <input id={id} type="datetime-local" value={value} max={max} aria-invalid={invalid || undefined} onChange={e => onChange(e.target.value)} />
+    <input id={id} type="datetime-local" value={value} max={id==='f-occurred_at'?max:undefined} aria-invalid={invalid || undefined} onChange={e => onChange(e.target.value)} />
     <button type="button" className="idt-quick" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(o => !o)} title="Quick times"><Clock3 size={13} /><ChevronDown size={12} /></button>
     {open && <div className="osel-pop idt-pop" role="menu">
       <div className="osel-list">{DATE_PRESETS.map(p => <button type="button" role="menuitem" key={p.label} className="osel-opt" onClick={() => { onChange(localDateTime(p.make())); setOpen(false); }}><span className="osel-label">{p.label[0].toUpperCase() + p.label.slice(1)}</span><small>{p.hint}</small></button>)}</div>
@@ -141,6 +141,8 @@ function FieldControl({f, value, onChange, invalid, studio, onLookupPick}: {f: I
 /* ------------------------------------------------------------------ sections */
 
 export const SECTION_META: Record<string, {icon: LucideIcon; lede: string}> = {
+  'Late arrival details':{icon:CalendarClock,lede:'Class timing, notice given, member impact and service recovery.'},
+  'Global details':{icon:ClipboardList,lede:'Shared details about the source, studio, people and reported impact.'},
   'Who this is about': {icon: UsersRound, lede: 'The member at the centre of this, and how they want to hear back.'},
   'Where & when': {icon: MapPin, lede: 'The studio, the exact spot and the moment it happened.'},
   'Class context': {icon: CalendarDays, lede: 'The session involved. Linking it from Momence brings the coach and roster.'},
@@ -155,8 +157,8 @@ export const SECTION_META: Record<string, {icon: LucideIcon; lede: string}> = {
   'Brand & partnerships': {icon: Megaphone, lede: 'The partner or campaign, its terms and what it delivered.'},
   'Internal & policy': {icon: ClipboardList, lede: 'Who needs to decide, what changes and by when.'},
   'Other details': {icon: Layers, lede: 'Anything else this sub-category asks for.'},
-  'Impact & triage': {icon: Activity, lede: 'How serious it is. These answers set the priority and follow-up target.'},
-  'Description & ask': {icon: PenLine, lede: 'In plain words: what happened and what a good outcome looks like.'},
+  'Impact and urgency': {icon: Activity, lede: 'How serious it is. These answers set the priority and resolution target.'},
+  'Feedback and requested action': {icon: PenLine, lede: 'In plain words: what happened and what a good outcome looks like.'},
   'Attendees': {icon: UsersRound, lede: 'Everyone who booked or walked in: attendance, outcome, follow-up and notes.'},
   'Evidence': {icon: Paperclip, lede: 'Tokens, vendor tickets and links that back it up.'},
 };
@@ -186,7 +188,7 @@ export function groupSections(fields: IntakeField[], data: IntakeData, opts: {hi
   return orderSections(m.keys()).map(name => {
     // Stable: questions the grouping does not rank keep the plan's own order.
     const list = m.get(name)!.map((f, i) => ({f, i})).sort((a, b) => fieldRank(a.f.id) - fieldRank(b.f.id) || a.i - b.i).map(x => x.f);
-    const req = list.filter(f => (f.required || opts.gatingIds?.has(f.id)) && !isSkipped(data, f.id));
+    const req = list.filter(f => (f.required || opts.gatingIds?.has(f.id)));
     return {
       name, slug: sectionSlug(name), fields: list, required: req.length,
       missing: req.filter(f => !filled(data[f.id])).length,
@@ -237,9 +239,9 @@ export function IntakeFieldRow({f, value, onChange, onSkip, skipped = false, err
         </label>
         <span className="ifield-flags">
           {auto && done && <span className="ifield-auto" title="Filled in for you. Edit to change it."><Sparkles size={9} /> Auto-filled</span>}
-          {depLabel && <span className="ifield-cond" title={`Asked because “${depLabel}” was answered`}><GitBranch size={9} /> Follows “{depLabel}”</span>}
+          {depLabel && <span className="ifield-cond" title={`Asked because “${depLabel}” was answered`}><GitBranch size={9} /> Conditional</span>}
           {extra}
-          <button type="button" className={'ifield-skip' + (skipped ? ' on' : '')} role="switch" aria-checked={skipped} onClick={onSkip} title={skipped ? 'Include this field again' : 'Skip this field, including its required rule'}><EyeOff size={10} />{skipped ? 'Skipped' : 'Skip'}</button>
+          {onSkip && <button type="button" aria-label={`${skipped?'Include':'Skip'} ${f.label}`} className={'ifield-skip' + (skipped ? ' on' : '')} role="switch" aria-checked={skipped} onClick={onSkip} title={skipped ? 'Include this field again' : 'Skip this optional field'}><EyeOff size={10} />{skipped ? 'Skipped' : 'Skip'}</button>}
         </span>
       </div>
       <div className="ifield-control">
@@ -268,7 +270,7 @@ export function IntakeContextHeader({data, patch, studio, hostedClass = false, f
   const memberValue = memberIds.map(id => data[id]).find(filled);
   const involvesMember = /yes/i.test(String(data._involves_member || '')) || memberRequired || filled(memberValue);
   const involvesClass = /yes/i.test(String(data._involves_class || '')) || Boolean(gatingIds?.has('class_date')) || filled(data.class_date);
-  const requiresResolution = !/^no$/i.test(String(data._requires_resolution || 'Yes'));
+  const requiresResolution = !hostedClass && !/^no$/i.test(String(data._requires_resolution || 'Yes'));
   const setFlag = (id: string, yes: boolean) => patch(id, yes ? 'Yes' : 'No');
   const setMember = (v: IntakeValue) => { for (const id of memberIds) patch(id, v); };
   const reporterType = String(data.reporter_type || '');
@@ -277,13 +279,12 @@ export function IntakeContextHeader({data, patch, studio, hostedClass = false, f
   const showClass = involvesClass || hostedClass;
   // A sub-category that is always about a class keeps the switch on; one the desk turned on can be turned off.
   const classLocked = hostedClass || (Boolean(gatingIds?.has('class_date')) && !/yes/i.test(String(data._involves_class || '')));
-  const classSkipped = !hostedClass && isSkipped(data, 'class_date');
   return (
     <div className="ictx" aria-label="Ticket context">
       <div className="ictx-who">
         <div className="ictx-id">
           <span className="ictx-id-icon"><UserRound size={15} /></span>
-          <span><small>Reported by</small><strong>{reporterName || 'Signed-in user'}</strong><em>{[String(data.reporter_contact || ''), reporterType].filter(Boolean).join(' · ') || 'Profile details unavailable'}</em></span>
+          <span><small>Logged by</small><strong>{reporterName || 'Signed-in user'}</strong><em>{[String(data.reporter_contact || ''), reporterType].filter(Boolean).join(' · ') || 'Profile details unavailable'}</em></span>
         </div>
         <div className="ictx-id">
           <span className="ictx-id-icon studio"><Building2 size={15} /></span>
@@ -292,23 +293,23 @@ export function IntakeContextHeader({data, patch, studio, hostedClass = false, f
         <span className="ictx-lock"><LockKeyhole size={10} /> From your profile</span>
       </div>
       <div className="ictx-switches" role="group" aria-label="What this ticket involves">
-        <ContextSwitch label="Involves a member" hint={memberRequired ? 'Required for this sub-category' : 'Link the community member'} icon={<UsersRound size={16} />} on={involvesMember} onClick={() => { if (memberRequired) return; if (involvesMember) setMember(''); setFlag('_involves_member', !involvesMember); }} />
-        <ContextSwitch label="Involves a session" hint={classLocked ? 'This sub-category is about a class' : 'Link the Momence session'} icon={<CalendarDays size={16} />} on={showClass} onClick={() => { if (classLocked) return; if (involvesClass) patch('class_date', ''); setFlag('_involves_class', !involvesClass); }} />
-        <ContextSwitch label="Requires resolution" hint={requiresResolution ? 'Owner, follow-up target and closure' : 'Recorded only, no follow-up'} icon={<Wrench size={16} />} on={requiresResolution} onClick={() => setFlag('_requires_resolution', !requiresResolution)} />
+        <ContextSwitch label="Involves a member" hint={memberRequired ? 'Required for this sub-category' : 'Link the member'} icon={<UsersRound size={16} />} on={involvesMember} onClick={() => { if (memberRequired) return; if (involvesMember) setMember(''); setFlag('_involves_member', !involvesMember); }} />
+        <ContextSwitch label="Involves a class" hint={classLocked ? 'This sub-category is about a class' : 'Link the Momence session'} icon={<CalendarDays size={16} />} on={showClass} onClick={() => { if (classLocked) return; if (involvesClass) patch('class_date', ''); setFlag('_involves_class', !involvesClass); }} />
+        <ContextSwitch label="Action required" hint={requiresResolution ? 'Owner, resolution target and closure' : 'Automatically closed for reference'} icon={<Wrench size={16} />} on={requiresResolution} onClick={() => {if(!hostedClass)setFlag('_requires_resolution', !requiresResolution);}} />
       </div>
       {(involvesMember || showClass) && (
         <div className="ictx-lookups">
           {involvesMember && (
             <div className="ictx-lookup" data-fid={memberIds[0]} data-fids={memberIds.join(' ')}>
-              <div className="ictx-lookup-label"><label htmlFor={'f-' + memberIds[0]}>Member(s) this is about <span className="ifield-req">Required</span></label><button type="button" className={'ifield-skip' + (isSkipped(data, memberIds[0]) ? ' on' : '')} role="switch" aria-checked={isSkipped(data, memberIds[0])} onClick={() => patch(skipKey(memberIds[0]), isSkipped(data, memberIds[0]) ? 'No' : 'Yes')}><EyeOff size={10}/>{isSkipped(data, memberIds[0]) ? 'Skipped' : 'Skip'}</button></div>
-              {isSkipped(data, memberIds[0]) ? <div className="ifield-skipped-note"><EyeOff size={14}/>Member link intentionally skipped.</div> : <LookupField id={'f-' + memberIds[0]} module="member" value={memberValue} onChange={setMember} studio={studioName} multi />}
+              <div className="ictx-lookup-label"><label htmlFor={'f-' + memberIds[0]}>Member(s) this is about <span className="ifield-req">Required</span></label></div>
+              {<LookupField id={'f-' + memberIds[0]} module="member" value={memberValue} onChange={setMember} studio={studioName} multi />}
             </div>
           )}
           {showClass && (
             <div className="ictx-lookup" data-fid="class_date">
               {/* A hosted-class ticket is a record of a roster, so its class link is never skippable. */}
-              <div className="ictx-lookup-label"><label htmlFor="f-class_date">{hostedClass ? 'Hosted class(es)' : 'Class(es) / session(s)'} <span className="ifield-req">Required</span></label>{!hostedClass && <button type="button" className={'ifield-skip' + (classSkipped ? ' on' : '')} role="switch" aria-checked={classSkipped} onClick={() => patch(skipKey('class_date'), classSkipped ? 'No' : 'Yes')}><EyeOff size={10}/>{classSkipped ? 'Skipped' : 'Skip'}</button>}</div>
-              {classSkipped ? <div className="ifield-skipped-note"><EyeOff size={14}/>Session link intentionally skipped.</div> : <LookupField id="f-class_date" module="session" value={data.class_date} sessionTypes={hostedClass ? ['private'] : undefined} onChange={v => { patch('class_date', v); if (filled(v)) setFlag('_involves_class', true); }} studio={studioName} multi />}
+              <div className="ictx-lookup-label"><label htmlFor="f-class_date">{hostedClass ? 'Hosted class(es)' : 'Class(es) / session(s)'} <span className="ifield-req">Required</span></label></div>
+              {<LookupField id="f-class_date" module="session" value={data.class_date} sessionTypes={hostedClass ? ['private'] : undefined} onChange={v => { patch('class_date', v); if (filled(v)) setFlag('_involves_class', true); }} studio={studioName} multi />}
               {hostedClass && <span className="field-hint">Private hosted classes from the Momence account linked to your studio. Linking loads everyone who booked into Attendees; if the class is not in Momence, add each attendee there by hand.</span>}
             </div>
           )}
@@ -359,7 +360,7 @@ export function FormEngine({fields, data, patch, errors, auto, onLookupPick, ope
     if (name) setTimeout(() => document.getElementById(sectionSlug(name))?.scrollIntoView({behavior: 'smooth', block: 'start'}), 60);
   };
   const [drawers, setDrawers] = useState<Record<string, boolean>>({});
-  const row = (f: IntakeField, i: number) => <IntakeFieldRow key={f.id} index={i} f={f} value={data[f.id]} onChange={v => patch(f.id, v)} skipped={isSkipped(data, f.id)} onSkip={() => patch(skipKey(f.id), isSkipped(data, f.id) ? 'No' : 'Yes')} error={errors[f.id]} auto={auto[f.id] !== undefined && String(auto[f.id]) === String(data[f.id])} studio={studio} onLookupPick={onLookupPick} required={f.required || gatingIds?.has(f.id) || undefined} depLabel={f.conditional && f.dep ? labels.get(f.dep) : undefined} extra={extras?.[f.id]} />;
+  const row = (f: IntakeField, i: number) => <IntakeFieldRow key={f.id} index={i} f={f} value={data[f.id]} onChange={v => patch(f.id, v)} skipped={!f.required&&!gatingIds?.has(f.id)&&isSkipped(data, f.id)} onSkip={f.required||gatingIds?.has(f.id)?undefined:() => patch(skipKey(f.id), isSkipped(data, f.id) ? 'No' : 'Yes')} error={errors[f.id]} auto={auto[f.id] !== undefined && String(auto[f.id]) === String(data[f.id])} studio={studio} onLookupPick={onLookupPick} required={f.required || gatingIds?.has(f.id) || undefined} depLabel={f.conditional && f.dep ? labels.get(f.dep) : undefined} extra={extras?.[f.id]} />;
   return (
     <div className="isections">
       {contextHeader}

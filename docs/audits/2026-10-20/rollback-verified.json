@@ -1,0 +1,14 @@
+{
+  "mode": "dry-run",
+  "rollback": true,
+  "outcomes": [
+    {
+      "ticketNumber": "P57-02051",
+      "action": "would-revert"
+    },
+    {
+      "ticketNumber": "P57-02052",
+      "action": "would-revert"
+    }
+  ]
+}

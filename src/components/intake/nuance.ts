@@ -15,8 +15,8 @@ const SUB_TIPS: {match: RegExp; tips: Tip[]}[] = [
     {icon: 'clock', text: 'Note the exact time. The welfare follow-up is due within 24 hours.'},
   ]},
   {match: /harassment|suspicious|trespass|personal safety|staff security/i, tips: [
-    {icon: 'shield', text: 'Keep names to the people who need them. Mark the ticket restricted if the reporter asks.'},
-    {icon: 'camera', text: 'Ask for CCTV to be held now. Footage is overwritten within days.'},
+    {icon: 'shield', text: 'Contact the studio manager immediately. Share sensitive details only through the approved incident process.'},
+    {icon: 'camera', text: 'Ask the authorised team to preserve relevant CCTV footage according to studio policy.'},
   ]},
   {match: /theft|stolen|taken from|valet theft/i, tips: [
     {icon: 'camera', text: 'Write down the time window it went missing so CCTV can be pulled.'},
@@ -36,7 +36,7 @@ const SUB_TIPS: {match: RegExp; tips: Tip[]}[] = [
     {icon: 'wrench', text: 'Note the bike number and whether it has been taken out of rotation.'},
   ]},
   {match: /ac and hvac|temperature|ventilation|air quality|cold air/i, tips: [
-    {icon: 'wrench', text: 'A thermometer reading helps the engineer more than "too hot".'},
+    {icon: 'wrench', text: 'Record the reported temperature concern. Add a measurement only if one was taken.'},
   ]},
   {match: /plumbing|leak|water dispenser|shower|steam/i, tips: [
     {icon: 'wrench', text: 'If water is running, isolate the supply first, then file.'},
@@ -45,7 +45,7 @@ const SUB_TIPS: {match: RegExp; tips: Tip[]}[] = [
     {icon: 'calendar', text: 'Name the current slot and the one being asked for. Demand evidence decides whether the grid changes.'},
   ]},
   {match: /substitution|no-show|late arrival|punctuality|ending on time/i, tips: [
-    {icon: 'calendar', text: 'Link the class so the coach, start time and roster are attached.'},
+    {icon: 'calendar', text: 'Record the scheduled time, instructor arrival, notice given and any impact on members. Link the class if available.'},
   ]},
   {match: /login|password|app|website|booking system|notifications|glitch|bug|freezing/i, tips: [
     {icon: 'monitor', text: 'Copy the exact error message and the steps that led to it.'},
@@ -61,9 +61,9 @@ const SUB_TIPS: {match: RegExp; tips: Tip[]}[] = [
 const CATEGORY_TIPS: Record<string, Tip[]> = {
   'Scheduling': [{icon: 'calendar', text: 'Say which slot this is about and how many members are asking.'}],
   'Class Experience': [{icon: 'quote', text: "Use the member's own words wherever you can."}],
-  'Trainer Feedback': [{icon: 'quote', text: 'Stick to what was seen or said in the room. The trainer will read this in review.'}],
+  'Trainer Feedback': [{icon: 'quote', text: 'Stick to what was seen or said in the room. Keep member statements separate from staff observations.'}],
   'Repair and Maintenance': [{icon: 'wrench', text: 'Say exactly where the fault is and whether the space is still usable.'}],
-  'Studio Amenities and Facilities': [{icon: 'wrench', text: 'Note the area and when it was noticed. Housekeeping works from the time of day.'}],
+  'Studio Amenities and Facilities': [{icon: 'wrench', text: 'Record the member’s comments and any action they requested.'}],
   'Operating Systems': [{icon: 'monitor', text: 'Name the system, who is blocked and any workaround in use.'}],
   'Tech Issues': [{icon: 'monitor', text: 'Name the device and what was tried before filing.'}],
   'Pricing and Memberships': [{icon: 'rupee', text: 'Link the member so their package and payments come across from Momence.'}],

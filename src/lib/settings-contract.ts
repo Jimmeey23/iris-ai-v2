@@ -20,8 +20,11 @@ export const configSchema = z.object({
   pollSeconds: z.number().min(5).max(120).default(15), aiEnabled: z.boolean().default(true), aiFallback: z.boolean().default(true), aiModel: z.string().max(80).default("gpt-4o-mini"),
   aiVoice: z.string().max(1200).default("You're a smart operational assistant helping staff log issues efficiently. Be conversational, strategic, and context-aware. Reference what they've told you. If they signal urgency or blocking issues, prioritize resolution options. Never echo answers, apologize, or recap facts. Be concise like a colleague helping out, not a script."),
   historyRetrieval: z.boolean().default(true), autoTag: z.boolean().default(true), autoAssign: z.boolean().default(true), positiveNoSla: z.boolean().default(true),
-  /** The SLA every ticket is filed with (first-response hours per priority); defaults are PRIORITY_SLA_HOURS. */
+  /** The SLA every ticket is filed with (resolution-target hours per priority); defaults are PRIORITY_SLA_HOURS. */
   responseHours: z.object({critical:z.number().min(12).max(72).default(SLA.critical),high:z.number().min(12).max(72).default(SLA.high),medium:z.number().min(12).max(72).default(SLA.medium),low:z.number().min(12).max(72).default(SLA.low)}).default({...SLA}),
+  escalationOwnerIds:z.record(z.string(),z.number().int().positive()).default({operations:19,training:3,marketing:18,'sales-client-servicing':9,'customer-service':9,accounts:21}),
+  cityOwnerIds: z.record(z.string(),z.object({mumbai:z.array(z.number().int().positive()).default([]),bengaluru:z.array(z.number().int().positive()).default([])})).default({operations:{mumbai:[31],bengaluru:[24]},training:{mumbai:[12,28],bengaluru:[16]},marketing:{mumbai:[8],bengaluru:[20]}}),
+  staffStudioCoverage: z.record(z.string(),z.array(z.string())).default({}),
   categoryDepartments: z.record(z.string(),z.string()).default(CATEGORY_DEPARTMENT), routingOwners: z.record(z.string(),z.number().int().positive()).default({}),
   taxonomy: z.record(z.string(),z.array(z.string().min(1))).default(CATEGORY_MAP), studios:z.array(z.string()).default(STUDIOS.map(s=>s.name)), trainers:z.array(z.string()).default([...TRAINERS]), formats:z.array(z.string()).default([...CLASS_FORMATS]), memberships:z.array(z.string()).default([...MEMBERSHIPS]),
   formOverrides:z.record(z.string(),formPlanSchema).default({}),
@@ -64,7 +67,7 @@ export const configSchema = z.object({
   /** A ticket reads as "due soon" once less than this share of its created→due window is left
    *  (lib/metrics.ts; same default as DEFAULT_SLA_WARNING_PERCENT there). */
   slaWarningPercent: z.number().int().min(5).max(90).default(20),
-  /** Escalate to critical this many hours after a missed follow-up target. 0 disables it. */
+  /** Escalate to critical this many hours after a missed resolution target. 0 disables it. */
   escalateAfterBreachHours: z.number().int().min(0).max(336).default(0),
   /** Resolving a ticket requires the resolution workspace to be filled in first. */
   requireResolutionNotes: z.boolean().default(false),

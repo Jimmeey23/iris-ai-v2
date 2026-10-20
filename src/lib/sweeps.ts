@@ -101,7 +101,8 @@ export async function runDueWork(): Promise<{ran: SweepJob[]}> {
   const ran: SweepJob[] = [];
   if (
     await run('sla', async () => {
-      const {applyEscalations, emitOverdueEvents, queueSlaReminderEmails} = await import('./tickets');
+      const {applyEscalations, emitOverdueEvents, queueSlaReminderEmails, processResolutionChecks} = await import('./tickets');
+      await processResolutionChecks();
       // Ordered so that anything a sweep queues is in the outbox before the drain below runs.
       await queueSlaReminderEmails();
       await emitOverdueEvents();

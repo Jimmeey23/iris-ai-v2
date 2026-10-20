@@ -10,6 +10,10 @@
  * form uses it to evaluate visibility, gating and the live routing preview per keystroke.
  */
 import planData from './plan-data.json';
+import {lateArrivalFields, isLateArrival} from './scenarios';
+import {simpleLanguage} from '../plain-language';
+import {FIELD_COPY, GLOBAL_FIELD_IDS, OBSERVATION_FIELDS, enrichmentRelevant} from './content';
+export const FORM_SCHEMA_VERSION='2026-10-20';
 import type {TicketInput} from '../ticket-contract';
 import {CATEGORY_MAP, PRIORITY_SLA_HOURS, type SlaHours} from '../constants';
 
@@ -53,7 +57,7 @@ export type IntakeSubMeta = {
   /** The priority the sub-category files at. Callers pass Iris's routing tier (which already
    *  takes the higher of its own and the Hub's); without one it is the Hub's tier. */
   hubPriority: string;
-  /** Follow-up target from the workspace's responseHours — the plan carries no SLA of its own. */
+  /** Resolution target from the workspace's responseHours — the plan carries no SLA of its own. */
   slaLabel: string;
   hours: [number | null, null];
   hist: number;
@@ -81,6 +85,7 @@ type PlanData = {
   cycleIntake: {key: string; prompt: string; type: string; values?: string[]}[];
 };
 const DATA = planData as unknown as PlanData;
+const DEF_BY_ID=new Map(DATA.defs.map(d=>[d.id,d]));
 
 export const PLAN_SOURCE = DATA.source;
 export const subKey = (category: string, sub: string) => `${category}|||${sub}`;
@@ -118,8 +123,8 @@ const GROUPS: Record<string, string[]> = {
   'Member experience': ['experience_dimension', 'complaint_nature', 'service_channel', 'response_waited', 'contact_attempted', 'desk_owner', 'goodwill_offered', 'reply_deadline', 'review_or_public'],
   'Brand & partnerships': ['partner_name', 'program_name', 'brand_topic', 'ambassador_status', 'platform', 'commercial_terms', 'value_inr', 'deliverables', 'go_live', 'rights_used', 'pr_speaker'],
   'Internal & policy': ['internal_type', 'misc_bucket', 'idea_type', 'suggested_action', 'decision_needed', 'policy_owner', 'applies_to_roles', 'affected_studios', 'effective_date', 'version_from', 'sop_action', 'sop_ref', 'rollout_plan', 'people_impact', 'lead_ref', 'due_date', 'followup_owner', 'followup_date'],
-  'Impact & triage': ['affected_count', 'guest_count', 'member_impact', 'class_impacted', 'immediate_danger', 'is_repeat', 'linked_ticket', 'sentiment', 'churn_risk'],
-  'Description & ask': ['title', 'summary', 'member_verbatim', 'requested_outcome'],
+  'Impact and urgency': ['affected_count', 'guest_count', 'member_impact', 'class_impacted', 'immediate_danger', 'is_repeat', 'linked_ticket', 'sentiment', 'churn_risk'],
+  'Feedback and requested action': ['title', 'summary', 'member_verbatim', 'requested_outcome'],
   'Evidence': ['valet_ticket', 'ticket_vendor', 'asset_link'],
 };
 const SECTION: Record<string, string> = Object.fromEntries(Object.entries(GROUPS).flatMap(([s, ids]) => ids.map(id => [id, s])));
@@ -138,7 +143,7 @@ const CATEGORY_SECTION: Record<string, string> = {
   'Safety and Security': 'Safety & incident', 'Theft and Lost Items': 'Lost & found', 'Miscellaneous': 'Other details',
   'Internal Operations & Admin': 'Internal & policy',
 };
-export const SECTION_ORDER = ['Reporter', 'Who this is about', 'Where & when', 'Class context', 'Safety & incident', 'Lost & found', 'Payment & billing', 'Equipment & facility', 'Systems & data', 'Schedule & timetable', 'Trainer & method', 'Member experience', 'Brand & partnerships', 'Internal & policy', 'Other details', 'Impact & triage', 'Description & ask', 'Evidence'];
+export const SECTION_ORDER = ['Global details', 'Late arrival details', 'Reporter', 'Who this is about', 'Where & when', 'Class context', 'Safety & incident', 'Lost & found', 'Payment & billing', 'Equipment & facility', 'Systems & data', 'Schedule & timetable', 'Trainer & method', 'Member experience', 'Brand & partnerships', 'Internal & policy', 'Other details', 'Impact and urgency', 'Feedback and requested action', 'Evidence'];
 /** Section names earlier plans (and published builder plans) were saved with. */
 const LEGACY_SECTIONS = new Set(['Sub-category specifics', 'Class detail', 'Roll call', 'Trainer detail', 'Asset detail', 'Payment detail', 'Vendor detail']);
 export const sectionOf = (id: string, enrich?: string, category?: string) =>
@@ -156,10 +161,10 @@ export function hubCategories(): HubCategory[] {
     ? {...category, subs: [...CATEGORY_MAP['Repair and Maintenance']]}
     : category);
 }
-/** "4 h first response", from the configured hours (Settings → response hours) for a tier. */
+/** "4 h resolution target", from the configured hours (Settings → response hours) for a tier. */
 export function slaLabelFor(priority: string, hours: SlaHours = PRIORITY_SLA_HOURS, override?: number | null) {
   const h = override ?? hours[priority as keyof SlaHours];
-  return h ? `${h} h first response` : '';
+  return h ? `${h} h resolution target` : '';
 }
 /** Plan metadata for a sub-category, or null when the plan has nothing for it (an admin-added
  *  sub-category): planFields still serves it the universal block. */
@@ -230,7 +235,8 @@ function materialise(def: RawDef, universal: boolean, ctx: PlanContext, category
  *  required field can never be hidden by a dependency we cannot resolve. */
 function dependencyOf(f: Omit<IntakeField, 'dep'>, index: Map<string, unknown>): string | null {
   if (f.dependsOn && index.has(f.dependsOn)) return f.dependsOn;
-  if (f.dependsOn) return null;
+  if (f.dependsOn?.startsWith('_')) return f.dependsOn;
+  if (f.dependsOn) return '_unavailable_dependency';
   if (!f.conditional) return null;
   const prose = (f.condText || '').toLowerCase();
   if (!prose || /^no\b/.test(prose.trim())) return null;
@@ -315,7 +321,7 @@ const SUB_OVERLAYS: Record<string, RawDef[]> = {
     {id: 'continuation_intent', label: 'Interest in continuing the practice', type: 'select', required: true, options: ['Ready to purchase', 'Interested in an intro offer', 'Requested a follow-up', 'Interested but timing is unclear', 'No stated interest', 'Not captured']},
     {id: 'commercial_outcome', label: 'Commercial outcome', type: 'select', required: true, options: ['Package sold on the day', 'Trial / intro booked', 'Qualified leads captured', 'Follow-up list created', 'No conversion signal', 'Not applicable']},
     {id: 'partner_voice', label: 'Partner’s stated feedback', type: 'textarea', desc: 'Capture the host or partner’s words, including requested changes.'},
-    {id: 'social_opportunity', label: 'Content and amplification opportunity', type: 'textarea', desc: 'Note posts, stories, testimonials, permissions or creator content mentioned.'},
+    {id:'social_opportunity',label:'Content opportunities discussed',type:'multiselect',options:['Partner post','Partner story','Member testimonial with permission','Creator content','No opportunity discussed','Other'],desc:'Select only opportunities actually discussed; record permissions separately.'},
     {id: 'repeat_recommendation', label: 'Recommended partnership next step', type: 'select', required: true, options: ['Repeat the partnership', 'Nurture and redesign', 'One-off only', 'Management review required']},
     {id: 'agreed_follow_up', label: 'Agreed follow-up', type: 'textarea', required: true, desc: 'Record the owner, action and timing agreed.'},
   ],
@@ -352,6 +358,7 @@ type Relevance = {ids: string[]; cats?: RegExp; keep?: RegExp; drop?: RegExp};
 const RELEVANCE: Relevance[] = [
   // Where exactly in the building: only for something physical.
   {ids: ['specific_area'], cats: /^(?!Repair and Maintenance|Studio Amenities|Safety and Security|Theft and Lost).*/, keep: /odou?r|temperature|audio|music|overcrowding|injury|discomfort|equipment|layout|laptop|speaker|mic |mic$|phones|camera|wi-fi|router|ipad|pos |cash|noise|lighting|decor|charging|lockers|drafts|lobby|signage|storage/i},
+  {ids: ['immediate_danger','injury_risk','class_impacted','is_repeat','affected_count'],cats:/Studio Amenities/,drop:/challenges|perks|community events|holiday-themed|sustainable|integration|lost and found/i},
   {ids: ['specific_area', 'area', 'temp_reading', 'par_level', 'supply_count', 'vendor_needed', 'amenity'], cats: /Studio Amenities/, drop: /challenges|perks|community events|holiday-themed|sustainable|integration|lost and found/i},
   {ids: ['area'], cats: /Pricing|Customer Service|Brand Feedback|Internal Operations|Scheduling|Trainer Feedback/},
   {ids: ['area'], cats: /Operating Systems|Tech Issues/, keep: /router|ipad|cash|pos|laptop|speaker|mic|phones|camera|wi-fi|music|streaming/i},
@@ -419,7 +426,7 @@ const UNIVERSAL_CONDITIONS: Record<string, {dependsOn: string; when: string; con
   report_channel: {
     dependsOn: 'reporter_type',
     // Anyone other than the member or prospect in front of you is relaying it from elsewhere.
-    when: '^(?!member|prospect)',
+    when: 'member|prospect|partner|told me|on behalf',
     condText: 'Yes — when staff are relaying this from somewhere else',
   },
   affected_count: {
@@ -518,29 +525,70 @@ export function planFields(category: string, sub: string, ctx: PlanContext, conf
   // ("what happened — member · studio") from the description, which reads far better on the
   // board than the sub-category repeated back. A title the reporter types is kept as written.
   all = all.map(f => f.id === 'title' ? {...f, required: false, desc: 'Optional. Leave blank and Iris writes one from what you describe; anything you type here is kept as written.', placeholder: 'Leave blank to generate from the description'} : f);
+  const memberFields=all.filter(f=>f.type==='lookup'&&f.module==='member'&&MEMBER_LOOKUP_IDS.includes(f.id));
+  const memberRequired=memberFields.some(f=>f.required);
+  const aliases=new Set(MEMBER_LOOKUP_IDS.filter(id=>id!=='member_name'));
+  if(!configured?.length)all=all.filter(f=>f.id!=='title');
+  all=all.map(f=>({...f,enrich:f.enrich||DEF_BY_ID.get(f.id)?.enrich}));
+  all=all.filter(f=>!['reporter_name','reporter_contact','privacy_flag','incident_location','vendor_visit_log','eng_site_ref','quote_ref','vendor_name','class_compatibility_notes','trainer_feedback_type','trainer_action_now'].includes(f.id))
+    .filter(f=>!(f.id==='housekeeping_log'&&category==='Trainer Feedback'))
+    .filter(f=>!(['grid_impact','notified_members','roster_alternates'].includes(f.id)&&category!=='Scheduling'))
+    .filter(f=>!aliases.has(f.id)&&!['follow_up_channel','churn_risk','service_time','time_of_day'].includes(f.id)&&!OBSERVATION_FIELDS.has(f.id))
+    .filter(f=>relevant(f.id,category,sub)&&enrichmentRelevant(f.id,f.enrich,category,sub))
+    .map(f=>{
+      const copy=FIELD_COPY[f.id];
+      const global=GLOBAL_FIELD_IDS.has(f.id);
+      const dep=f.dependsOn&&aliases.has(f.dependsOn)?'member_name':f.dependsOn;
+      return {...f,...copy,dependsOn:dep,section:global?'Global details':f.section,
+        ...(f.id==='member_name'?{required:memberRequired,conditional:!memberRequired,dependsOn:memberRequired?undefined:'_involves_member',when:memberRequired?undefined:'^yes$'}:{}),
+        ...(f.id==='occurred_at'?{required:false}:{}),
+        ...(['reporter_type','reporter_name','reporter_contact'].includes(f.id)?{required:false}:{}),
+        ...(f.id==='sentiment'||f.id==='member_verbatim'?{required:false,conditional:true,dependsOn:'_involves_member',when:'^yes$'}:{}),
+        ...(f.id==='class_date'?{conditional:true,dependsOn:'_involves_class',when:'^yes$'}:{}),
+        ...(['class_format','trainer'].includes(f.id)||f.enrich==='class'||f.enrich==='roster'?{conditional:true,dependsOn:'class_date',when:undefined}:{}),
+      };
+    });
+  if(!all.some(f=>f.id==='member_name'))all.push({...materialise(MEMBER_LOOKUP_DEF,true,ctx,category),id:'member_name',label:'Community member',section:'Global details',required:memberRequired,conditional:!memberRequired,dependsOn:memberRequired?undefined:'_involves_member',when:memberRequired?undefined:'^yes$'});
+  // Exact time replaces recency/day part; account and session facts have one source.
+  const seenIds=new Set<string>();all=all.filter(f=>!seenIds.has(f.id)&&Boolean(seenIds.add(f.id)));
+  const affected=all.find(f=>f.id==='affected_count'||f.id==='members_requesting_change');
+  if(affected&&!all.some(f=>f.id==='members_affected'||f.id==='attendees_affected'))all.push({...materialise(MEMBERS_AFFECTED_DEF,false,ctx,category),dependsOn:affected.id});
+  if(isLateArrival(category,sub)) all=lateArrivalFields(all,ctx.trainers);
+  all=all.map(f=>({...f,label:simpleLanguage(f.label),desc:f.desc?simpleLanguage(f.desc):undefined,placeholder:f.placeholder?simpleLanguage(f.placeholder):undefined,options:f.options?.map(simpleLanguage)}));
   const index = new Map(all.map(f => [f.id, f]));
   return all.map(f => {
     if (f.id === 'preferred_contact' || f.id === 'follow_up_channel') {
       return {...f, required: false, conditional: true, dep: '_involves_member', when: 'yes|directly|indirectly'};
     }
-    return {...f, dep: dependencyOf(f, index)};
+    const dep=dependencyOf(f,index);
+    return {...f,...(dep==='_unavailable_dependency'&&f.required?{conditional:false}:{}),dep};
   });
+}
+
+/** Kind-specific questions are identical in the browser and server validator. */
+export function fieldsForKind(fields:IntakeField[],kind:string,category='') {
+  if(category==='Safety and Security')return fields;
+  const hidden=kind==='compliment'?new Set(['is_repeat','linked_ticket','immediate_danger','class_impacted','member_impact','injury_occurred','injury_risk','medical_response','police_escalation']):['feedback','request'].includes(kind)?new Set(['is_repeat','linked_ticket']):new Set<string>();
+  return fields.filter(f=>!hidden.has(f.id)).map(f=>['feedback','compliment','assessment'].includes(kind)&&['member_impact','affected_count','injury_risk'].includes(f.id)?{...f,required:false}:f);
 }
 
 /* ------------------------------------------------------------------ values */
 export type IntakeValue = string | number | string[] | undefined | null;
 export type IntakeData = Record<string, IntakeValue>;
 
-export const filled = (v: unknown) => v !== '' && v != null && !(Array.isArray(v) && !v.length);
+export const filled = (v: unknown) => v != null && !(typeof v==='string'&&!v.trim()) && !(Array.isArray(v)&&!v.length);
 export const skipKey = (id: string) => `_skip_${id}`;
 export const isSkipped = (data: IntakeData, id: string) => /^yes$/i.test(String(data[skipKey(id)] || ''));
 export function isVisible(f: IntakeField, data: IntakeData) {
-  if (!f.conditional || !f.dep) return true;
+  if (!f.conditional) return true;
+  if (!f.dep) return false;
+  if(f.dep==='_involves_class'&&filled(data.class_date))return true;
+  if(f.dep==='_involves_member'&&(/member told me|on behalf|^member|^prospect/i.test(String(data.reporter_type||''))||MEMBER_LOOKUP_IDS.some(id=>filled(data[id]))))return true;
   if (!filled(data[f.dep])) return false;
   return f.when ? new RegExp(f.when, 'i').test(String(data[f.dep])) : true;
 }
 export const visibleFields = (fields: IntakeField[], data: IntakeData) => fields.filter(f => isVisible(f, data));
-export const missingFields = (fields: IntakeField[], data: IntakeData) => visibleFields(fields, data).filter(f => f.required && !isSkipped(data, f.id) && !filled(data[f.id]));
+export const missingFields = (fields: IntakeField[], data: IntakeData) => visibleFields(fields, data).filter(f => f.required && !filled(data[f.id]));
 
 /* ------------------------------------------------------------------ lookups */
 /** A lookup answer stays a plain string — "Priya Mehta [#481102] · priya@…" — so it reads in a
@@ -571,7 +619,7 @@ export const SESSION_LOOKUP_IDS = ['class_date', 'session_point'];
 
 /* ------------------------------------------------------------------ gating */
 export type Gate = {id: string; label: string; reason: string};
-const STAFF_REPORTER = /front desk|colleague|walkthrough|audit|myself|member told me|coordinator|trainer|regional|corporate|other staff/i;
+const STAFF_REPORTER = /front desk|colleague|walkthrough|audit|myself|member told me|coordinator|trainer|regional|corporate|staff|observation/i;
 export const isStaffReporter = (reporterType: unknown) => STAFF_REPORTER.test(String(reporterType || ''));
 export const isMemberReporter = (reporterType: unknown) => /^(member|prospect)/i.test(String(reporterType || ''));
 
@@ -588,11 +636,11 @@ export function gatingFor(fields: IntakeField[], data: IntakeData, sub: {name: s
   const memberField = fields.find(f => f.type === 'lookup' && f.module === 'member' && MEMBER_LOOKUP_IDS.includes(f.id) && isVisible(f, data));
   const involvesMember = /yes|directly|indirectly|behalf|told me/i.test(String(data._involves_member || ''));
   const staffOnBehalf = involvesMember || /member told me|on behalf/i.test(String(data.reporter_type || ''));
-  if (memberField && staffOnBehalf && !isSkipped(data, memberField.id) && !hasLookup(data[memberField.id])) out.push({id: memberField.id, label: memberField.label, reason: 'pick the member this is about'});
+  if (memberField && staffOnBehalf && !hasLookup(data[memberField.id])) out.push({id: memberField.id, label: memberField.label, reason: 'pick the member this is about'});
   const involvesClass = /yes|directly|indirectly/i.test(String(data._involves_class || ''));
   const impacted = involvesClass || /^\s*(yes|not yet)/i.test(String(data.class_impacted || ''));
   const classTouched = impacted || filled(data.class_format) || CLASS_BOUND_SUB.test(sub.name);
-  if (classTouched && !isSkipped(data, 'class_date') && !hasLookup(data.class_date)) out.push({id: 'class_date', label: 'Class', reason: 'link the affected class'});
+  if (classTouched && !isLateArrival(sub.category,sub.name) && !hasLookup(data.class_date)) out.push({id: 'class_date', label: 'Class', reason: 'link the affected class'});
   return out;
 }
 
@@ -631,10 +679,8 @@ export function prefillFor(fields: IntakeField[]): IntakeData {
 
 export function seedData(prev: IntakeData, reporter?: {name?: string; email?: string}): IntakeData {
   return {
-    occurred_relative: 'Just now',
-    reporter_type: 'Front desk / associate',
-    preferred_contact: 'WhatsApp',
-    occurred_at: localDateTime(new Date()),
+    reporter_type: 'Staff observation',
+    preferred_contact: 'Not provided',
     ...(reporter?.name ? {reporter_name: reporter.name} : {}),
     ...(reporter?.email ? {reporter_contact: reporter.email} : {}),
     ...Object.fromEntries(Object.entries(prev).filter(([, v]) => filled(v))),
@@ -708,7 +754,7 @@ export function composeWriteup(args: {sub: {name: string; category: string}; fie
   if (desk.length) out.push(endStop(`From the class desk — ${desk.join('; ')}`));
   if (text('attendee_summary')) out.push(endStop(`Roll notes: ${text('attendee_summary')}`));
   // How the member came across and what they want.
-  const mood = [text('sentiment') && `came across ${lower1(text('sentiment'))}`, text('churn_risk') && `churn risk ${lower1(text('churn_risk'))}`].filter(Boolean) as string[];
+  const mood = [text('sentiment') && `expressed sentiment: ${lower1(text('sentiment'))}`].filter(Boolean) as string[];
   if (mood.length) out.push(endStop(`The member ${mood.join(', ')}`));
   if (text('requested_outcome')) out.push(endStop(`Asked for: ${text('requested_outcome')}`));
   return out.join(' ').replace(/\s+/g, ' ').trim().slice(0, 4000);
@@ -737,7 +783,7 @@ function memberImpactSignal(data: IntakeData) {
 
 /* ------------------------------------------------------------------ payload */
 export type TicketKind = TicketInput['kind'];
-const SENTIMENTS = new Set(['positive', 'neutral', 'frustrated', 'negative']);
+const SENTIMENTS = new Set(['positive', 'neutral', 'frustrated', 'negative','unknown']);
 const displayValue = (v: IntakeValue) => Array.isArray(v) ? v.join(' · ') : v == null ? '' : String(v);
 
 export type ClassSnapshot = {
@@ -767,32 +813,32 @@ export function toTicketInput(args: {
   const member = MEMBER_LOOKUP_IDS.map(id => linkedLookup(data[id])).find(Boolean) || null;
   const typedMember = decodeLookups(data.member_name)[0] || decodeLookups(data.member_named)[0];
   // member_email is a member lookup on some plans and a plain email on others.
-  const emailAnswer = String(data.member_email || '');
+  const emailAnswer = String(data.member_email || member?.sublabel?.match(/[^\s]+@[^\s]+\.[^\s]+/)?.[0] || '');
   const emailFromAnswer = /\[#/.test(emailAnswer) ? (decodeLookup(emailAnswer)?.sublabel || '') : emailAnswer;
   const typedEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailFromAnswer.trim()) ? emailFromAnswer.trim() : '';
   const session = linkedLookup(data.class_date);
   const staff = isStaffReporter(data.reporter_type);
   const memberReporter = isMemberReporter(data.reporter_type);
   const memberRelated = Boolean(member || memberReporter || /yes|directly|indirectly/i.test(String(args.data._involves_member || '')));
-  const reporterName = String(data.reporter_name || '').trim();
-  const reporterContact = String(data.reporter_contact || '').trim();
+  const reporterName = String(args.data.reporter_name || '').trim();
+  const reporterContact = String(args.data.reporter_contact || '').trim();
   // Who the ticket is logged for: the linked (or typed) member; a member or prospect filing
   // for themselves; otherwise the studio team, exactly as the composer files observations.
-  const memberName = member?.label || typedMember?.label || (memberReporter && reporterName) || (!staff && !memberReporter && reporterName) || 'Studio team observation';
-  const contactEmail = memberReporter && /@/.test(reporterContact) ? reporterContact : args.memberDetail?.email || typedEmail;
-  const contactPhone = memberReporter && !/@/.test(reporterContact) ? reporterContact : args.memberDetail?.phone || '';
+  const memberName = member?.label || typedMember?.label || (memberReporter && reporterName) || (!staff && !memberReporter && reporterName) || '';
+  const contactEmail = memberRelated ? (memberReporter && /@/.test(reporterContact) ? reporterContact : args.memberDetail?.email || typedEmail) : '';
+  const contactPhone = memberRelated ? (memberReporter && !/@/.test(reporterContact) ? reporterContact : args.memberDetail?.phone || '') : '';
   const sentimentRaw = String(data.sentiment || '').toLowerCase();
-  const sentiment = (SENTIMENTS.has(sentimentRaw) ? sentimentRaw : kind === 'compliment' ? 'positive' : 'neutral') as TicketInput['sentiment'];
-  const occurredAt = String(data.occurred_at || '');
+  const sentiment = (SENTIMENTS.has(sentimentRaw) ? sentimentRaw : kind === 'compliment' ? 'positive' : 'unknown') as TicketInput['sentiment'];
+  const occurredAt = String(data.scheduled_start_at || data.occurred_at || '');
   const occurred = occurredAt ? new Date(occurredAt) : null;
   const incidentAt = occurred && Number.isFinite(occurred.getTime()) ? occurred.toISOString() : String(data.occurred_relative || 'Not recorded');
-  const description = String(data.summary || '').trim();
+  const description = String(data.summary || '').trim() || (isLateArrival(category,sub)?visible.filter(f=>!['summary','studio','member_name'].includes(f.id)&&filled(data[f.id])).map(f=>`${f.label}: ${Array.isArray(data[f.id])?(data[f.id] as string[]).join(', '):String(data[f.id])}`).join('\n'):'');
 
   // Everything without a column, as readable strings keyed by field id — the same shape
   // guided-template answers use, so the ticket page's supporting-details block shows them.
   const custom: Record<string, unknown> = {};
   // Answers with a ticket column, or recorded below under the name Iris's routing reads.
-  const columns = new Set(['studio', 'title', 'summary', 'requested_outcome', 'sentiment', 'class_format', 'trainer', 'occurred_at', 'preferred_contact', 'member_impact',
+  const columns = new Set([...MEMBER_LOOKUP_IDS,'members_affected','studio', 'title', 'summary', 'requested_outcome', 'sentiment', 'class_format', 'trainer', 'occurred_at', 'preferred_contact', 'member_impact',
     'reporter_type', 'reporter_name', 'reporter_contact', 'class_impacted', 'immediate_danger', 'affected_count', 'linked_ticket', 'attendees_affected', 'affected_members']);
   for (const f of visible) {
     const v = data[f.id];
@@ -809,7 +855,7 @@ export function toTicketInput(args: {
   const memberImpact = memberImpactSignal(data);
   if (memberImpact) custom.memberImpact = memberImpact;
   if (filled(data.affected_count)) custom.affectedCount = Number(data.affected_count);
-  const affected = decodeLookups(data.attendees_affected || data.affected_members).map(r => r.label).filter(Boolean);
+  const affected = decodeLookups(data.attendees_affected || data.affected_members || data.members_affected || (memberImpactSignal(data)?data.member_name:undefined)).map(r => r.label).filter(Boolean);
   if (affected.length) custom.impactedMembers = affected.join(', ');
   const linkedTicket = decodeLookup(data.linked_ticket);
   if (linkedTicket) custom.linkedTicket = linkedTicket.label;
@@ -824,16 +870,20 @@ export function toTicketInput(args: {
   } else if (hasLookup(data.class_date)) {
     custom.sessionContext = {manual: true, note: decodeLookups(data.class_date)[0]?.label};
   }
+  if(isLateArrival(category,sub)) {
+    custom.memberImpact=String(data.members_affected_flag||'Not known');
+    custom.isClassImpacted=data.class_cancelled==='Yes'||(filled(data.actual_start_at)&&new Date(String(data.actual_start_at))>new Date(String(data.scheduled_start_at)))?'Yes':'Not known';
+  }
   // The plan itself, so a later reader can label every answer and see which form produced it.
   const labels: Record<string, string> = {reportedBy: 'Raised by', reporterName: 'Reporter name', reporterContact: 'Reporter contact', isClassImpacted: 'Class impacted', isImmediateDanger: 'Immediate danger', memberImpact: 'Member impact', affectedCount: 'Members affected', impactedMembers: 'Attendees affected', linkedTicket: 'Related ticket', hostedAttendees: 'Hosted class attendees'};
   for (const f of visible) if (custom[f.id] !== undefined) labels[f.id] = f.label;
-  custom._intake = {plan: subKey(category, sub), source: PLAN_SOURCE.repo, version: PLAN_SOURCE.generatedAt, labels, memberLinked: Boolean(member), sessionLinked: Boolean(session || args.classSnapshot)};
+  custom._intake = {plan: subKey(category, sub), source: PLAN_SOURCE.repo, version: FORM_SCHEMA_VERSION, answers: {...data,_involves_member:args.data._involves_member,_involves_class:args.data._involves_class,_requires_resolution:args.data._requires_resolution}, labels, memberLinked: Boolean(member), sessionLinked: Boolean(session || args.classSnapshot)};
 
   const classFormat = args.classSnapshot?.name || (filled(data.class_format) ? String(data.class_format) : undefined);
   const trainer = filled(data.trainer) ? String(data.trainer) : args.classSnapshot?.trainer || undefined;
   return {
     // Blank unless the reporter typed one: the server's labeller writes a descriptive title.
-    title: String(data.title || '').trim() || undefined,
+    title: String(args.data.title || data.title || '').trim() || undefined,
     description,
     category, subcategory: sub, kind,
     studio: String(data.studio || ''),
@@ -843,15 +893,15 @@ export function toTicketInput(args: {
     momenceMemberId: member?.id,
     momenceSessionId: args.classSnapshot?.sessionId || session?.id,
     classFormat, trainer,
-    membership: args.memberDetail?.membership || (byId.get('membership') && filled(data.membership) && !hasLookupShape(data.membership) ? String(data.membership) : undefined),
+    membership: memberRelated ? (args.memberDetail?.membership || (byId.get('membership') && filled(data.membership) && !hasLookupShape(data.membership) ? String(data.membership) : undefined)) : undefined,
     incidentAt,
-    preferredContact: memberRelated ? String(data.preferred_contact || 'Email') : 'Internal log only',
+    preferredContact: memberRelated ? String(data.preferred_contact || 'Not provided') : 'Internal log only',
     requestedResolution: filled(data.requested_outcome) ? String(data.requested_outcome) : undefined,
     resolutionRequired: !/^no$/i.test(String(args.data._requires_resolution || 'Yes')),
     sentiment,
     impact: filled(data.member_impact) ? String(data.member_impact) : undefined,
     customFields: custom,
-    momenceContext: args.momenceContext,
+    momenceContext: memberRelated ? args.momenceContext : undefined,
     involvedTeams: args.involvedTeams?.length ? [...new Set(args.involvedTeams)].slice(0, 6) : undefined,
     source: 'iris',
     submissionKey,

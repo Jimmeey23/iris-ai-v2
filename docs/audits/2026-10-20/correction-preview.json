@@ -1,0 +1,32 @@
+{
+  "mode": "dry-run",
+  "rollback": false,
+  "outcomes": [
+    {
+      "ticketNumber": "P57-02051",
+      "action": "would-close-false-task",
+      "previous": {
+        "status": "assigned",
+        "resolutionRequired": true,
+        "slaHours": 120,
+        "slaDueAt": "2026-10-20T06:53:48.528Z",
+        "resolvedAt": null,
+        "closedAt": null,
+        "isEscalated": false
+      }
+    },
+    {
+      "ticketNumber": "P57-02052",
+      "action": "would-close-false-task",
+      "previous": {
+        "status": "assigned",
+        "resolutionRequired": true,
+        "slaHours": 240,
+        "slaDueAt": "2026-10-25T06:53:48.528Z",
+        "resolvedAt": null,
+        "closedAt": null,
+        "isEscalated": false
+      }
+    }
+  ]
+}

@@ -268,7 +268,7 @@ export default function AnalyticsPage() {
             {[
               { name: "Tickets received", value: data.totals.all, icon: Ticket, tone: "", delta: <Delta now={data.totals.all} before={data.previous?.all} />, onClick: () => open("Every ticket in this period", {}) },
               { name: "Open now", value: data.totals.open, icon: Inbox, tone: "blue", delta: <span className="an-delta flat">{data.totals.critical} critical</span>, onClick: () => open("Open tickets", { state: "open" }) },
-              { name: "Overdue", value: data.totals.breachedOpen, icon: AlertTriangle, tone: data.totals.breachedOpen ? "red" : "green", delta: <span className="an-delta flat">{data.totals.breachedResolved} resolved late</span>, onClick: () => open("Open and past the follow-up target", { state: "overdue" }) },
+              { name: "Overdue", value: data.totals.breachedOpen, icon: AlertTriangle, tone: data.totals.breachedOpen ? "red" : "green", delta: <span className="an-delta flat">{data.totals.breachedResolved} resolved late</span>, onClick: () => open("Open and past the resolution target", { state: "overdue" }) },
               { name: "SLA compliance", value: pct(data.totals.slaCompliance), icon: ShieldCheck, tone: "green", delta: <Delta now={data.totals.slaCompliance} before={data.previous?.slaCompliance} goodWhenUp points />, onClick: () => open("Resolved tickets", { state: "resolved" }) },
               { name: "Median resolution", value: hrs(data.totals.medianResolutionHours), icon: Clock3, tone: "purple", delta: <Delta now={data.totals.medianResolutionHours} before={data.previous?.medianResolutionHours} />, onClick: () => open("Resolved tickets", { state: "resolved" }) },
               { name: "Recurring patterns", value: data.recurrence.length, icon: Repeat, tone: critical ? "red" : "amber", delta: <span className="an-delta flat">{critical} need action now</span>, onClick: () => document.getElementById("recurrence")?.scrollIntoView({ behavior: "smooth" }) },
@@ -327,7 +327,7 @@ export default function AnalyticsPage() {
             <section className="card chart-card">
               <div className="between">
                 <div>
-                  <h3>Care in motion</h3>
+                  <h3>Tickets logged and resolved</h3>
                   <p className="muted" style={{ fontSize: 11, marginTop: 5 }}>
                     Tickets created and resolved · last {data.trend.length} days of this period
                   </p>
@@ -340,7 +340,7 @@ export default function AnalyticsPage() {
               <Trend data={data.trend} />
             </section>
             <section className="card chart-card">
-              <h3>Priority mix</h3>
+              <h3>Tickets by priority</h3>
               <p className="muted" style={{ fontSize: 11, marginTop: 5 }}>How your team’s attention is distributed · select one to drill in</p>
               <Donut values={data.byPriority} onPick={(p) => dimDrill("priority", p, {}, "priority")} />
             </section>

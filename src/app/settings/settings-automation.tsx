@@ -43,7 +43,7 @@ export default function SettingsAutomationPanel({
       )}
       {eventSetting(
         "overdue",
-        "Follow-up target missed",
+        "Resolution target missed",
         "Fires once per ticket, when an open ticket passes its SLA target. Checked on every scheduled run.",
       )}
       {eventSetting(

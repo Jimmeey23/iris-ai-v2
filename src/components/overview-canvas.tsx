@@ -315,7 +315,7 @@ export function OverviewCanvas({
       value: compliance,
       suffix: "%",
       label: "SLA compliance",
-      sub: "All tracked tickets within target",
+      sub: "Tracked tickets resolved within their target or still within the deadline",
       data: bucketCounts(healthy, span),
       facts: [
         ["Within target", `${healthy.length}`],
@@ -344,13 +344,12 @@ export function OverviewCanvas({
               {greet}, {name.split(" ")[0]} — <em>{lead.n}</em> {lead.tail}
             </h2>
             <p className="ovc-lede">
-              Member voice, ownership and service risk in one calm view. IRIS has pre-triaged
-              today&apos;s queue.
+              Review reported issues, assigned owners and outstanding actions for the selected period.
             </p>
             <div className="ovc-cta-row">
               <Link className="ovc-btn ovc-btn-accent" href="/iris">
                 <Sparkles size={16} />
-                Raise with IRIS
+                Log a ticket
                 <ArrowRight size={16} className="ovc-btn-arrow" />
               </Link>
               <button
@@ -384,7 +383,7 @@ export function OverviewCanvas({
                 <b>
                   {owners.length} {owners.length === 1 ? "person" : "people"}
                 </b>{" "}
-                carrying the load · auto-routed today
+                assigned to current open tickets
               </p>
             </footer>
           </div>
@@ -392,7 +391,7 @@ export function OverviewCanvas({
 
         <section className="ovc-card ovc-snapshot">
           <header className="ovc-snapshot-head">
-            <p className="ovc-eyebrow">Command snapshot</p>
+            <p className="ovc-eyebrow">Work summary</p>
             <span className={"ovc-flag " + (overdue.length ? "is-alert" : "is-ok")}>
               <i aria-hidden="true" />
               {overdue.length ? "Action needed" : "On track"}

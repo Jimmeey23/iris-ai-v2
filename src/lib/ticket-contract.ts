@@ -2,9 +2,9 @@ import {z} from 'zod';
 export const ticketInputSchema=z.object({
   title:z.string().max(240).optional(), summary:z.string().max(1000).optional(), description:z.string().min(12,'Describe what happened in at least 12 characters.').max(20000),
   category:z.string().min(1),subcategory:z.string().min(1),kind:z.enum(['issue','request','compliment','feedback','assessment']).default('issue'),studio:z.string().min(1),
-  memberName:z.string().min(2).max(120),memberEmail:z.union([z.string().email(),z.literal('')]).optional(),memberPhone:z.string().max(30).optional(),momenceMemberId:z.string().optional(),momenceSessionId:z.string().optional(),
-  classFormat:z.string().max(160).optional(),trainer:z.string().max(160).optional(),membership:z.string().max(200).optional(),incidentAt:z.string().min(1),preferredContact:z.string().max(50).default('Email'),
-  requestedResolution:z.string().max(2000).optional(),priority:z.enum(['critical','high','medium','low']).optional(),sentiment:z.enum(['positive','neutral','frustrated','negative']).default('neutral'),impact:z.string().max(2000).optional(),
+  memberName:z.string().max(120).default(''),memberEmail:z.union([z.string().email(),z.literal('')]).optional(),memberPhone:z.string().max(30).optional(),momenceMemberId:z.string().optional(),momenceSessionId:z.string().optional(),
+  classFormat:z.string().max(160).optional(),trainer:z.string().max(160).optional(),membership:z.string().max(200).optional(),incidentAt:z.string().min(1),preferredContact:z.string().max(50).default('Not provided'),
+  requestedResolution:z.string().max(2000).optional(),priority:z.enum(['critical','high','medium','low']).optional(),sentiment:z.enum(['positive','neutral','frustrated','negative','unknown']).default('unknown'),impact:z.string().max(2000).optional(),
   resolutionRequired:z.boolean().optional(),
   customFields:z.record(z.string(),z.unknown()).default({}),momenceContext:z.record(z.string(),z.unknown()).optional(),templateId:z.string().optional(),source:z.enum(['iris','template','manual','voice','fillout','history','system']).default('manual'),
   submissionKey:z.string().min(12).max(200).optional(),

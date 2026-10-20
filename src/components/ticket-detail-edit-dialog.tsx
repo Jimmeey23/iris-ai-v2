@@ -77,7 +77,7 @@ export default function EditDialogPanel({
           />
         </Field>
         {user?.role === "admin" && (
-          <Field label="Action pathway">
+          <Field label="Action required">
             <select
               value={edit.resolutionRequired ? "required" : "record_only"}
               onChange={(e) =>
@@ -111,7 +111,7 @@ export default function EditDialogPanel({
             }
           />
         </Field>
-        <Field label="Community member">
+        <Field label="Member">
           <input
             value={edit.memberName}
             onChange={(e) =>
@@ -158,7 +158,7 @@ export default function EditDialogPanel({
             }
           />
         </Field>
-        <Field label="Signature Experience">
+        <Field label="Class">
           <input
             value={edit.classFormat}
             onChange={(e) =>

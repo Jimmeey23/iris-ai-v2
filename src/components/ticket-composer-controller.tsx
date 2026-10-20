@@ -17,7 +17,7 @@ GuidedTemplate,
 PickerOption,
 TicketInput,
 } from "@/lib/ticket-contract";
-import { useEffect,useState } from "react";
+import { useEffect,useState,useRef } from "react";
 import { type UploadedFile } from "./file-upload";
 import { suggestTeams } from "./intake/involved-teams";
 import { TicketComposerView } from "./ticket-composer-view";
@@ -95,6 +95,7 @@ export function useTicketComposerController({
     taxonomy: CATEGORY_MAP,
     studios: STUDIOS.map((s) => s.name) as string[],
   });
+  const memberRequest=useRef(0),sessionRequest=useRef(0);
   const isClass = involvesSession;
   const recordOnly = !requiresResolution;
   const memberInvolved = involvesMember;
@@ -140,16 +141,16 @@ export function useTicketComposerController({
       const savedSession = Boolean(
         initial?.involvesSession || initial?.momenceSessionId,
       );
-      const savedResolution = initial?.resolutionRequired !== false;
+      const savedResolution = initial?.resolutionRequired ?? !['feedback','compliment','assessment'].includes(template?.kind||'issue');
       setForm({
         category: template?.category || "Scheduling",
         subcategory: template?.subcategory || "Time Change",
         kind: template?.kind || "issue",
         description: "",
-        incidentAt: "Today",
-        preferredContact: "No follow-up needed",
-        sentiment: template?.kind === "compliment" ? "positive" : "neutral",
-        memberName: savedMember ? "" : "Studio team observation",
+        incidentAt: "Not recorded",
+        preferredContact: "Not provided",
+        sentiment: template?.kind === "compliment" ? "positive" : "unknown",
+        memberName: "",
         memberEmail: "",
         resolutionRequired: savedResolution,
         ...initial,
@@ -217,7 +218,10 @@ export function useTicketComposerController({
       .then((d) => setConfig(d))
       .catch(() => {});
   }, [open]);
-  const set = (k: string, v: unknown) => setForm((f) => ({ ...f, [k]: v }));
+  const set = (k:string,v:unknown)=>{
+    if(k==='studio'&&v!==form.studio){memberRequest.current++;sessionRequest.current++;setMember(undefined);setMemberDetail(undefined);setSessions(undefined);setSessionDetail(undefined);setHostedAttendees([]);setForm(f=>({...f,[k]:v,memberName:'',memberEmail:'',memberPhone:'',momenceMemberId:undefined,momenceContext:undefined,membership:undefined,momenceSessionId:undefined,classFormat:undefined,trainer:undefined}));return;}
+    setForm(f=>({...f,[k]:v}));
+  };
   /** Trainers feed two fields: the display string on the ticket and the list in
    *  customFields. Written together when the user picks, never on mount. */
   function pickTrainers(opts: PickerOption[]) {
@@ -241,14 +245,18 @@ export function useTicketComposerController({
     ? { ...unskippedCustom, hostedAttendees }
     : unskippedCustom;
   async function selectMember(opts: PickerOption[]) {
+    const request=++memberRequest.current;
     const o = opts[0];
-    if (!o) return;
+    setMemberDetail(undefined);
+    setForm(f=>({...f,memberName:o?.label||'',memberEmail:'',memberPhone:'',momenceMemberId:o?.id,momenceContext:undefined,membership:undefined}));
+    if (!o){setMember(undefined);return;}
     setMember(o);
     setLookupBusy(true);
     try {
       const d = await api<MomenceDetail>(
         `/api/momence?module=members&id=${encodeURIComponent(String(o.id))}`,
       );
+      if(request!==memberRequest.current)return;
       const raw = object(d.item.raw),
         membership = d.related.memberships?.[0];
       setMemberDetail(d);
@@ -327,6 +335,9 @@ export function useTicketComposerController({
     }
   }
   async function selectSessions(opts: PickerOption[]) {
+    const request=++sessionRequest.current;
+    setSessionDetail(undefined);
+    setForm(f=>({...f,momenceSessionId:undefined,trainer:undefined,classFormat:undefined}));
     setSessions(opts);
     const first = opts[0];
     if (!first) {
@@ -341,15 +352,12 @@ export function useTicketComposerController({
       const d = await api<MomenceDetail>(
         `/api/momence?module=sessions&id=${encodeURIComponent(String(first.id))}`,
       );
+      if(request!==sessionRequest.current)return;
       setSessionDetail(d);
       const raw = object(d.item.raw);
       set("classFormat", opts.map((o) => o.label).join(" + "));
-      set(
-        "studio",
-        display(raw.inPersonLocation) !== "—"
-          ? display(raw.inPersonLocation)
-          : form.studio,
-      );
+      const location=display(raw.inPersonLocation);
+      if(location!=='—'&&form.studio&&location!==form.studio)throw new Error('Choose a session at the selected studio, or change the studio first.');
       set("incidentAt", String(raw.startsAt || form.incidentAt));
       set("momenceSessionId", String(first.id));
       setCustom((c) => ({
@@ -376,7 +384,7 @@ export function useTicketComposerController({
       return;
     }
     if (memberInvolved && !String(form.momenceMemberId || "")) {
-      setError("Link the community member from Momence before continuing.");
+      setError("Link the member from Momence before continuing.");
       return;
     }
     // A hosted class that is not in Momence is recorded from its hand-added roster instead.

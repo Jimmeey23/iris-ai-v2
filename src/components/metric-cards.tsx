@@ -326,7 +326,7 @@ export function boardMetrics(tickets: TicketListRecord[], now = Date.now()): Met
       filter: {state: 'open', priorities: ['critical', 'high'], statuses: [], slaStates: []},
     },
     {
-      id: 'overdue', label: 'Overdue', value: overdue.length, note: 'Still open, follow-up target already missed',
+      id: 'overdue', label: 'Overdue', value: overdue.length, note: 'Still open, resolution target already missed',
       rows: overdue, tone: 'red', color: 'var(--red)', icon: Gauge, chart: 'spark',
       delta: weekDelta(overdue), inverse: true, breakdown: byOwner, breakdownLabel: 'By owner',
       filter: {state: 'any', slaStates: ['breached'], statuses: [], priorities: []},
@@ -340,7 +340,7 @@ export function boardMetrics(tickets: TicketListRecord[], now = Date.now()): Met
     {
       id: 'compliance', label: 'SLA compliance', value: compliance ?? 0, gauge: compliance ?? 0, format: (n) => Math.round(n) + '%',
       display: compliance === null ? '—' : undefined,
-      note: 'Share that met their follow-up target (overdue and resolved-late count as breached)', rows: timed,
+      note: 'Share that met their resolution target (overdue and resolved-late count as breached)', rows: timed,
       tone: complianceTone,
       color: complianceTone ? `var(--${complianceTone})` : 'var(--accent)',
       icon: CheckCircle2, chart: 'gauge', delta: null, breakdown: byOwner, breakdownLabel: 'Targets by owner',

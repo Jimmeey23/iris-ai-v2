@@ -17,7 +17,7 @@ export const dynamic = 'force-dynamic';
  *
  * Nothing here is a live sensor reading. There is no occupancy feed, thermostat, sound desk
  * or duty roster behind this deployment, so the radar reports only what the tickets say: how
- * many are open in a room, how close the tightest follow-up target is, and whether any of
+ * many are open in a room, how close the tightest resolution target is, and whether any of
  * them mention the air conditioning, the sound system or the lighting.
  */
 
@@ -141,7 +141,7 @@ function roomOf(t: RadarTicket, studio: StudioTopology): RoomDefinition | undefi
 }
 
 function formatSlaLabel(mins: number | null): string {
-  if (mins === null) return 'No follow-up target';
+  if (mins === null) return 'No resolution target';
   if (mins < 0) {
     const abs = Math.abs(mins);
     if (abs < 60) return `Overdue by ${abs}m`;

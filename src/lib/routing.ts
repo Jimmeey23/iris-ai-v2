@@ -97,7 +97,7 @@ export const ESCALATION_OWNERS: Record<string, RegExp> = {
  * longest without one. Scoring by seniority, as the fallback does, sent everything to the
  * same two people. */
 export const ROUND_ROBIN_DEPARTMENTS = new Set(['sales-client-servicing', 'customer-service']);
-export const cityOf = (studioName?: string | null) => !studioName ? null : /bengaluru|bangalore/i.test(studioName) ? 'bengaluru' as const : 'mumbai' as const;
+export const cityOf = (studioName?: string | null) => !studioName ? null : /bengaluru|bangalore|kenkere|copper.*cloves/i.test(studioName) ? 'bengaluru' as const : /mumbai|bandra|kwality|kemps|supreme|courtside/i.test(studioName) ? 'mumbai' as const : null;
 
 /** Directory ids that place a staff member at this studio. Courtside and Copper & Cloves reuse
  *  Kwality House's and Kenkere House's ids, so an id only counts for the studio that owns it (the

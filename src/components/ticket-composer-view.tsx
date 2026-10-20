@@ -119,7 +119,7 @@ export function TicketComposerView({
           ? "Check the details below. Nothing is filed until you approve it."
           : template
             ? "Guided template · " + template.category
-            : "Auto-routes to the right department with tags and a follow-up target"
+            : "Auto-routes to the right department with tags and a resolution target"
       }
       size="wide"
       footer={
@@ -317,7 +317,7 @@ export function TicketComposerView({
                     )}
                   </div>
                   <Field
-                    label="Select community member"
+                    label="Select member"
                     hint="Selecting a member securely retrieves their profile, active access and recent activity."
                   >
                     <MultiSelect
