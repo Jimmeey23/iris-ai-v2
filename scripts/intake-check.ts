@@ -85,7 +85,9 @@ console.log('\nThe shared block and its dependencies');
   const safety = Object.fromEntries(planFields('Safety and Security', 'Handling of Medical Emergencies', ctx).map(f => [f.id, f]));
   check('medical response follows an injury, not a "No"', !isVisible(safety.medical_response, {injury_occurred: 'No'}) && isVisible(safety.medical_response, {injury_occurred: 'Yes - first aid only'}));
   check('class_format depends on the class lookup', byId.class_format.dep === 'class_date', byId.class_format.dep);
-  check('linked_ticket depends on is_repeat', byId.linked_ticket.dep === 'is_repeat', byId.linked_ticket.dep);
+  // A timetable request is not a recurring fault, so the repeat question is checked on a repair.
+  check('linked_ticket depends on is_repeat', room.linked_ticket.dep === 'is_repeat', room.linked_ticket.dep);
+  check('a timetable request does not ask whether it is a repeat', !byId.is_repeat && !byId.linked_ticket);
   check('studio options come from the workspace list', byId.studio.options?.[0] === ctx.studios[0], byId.studio.options);
   check('trainer options come from the workspace list', byId.trainer.options?.length === TRAINERS.length);
   const blank: IntakeData = {};

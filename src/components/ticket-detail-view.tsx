@@ -1,4 +1,5 @@
 "use client";
+import { simpleLanguage } from "@/lib/plain-language";
 import {entryTypeLabel} from "@/lib/display";
 import { indiaDate } from "@/lib/display";
 import {
@@ -247,10 +248,9 @@ export function TicketDialogView({
                         {t.ticketNumber}
                         <Copy size={11} />
                       </button>
-                      <span className="td-crumb">
-                        {t.category}
-                        <ChevronRight size={12} aria-hidden="true" />
-                        <strong>{t.subcategory}</strong>
+                      <span className="td-head-pills">
+                        <Status status={t.status} />
+                        <Priority priority={t.priority} />
                       </span>
                     </div>
                     <div className="td-head-actions">
@@ -339,9 +339,35 @@ export function TicketDialogView({
                     </p>
                   )}
                   <h2 className="td-modal-title">{t.title}</h2>
+                  {/* One quiet meta line: where, what, who filed it, when. */}
+                  <p className="td-meta-line">
+                    {t.studio && (
+                      <span>
+                        <MapPin size={12} aria-hidden="true" />
+                        {t.studio}
+                      </span>
+                    )}
+                    <span className="td-crumb">
+                      {simpleLanguage(t.category)}
+                      {t.subcategory && (
+                        <>
+                          <ChevronRight size={12} aria-hidden="true" />
+                          <strong>{simpleLanguage(t.subcategory)}</strong>
+                        </>
+                      )}
+                    </span>
+                    <span>
+                      <UserRound size={12} aria-hidden="true" />
+                      {t.createdByName || reportedVia(t.source)}
+                    </span>
+                    <span>
+                      <CalendarDays size={12} aria-hidden="true" />
+                      <time dateTime={String(t.createdAt)}>
+                        {indiaDate(t.createdAt)}
+                      </time>
+                    </span>
+                  </p>
                   <div className="td-chips">
-                    <Status status={t.status} />
-                    <Priority priority={t.priority} />
                     {t.departmentName && (
                       <Badge tone="blue">{t.departmentName}</Badge>
                     )}

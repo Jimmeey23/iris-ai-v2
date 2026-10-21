@@ -258,15 +258,15 @@ export function useMounted() {
 
 const ACCENT_PRESETS = {
   dark: {
-    gold: { accent: "#f4bb3d", deep: "#c9902a", bright: "#ffd166" },
-    blue: { accent: "#5fb3ff", deep: "#2e8ad8", bright: "#88c8ff" },
+    gold: { accent: "#60a5fa", deep: "#3b82f6", bright: "#93c5fd" },
+    blue: { accent: "#60a5fa", deep: "#3b82f6", bright: "#93c5fd" },
     violet: { accent: "#b39dff", deep: "#7f6be0", bright: "#c8b7ff" },
     mint: { accent: "#57d6a8", deep: "#22a779", bright: "#82e7c2" },
     rose: { accent: "#ff7a9d", deep: "#d55178", bright: "#ff9cb7" },
   },
   light: {
-    gold: { accent: "#1554d6", deep: "#0c3aa0", bright: "#2e6bf0" },
-    blue: { accent: "#0f69ff", deep: "#0b4bb3", bright: "#3f84ff" },
+    gold: { accent: "#2563eb", deep: "#1d4ed8", bright: "#3b82f6" },
+    blue: { accent: "#2563eb", deep: "#1d4ed8", bright: "#3b82f6" },
     violet: { accent: "#6d4fd1", deep: "#4f34ab", bright: "#8f73ea" },
     mint: { accent: "#0f8a5f", deep: "#0a6344", bright: "#24a875" },
     rose: { accent: "#d8394a", deep: "#aa2232", bright: "#e85a69" },
@@ -290,7 +290,7 @@ function applyAppearance(cfg: {
   root.style.setProperty("--accent-bright", palette.bright);
   root.style.setProperty(
     "--accent-soft",
-    `color-mix(in srgb, ${palette.accent} 14%, transparent)`,
+    `color-mix(in srgb, ${palette.accent} 10%, transparent)`,
   );
   root.style.setProperty("--ui-scale", String(cfg.appearanceScale / 100));
   root.style.setProperty("--ui-spacing", String(cfg.appearanceSpacing / 100));
@@ -630,7 +630,7 @@ export function ThemeToggle() {
   return (
     <button
       className="icon-btn"
-      data-tip={theme === "light" ? "Matte black & gold" : "Light mode"}
+      data-tip={theme === "light" ? "Dark" : "Light mode"}
       data-tip-pos="bottom"
       aria-label="Toggle light and dark theme"
       onClick={swap}

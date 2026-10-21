@@ -98,22 +98,7 @@ body {
   inset: 0;
   z-index: var(--z-below);
   pointer-events: none;
-  background:
-    radial-gradient(
-      900px 520px at 78% -8%,
-      color-mix(in srgb, var(--accent) 9%, transparent),
-      transparent 60%
-    ),
-    radial-gradient(
-      700px 480px at -6% 100%,
-      color-mix(in srgb, var(--purple) 7%, transparent),
-      transparent 60%
-    ),
-    radial-gradient(
-      520px 320px at 50% 50%,
-      color-mix(in srgb, var(--blue) 3%, transparent),
-      transparent 70%
-    );
+  background: transparent;
   animation: ds-ambient 26s ease-in-out infinite alternate;
 }
 .workspace:after {
@@ -123,9 +108,7 @@ body {
   z-index: var(--z-below);
   pointer-events: none;
   opacity: 0.5;
-  background-image:
-    linear-gradient(var(--hairline) 1px, transparent 1px),
-    linear-gradient(90deg, var(--hairline) 1px, transparent 1px);
+  background-image: none;
   background-size: 56px 56px;
   -webkit-mask-image: radial-gradient(ellipse 70% 60% at 60% 0%, var(--black) 0%, transparent 100%);
   mask-image: radial-gradient(ellipse 70% 60% at 60% 0%, var(--black) 0%, transparent 100%);
@@ -148,9 +131,7 @@ body {
   color: var(--text);
   border-radius: var(--radius-xl);
   border: 1px solid var(--border);
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--white) 2.5%, transparent), transparent 40%),
-    var(--surface);
+  background: var(--surface);
   box-shadow: var(--shadow-3);
   transition:
     border-color var(--dur-3) var(--ease-out-expo),
@@ -278,12 +259,7 @@ body {
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(
-    105deg,
-    transparent 30%,
-    color-mix(in srgb, var(--white) 28%, transparent) 50%,
-    transparent 70%
-  );
+  background: transparent;
   transform: translateX(-120%);
   transition: transform 0.7s var(--ease-out-expo);
 }
@@ -970,7 +946,7 @@ select:hover:not(:focus) {
   gap: 15px;
   top: 0;
   height: 64px;
-  background: linear-gradient(180deg, var(--glass-strong), var(--glass));
+  background: var(--glass-strong);
   backdrop-filter: blur(18px) saturate(1.4);
   -webkit-backdrop-filter: blur(18px) saturate(1.4);
   border-bottom: 1px solid var(--hairline);
@@ -982,13 +958,7 @@ select:hover:not(:focus) {
   right: 0;
   bottom: -1px;
   height: 1px;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    color-mix(in srgb, var(--accent) 35%, transparent) 20%,
-    color-mix(in srgb, var(--accent) 35%, transparent) 80%,
-    transparent
-  );
+  background: transparent;
   opacity: 0.35;
 }
 .breadcrumb {
@@ -1299,9 +1269,7 @@ select:hover:not(:focus) {
   overflow: hidden;
   border-radius: var(--radius-2xl);
   border-color: var(--hairline-strong);
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--white) 3%, transparent), transparent 30%),
-    var(--surface);
+  background: var(--surface);
   box-shadow:
     var(--shadow-4),
     0 0 0 1px color-mix(in srgb, var(--accent) 8%, transparent);
@@ -1599,13 +1567,7 @@ textarea:focus-visible,
 /* The hero keeps its tint, but as a wash over the shared surface rather than a
    gradient panel of its own. */
 .cc-overview .overview-command-deck {
-  background:
-    linear-gradient(
-      135deg,
-      color-mix(in srgb, var(--accent) 7%, var(--ov-face)),
-      var(--ov-face) 58%,
-      color-mix(in srgb, var(--purple) 5%, var(--ov-face))
-    );
+  background: color-mix(in srgb, var(--accent) 7%, var(--ov-face));
   box-shadow: var(--ov-rim), var(--ov-cast-lg);
 }
 /* Nested sections inside the signal deck are already inside a raised box, so
@@ -1807,7 +1769,7 @@ textarea:focus-visible,
   color: var(--ovc-ink);
 }
 :root:not([data-theme="light"]) .ovc-card {
-  background: linear-gradient(170deg, #151618 0%, #111214 100%);
+  background: #151618;
 }
 
 .ovc-row {
@@ -1966,13 +1928,13 @@ textarea:focus-visible,
   font-style: normal;
   font-weight: 700;
   color: #ffffff;
-  background: linear-gradient(140deg, #4f7cff, #2f5bd6);
+  background: #4f7cff;
 }
 .ovc-stack i[data-tone="1"] {
-  background: linear-gradient(140deg, #a07cf0, #7a4fd0);
+  background: #a07cf0;
 }
 .ovc-stack i[data-tone="2"] {
-  background: linear-gradient(140deg, #34c3a0, #1d9c7e);
+  background: #34c3a0;
 }
 .ovc-stack .ovc-stack-more {
   padding: 0 9px;
@@ -3025,11 +2987,7 @@ textarea:focus,
 .ovc-eyebrow-row i {
   flex: 1;
   height: 1px;
-  background: linear-gradient(
-    90deg,
-    var(--ovc-line),
-    color-mix(in srgb, var(--ovc-line) 35%, transparent)
-  );
+  background: var(--ovc-line);
 }
 .ovc-eyebrow-end {
   flex: 0 0 auto;
@@ -3276,7 +3234,7 @@ textarea,
   background: var(--ovc-surface);
 }
 :root:not([data-theme="light"]) .ovc .ovc-card {
-  background: linear-gradient(170deg, #151618 0%, #111214 100%);
+  background: #151618;
 }
 .ovc-hero {
   padding: 28px 30px;

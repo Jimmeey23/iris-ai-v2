@@ -112,7 +112,7 @@ const GROUPS: Record<string, string[]> = {
   'Reporter': ['reporter_type', 'reporter_name', 'reporter_contact'],
   'Who this is about': ['member_name', 'member_named', 'member_email', 'member_id', 'membership', 'notified_members', 'preferred_contact', 'follow_up_channel'],
   'Where & when': ['report_channel', 'studio', 'area', 'specific_area', 'incident_location', 'affected_room', 'occurred_at', 'occurred_relative', 'time_of_day', 'service_time'],
-  'Class context': ['class_format', 'class_date', 'trainer', 'session_point'],
+  'Class context': ['class_format', 'class_date', 'trainer', 'session_point', 'experience_dimension'],
   'Safety & incident': ['incident_type', 'injury_occurred', 'injury_risk', 'medical_response', 'member_notified', 'police_escalation', 'witnesses', 'statement_taken', 'cctv_requested', 'cctv_time', 'cctv_retention', 'privacy_flag', 'followup_due', 'regulatory_note'],
   'Lost & found': ['item_category', 'item_desc', 'item_value', 'serial_imei', 'lost_or_stolen', 'last_seen', 'time_window', 'locker_number', 'cfhr_checked', 'staff_implicated', 'police_complaint', 'compensation'],
   'Payment & billing': ['transaction_ref', 'payment_mode', 'payment_date', 'amount_inr', 'amount_charged', 'amount_expected', 'amount_basis', 'city_rate', 'gst_invoice', 'dispute_reason', 'refund_required', 'refund_amount', 'receipt_needed', 'entitlement_state', 'balance_classes', 'freeze_type', 'freeze_dates', 'approval_ref', 'accounts_action'],
@@ -120,7 +120,7 @@ const GROUPS: Record<string, string[]> = {
   'Systems & data': ['system', 'device', 'user_type', 'login_user', 'failure_mode', 'error_text', 'repro_steps', 'frequency', 'scope', 'workaround', 'fallback_entry', 'bandwidth_check', 'last_restart', 'momence_record', 'data_impact', 'backdated', 'data_source', 'report_spec', 'change_window'],
   'Schedule & timetable': ['schedule_action', 'current_slot', 'requested_slot', 'requested_time', 'change_day', 'change_time', 'current_level', 'requested_level', 'weekly_impact', 'grid_impact', 'members_requesting_change', 'demand_evidence', 'change_reason', 'roster_alternates'],
   'Trainer & method': ['trainer_under_review', 'feedback_nature', 'coaching_status', 'method_conformance', 'conflict_of_interest', 'current_trainer', 'preferred_trainer', 'preference_reason'],
-  'Member experience': ['experience_dimension', 'complaint_nature', 'service_channel', 'response_waited', 'contact_attempted', 'desk_owner', 'goodwill_offered', 'reply_deadline', 'review_or_public'],
+  'Member service': ['complaint_nature', 'service_channel', 'response_waited', 'contact_attempted', 'desk_owner', 'goodwill_offered', 'reply_deadline', 'review_or_public'],
   'Brand & partnerships': ['partner_name', 'program_name', 'brand_topic', 'ambassador_status', 'platform', 'commercial_terms', 'value_inr', 'deliverables', 'go_live', 'rights_used', 'pr_speaker'],
   'Internal & policy': ['internal_type', 'misc_bucket', 'idea_type', 'suggested_action', 'decision_needed', 'policy_owner', 'applies_to_roles', 'affected_studios', 'effective_date', 'version_from', 'sop_action', 'sop_ref', 'rollout_plan', 'people_impact', 'lead_ref', 'due_date', 'followup_owner', 'followup_date'],
   'Impact and urgency': ['affected_count', 'guest_count', 'member_impact', 'class_impacted', 'immediate_danger', 'is_repeat', 'linked_ticket', 'sentiment', 'churn_risk'],
@@ -136,16 +136,16 @@ const ENRICH_SECTION: Record<string, string> = {class: 'Class context', roster: 
 export const ENRICH_GROUP_LABEL: Record<string, string> = {class: 'Class detail', roster: 'Roll call', trainer: 'Trainer detail', asset: 'Asset detail', payment: 'Payment detail', vendor: 'Vendor detail'};
 /** Unmapped questions go to the group their category is about. */
 const CATEGORY_SECTION: Record<string, string> = {
-  'Scheduling': 'Schedule & timetable', 'Class Experience': 'Member experience', 'Trainer Feedback': 'Trainer & method',
+  'Scheduling': 'Schedule & timetable', 'Class Experience': 'Class context', 'Trainer Feedback': 'Trainer & method',
   'Repair and Maintenance': 'Equipment & facility', 'Studio Amenities and Facilities': 'Equipment & facility',
   'Operating Systems': 'Systems & data', 'Tech Issues': 'Systems & data', 'Pricing and Memberships': 'Payment & billing',
-  'Customer Service and Communication': 'Member experience', 'Brand Feedback': 'Brand & partnerships',
+  'Customer Service and Communication': 'Member service', 'Brand Feedback': 'Brand & partnerships',
   'Safety and Security': 'Safety & incident', 'Theft and Lost Items': 'Lost & found', 'Miscellaneous': 'Other details',
   'Internal Operations & Admin': 'Internal & policy',
 };
-export const SECTION_ORDER = ['Global details', 'Late arrival details', 'Reporter', 'Who this is about', 'Where & when', 'Class context', 'Safety & incident', 'Lost & found', 'Payment & billing', 'Equipment & facility', 'Systems & data', 'Schedule & timetable', 'Trainer & method', 'Member experience', 'Brand & partnerships', 'Internal & policy', 'Other details', 'Impact and urgency', 'Feedback and requested action', 'Evidence'];
+export const SECTION_ORDER = ['Global details', 'Late arrival details', 'Reporter', 'Who this is about', 'Where & when', 'Class context', 'Safety & incident', 'Lost & found', 'Payment & billing', 'Equipment & facility', 'Systems & data', 'Schedule & timetable', 'Trainer & method', 'Member service', 'Brand & partnerships', 'Internal & policy', 'Other details', 'Impact and urgency', 'Feedback and requested action', 'Evidence'];
 /** Section names earlier plans (and published builder plans) were saved with. */
-const LEGACY_SECTIONS = new Set(['Sub-category specifics', 'Class detail', 'Roll call', 'Trainer detail', 'Asset detail', 'Payment detail', 'Vendor detail']);
+const LEGACY_SECTIONS = new Set(['Member experience', 'Sub-category specifics', 'Class detail', 'Roll call', 'Trainer detail', 'Asset detail', 'Payment detail', 'Vendor detail']);
 export const sectionOf = (id: string, enrich?: string, category?: string) =>
   SECTION[id] || (enrich && ENRICH_SECTION[enrich]) || (category && CATEGORY_SECTION[category]) || 'Other details';
 /** Known sections in form order, then anything an administrator named themselves. */
@@ -220,7 +220,11 @@ function materialise(def: RawDef, universal: boolean, ctx: PlanContext, category
   // Iris owns the workspace directories; the Hub's copies are replaced at build time.
   if (def.id === 'studio') f.options = ctx.studios;
   else if (def.id === 'class_format') f.options = ctx.formats;
-  else if (def.id === 'trainer' || def.id === 'trainer_under_review') f.options = ctx.trainers;
+  else if (['trainer', 'trainer_under_review', 'roster_alternates', 'preferred_trainer', 'current_trainer'].includes(def.id)) {
+    f.options = ctx.trainers;
+    // The trainer directory replaces the Hub's frozen name list and the free-text boxes.
+    if (def.id === 'preferred_trainer' || def.id === 'current_trainer') f.type = 'select';
+  }
   else if (def.id === 'membership' && def.type !== 'lookup' && ctx.memberships?.length) f.options = ctx.memberships;
   else if (def.id === 'area') f.options = []; // per studio, see areasFor in the form
   else if (Array.isArray(def.options) && def.options.length) f.options = def.options;
@@ -254,8 +258,8 @@ export const MEMBER_REPORTER = /^(member|prospect)|member told me/i;
  *  staff file on a member's behalf — so the member column is linked from Momence rather than
  *  left as "studio team observation". */
 const MEMBER_LOOKUP_DEF: RawDef = {
-  id: 'member_name', label: 'Member this is about', type: 'lookup', module: 'member',
-  desc: 'Leave blank for a studio observation. Picking the member links their Momence record, so the ticket carries their contact and membership.',
+  id: 'member_name', label: 'Member', type: 'lookup', module: 'member',
+  desc: 'Leave blank if no member is involved. Picking the member links their Momence record.',
 };
 
 /** Extra questions that make sense only for a specific sub-category. These are injected
@@ -286,8 +290,8 @@ const EQUIPMENT_PREFILL: Record<string, string> = {
 };
 /** The asset question, added where the sub-category names equipment but the plan left it out. */
 const ASSET_TYPE_DEF: RawDef = {
-  id: 'asset_type', label: 'Equipment / asset type', type: 'select', section: 'Equipment & facility',
-  desc: 'Set from the sub-category. Change it if the fault is with something else.',
+  id: 'asset_type', label: 'Equipment', type: 'select', section: 'Equipment & facility',
+  desc: 'Filled in from the issue type. Change it if something else is broken.',
   options: [],
 };
 function equipmentOverlay(category: string, sub: string, presentIds: string[]): RawDef[] {
@@ -304,46 +308,46 @@ function equipmentOverlay(category: string, sub: string, presentIds: string[]): 
  * the class lookup, so "3 members affected" routinely reached the owner with no names on it.
  * This picker follows the count instead: answer more than zero and it appears. */
 const MEMBERS_AFFECTED_DEF: RawDef = {
-  id: 'members_affected', label: 'Which members were affected', type: 'lookup', module: 'member', multi: true,
+  id: 'members_affected', label: 'Which members?', type: 'lookup', module: 'member', multi: true,
   section: 'Who this is about', conditional: true, dependsOn: 'affected_count', when: '^\\s*[1-9]',
   condText: 'Yes — when one or more members were affected',
-  desc: 'Pick them from Momence so the ticket carries their records. The count above says how many; this says who.',
+  desc: 'Pick them from Momence so their records are on the ticket.',
 };
 
 const SUB_OVERLAYS: Record<string, RawDef[]> = {
   'Brand Feedback|||Hosted Class Feedback': [
-    {id: 'partner_name', label: 'Partner, host or community', type: 'text', required: true, placeholder: 'Partner or creator name'},
-    {id: 'hosted_objective', label: 'Partnership objective', type: 'select', required: true, options: ['Community expansion', 'New prospect acquisition', 'Brand visibility', 'Corporate wellness', 'Partner relationship', 'Content / social amplification']},
-    {id: 'guest_count', label: 'Guests attending', type: 'number', required: true, section: 'Brand & partnerships'},
-    {id: 'newcomer_count', label: 'Newcomers to the Method', type: 'number'},
-    {id: 'audience_fit', label: 'Audience alignment', type: 'select', required: true, options: ['Excellent fit', 'Good fit with nurturing', 'Mixed fit', 'Low fit', 'Not enough information']},
-    {id: 'member_voice', label: 'Community member voice', type: 'textarea', required: true, desc: 'Document what attendees said in their own words.', placeholder: 'Member reported… / Guest expressed…'},
-    {id: 'continuation_intent', label: 'Interest in continuing the practice', type: 'select', required: true, options: ['Ready to purchase', 'Interested in an intro offer', 'Requested a follow-up', 'Interested but timing is unclear', 'No stated interest', 'Not captured']},
-    {id: 'commercial_outcome', label: 'Commercial outcome', type: 'select', required: true, options: ['Package sold on the day', 'Trial / intro booked', 'Qualified leads captured', 'Follow-up list created', 'No conversion signal', 'Not applicable']},
-    {id: 'partner_voice', label: 'Partner’s stated feedback', type: 'textarea', desc: 'Capture the host or partner’s words, including requested changes.'},
-    {id:'social_opportunity',label:'Content opportunities discussed',type:'multiselect',options:['Partner post','Partner story','Member testimonial with permission','Creator content','No opportunity discussed','Other'],desc:'Select only opportunities actually discussed; record permissions separately.'},
-    {id: 'repeat_recommendation', label: 'Recommended partnership next step', type: 'select', required: true, options: ['Repeat the partnership', 'Nurture and redesign', 'One-off only', 'Management review required']},
-    {id: 'agreed_follow_up', label: 'Agreed follow-up', type: 'textarea', required: true, desc: 'Record the owner, action and timing agreed.'},
+    {id: 'partner_name', label: 'Partner or host', type: 'text', required: true, placeholder: 'Partner or creator name'},
+    {id: 'hosted_objective', label: 'Goal of the hosted class', type: 'select', required: true, options: ['Community expansion', 'New prospect acquisition', 'Brand visibility', 'Corporate wellness', 'Partner relationship', 'Content / social amplification']},
+    {id: 'guest_count', label: 'How many guests came?', type: 'number', required: true, section: 'Brand & partnerships'},
+    {id: 'newcomer_count', label: 'How many were new to Physique 57?', type: 'number'},
+    {id: 'audience_fit', label: 'Were the guests a good fit?', type: 'select', required: true, options: ['Excellent fit', 'Good fit with nurturing', 'Mixed fit', 'Low fit', 'Not enough information']},
+    {id: 'member_voice', label: 'What guests said', type: 'textarea', required: true, desc: 'Write what guests said, in their own words.', placeholder: 'Member reported… / Guest expressed…'},
+    {id: 'continuation_intent', label: 'Do guests want to keep coming?', type: 'select', required: true, options: ['Ready to purchase', 'Interested in an intro offer', 'Requested a follow-up', 'Interested but timing is unclear', 'No stated interest', 'Not captured']},
+    {id: 'commercial_outcome', label: 'Sales result', type: 'select', required: true, options: ['Package sold on the day', 'Trial / intro booked', 'Qualified leads captured', 'Follow-up list created', 'No conversion signal', 'Not applicable']},
+    {id: 'partner_voice', label: 'What the partner said', type: 'textarea', desc: 'The host or partner’s words, including any changes they asked for.'},
+    {id:'social_opportunity',label:'Content ideas discussed',type:'multiselect',options:['Partner post','Partner story','Member testimonial with permission','Creator content','No opportunity discussed','Other'],desc:'Pick only ideas that were really discussed. Note photo permissions separately.'},
+    {id: 'repeat_recommendation', label: 'What should we do next?', type: 'select', required: true, options: ['Repeat the partnership', 'Nurture and redesign', 'One-off only', 'Management review required']},
+    {id: 'agreed_follow_up', label: 'Agreed next steps', type: 'textarea', required: true, desc: 'Who does what, and by when.'},
   ],
   'Scheduling|||Level Change': [
     {id: 'current_level', label: 'Current level', type: 'select', desc: 'The class level the member is currently booked into or attending.', required: true, options: CLASS_LEVELS},
     {id: 'requested_level', label: 'Requested level', type: 'select', desc: 'The level the member wants to move to.', required: true, options: CLASS_LEVELS},
     {id: 'change_day', label: 'Preferred day(s)', type: 'multiselect', desc: 'Which day(s) of the week work for the new level.', required: true, options: DAYS_OF_WEEK},
     {id: 'change_time', label: 'Preferred time', type: 'text', desc: 'e.g. 7:00 AM, evening, lunch class.', required: true, placeholder: 'Free text'},
-    {id: 'members_requesting_change', label: 'Members requesting change', type: 'number', desc: 'How many members want this level change.', required: true},
+    {id: 'members_requesting_change', label: 'How many members asked?', type: 'number', desc: 'How many members want this level change.', required: true},
     {id: 'change_reason', label: 'Reason for change', type: 'textarea', desc: 'Why the change is needed — pace, recovery, goal shift, etc.', required: true, placeholder: 'Brief reason'},
   ],
   'Scheduling|||Time Change': [
-    {id: 'current_slot', label: 'Current / affected slot', type: 'text', desc: 'Existing day and time the request is against.', required: true, placeholder: 'e.g. Tuesday 7:00 AM'},
+    {id: 'current_slot', label: 'Current time', type: 'text', desc: 'Existing day and time the request is against.', required: true, placeholder: 'e.g. Tuesday 7:00 AM'},
     {id: 'requested_time', label: 'Requested time', type: 'text', desc: 'The new day/time the member or staff wants.', required: true, placeholder: 'e.g. Thursday 6:30 PM'},
     {id: 'change_day', label: 'Preferred day(s)', type: 'multiselect', desc: 'Which day(s) of the week work.', required: true, options: DAYS_OF_WEEK},
-    {id: 'members_requesting_change', label: 'Members requesting change', type: 'number', desc: 'How many members want this time change.', required: true},
+    {id: 'members_requesting_change', label: 'How many members asked?', type: 'number', desc: 'How many members want this time change.', required: true},
     {id: 'change_reason', label: 'Reason for change', type: 'textarea', desc: 'Why the time change is needed.', required: true, placeholder: 'Brief reason'},
   ],
   'Scheduling|||Trainer Preferences': [
     {id: 'preferred_trainer', label: 'Preferred trainer', type: 'text', desc: 'Trainer the member wants.', required: true, placeholder: 'Trainer name'},
-    {id: 'current_trainer', label: 'Current / past trainer', type: 'text', desc: 'Trainer they currently have or had.', placeholder: 'Trainer name'},
-    {id: 'preference_reason', label: 'Reason for preference', type: 'textarea', desc: 'Style, injury handling, motivation, etc.', required: true, placeholder: 'Brief reason'},
+    {id: 'current_trainer', label: 'Current trainer', type: 'text', desc: 'Trainer they currently have or had.', placeholder: 'Trainer name'},
+    {id: 'preference_reason', label: 'Why this trainer?', type: 'textarea', desc: 'Style, injury handling, motivation, etc.', required: true, placeholder: 'Brief reason'},
   ],
 };
 
@@ -399,7 +403,85 @@ const RELEVANCE: Relevance[] = [
   {ids: ['noise_source'], cats: /Miscellaneous/, keep: /noise|music|construction|volume/i},
   // A hosted class is a partnership report, not a fault: no room, danger or triage block.
   {ids: ['specific_area', 'area', 'class_format', 'class_impacted', 'immediate_danger', 'member_impact', 'affected_count', 'is_repeat', 'linked_ticket', 'churn_risk', 'sentiment', 'requested_outcome'], keep: /^(?!.*hosted class)/i},
+
+  /* ---- 2026-10 form audit: every sub-category reviewed against what it is actually about. ---- */
+  // "Is anyone in immediate danger?" only where something physical can hurt someone right now.
+  {ids: ['immediate_danger'], cats: /Class Experience/, keep: /odou?r|temperature|overcrowding|injury|discomfort|hands-on|modifications|intensity|fitness levels|following|demonstration|knowledge|audio/i},
+  {ids: ['immediate_danger'], cats: /Trainer Feedback/, keep: /injury|emergency|hands-on|behaviour|intensity/i},
+  {ids: ['immediate_danger'], cats: /Repair and Maintenance/, drop: /pest|uniforms|toiletries|towel|air fresheners|seating|vending|standard operating|vendor \/ amc|retail|music system|housekeeping/i},
+  {ids: ['immediate_danger'], cats: /Theft and Lost/},
+  {ids: ['immediate_danger'], cats: /Miscellaneous/, keep: /late-night|overcrowding in lobby/i},
+  {ids: ['immediate_danger'], cats: /Safety and Security/, drop: /data breach|employee security training|fire drills not conducted/i},
+  // The room only where the room matters.
+  {ids: ['area', 'specific_area'], cats: /Class Experience/, keep: /odou?r|audio|temperature|overcrowding|injury|discomfort/i},
+  {ids: ['area', 'specific_area'], cats: /Repair and Maintenance/, drop: /standard operating|vendor \/ amc|uniforms/i},
+  {ids: ['area', 'specific_area'], cats: /Safety and Security/, drop: /data breach|employee security training/i},
+  {ids: ['area', 'specific_area'], cats: /Theft and Lost/, drop: /theft prevention|investigation process/i},
+  {ids: ['area', 'specific_area', 'class_impacted'], cats: /Miscellaneous/, drop: /feedback fatigue|social media|child-friendly|noise complaints from neighbors|customer flow/i},
+  // One room question is enough; `area` already follows the chosen studio's own rooms.
+  {ids: ['affected_room'], cats: /Miscellaneous/},
+  // Scheduling: the timetable-change block only for requests to change the timetable.
+  {ids: ['schedule_action', 'requested_slot', 'current_slot', 'weekly_impact', 'demand_evidence'], cats: /Scheduling/, keep: /time change|additional classes|studio timings|session length|early morning|weekend vs|holiday and festival|schedule gaps|workshop|special request/i},
+  {ids: ['requested_slot'], cats: /Scheduling/, drop: /time change/i}, // its own "Requested time" asks this
+  {ids: ['grid_impact', 'notified_members'], cats: /Scheduling/, drop: /booking restrictions|booking confirmation|late arrival policy|special request|private group/i},
+  {ids: ['class_impacted', 'member_impact', 'is_repeat', 'affected_count'], cats: /Scheduling/, drop: /time change|level change|trainer preferences|additional classes|studio timings|early morning|weekend vs|holiday and festival/i},
+  {ids: ['method_conformance'], cats: /Scheduling/},
+  {ids: ['roster_alternates'], cats: /Scheduling/, keep: /substitutions/i},
+  // Class desk detail (disruption, booking friction, return intent) only where one class is the subject.
+  {ids: ['class_disruption', 'class_experience_effect', 'class_booking_friction', 'class_rebooking_intent'], cats: /Scheduling/, keep: /capacity issues|waitlist|booking|substitutions|overbooking|cancellations|session length|grid review/i},
+  // Trainer feedback: "method deviation" only for how the class was taught.
+  {ids: ['method_conformance'], cats: /Trainer Feedback|Class Experience|Theft and Lost|Studio Amenities|Internal Operations/, keep: /modifications|demonstration|knowledge|challenges in following|intensity|focus on individual|experience and intensity|music balance|class flow/i},
+  {ids: ['ticket_vendor'], cats: /Class Experience|Customer Service|Studio Amenities/, keep: /wi-fi/i},
+  // Repair: housekeeping and cleaning are not an asset fault.
+  {ids: ['asset_type', 'asset_id', 'asset_condition', 'usable', 'downtime', 'reading_now'], cats: /Repair and Maintenance/, drop: /housekeeping|cleaning|additional waiting/i},
+  {ids: ['vendor_amc'], cats: /Repair and Maintenance/, drop: /uniforms|housekeeping|resistance bands/i},
+  // Amenities: valet token only for valet, temperature only for air and water, guests only for events.
+  {ids: ['valet_ticket'], cats: /Studio Amenities/, keep: /valet/i},
+  {ids: ['temp_reading'], cats: /Studio Amenities/, keep: /ventilation|air quality|steam|shower|odou?r/i},
+  {ids: ['par_level', 'supply_count'], cats: /Studio Amenities/, keep: /cleanliness|boutique|smoothie|accessories|lounge/i},
+  {ids: ['sku', 'stock_on_hand'], cats: /Studio Amenities/, keep: /boutique|smoothie/i},
+  {ids: ['guest_count'], keep: /hosted|community events|holiday-themed|challenges|event|workshop/i},
+  {ids: ['vendor_needed', 'amenity', 'temp_reading', 'valet_ticket', 'par_level', 'supply_count'], cats: /Studio Amenities/, drop: /attendance|check-in|equipment layout/i},
+  // Systems: hardware faults have no member data to back-date.
+  {ids: ['backdated', 'data_impact', 'momence_record'], cats: /Operating Systems|Tech Issues/, drop: /router|ipad|cash counting|laptops|speakers|mic|phones|camera|wi-fi/i},
+  {ids: ['membership'], cats: /Tech Issues/, keep: /app|booking|password|login|payment|notification|debit|charges|receipt|streaming|virtual|website/i},
+  {ids: ['user_type', 'repro_steps', 'frequency', 'device'], cats: /Tech Issues/, drop: /studio music preferences/i},
+  // Pricing: transaction fields only where money actually moved.
+  {ids: ['amount_charged', 'amount_expected', 'payment_mode', 'payment_date', 'transaction_ref', 'dispute_reason', 'balance_classes', 'gst_invoice', 'approval_ref', 'refund_required', 'refund_amount', 'accounts_action', 'payment_charge_state', 'payment_receipt_shared'], cats: /Pricing/, drop: /transparency|t ?and ?c|clarity|payment plan|international|private session pricing|corporate wellness|special group|location & pricing|holiday and special/i},
+  // Service: the complaint block only for complaints about how staff handled something.
+  {ids: ['complaint_nature', 'desk_owner', 'goodwill_offered', 'review_or_public', 'service_channel', 'contact_attempted', 'reply_deadline', 'response_waited'], cats: /Customer Service/, drop: /training of|retention strategies|proactive|competitor|lead conversion|lead management/i},
+  {ids: ['response_waited', 'contact_attempted', 'reply_deadline'], cats: /Customer Service/, keep: /delay|response|follow-up|unresolved|late response|handling of complaints|lead follow-up/i},
+  {ids: ['review_or_public'], cats: /Customer Service/, keep: /complaint|negative reviews|attitude|over-promising|response|delay|friendliness|etiquette|compensation/i},
+  // Brand: a creative or market note has no "members affected" count or member impact.
+  {ids: ['affected_count', 'member_impact', 'class_impacted'], cats: /Brand Feedback/, keep: /merchandise quality|staff wearing/i},
+  // Safety: injury, police and CCTV questions only where an incident can have happened.
+  {ids: ['injury_occurred', 'medical_response', 'member_notified', 'followup_due'], cats: /Safety and Security/, drop: /emergency exits|unlocked doors|security guard|suspicious|trespass|first aid kit|staff security/i},
+  {ids: ['cctv_retention', 'cctv_time', 'witnesses', 'police_escalation'], cats: /Safety and Security/, drop: /data breach|employee security training|fire drills|first aid kit|panic button|cctv malfunction/i},
+  {ids: ['statement_taken'], cats: /Safety and Security/, keep: /harassment|personal safety|medical|unauthorized/i},
+  {ids: ['statement_taken'], cats: /Repair and Maintenance|Trainer Feedback|Miscellaneous/, keep: /injury|emergency/i},
+  // Lost items: no compensation or staff questions for something a member simply left behind;
+  // towels and equipment are studio stock, not a member's lost property.
+  {ids: ['compensation'], cats: /Theft and Lost/, drop: /misplaced|left behind|forgetting|lost shoes|lost and found|missing towels|extra equipment|boutique/i},
+  {ids: ['item_value', 'serial_imei', 'locker_number', 'cfhr_checked', 'item_category', 'item_desc', 'last_seen', 'lost_or_stolen', 'cctv_requested'], cats: /Theft and Lost/, drop: /missing towels/i},
+  {ids: ['serial_imei', 'locker_number', 'staff_implicated', 'police_complaint', 'item_value'], cats: /Theft and Lost/, drop: /extra equipment/i},
+  {ids: ['locker_number', 'serial_imei'], cats: /Theft and Lost/, drop: /boutique/i},
+  // Miscellaneous: "Who is the suggestion for" only for suggestions.
+  {ids: ['noise_source'], cats: /Miscellaneous/, keep: /noise|music|construction|volume/i},
+  {ids: ['light_circuit'], cats: /Miscellaneous/, keep: /lighting/i},
+  {ids: ['immediate_danger'], cats: /Studio Amenities/, keep: /odou?r|cleanliness|ventilation|air quality|shower|steam|equipment layout|accessories/i},
+  {ids: ['immediate_danger', 'area', 'specific_area'], cats: /Repair and Maintenance/, drop: /attendance|check-in/i},
+  // Internal: a memo is not a repeat fault.
+  {ids: ['is_repeat'], cats: /Internal Operations/, keep: /handover|communication gap|hris/i},
 ];
+/** Questions that stay on the form but should not block filing where they rarely have an
+ *  answer: a prospect asking about prices has no membership yet, and a brand note is seldom a
+ *  repeat. */
+const OPTIONAL: Relevance[] = [
+  {ids: ['membership', 'entitlement_state'], cats: /Pricing/, keep: /transparency|t ?and ?c|clarity|payment plan|international|private session pricing|corporate wellness|special group|location & pricing|holiday and special/i},
+  {ids: ['is_repeat'], cats: /Brand Feedback|Internal Operations/},
+  {ids: ['desk_owner', 'goodwill_offered', 'review_or_public'], cats: /Customer Service/},
+];
+const optionalHere = (id: string, category: string, sub: string) => OPTIONAL.some(r => r.ids.includes(id) && (!r.cats || r.cats.test(category)) && (r.keep ? r.keep.test(sub) : true));
 const relevant = (id: string, category: string, sub: string) => RELEVANCE.every(r => {
   if (!r.ids.includes(id) || (r.cats && !r.cats.test(category))) return true;
   if (r.keep) return r.keep.test(sub);
@@ -520,11 +602,11 @@ export function planFields(category: string, sub: string, ctx: PlanContext, conf
   // Always offer a member lookup if the plan does not already have one.
   if (!all.some(f => f.type === 'lookup' && f.module === 'member' && MEMBER_LOOKUP_IDS.includes(f.id))) all.push(materialise(MEMBER_LOOKUP_DEF, true, ctx, category));
   // Prompt for the exact spot inside the chosen room/area.
-  if (!configured?.length && !all.some(f => f.id === 'specific_area') && relevant('specific_area', category, sub)) all.push(materialise({id: 'specific_area', label: 'Specific spot / equipment', type: 'text', desc: 'Exact location within the area — e.g. bike 3, mirror wall, front desk left.', conditional: true, dependsOn: 'area', condText: 'Asked when an area is selected', placeholder: 'e.g. bike 3, front row'}, false, ctx, category));
+  if (!configured?.length && !all.some(f => f.id === 'specific_area') && relevant('specific_area', category, sub)) all.push(materialise({id: 'specific_area', label: 'Exact spot', type: 'text', desc: 'For example: bike 3, mirror wall, left of the front desk.', conditional: true, dependsOn: 'area', condText: 'Asked when an area is selected', placeholder: 'e.g. bike 3, front row'}, false, ctx, category));
   // The title is optional everywhere: left blank, the server writes a descriptive one
   // ("what happened — member · studio") from the description, which reads far better on the
   // board than the sub-category repeated back. A title the reporter types is kept as written.
-  all = all.map(f => f.id === 'title' ? {...f, required: false, desc: 'Optional. Leave blank and Iris writes one from what you describe; anything you type here is kept as written.', placeholder: 'Leave blank to generate from the description'} : f);
+  all = all.map(f => f.id === 'title' ? {...f, required: false, desc: 'Optional. Leave blank and Iris writes one from your description.', placeholder: 'Leave blank to generate from the description'} : f);
   const memberFields=all.filter(f=>f.type==='lookup'&&f.module==='member'&&MEMBER_LOOKUP_IDS.includes(f.id));
   const memberRequired=memberFields.some(f=>f.required);
   const aliases=new Set(MEMBER_LOOKUP_IDS.filter(id=>id!=='member_name'));
@@ -548,19 +630,30 @@ export function planFields(category: string, sub: string, ctx: PlanContext, conf
         ...(['class_format','trainer'].includes(f.id)||f.enrich==='class'||f.enrich==='roster'?{conditional:true,dependsOn:'class_date',when:undefined}:{}),
       };
     });
-  if(!all.some(f=>f.id==='member_name'))all.push({...materialise(MEMBER_LOOKUP_DEF,true,ctx,category),id:'member_name',label:'Community member',section:'Global details',required:memberRequired,conditional:!memberRequired,dependsOn:memberRequired?undefined:'_involves_member',when:memberRequired?undefined:'^yes$'});
+  if(!all.some(f=>f.id==='member_name'))all.push({...materialise(MEMBER_LOOKUP_DEF,true,ctx,category),id:'member_name',label:'Member',section:'Global details',required:memberRequired,conditional:!memberRequired,dependsOn:memberRequired?undefined:'_involves_member',when:memberRequired?undefined:'^yes$'});
   // Exact time replaces recency/day part; account and session facts have one source.
   const seenIds=new Set<string>();all=all.filter(f=>!seenIds.has(f.id)&&Boolean(seenIds.add(f.id)));
   const affected=all.find(f=>f.id==='affected_count'||f.id==='members_requesting_change');
   if(affected&&!all.some(f=>f.id==='members_affected'||f.id==='attendees_affected'))all.push({...materialise(MEMBERS_AFFECTED_DEF,false,ctx,category),dependsOn:affected.id});
   if(isLateArrival(category,sub)) all=lateArrivalFields(all,ctx.trainers);
   all=all.map(f=>({...f,label:simpleLanguage(f.label),desc:f.desc?simpleLanguage(f.desc):undefined,placeholder:f.placeholder?simpleLanguage(f.placeholder):undefined,options:f.options?.map(simpleLanguage)}));
-  const index = new Map(all.map(f => [f.id, f]));
+  let index = new Map(all.map(f => [f.id, f]));
+  // An optional question whose parent is not on this form can never be shown; drop it, and
+  // anything that follows on from it, so the form does not carry dead questions.
+  for (let changed = true; changed;) {
+    changed = false;
+    for (const f of all) if (!f.required && f.dependsOn && !f.dependsOn.startsWith('_') && !index.has(f.dependsOn)) { all = all.filter(x => x !== f); index = new Map(all.map(x => [x.id, x])); changed = true; break; }
+  }
   return all.map(f => {
     if (f.id === 'preferred_contact' || f.id === 'follow_up_channel') {
       return {...f, required: false, conditional: true, dep: '_involves_member', when: 'yes|directly|indirectly'};
     }
     const dep=dependencyOf(f,index);
+    // "Yes — for this sub category" is how the Hub marks a question that belongs on this form
+    // with nothing to wait for. With no dependency it was flagged conditional and never shown,
+    // so about 20 questions (entitlement, statement collected, fixed already…) were dead.
+    if(f.required&&optionalHere(f.id,category,sub))f={...f,required:false};
+    if(f.conditional&&dep===null)return {...f,conditional:false,dep};
     return {...f,...(dep==='_unavailable_dependency'&&f.required?{conditional:false}:{}),dep};
   });
 }

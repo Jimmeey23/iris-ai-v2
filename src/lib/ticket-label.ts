@@ -510,7 +510,7 @@ const PLACEHOLDER_NAME = /^(studio team( observation)?|automated follow-up|membe
 export function describeTicket(input: LabelInput, maxLength = LABEL_MAX): string {
   const studioShort = input.studio ? input.studio.split(',')[0].trim() : '';
   const format = input.classFormat ? input.classFormat.split('+')[0].trim() : '';
-  const praise = input.kind === 'compliment' || input.sentiment === 'positive';
+  const praise = input.kind === 'compliment';
   const member = input.memberName && !PLACEHOLDER_NAME.test(input.memberName.trim()) ? clean(input.memberName) : '';
   const tail = [member, studioShort].filter(Boolean).join(' · ');
   // The workspace's label length caps the issue, not the names after it: clipping "Sanjanaa

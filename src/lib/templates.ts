@@ -35,93 +35,99 @@ function voiceFor(category: string) {
     return "warm, specific, never gossipy";
   }
   if (category === "Pricing and Memberships") return "clear, numbers-first, no jargon";
-  if (category === "Brand Feedback") return "editorial and on-brand";
-  return "polished boutique hospitality";
+  if (category === "Brand Feedback") return "clear and on-brand";
+  return "warm, clear and polite";
 }
 
+/** Sub-categories that are about the studio, the team or the timetable rather than one member.
+ *  Their checklist does not ask anyone to look up or reply to a member who is not there. */
+const NO_MEMBER = /^(Internal Operations|Repair and Maintenance)|standard operating|vendor \/ amc|staff uniforms|fire safety|fire drills|employee security training|staff security|staff theft|theft prevention|holiday and festival|weekend vs|studio timings|schedule gaps|grid review|internal follow-up|training of|lead management|post-event lead|marketing collateral|partnership \/ collab|branded content|brand identity|brand tone/i;
+export const involvesMember = (category: string, subcategory: string) =>
+  !NO_MEMBER.test(category) && !NO_MEMBER.test(subcategory);
+
 function checklist(category: string, subcategory: string) {
+  const member = involvesMember(category, subcategory);
   const base = [
-    "Confirm member identity against Momence",
-    "Log studio, timestamp, and people involved",
-    `Route to ${DEPARTMENT_RECORDS.find((d) => d.id === CATEGORY_DEPARTMENT[category])?.name ?? "Operations"}`,
-    "Send a same-day acknowledgement to the member",
+    ...(member ? ["Check the member's details in Momence"] : []),
+    "Note the studio, the time and who was involved",
+    `Send to ${DEPARTMENT_RECORDS.find((d) => d.id === CATEGORY_DEPARTMENT[category])?.name ?? "Operations"}`,
+    ...(member ? ["Reply to the member the same day"] : []),
   ];
   if (category === "Scheduling") {
     return [
       ...base,
-      "Pull the member's upcoming bookings in Momence",
-      "Check capacity / waitlist on the requested session",
-      "Offer two alternative slots before closing",
-      `Apply the ${subcategory.toLowerCase()} policy consistently`,
+      ...(member
+        ? ["Check the member's upcoming bookings in Momence", "Check capacity and waitlist for the class", "Offer two other class times before closing"]
+        : ["Check bookings and waitlists for the slots affected", "Tell booked members before any change goes live"]),
+      `Apply the ${subcategory.toLowerCase()} policy the same way every time`,
     ];
   }
   if (category === "Class Experience" || category === "Trainer Feedback") {
     return [
       ...base,
-      "Pull the class roster and trainer for the cited session",
+      "Check the class list and trainer for that class",
       "Share a coaching note with the Head Trainer — not the raw complaint",
-      "Follow up with the member after the next class they take",
+      ...(member ? ["Check in with the member after their next class"] : []),
     ];
   }
   if (category === "Repair and Maintenance" || category === "Studio Amenities and Facilities") {
     return [
       ...base,
-      "Photograph / log the asset if on-site",
-      "Create or attach a vendor job if needed",
-      "Note whether a live class is blocked",
-      "Close only after a studio walkthrough",
+      ...(/standard operating|vendor \/ amc|fire safety|uniforms/i.test(subcategory)
+        ? ["Attach the document, contract or checklist", "Agree an owner and a due date"]
+        : ["Take a photo of the problem", "Raise a vendor job if needed", "Note whether a class is blocked", "Close only after checking it at the studio"]),
     ];
   }
   if (category === "Operating Systems" || category === "Tech Issues") {
     return [
       ...base,
-      "Reproduce on Momence / POS / app",
-      "Capture screenshots, error codes, timestamps",
-      "Check if other members are impacted",
-      "Escalate to Saachi / Shifa if class-blocking",
+      "Try it again on Momence, the POS or the app",
+      "Save screenshots, error messages and times",
+      "Check if other members are affected",
+      "Escalate to Saachi / Shifa if a class is blocked",
     ];
   }
   if (category === "Pricing and Memberships") {
     return [
       ...base,
-      "Pull bought memberships and last 5 sales in Momence",
-      "Do not promise a refund before Accounts review",
-      "Document GST / gateway references",
+      ...(member ? ["Check the member's memberships and last 5 purchases in Momence"] : []),
+      "Do not promise a refund before Accounts has reviewed it",
+      "Note GST and payment references",
     ];
   }
   if (category === "Safety and Security") {
     return [
-      "Treat as confidential — limit thread access",
-      "Confirm whether anyone is in immediate danger",
-      "Notify Mitali Kumar immediately",
-      "Preserve CCTV window if relevant",
-      "Do not contact alleged parties without Management",
+      "Keep it confidential — limit who can see the ticket",
+      "Check whether anyone is in danger right now",
+      "Tell Mitali Kumar straight away",
+      "Save the CCTV footage if it is relevant",
+      "Do not contact the people involved without Management",
     ];
   }
   if (category === "Theft and Lost Items") {
     return [
       ...base,
-      "Check lost-and-found and locker area",
-      "Pull CCTV window if theft is alleged",
-      "Log item description, brand, distinguishing marks",
-      "Never admit liability in the first reply",
+      ...(/prevention|safe storage|coffee/i.test(subcategory)
+        ? ["Agree one practical change with the studio manager"]
+        : ["Check lost and found and the locker area", "Pull CCTV if theft is suspected", "Note the item, brand and any marks", "Never admit liability in the first reply"]),
     ];
   }
   return [
     ...base,
-    `Capture a ready-to-action note for ${subcategory}`,
-    "Propose one concrete next step to the member",
+    `Write a clear note on ${subcategory} that someone can act on`,
+    member ? "Suggest one clear next step to the member" : "Agree an owner and a due date",
   ];
 }
 
-function fieldsFor(category: string) {
-  const always = ["studio", "incidentAt", "memberName", "memberEmail"];
+function fieldsFor(category: string, subcategory: string) {
+  const always = ["studio", "incidentAt", ...(involvesMember(category, subcategory) ? ["memberName", "memberEmail"] : [])];
   if (["Scheduling", "Class Experience", "Trainer Feedback"].includes(category)) {
     return [...always, "classFormat", "trainer"];
   }
   if (category === "Pricing and Memberships") return [...always, "membership"];
   if (category === "Theft and Lost Items") return [...always, "itemDescription", "lastSeen"];
   if (category === "Safety and Security") return [...always, "isImmediateDanger"];
+  if (category === "Repair and Maintenance" || category === "Studio Amenities and Facilities") return [...always, "area"];
   return always;
 }
 
@@ -146,7 +152,7 @@ export function buildTemplate(
 Thank you for flagging this — I've opened a care ticket with Physique 57 India for ${subcategory.toLowerCase()} at {studio}.
 
 What we heard
-• ${subcategory} under ${category}
+• About: ${subcategory}
 • Studio: {studio}
 • When: {incidentAt}
 
@@ -202,7 +208,7 @@ Do not
     internalBody,
     opsChecklist: checklist(category, subcategory),
     irisPrompt: `The member needs help with ${subcategory} (${category}). Collect missing studio, timing, and identity, then draft a precise ticket.`,
-    fields: fieldsFor(category),
+    fields: fieldsFor(category, subcategory),
   };
 }
 

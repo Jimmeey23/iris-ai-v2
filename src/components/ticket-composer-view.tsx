@@ -306,7 +306,7 @@ export function TicketComposerView({
                   <div className="context-detail-title">
                     <Users size={16} />
                     <div>
-                      <strong>Member intelligence</strong>
+                      <strong>Member details</strong>
                       <p>
                         Searches the Momence host linked to the reporter&apos;s
                         profile studio.
@@ -461,6 +461,7 @@ export function TicketComposerView({
                     onChange={(v) => {
                       set("kind", String(v));
                       if (v === "compliment") set("sentiment", "positive");
+                      else if (form.kind === "compliment" && form.sentiment === "positive") set("sentiment", "neutral");
                     }}
                   />
                 </Field>
@@ -806,7 +807,7 @@ export function TicketComposerView({
                       <OptionSelect
                         options={[
                           "Minor inconvenience",
-                          "Affected the experience",
+                          "Affected the class",
                           "Class or service unavailable",
                           "Safety concern",
                         ]}

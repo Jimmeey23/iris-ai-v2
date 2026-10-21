@@ -270,7 +270,7 @@ function demoData(module: string): JsonRecord[] {
       name,
       type: "fitness",
       description:
-        "A focused, full-body studio experience. Sample session for exploring IRIS.",
+        "A full-body class. Sample class for trying IRIS.",
       startsAt: new Date(Date.now() + (i - 8) * 4 * 3600000).toISOString(),
       endsAt: new Date(
         Date.now() + (i - 8) * 4 * 3600000 + 57 * 60000,

@@ -111,7 +111,7 @@ export default function IntegrationsPage() {
           <PlugZap size={23} />
         </div>
         <div className="grow">
-          <h2>A connected workspace. A seamless member experience.</h2>
+          <h2>Connect your tools to IRIS.</h2>
           <p>
             Bring your studio data, communications and automations into IRIS.
             Every connection is secure, every action is traceable.

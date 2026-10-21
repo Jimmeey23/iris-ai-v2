@@ -233,6 +233,24 @@ export function CommandCenter({directory = false, assignedOnly = false}: {direct
     }
   }
 
+  /** Assigns tickets to the signed-in person through the same PATCH the detail view uses. */
+  async function assignToMe(ids: number[]) {
+    if (staffId == null || !ids.length) return;
+    setBusy(true);
+    const outcomes = await Promise.allSettled(ids.map((id) => {
+      const t = tickets.find((x) => x.id === id);
+      return api('/api/tickets/' + id, {method: 'PATCH', body: JSON.stringify({assignedStaffId: staffId, version: t?.version})});
+    }));
+    const success = outcomes.filter((o) => o.status === 'fulfilled').length;
+    notify(
+      `${success} ticket${success === 1 ? '' : 's'} assigned to you${success < ids.length ? `; ${ids.length - success} could not be changed (permissions or concurrent edits).` : '.'}`,
+      success < ids.length ? 'error' : 'success',
+    );
+    setSelected((s) => s.filter((id) => !ids.includes(id)));
+    setBusy(false);
+    await reload();
+  }
+
   async function applyBulk() {
     setBusy(true);
     const outcomes = await Promise.allSettled(selected.map((id) => {
@@ -354,11 +372,14 @@ export function CommandCenter({directory = false, assignedOnly = false}: {direct
         <div className="ticket-toolbar" style={{background: 'var(--accent-soft)'}}>
           <Badge tone="blue">{selected.length} selected</Badge>
           <button className="btn btn-sm" onClick={() => setBulk(true)}>Update status</button>
+          {staffId != null && <button className="btn btn-sm" disabled={busy} onClick={() => void assignToMe(selected)}>Assign to me</button>}
           <button className="text-btn" onClick={() => setSelected([])}>Clear selection</button>
         </div>
       )}
 
-      {loading || !loaded ? <div style={{padding: 20}}><Loading/></div>
+      {loading || !loaded ? (view === 'list'
+          ? <TicketGrid tickets={[]} loading columns={prefs.columns} groupBy="none" sortKey={sortKey} sortDir={sortDir} density={prefs.density} expandedGroups={[]} onSort={() => {}} onToggleGroup={() => {}} onSetGroups={() => {}} onSelect={() => {}}/>
+          : <div style={{padding: 20}}><Loading/></div>)
         : error ? <div className="error-box" style={{margin: 20}}>{error}<button className="text-btn" onClick={() => void reload()}>Retry</button></div>
         : !tabbed.length ? (
           <Empty
@@ -388,12 +409,24 @@ export function CommandCenter({directory = false, assignedOnly = false}: {direct
             onSelect={setDetail}
             selected={selected}
             onToggleSelect={(id) => setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]))}
+            onSelectMany={(ids, on) => setSelected((s) => (on ? [...new Set([...s, ...ids])] : s.filter((x) => !ids.includes(x))))}
+            onColumns={(columns) => update({columns})}
+            onDensity={(density) => update({density})}
+            onAssignToMe={staffId != null ? (id) => void assignToMe([id]) : undefined}
+            myStaffId={staffId}
+            sortLocked={allTab}
           />
         )}
 
       {!['board', 'matrix', 'feed'].includes(view) && !grouped && (
         <div className="table-pagination">
-          <span>{tabbed.length ? currentPage * pageSize + 1 : 0}–{Math.min((currentPage + 1) * pageSize, tabbed.length)} of {tabbed.length} tickets</span>
+          <span className="tgx-range"><strong>{tabbed.length ? currentPage * pageSize + 1 : 0}–{Math.min((currentPage + 1) * pageSize, tabbed.length)}</strong> of {tabbed.length} tickets</span>
+          <label className="tgx-pagesize">
+            Rows per page
+            <select value={pageSize} onChange={(e) => { update({pageSize: Number(e.target.value)}); setPage(0); }}>
+              {[...new Set([25, 50, 100, 200, pageSize])].sort((a, b) => a - b).map((n) => <option key={n} value={n}>{n}</option>)}
+            </select>
+          </label>
           <div className="pagination-controls">
             <button disabled={!currentPage} aria-label="Previous page" onClick={() => setPage((p) => Math.max(0, p - 1))}><ChevronLeft size={12}/></button>
             {/* A window of five around the current page, so every page is one click away. */}

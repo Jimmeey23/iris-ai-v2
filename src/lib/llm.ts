@@ -12,7 +12,7 @@
  *  - **Credits do not come back on their own, so neither do retries.** After a quota or auth
  *    failure OpenAI is skipped for five minutes (one minute for a rate limit or outage), so a
  *    drained account costs one slow request, not one per ticket.
- *  - **Opt-out.** Settings → Iris intelligence has a switch. With it off, or no Anthropic key,
+ *  - **Opt-out.** Settings → Iris assistant has a switch. With it off, or no Anthropic key,
  *    behaviour is exactly what it was.
  *  - **Only what OpenAI alone can do stays on OpenAI**: speech, transcription and image
  *    generation have no Claude equivalent here.

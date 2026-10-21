@@ -7,6 +7,7 @@
  * manager can go from "Operations has 7 overdue" to "…of which 5 are AC faults at Kwality
  * House" without leaving the page; every ticket row opens the ticket itself.
  */
+import { simpleLanguage } from "@/lib/plain-language";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowUpRight, Download, Filter, Loader2, X } from "lucide-react";
 import { Modal, api } from "@/components/ui";
@@ -155,7 +156,7 @@ export function DrillDrawer({ request, base, onClose }: { request: DrillRequest 
                   {rows.map((t) => (
                     <tr key={t.id} className={"drill-row tone-" + statusTone(t.status)} onClick={() => setTicket(t.id)} tabIndex={0}
                       onKeyDown={(e) => { if (e.key === "Enter") setTicket(t.id); }}>
-                      <td><div className="drill-title"><b>{t.title}</b><small>{t.ticketNumber} · {t.subcategory}{t.trainer ? ` · ${t.trainer}` : ""}{t.isEscalated ? " · escalated" : ""}</small></div></td>
+                      <td><div className="drill-title"><b>{t.title}</b><small>{t.ticketNumber} · {simpleLanguage(t.subcategory)}{t.trainer ? ` · ${t.trainer}` : ""}{t.isEscalated ? " · escalated" : ""}</small></div></td>
                       <td><span className={"drill-status tone-" + statusTone(t.status)}>{t.status.replaceAll("_", " ")}</span></td>
                       <td><span className={"drill-prio p-" + t.priority}>{t.priority}</span></td>
                       <td>{t.studio?.split(",")[0] || "—"}</td>

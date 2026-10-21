@@ -1,4 +1,5 @@
 "use client";
+import { simpleLanguage } from "@/lib/plain-language";
 import {
   ChevronRight,
   FileText,
@@ -39,8 +40,8 @@ export default function TicketOverviewPanel({
           </header>
           <p className="td-narrative">{t.description || t.summary}</p>
           <div className="td-narrative-tags">
-            <span className="td-tag">{t.category}</span>
-            <span className="td-tag td-tag-sub">{t.subcategory}</span>
+            <span className="td-tag">{simpleLanguage(t.category)}</span>
+            <span className="td-tag td-tag-sub">{simpleLanguage(t.subcategory)}</span>
             {t.impact && t.requestedResolution && (
               <span className="td-tag td-tag-impact">
                 <Zap size={11} />
@@ -49,19 +50,6 @@ export default function TicketOverviewPanel({
             )}
           </div>
         </section>
-
-        <TicketEvidence
-          files={[
-            ...bundle.attachments.map((file) => ({
-              ...file,
-              url: `/api/tickets/${t.id}/resolution/attachments?attachmentId=${encodeURIComponent(file.id)}`,
-            })),
-            ...(bundle.conversationAttachments || []).map((file) => ({
-              ...file,
-              url: `/api/iris/upload?id=${encodeURIComponent(file.id)}`,
-            })),
-          ]}
-        />
 
         {(t.requestedResolution || t.impact) && (
           <section className="td-outcome-card">
@@ -82,6 +70,19 @@ export default function TicketOverviewPanel({
         <ReportedDetails ticket={t} />
         <HostedAttendees ticket={t} />
         <ClassSnapshot ticket={t} />
+
+        <TicketEvidence
+          files={[
+            ...bundle.attachments.map((file) => ({
+              ...file,
+              url: `/api/tickets/${t.id}/resolution/attachments?attachmentId=${encodeURIComponent(file.id)}`,
+            })),
+            ...(bundle.conversationAttachments || []).map((file) => ({
+              ...file,
+              url: `/api/iris/upload?id=${encodeURIComponent(file.id)}`,
+            })),
+          ]}
+        />
 
         <details className="td-block td-similar-details">
           <summary>

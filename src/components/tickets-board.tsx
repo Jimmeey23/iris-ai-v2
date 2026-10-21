@@ -1,4 +1,5 @@
 "use client";
+import { simpleLanguage } from "@/lib/plain-language";
 import {entryTypeLabel} from "@/lib/display";
 import { useEffect, useCallback, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -186,9 +187,9 @@ export function Stats({ tickets }: { tickets: TicketListRecord[] }) {
       color: "var(--amber)",
     },
     {
-      label: "Resolved with care",
+      label: "Resolved",
       value: closed.length,
-      note: "A better member experience",
+      note: "Closed tickets",
       icon: CheckCircle2,
       tone: "green",
       rows: closed,
@@ -434,7 +435,7 @@ export function TicketMeta({
       </span>
       <span className="chip">
         <Hash size={9} />
-        {t.category}
+        {simpleLanguage(t.category)}
         {t.subcategory ? " › " + t.subcategory : ""}
       </span>
       {!compact && t.studio && (
@@ -535,9 +536,9 @@ export function TicketTable({
                     >
                       {entryTypeLabel(t)}
                     </span>
-                    <span className="chip">{t.category}</span>
+                    <span className="chip">{simpleLanguage(t.category)}</span>
                   </div>
-                  <span className="category-sub">{t.subcategory}</span>
+                  <span className="category-sub">{simpleLanguage(t.subcategory)}</span>
                 </td>
                 <td>
                   <StatusPill status={t.status} />
@@ -630,7 +631,7 @@ export function TicketCard({
       <div className="ticket-chips">
         {has("category") && (
           <span className="chip chip-kind" data-tone={KIND_TONE[t.kind] || ""}>
-            {t.category}
+            {simpleLanguage(t.category)}
           </span>
         )}
         {has("source") && (
@@ -978,7 +979,7 @@ export function FeedView({
                     {entryTypeLabel(t)}
                   </span>
                   <span className="chip">
-                    {t.category} › {t.subcategory}
+                    {simpleLanguage(t.category)} › {simpleLanguage(t.subcategory)}
                   </span>
                   <span className="chip chip-quiet">
                     {SOURCE_LABEL[t.source] || t.source}

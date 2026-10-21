@@ -153,7 +153,7 @@ export const SECTION_META: Record<string, {icon: LucideIcon; lede: string}> = {
   'Systems & data': {icon: MonitorCog, lede: 'The system, who is blocked and how to make it happen again.'},
   'Schedule & timetable': {icon: CalendarClock, lede: 'The slot today, the slot being asked for and the demand behind it.'},
   'Trainer & method': {icon: GraduationCap, lede: 'The trainer concerned and how it measures against the method.'},
-  'Member experience': {icon: HeartHandshake, lede: 'How the member was served, and what has been offered so far.'},
+  'Member service': {icon: HeartHandshake, lede: 'How the member was served, and what has been offered so far.'},
   'Brand & partnerships': {icon: Megaphone, lede: 'The partner or campaign, its terms and what it delivered.'},
   'Internal & policy': {icon: ClipboardList, lede: 'Who needs to decide, what changes and by when.'},
   'Other details': {icon: Layers, lede: 'Anything else this sub-category asks for.'},

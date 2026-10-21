@@ -1,0 +1,45 @@
+- generic [active] [ref=e1]:
+  - main [ref=e2]:
+    - region "IRIS operations workspace" [ref=e3]:
+      - generic [ref=e5]:
+        - generic [ref=e6]: Physique 57 India operations
+        - heading "Every member voice, thoughtfully actioned." [level=1] [ref=e10]: Every member voice,thoughtfully actioned.
+        - paragraph [ref=e11]: One intelligent workspace for studio issues, ownership and follow-through.
+        - generic [ref=e12]:
+          - generic [ref=e13]: Clear ownership
+          - generic [ref=e16]: Role-based privacy
+          - generic [ref=e19]: Complete audit trail
+    - generic [ref=e23]:
+      - generic [ref=e24]:
+        - img "IRIS Ai" [ref=e25]:
+          - img "IRIS Ai" [ref=e26]
+        - generic [ref=e27]:
+          - generic [ref=e28]: IRIS Ai
+          - generic [ref=e29]: Physique 57 India
+      - generic [ref=e30]:
+        - text: SECURE WORKSPACE
+        - heading "Welcome back" [level=2] [ref=e31]
+        - paragraph [ref=e32]: Sign in to continue to IRIS.
+      - link "G Continue with Google" [ref=e33] [cursor=pointer]:
+        - /url: /api/auth/google
+        - generic [ref=e34]: G
+        - text: Continue with Google
+      - generic [ref=e35]: or use email
+      - generic [ref=e37]:
+        - generic [ref=e38]:
+          - text: Work email
+          - textbox "Work email" [ref=e43]:
+            - /placeholder: you@physique57.com
+        - generic [ref=e44]:
+          - text: Password
+          - generic [ref=e45]:
+            - textbox "Password Show password" [ref=e50]:
+              - /placeholder: At least 12 characters
+            - button "Show password" [ref=e51] [cursor=pointer]
+        - button "Sign in" [ref=e55] [cursor=pointer]
+      - paragraph [ref=e58]:
+        - text: Need an account?
+        - button "Sign up with your work email" [ref=e59] [cursor=pointer]
+  - region "Notifications"
+  - button "Open Next.js Dev Tools" [ref=e65] [cursor=pointer]
+  - alert [ref=e69]

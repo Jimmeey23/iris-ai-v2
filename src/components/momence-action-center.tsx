@@ -528,7 +528,7 @@ export function MomenceActionCenter({
               </span>
               <div className="trigger-titles">
                 <strong>WhatsApp Care Response</strong>
-                <span>Personalized Physique 57 concierge message</span>
+                <span>Personal message to the member</span>
               </div>
             </div>
             <div className="trigger-right">

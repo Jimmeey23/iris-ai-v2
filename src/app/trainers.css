@@ -54,7 +54,7 @@
 .tr-review.active .tr-review-score { color: var(--accent) !important; }
 
 [data-theme="light"] .tr-portrait::after {
-  background: linear-gradient(180deg, transparent 52%, rgb(255 255 255 / 0.72));
+  background: transparent;
 }
 
 .tr-stream-hero { min-height: 300px; }
@@ -110,9 +110,7 @@
   overflow: hidden;
   border-radius: 20px;
   border: 1px solid var(--neu-line);
-  background:
-    radial-gradient(90% 160% at 100% 0%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 55%),
-    var(--surface);
+  background: var(--surface);
   box-shadow: var(--neu-sm) !important;
 }
 
@@ -120,7 +118,7 @@
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(120deg, transparent 35%, color-mix(in srgb, var(--white, #fff) 10%, transparent) 50%, transparent 65%);
+  background: transparent;
   transform: translateX(-120%);
   animation: tr-sheen 6s var(--ease-standard) infinite;
   pointer-events: none;
@@ -150,7 +148,7 @@
 
 .tr-index {
   border-radius: 9px;
-  background: linear-gradient(150deg, var(--accent), color-mix(in srgb, var(--accent) 72%, var(--red)));
+  background: var(--accent);
   color: #171106;
   box-shadow: 0 4px 12px -5px color-mix(in srgb, var(--accent) 70%, transparent);
   font-weight: 800;
@@ -194,11 +192,7 @@
 
 .tr-masthead h2,
 .tr-stream-copy h2 {
-  background: linear-gradient(
-    120deg,
-    var(--text) 42%,
-    color-mix(in srgb, var(--accent) 52%, var(--text))
-  );
+  background: var(--text);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;

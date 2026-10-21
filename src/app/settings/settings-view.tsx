@@ -23,7 +23,7 @@ import type { useSettingsPageController } from "./settings-controller";
 const TABS = [
   { id: "general", name: "Workspace", icon: Settings },
   { id: "appearance", name: "Appearance", icon: Palette },
-  { id: "ai", name: "Iris intelligence", icon: Sparkles },
+  { id: "ai", name: "Iris assistant", icon: Sparkles },
   { id: "board", name: "Board & labels", icon: LayoutList },
   { id: "forms", name: "Forms & routing", icon: ListChecks },
   { id: "routing", name: "Routing & SLAs", icon: GitBranch },

@@ -93,7 +93,7 @@ export function alertFor(data: IntakeData): Alert | null {
 }
 
 /** What the form covers, in the desk's words: the topical groups this sub-category brings. */
-export const TOPICAL = new Set(['Safety & incident', 'Lost & found', 'Payment & billing', 'Equipment & facility', 'Systems & data', 'Schedule & timetable', 'Trainer & method', 'Member experience', 'Brand & partnerships', 'Internal & policy']);
+export const TOPICAL = new Set(['Safety & incident', 'Lost & found', 'Payment & billing', 'Equipment & facility', 'Systems & data', 'Schedule & timetable', 'Trainer & method', 'Member service', 'Brand & partnerships', 'Internal & policy']);
 export function focusOf(fields: IntakeField[]): string[] {
   const seen: string[] = [];
   for (const f of fields) if (TOPICAL.has(f.section) && !seen.includes(f.section) && (f.required || !f.enrich)) seen.push(f.section);

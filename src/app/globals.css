@@ -93,32 +93,32 @@
    inside a dark page and get the light tokens. */
 [data-theme="dark"] {
   color-scheme: dark;
-  --bg: #08080b;
-  --surface: #101015;
-  --surface-2: #16161c;
-  --surface-3: #1e1f26;
-  --surface-4: #282933;
-  --text: #f6f4ee;
-  --muted: #8a879a;
-  --secondary: #b8b5c3;
-  --border: #232430;
-  --border-strong: #343542;
-  --accent: #f4bb3d;
-  --accent-deep: #c9902a;
-  --accent-bright: #ffd166;
-  --accent-soft: #f4bb3d1c;
+  --bg: #0b1120;
+  --surface: #0f172a;
+  --surface-2: #131c2e;
+  --surface-3: #1a2436;
+  --surface-4: #223047;
+  --text: #e5e9f0;
+  --muted: #94a3b8;
+  --secondary: #cbd5e1;
+  --border: #1f2a3c;
+  --border-strong: #2c3a50;
+  --accent: #60a5fa;
+  --accent-deep: #3b82f6;
+  --accent-bright: #93c5fd;
+  --accent-soft: #60a5fa1f;
   /* Text/icon colour on a solid accent fill (≈11:1 on the gold). */
-  --accent-text: #161206;
-  --green: #57d6a8;
-  --green-bg: #57d6a81c;
-  --amber: #f4bb3d;
-  --amber-bg: #f4bb3d1c;
-  --red: #ff6b7a;
-  --red-bg: #ff6b7a1c;
-  --purple: #b39dff;
-  --purple-bg: #b39dff1c;
-  --blue: #5fb3ff;
-  --blue-bg: #5fb3ff1c;
+  --accent-text: #0b1120;
+  --green: #4ade80;
+  --green-bg: #4ade801a;
+  --amber: #fbbf24;
+  --amber-bg: #fbbf241a;
+  --red: #f87171;
+  --red-bg: #f871711a;
+  --purple: #a5b4c8;
+  --purple-bg: #a5b4c81a;
+  --blue: #60a5fa;
+  --blue-bg: #60a5fa1a;
 
   /* Elevation steps that differ per theme (see the scale in :root below). */
   --shadow-3:
@@ -138,30 +138,30 @@
      grey canvas is gone and the sunken steps do the contrast work instead. */
   --bg: #ffffff;
   --surface: #ffffff;
-  --surface-2: #f4f6f9;
-  --surface-3: #eceff4;
-  --surface-4: #e4e8f0;
-  --text: #0c1220;
-  --muted: #5b6472;
-  --secondary: #3d4454;
-  --border: #e2e6ee;
-  --border-strong: #cbd2df;
-  --accent: #1554d6;
-  --accent-deep: #0c3aa0;
-  --accent-bright: #2e6bf0;
-  --accent-soft: #1554d612;
+  --surface-2: #f8fafc;
+  --surface-3: #f1f5f9;
+  --surface-4: #e9eef4;
+  --text: #0f172a;
+  --muted: #64748b;
+  --secondary: #334155;
+  --border: #e5e7eb;
+  --border-strong: #d1d5db;
+  --accent: #2563eb;
+  --accent-deep: #1d4ed8;
+  --accent-bright: #3b82f6;
+  --accent-soft: #eff6ff;
   /* White on the blue accent is ≈6.3:1. */
   --accent-text: #ffffff;
-  --green: #0a6f4b;
-  --green-bg: #0a6f4b14;
-  --amber: #965704;
-  --amber-bg: #96570414;
-  --red: #bd2a3a;
-  --red-bg: #bd2a3a14;
-  --purple: #6346c6;
-  --purple-bg: #6346c614;
-  --blue: #1554d6;
-  --blue-bg: #1554d612;
+  --green: #15803d;
+  --green-bg: #f0fdf4;
+  --amber: #b45309;
+  --amber-bg: #fffbeb;
+  --red: #dc2626;
+  --red-bg: #fef2f2;
+  --purple: #475569;
+  --purple-bg: #f1f5f9;
+  --blue: #2563eb;
+  --blue-bg: #eff6ff;
 
   --shadow-3:
     0 10px 30px -14px rgb(26 39 67 / calc(0.19 * var(--ui-shadow))),
@@ -181,8 +181,8 @@
   --ui-radius: 1;
   --ui-shadow: 1;
 
-  --font-display: var(--font-space), "Space Grotesk", var(--font-outfit), sans-serif;
-  --font-body: var(--font-outfit), system-ui, sans-serif;
+  --font-display: var(--font-space), "Inter", system-ui, sans-serif;
+  --font-body: var(--font-outfit), "Inter", system-ui, sans-serif;
   --font-mono: var(--font-mono-tech), "JetBrains Mono", ui-monospace, monospace;
 
   /* Theme-independent literals, named so component CSS never repeats a hex. */
@@ -196,10 +196,10 @@
   --radius-2xs: calc(4px * var(--ui-radius));
   --radius-xs: calc(6px * var(--ui-radius));
   --radius-sm: calc(8px * var(--ui-radius));
-  --radius-md: calc(11px * var(--ui-radius));
-  --radius-lg: calc(14px * var(--ui-radius));
-  --radius-xl: calc(18px * var(--ui-radius));
-  --radius-2xl: calc(24px * var(--ui-radius));
+  --radius-md: calc(10px * var(--ui-radius));
+  --radius-lg: calc(12px * var(--ui-radius));
+  --radius-xl: calc(12px * var(--ui-radius));
+  --radius-2xl: calc(14px * var(--ui-radius));
   --radius-card: var(--radius-lg);
   --radius-pill: 999px;
 
@@ -259,17 +259,8 @@
   --hairline-strong: color-mix(in srgb, var(--text) 13%, transparent);
   --glass: color-mix(in srgb, var(--surface) 78%, transparent);
   --glass-strong: color-mix(in srgb, var(--surface) 90%, transparent);
-  --grad-accent: linear-gradient(
-    135deg,
-    var(--accent-bright) 0%,
-    var(--accent) 55%,
-    var(--accent-deep) 100%
-  );
-  --grad-text: linear-gradient(
-    120deg,
-    var(--text) 0%,
-    color-mix(in srgb, var(--text) 72%, var(--accent)) 100%
-  );
+  --grad-accent: linear-gradient(var(--accent), var(--accent));
+  --grad-text: linear-gradient(var(--text), var(--text));
 
   /* ── Motion scale ──────────────────────────────────────────────────────*/
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
@@ -678,12 +669,7 @@ small {
   inset: 0;
   z-index: var(--z-below);
   pointer-events: none;
-  background: linear-gradient(
-    100deg,
-    transparent 20%,
-    color-mix(in srgb, var(--text) 9%, transparent) 50%,
-    transparent 80%
-  );
+  background: transparent;
   transform: translateX(-105%);
   transition: transform var(--dur-5) var(--ease-out-expo);
 }
@@ -715,12 +701,7 @@ small {
   display: none;
 }
 .btn-primary::before {
-  background: linear-gradient(
-    100deg,
-    transparent 20%,
-    color-mix(in srgb, var(--white) 26%, transparent) 50%,
-    transparent 80%
-  );
+  background: transparent;
 }
 .btn-primary:active {
   filter: brightness(0.97);
@@ -789,11 +770,7 @@ small {
 .btn-success {
   color: var(--accent-text);
   border-color: transparent;
-  background: linear-gradient(
-    168deg,
-    color-mix(in srgb, var(--green) 88%, var(--white)),
-    var(--green)
-  );
+  background: color-mix(in srgb, var(--green) 88%, var(--white));
   box-shadow:
     0 5px 18px -6px color-mix(in srgb, var(--green) 55%, transparent),
     inset 0 1px 0 color-mix(in srgb, var(--white) 26%, transparent);
@@ -1201,7 +1178,7 @@ small {
   width: 3px;
   height: 0;
   border-radius: 0 var(--radius-2xs) var(--radius-2xs) 0;
-  background: linear-gradient(180deg, var(--accent-bright), var(--accent-deep));
+  background: var(--accent);
   box-shadow: 0 0 12px -1px color-mix(in srgb, var(--accent) 80%, transparent);
   transform: translateY(-50%);
   transition: height var(--dur-3) var(--ease-out-expo);
@@ -1522,7 +1499,7 @@ small {
 /* Overview */
 .iris-banner {
   position: relative;
-  background: linear-gradient(115deg, var(--surface), var(--surface-2) 60%, var(--accent-soft));
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-xl);
   padding: 24px 26px;
@@ -1540,7 +1517,7 @@ small {
   width: 380px;
   height: 380px;
   border-radius: 50%;
-  background: radial-gradient(circle, var(--accent-soft), transparent 70%);
+  background: transparent;
   pointer-events: none;
 }
 .iris-orb {
@@ -1550,7 +1527,7 @@ small {
   display: grid;
   place-items: center;
   color: var(--accent-text);
-  background: linear-gradient(155deg, var(--accent-bright), var(--accent-deep));
+  background: var(--accent);
   box-shadow: 0 8px 24px -8px color-mix(in srgb, var(--accent) 65%, transparent);
   flex-shrink: 0;
 }
@@ -1678,7 +1655,7 @@ small {
   bottom: -1px;
   height: 2px;
   border-radius: 2px 2px 0 0;
-  background: linear-gradient(90deg, var(--accent-deep), var(--accent-bright));
+  background: var(--accent);
   box-shadow: 0 0 12px -1px color-mix(in srgb, var(--accent) 65%, transparent);
   transform: scaleX(0);
   transform-origin: center;
@@ -1804,7 +1781,7 @@ small {
   gap: 18px;
 }
 .insights-widget {
-  background: linear-gradient(150deg, var(--surface), var(--accent-soft));
+  background: var(--surface);
   padding: 21px;
 }
 .insights-widget h3 {
@@ -1920,17 +1897,7 @@ small {
   content: "";
   position: absolute;
   inset: -40%;
-  background:
-    radial-gradient(
-      circle at 18% 25%,
-      color-mix(in srgb, var(--accent) 16%, transparent) 0,
-      transparent 38%
-    ),
-    radial-gradient(
-      circle at 88% 85%,
-      color-mix(in srgb, var(--purple) 12%, transparent) 0,
-      transparent 34%
-    );
+  background: transparent;
   animation: cc-drift 11s ease-in-out infinite;
   pointer-events: none;
 }
@@ -1940,12 +1907,7 @@ small {
   left: -70%;
   width: 45%;
   height: 100%;
-  background: linear-gradient(
-    100deg,
-    transparent,
-    color-mix(in srgb, var(--text) 7%, transparent),
-    transparent
-  );
+  background: transparent;
   transform: skewX(-18deg);
   animation: cc-shine 6.5s ease-in-out infinite;
   pointer-events: none;
@@ -1971,29 +1933,17 @@ small {
   left: 0;
   right: 0;
   height: 3px;
-  background: linear-gradient(90deg, var(--accent-bright), var(--accent-deep));
+  background: var(--accent);
   opacity: 0.85;
 }
 .cc-overview .metric[data-tone="purple"]:before {
-  background: linear-gradient(
-    90deg,
-    var(--purple),
-    color-mix(in srgb, var(--purple) 55%, transparent)
-  );
+  background: transparent;
 }
 .cc-overview .metric[data-tone="amber"]:before {
-  background: linear-gradient(
-    90deg,
-    var(--amber),
-    color-mix(in srgb, var(--amber) 55%, transparent)
-  );
+  background: transparent;
 }
 .cc-overview .metric[data-tone="green"]:before {
-  background: linear-gradient(
-    90deg,
-    var(--green),
-    color-mix(in srgb, var(--green) 55%, transparent)
-  );
+  background: transparent;
 }
 .cc-overview .metric:hover {
   transform: translateY(-3px);
@@ -2021,11 +1971,7 @@ small {
   overflow: hidden;
   border-radius: var(--radius-xl);
   border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--border));
-  background: linear-gradient(
-    155deg,
-    color-mix(in srgb, var(--accent) 9%, var(--surface)),
-    color-mix(in srgb, var(--purple) 7%, var(--surface-2))
-  );
+  background: color-mix(in srgb, var(--accent) 9%, var(--surface));
   backdrop-filter: blur(8px);
   box-shadow: 0 16px 44px -24px color-mix(in srgb, var(--accent) 30%, transparent);
 }
@@ -2037,11 +1983,7 @@ small {
   width: 170px;
   height: 170px;
   border-radius: 50%;
-  background: radial-gradient(
-    circle,
-    color-mix(in srgb, var(--accent) 18%, transparent),
-    transparent 70%
-  );
+  background: transparent;
   animation: cc-drift 9s ease-in-out infinite;
   pointer-events: none;
 }
@@ -2125,7 +2067,7 @@ small {
   transform: translateX(3px);
 }
 .cc-overview .quick-template:hover .quick-template-icon {
-  background: linear-gradient(150deg, var(--accent-bright), var(--accent-deep));
+  background: var(--accent);
   color: var(--accent-text);
   transform: scale(1.08);
 }
@@ -2237,11 +2179,7 @@ small {
   gap: 3px;
 }
 .matrix-cell.has-tickets {
-  background: linear-gradient(
-    140deg,
-    color-mix(in srgb, var(--accent) 8%, var(--surface-2)),
-    var(--surface-2)
-  );
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface-2));
   border: 1px solid var(--border);
   cursor: pointer;
   transition: 0.15s;
@@ -2450,11 +2388,7 @@ small {
   overflow: hidden;
   border-radius: var(--radius-xl);
   border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--border));
-  background: linear-gradient(
-    170deg,
-    color-mix(in srgb, var(--surface) 90%, var(--accent-soft) 10%),
-    var(--surface)
-  );
+  background: color-mix(in srgb, var(--surface) 90%, var(--accent-soft) 10%);
   box-shadow: 0 18px 46px -26px color-mix(in srgb, var(--accent) 28%, transparent);
 }
 .trainer-profile-card::before {
@@ -2464,11 +2398,7 @@ small {
   width: 170px;
   height: 170px;
   border-radius: 50%;
-  background: radial-gradient(
-    circle,
-    color-mix(in srgb, var(--accent) 24%, transparent),
-    transparent 68%
-  );
+  background: transparent;
   pointer-events: none;
 }
 .trainer-profile-meta {
@@ -2630,13 +2560,7 @@ small {
   right: 0;
   top: 0;
   height: 1px;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    color-mix(in srgb, var(--border) 95%, transparent) 15%,
-    color-mix(in srgb, var(--border) 95%, transparent) 85%,
-    transparent
-  );
+  background: transparent;
 }
 .dialog-head .icon-btn {
   border: 0;
@@ -2726,11 +2650,7 @@ small {
   padding: 18px;
   border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--border));
   border-radius: var(--radius-xl);
-  background: linear-gradient(
-    145deg,
-    color-mix(in srgb, var(--accent) 7%, var(--surface)),
-    var(--surface) 46%
-  );
+  background: color-mix(in srgb, var(--accent) 7%, var(--surface));
   box-shadow: 0 16px 38px -32px color-mix(in srgb, var(--accent) 70%, transparent);
 }
 .form-context-head {
@@ -3197,11 +3117,7 @@ small {
   height: 2px;
   width: 100%;
   transform-origin: left;
-  background: linear-gradient(
-    90deg,
-    color-mix(in srgb, currentColor 65%, transparent),
-    currentColor
-  );
+  background: transparent;
   animation: toast-timer var(--toast-ms, 6500ms) linear both;
 }
 .toast.success {
@@ -3645,14 +3561,14 @@ small {
 }
 .module-tabs button.active {
   color: var(--accent-text);
-  background: linear-gradient(168deg, var(--accent-bright), var(--accent) 60%, var(--accent-deep));
+  background: var(--accent);
   box-shadow:
     0 3px 12px -4px color-mix(in srgb, var(--accent) 60%, transparent),
     inset 0 1px 0 color-mix(in srgb, var(--white) 26%, transparent);
   font-weight: 650;
 }
 .module-tabs button.active:hover {
-  background: linear-gradient(168deg, var(--accent-bright), var(--accent) 60%, var(--accent-deep));
+  background: var(--accent);
   filter: brightness(1.05);
 }
 .module-tabs button .badge {
@@ -3857,22 +3773,7 @@ small {
   overflow: hidden;
   position: relative;
   border-radius: var(--radius-2xl);
-  background:
-    radial-gradient(
-      120% 80% at 15% 0%,
-      color-mix(in srgb, var(--accent) 10%, transparent) 0%,
-      transparent 45%
-    ),
-    radial-gradient(
-      100% 70% at 85% 100%,
-      color-mix(in srgb, var(--purple) 7%, transparent) 0%,
-      transparent 40%
-    ),
-    linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--surface) 96%, var(--accent) 4%),
-      var(--surface) 28%
-    );
+  background: color-mix(in srgb, var(--surface) 96%, var(--accent) 4%);
   box-shadow:
     var(--shadow-3),
     0 24px 70px -36px color-mix(in srgb, var(--accent) 55%, transparent),
@@ -3885,12 +3786,7 @@ small {
   inset: 0;
   border-radius: inherit;
   pointer-events: none;
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--accent) 3%, transparent) 0%,
-    transparent 50%,
-    color-mix(in srgb, var(--accent) 1.5%, transparent) 100%
-  );
+  background: transparent;
   mix-blend-mode: overlay;
 }
 .chat-panel::after {
@@ -3917,11 +3813,7 @@ small {
   width: 420px;
   height: 420px;
   border-radius: 50%;
-  background: radial-gradient(
-    circle,
-    color-mix(in srgb, var(--accent) 10%, transparent),
-    transparent 68%
-  );
+  background: transparent;
   top: -180px;
   right: -120px;
   filter: blur(40px);
@@ -3933,11 +3825,7 @@ small {
   width: 320px;
   height: 320px;
   border-radius: 50%;
-  background: radial-gradient(
-    circle,
-    color-mix(in srgb, var(--purple) 8%, transparent),
-    transparent 65%
-  );
+  background: transparent;
   bottom: -140px;
   left: -80px;
   filter: blur(50px);
@@ -3961,11 +3849,7 @@ small {
   justify-content: space-between;
   align-items: center;
   gap: 14px;
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--surface) 86%, var(--surface-2) 14%),
-    color-mix(in srgb, var(--surface) 96%, transparent) 92%
-  );
+  background: color-mix(in srgb, var(--surface) 86%, var(--surface-2) 14%);
   backdrop-filter: blur(22px) saturate(1.6);
   -webkit-backdrop-filter: blur(22px) saturate(1.6);
   flex-shrink: 0;
@@ -3979,14 +3863,7 @@ small {
   left: 4%;
   right: 4%;
   height: 1px;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    color-mix(in srgb, var(--accent) 55%, transparent) 18%,
-    color-mix(in srgb, var(--accent) 85%, transparent) 50%,
-    color-mix(in srgb, var(--accent) 55%, transparent) 82%,
-    transparent
-  );
+  background: transparent;
   opacity: 0.85;
   pointer-events: none;
 }
@@ -4075,7 +3952,7 @@ small {
   letter-spacing: -0.025em;
   line-height: 1;
   white-space: nowrap;
-  background: linear-gradient(135deg, var(--text) 70%, var(--accent) 130%);
+  background: var(--text);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -4094,11 +3971,7 @@ small {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.12em;
-  background: linear-gradient(
-    135deg,
-    var(--accent-soft),
-    color-mix(in srgb, var(--accent) 12%, transparent)
-  );
+  background: var(--accent-soft);
   color: var(--accent);
   border: 1px solid color-mix(in srgb, var(--accent) 32%, transparent);
   box-shadow: 0 2px 8px -4px color-mix(in srgb, var(--accent) 45%, transparent);
@@ -4168,12 +4041,7 @@ small {
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(
-    100deg,
-    transparent,
-    color-mix(in srgb, var(--text) 6%, transparent),
-    transparent
-  );
+  background: transparent;
   transform: translateX(-100%);
   transition: transform 0.5s;
 }
@@ -4188,11 +4056,7 @@ small {
   transform: translateX(100%);
 }
 .toolbar-pill-btn.active {
-  background: linear-gradient(
-    135deg,
-    var(--accent-soft),
-    color-mix(in srgb, var(--accent) 14%, transparent)
-  );
+  background: var(--accent-soft);
   color: var(--accent);
   border-color: color-mix(in srgb, var(--accent) 50%, transparent);
   box-shadow:
@@ -4369,24 +4233,7 @@ small {
   inset: 0;
   pointer-events: none;
   z-index: var(--z-base);
-  background:
-    radial-gradient(
-      120% 60% at 80% 0%,
-      color-mix(in srgb, var(--accent) 5%, transparent) 0%,
-      transparent 45%
-    ),
-    radial-gradient(
-      90% 50% at 10% 100%,
-      color-mix(in srgb, var(--purple) 3.5%, transparent) 0%,
-      transparent 40%
-    ),
-    linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--surface) 92%, transparent) 0,
-      transparent 90px,
-      transparent calc(100% - 60px),
-      color-mix(in srgb, var(--surface) 85%, transparent)
-    );
+  background: transparent;
 }
 .chat-day {
   position: relative;
@@ -4407,12 +4254,7 @@ small {
   content: "";
   flex: 1;
   height: 1px;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    color-mix(in srgb, var(--border) 80%, var(--accent) 10%),
-    transparent
-  );
+  background: transparent;
 }
 .chat-day span {
   padding: 3px 10px;
@@ -4438,11 +4280,7 @@ small {
 .chat-message .bubble {
   position: relative;
   max-width: min(88%, 760px);
-  background: linear-gradient(
-    165deg,
-    var(--surface-2),
-    color-mix(in srgb, var(--surface-2) 72%, var(--surface) 28%)
-  );
+  background: var(--surface-2);
   border: 1px solid color-mix(in srgb, var(--border) 88%, var(--text) 4%);
   padding: 12px 16px;
   border-radius: var(--radius-xs) var(--radius-xl) var(--radius-xl) var(--radius-xl);
@@ -4466,11 +4304,7 @@ small {
   left: 0;
   right: 0;
   height: 1px;
-  background: linear-gradient(
-    90deg,
-    color-mix(in srgb, var(--text) 10%, transparent),
-    transparent 55%
-  );
+  background: transparent;
   border-radius: var(--radius-xl) var(--radius-xl) 0 0;
   pointer-events: none;
   opacity: 0.8;
@@ -4483,11 +4317,7 @@ small {
   border-color: color-mix(in srgb, var(--border) 78%, var(--text) 14%);
 }
 .chat-message.user .bubble {
-  background: linear-gradient(
-    155deg,
-    color-mix(in srgb, var(--accent) 18%, var(--surface)),
-    color-mix(in srgb, var(--accent) 8%, var(--surface))
-  );
+  background: color-mix(in srgb, var(--accent) 18%, var(--surface));
   color: var(--text);
   border-color: color-mix(in srgb, var(--accent) 32%, transparent);
   border-radius: var(--radius-xl) var(--radius-xs) var(--radius-xl) var(--radius-xl);
@@ -4496,11 +4326,7 @@ small {
     inset 0 1px 0 color-mix(in srgb, var(--accent-bright) 16%, transparent);
 }
 .chat-message.user .bubble::before {
-  background: linear-gradient(
-    90deg,
-    color-mix(in srgb, var(--accent-bright) 22%, transparent),
-    transparent 50%
-  );
+  background: transparent;
 }
 .chat-message.user .bubble:hover {
   box-shadow: 0 12px 30px -18px color-mix(in srgb, var(--accent) 80%, transparent);
@@ -4599,11 +4425,7 @@ small {
 .chat-options button:hover {
   border-color: color-mix(in srgb, var(--accent) 55%, transparent);
   color: var(--accent);
-  background: linear-gradient(
-    135deg,
-    var(--accent-soft),
-    color-mix(in srgb, var(--accent) 8%, transparent)
-  );
+  background: var(--accent-soft);
   transform: translateY(-2px);
   box-shadow: 0 8px 18px -10px color-mix(in srgb, var(--accent) 55%, transparent);
 }
@@ -4828,11 +4650,7 @@ small {
   transform: translateY(-1px);
 }
 .context-tab.active {
-  background: linear-gradient(
-    135deg,
-    var(--accent-soft),
-    color-mix(in srgb, var(--accent) 12%, transparent)
-  );
+  background: var(--accent-soft);
   border-color: color-mix(in srgb, var(--accent) 50%, transparent);
   color: var(--accent);
   font-weight: 600;
@@ -4915,11 +4733,7 @@ small {
 .chat-compose {
   padding: 8px 16px 10px;
   border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--surface) 82%, transparent),
-    var(--surface) 70%
-  );
+  background: transparent;
   backdrop-filter: blur(18px) saturate(1.3);
   -webkit-backdrop-filter: blur(18px) saturate(1.3);
   flex-shrink: 0;
@@ -4942,11 +4756,7 @@ small {
   flex-direction: column;
   border: 1px solid color-mix(in srgb, var(--border) 90%, var(--text) 3%);
   border-radius: var(--radius-lg);
-  background: linear-gradient(
-    180deg,
-    var(--surface-2),
-    color-mix(in srgb, var(--surface-2) 65%, var(--surface) 35%)
-  );
+  background: var(--surface-2);
   transition:
     border-color 0.25s ease,
     box-shadow 0.25s ease,
@@ -5039,7 +4849,7 @@ small {
 }
 .compose-action-btn.send-btn.active,
 .compose-action-btn.send-btn:not(:disabled) {
-  background: linear-gradient(150deg, var(--accent-bright), var(--accent));
+  background: var(--accent);
   color: var(--accent-text);
   border-color: transparent;
   box-shadow: 0 5px 16px -5px color-mix(in srgb, var(--accent) 90%, transparent);
@@ -5128,21 +4938,13 @@ small {
     var(--shadow-3),
     0 24px 70px -40px color-mix(in srgb, var(--accent) 50%, transparent);
   border: 1px solid color-mix(in srgb, var(--border) 92%, var(--accent) 8%);
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--surface) 98%, var(--accent) 2%),
-    var(--surface) 20%
-  );
+  background: color-mix(in srgb, var(--surface) 98%, var(--accent) 2%);
 }
 .panel-tab-header {
   display: flex;
   align-items: center;
   border-bottom: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
-  background: linear-gradient(
-    180deg,
-    var(--surface-2),
-    color-mix(in srgb, var(--surface-2) 60%, var(--surface))
-  );
+  background: var(--surface-2);
   padding: 7px;
   gap: 7px;
   flex-shrink: 0;
@@ -5184,11 +4986,7 @@ small {
 .panel-tab-btn.action-tab.active {
   color: var(--accent);
   border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
-  background: linear-gradient(
-    135deg,
-    var(--accent-soft),
-    color-mix(in srgb, var(--accent) 10%, transparent)
-  );
+  background: var(--accent-soft);
   box-shadow: 0 4px 16px -6px color-mix(in srgb, var(--accent) 45%, transparent);
 }
 .action-zap {
@@ -5234,11 +5032,7 @@ small {
 .builder-head {
   padding: 14px 18px 12px;
   border-bottom: 1px solid var(--border);
-  background: linear-gradient(
-    180deg,
-    var(--surface-2),
-    color-mix(in srgb, var(--surface-2) 70%, var(--surface))
-  );
+  background: var(--surface-2);
   flex-shrink: 0;
 }
 .builder-head h3 {
@@ -5370,11 +5164,7 @@ small {
   overflow-y: auto;
   overscroll-behavior: contain;
   padding: 12px;
-  background: radial-gradient(
-    circle at top right,
-    color-mix(in srgb, var(--accent) 3%, transparent),
-    transparent 40%
-  );
+  background: transparent;
 }
 .momence-action-center {
   display: flex;
@@ -5395,11 +5185,7 @@ small {
   box-shadow: 0 2px 8px -2px rgba(0, 0, 0, 0.08);
 }
 .member-identity-card {
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--surface-2) 90%, var(--accent-soft) 10%),
-    var(--surface-2)
-  );
+  background: color-mix(in srgb, var(--surface-2) 90%, var(--accent-soft) 10%);
   border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--border));
 }
 .member-identity-header {
@@ -5971,11 +5757,7 @@ small {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--accent-soft) 85%, var(--surface)),
-    color-mix(in srgb, var(--accent) 8%, var(--surface))
-  );
+  background: color-mix(in srgb, var(--accent-soft) 85%, var(--surface));
   border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
   border-radius: var(--radius-md);
   padding: 10px 14px;
@@ -5988,12 +5770,7 @@ small {
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(
-    100deg,
-    transparent,
-    color-mix(in srgb, var(--accent-bright) 10%, transparent),
-    transparent
-  );
+  background: transparent;
   opacity: 0.6;
   pointer-events: none;
 }
@@ -6616,13 +6393,7 @@ small {
   content: "";
   position: absolute;
   inset: 0;
-  background: repeating-linear-gradient(
-    135deg,
-    transparent,
-    transparent 26px,
-    color-mix(in srgb, var(--accent) 4%, transparent) 26px,
-    color-mix(in srgb, var(--accent) 4%, transparent) 27px
-  );
+  background: transparent;
   pointer-events: none;
   opacity: 0.5;
 }
@@ -7032,11 +6803,7 @@ small {
   z-index: var(--z-raised);
   pointer-events: none;
   border-radius: inherit;
-  background: linear-gradient(
-    180deg,
-    transparent 46%,
-    color-mix(in srgb, var(--bg) 62%, transparent)
-  );
+  background: transparent;
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--white) 16%, transparent);
 }
 .tr-portrait:hover .trainer-photo-lg {
@@ -7046,7 +6813,7 @@ small {
 .tr-portrait[data-empty="true"] {
   display: grid;
   place-items: center;
-  background: linear-gradient(150deg, var(--accent-soft), var(--surface-3));
+  background: var(--accent-soft);
 }
 .tr-portrait-initials {
   position: relative;
@@ -7592,11 +7359,7 @@ small {
 
 /* 1. Top Telemetry Banner */
 .radar-telemetry-banner {
-  background: linear-gradient(
-    135deg,
-    var(--surface-2),
-    color-mix(in srgb, var(--surface-2) 90%, var(--accent-soft) 10%)
-  );
+  background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 14px 18px;
@@ -7968,11 +7731,7 @@ small {
 .floorplan-heatmap-container {
   position: relative;
   overflow: hidden;
-  background: linear-gradient(
-    160deg,
-    color-mix(in srgb, var(--surface-2) 94%, var(--accent) 6%),
-    var(--surface-2)
-  );
+  background: color-mix(in srgb, var(--surface-2) 94%, var(--accent) 6%);
   border: 1px solid var(--border);
   border-radius: var(--radius-xl);
   padding: 18px;
@@ -8038,11 +7797,7 @@ small {
   padding: 24px 20px 31px;
   border: 1px solid color-mix(in srgb, var(--border) 78%, var(--accent) 22%);
   border-radius: var(--radius-xl);
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--surface) 92%, var(--accent) 8%),
-    var(--surface)
-  );
+  background: color-mix(in srgb, var(--surface) 92%, var(--accent) 8%);
   box-shadow:
     inset 0 0 0 5px color-mix(in srgb, var(--surface-3) 76%, transparent),
     inset 0 0 34px color-mix(in srgb, var(--text) 5%, transparent),
@@ -8053,9 +7808,7 @@ small {
   content: "";
   position: absolute;
   inset: 0;
-  background-image:
-    linear-gradient(color-mix(in srgb, var(--border) 34%, transparent) 1px, transparent 1px),
-    linear-gradient(90deg, color-mix(in srgb, var(--border) 34%, transparent) 1px, transparent 1px);
+  background-image: none;
   background-size: 24px 24px;
   opacity: 0.5;
   pointer-events: none;
@@ -8089,11 +7842,7 @@ small {
   appearance: none;
   position: relative;
   height: 100%;
-  background: linear-gradient(
-    145deg,
-    var(--surface),
-    color-mix(in srgb, var(--surface-2) 80%, var(--surface))
-  );
+  background: var(--surface);
   border: 2px solid color-mix(in srgb, var(--border) 82%, var(--text) 18%);
   border-radius: var(--radius-2xs);
   padding: 18px 14px 13px;
@@ -8163,19 +7912,11 @@ small {
 }
 .room-radar-card.warning {
   border-left: 3.5px solid var(--amber);
-  background: linear-gradient(
-    135deg,
-    var(--surface),
-    color-mix(in srgb, var(--amber-bg) 35%, var(--surface))
-  );
+  background: var(--surface);
 }
 .room-radar-card.critical {
   border-left: 3.5px solid var(--red);
-  background: linear-gradient(
-    135deg,
-    var(--surface),
-    color-mix(in srgb, var(--red-bg) 40%, var(--surface))
-  );
+  background: var(--surface);
   border-color: color-mix(in srgb, var(--red) 40%, var(--border));
 }
 
@@ -8922,21 +8663,13 @@ small {
   background: var(--border-strong);
 }
 .priority-edge-critical:before {
-  background: linear-gradient(180deg, var(--red), color-mix(in srgb, var(--red) 40%, transparent));
+  background: var(--red);
 }
 .priority-edge-high:before {
-  background: linear-gradient(
-    180deg,
-    var(--amber),
-    color-mix(in srgb, var(--amber) 40%, transparent)
-  );
+  background: var(--amber);
 }
 .priority-edge-medium:before {
-  background: linear-gradient(
-    180deg,
-    var(--accent),
-    color-mix(in srgb, var(--accent) 35%, transparent)
-  );
+  background: var(--accent);
 }
 .ticket-card-who {
   display: flex;
@@ -9214,19 +8947,19 @@ small {
   mask-image: linear-gradient(205deg, var(--black) 20%, transparent 82%);
 }
 .draft-document[data-tone="red"] .draft-cover {
-  background: linear-gradient(120deg, var(--red-bg), var(--surface));
+  background: var(--red-bg);
 }
 .draft-document[data-tone="amber"] .draft-cover {
-  background: linear-gradient(120deg, var(--amber-bg), var(--surface));
+  background: var(--amber-bg);
 }
 .draft-document[data-tone="green"] .draft-cover {
-  background: linear-gradient(120deg, var(--green-bg), var(--surface));
+  background: var(--green-bg);
 }
 .draft-document[data-tone="purple"] .draft-cover {
-  background: linear-gradient(120deg, var(--purple-bg), var(--surface));
+  background: var(--purple-bg);
 }
 .draft-document[data-tone="blue"] .draft-cover {
-  background: linear-gradient(120deg, var(--blue-bg), var(--surface));
+  background: var(--blue-bg);
 }
 .draft-sentiment {
   display: flex;
@@ -9360,11 +9093,7 @@ small {
   padding: 22px 24px 20px;
   border-radius: var(--radius-xl);
   overflow: hidden;
-  background: linear-gradient(
-    115deg,
-    color-mix(in srgb, var(--surface) 88%, var(--accent) 12%),
-    var(--surface) 62%
-  );
+  background: color-mix(in srgb, var(--surface) 88%, var(--accent) 12%);
   border: 1px solid var(--border);
 }
 .td-masthead-art {
@@ -10148,11 +9877,7 @@ small {
   padding: 28px;
   border-radius: var(--radius-2xl);
   overflow: hidden;
-  background: linear-gradient(
-    125deg,
-    color-mix(in srgb, var(--surface) 82%, var(--td-accent) 18%),
-    var(--surface-2) 62%
-  );
+  background: color-mix(in srgb, var(--surface) 82%, var(--td-accent) 18%);
   border: 1px solid color-mix(in srgb, var(--td-accent) 28%, var(--border));
   box-shadow:
     inset 0 1px 0 color-mix(in srgb, var(--text) 6%, transparent),
@@ -10165,17 +9890,7 @@ small {
   inset: -40%;
   width: 180%;
   height: 180%;
-  background:
-    radial-gradient(
-      circle at 20% 30%,
-      color-mix(in srgb, var(--td-accent) 18%, transparent) 0,
-      transparent 35%
-    ),
-    radial-gradient(
-      circle at 85% 80%,
-      color-mix(in srgb, var(--purple) 12%, transparent) 0,
-      transparent 30%
-    );
+  background: transparent;
   animation: td-glow-drift 12s ease-in-out infinite;
   pointer-events: none;
 }
@@ -10183,11 +9898,7 @@ small {
   content: "";
   position: absolute;
   inset: 0;
-  background-image: radial-gradient(
-    circle at 50% 50%,
-    color-mix(in srgb, var(--td-accent) 14%, transparent) 0,
-    transparent 60%
-  );
+  background-image: none;
   pointer-events: none;
   animation: td-pulse-glow 5s ease-in-out infinite;
 }
@@ -10330,7 +10041,7 @@ small {
 }
 .ticket-detail-shell .workspace-tabs button.active {
   color: var(--accent-text);
-  background: linear-gradient(150deg, var(--accent-bright), var(--accent-deep));
+  background: var(--accent);
   box-shadow: 0 6px 18px -6px color-mix(in srgb, var(--accent) 55%, transparent);
 }
 .ticket-detail-shell .workspace-tabs button span {
@@ -10488,11 +10199,7 @@ small {
   width: 34px;
   height: 34px;
   border-radius: var(--radius-md);
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--td-accent) 22%, var(--surface)),
-    color-mix(in srgb, var(--td-accent) 10%, var(--surface-2))
-  );
+  background: color-mix(in srgb, var(--td-accent) 22%, var(--surface));
   border: 1px solid color-mix(in srgb, var(--td-accent) 24%, var(--border));
   color: var(--td-accent);
   box-shadow: 0 0 16px -4px var(--td-glow);
@@ -10506,11 +10213,7 @@ small {
   --td-glow: color-mix(in srgb, var(--purple) 18%, transparent);
 }
 .ticket-detail-shell .td-block-raised {
-  background: linear-gradient(
-    180deg,
-    var(--surface),
-    color-mix(in srgb, var(--surface-2) 40%, var(--surface))
-  );
+  background: var(--surface);
   border-color: color-mix(in srgb, var(--td-accent) 22%, var(--border));
 }
 .ticket-detail-shell .td-narrative-tags {
@@ -10545,22 +10248,14 @@ small {
   position: relative;
   overflow: hidden;
   border-color: color-mix(in srgb, var(--accent) 28%, var(--border));
-  background: linear-gradient(
-    110deg,
-    color-mix(in srgb, var(--accent) 10%, var(--surface)),
-    color-mix(in srgb, var(--purple) 8%, var(--surface))
-  );
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
   box-shadow: 0 18px 50px -22px color-mix(in srgb, var(--accent) 28%, transparent);
 }
 .ticket-detail-shell .td-block-highlight::before {
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(
-    110deg,
-    transparent 60%,
-    color-mix(in srgb, var(--accent) 8%, transparent)
-  );
+  background: transparent;
   pointer-events: none;
 }
 .ticket-detail-shell .td-highlight-inner {
@@ -10576,7 +10271,7 @@ small {
   width: 46px;
   height: 46px;
   border-radius: var(--radius-lg);
-  background: linear-gradient(135deg, var(--accent-bright), var(--accent-deep));
+  background: var(--accent);
   color: var(--accent-text);
   box-shadow: 0 10px 28px -10px color-mix(in srgb, var(--accent) 55%, transparent);
 }
@@ -10875,7 +10570,7 @@ small {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: linear-gradient(180deg, var(--surface-2), var(--surface));
+  background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: var(--radius-2xl);
   overflow: hidden;
@@ -10889,11 +10584,7 @@ small {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: radial-gradient(
-    circle at 80% 10%,
-    color-mix(in srgb, var(--accent) 12%, transparent) 0,
-    transparent 35%
-  );
+  background: transparent;
   animation: td-glow-drift 14s ease-in-out infinite reverse;
 }
 
@@ -11066,7 +10757,7 @@ small {
 }
 .resolution-v2 .rw-tabs button.active {
   color: var(--accent-text);
-  background: linear-gradient(150deg, var(--accent-bright), var(--accent-deep));
+  background: var(--accent);
   box-shadow: 0 6px 16px -6px color-mix(in srgb, var(--accent) 50%, transparent);
 }
 .resolution-v2 .rw-tabs button i {
@@ -11659,7 +11350,7 @@ small {
   box-shadow: 0 4px 14px -6px color-mix(in srgb, var(--accent) 65%, transparent);
 }
 .tf-open .tf-toggle {
-  background: linear-gradient(150deg, var(--accent-bright), var(--accent));
+  background: var(--accent);
   color: var(--accent-text);
   border-color: transparent;
 }
@@ -12057,7 +11748,7 @@ small {
   display: block;
   height: 100%;
   border-radius: var(--radius-pill);
-  background: linear-gradient(90deg, var(--accent-deep), var(--accent-bright));
+  background: var(--accent);
   animation: mc-grow 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 @keyframes mc-grow {
@@ -12087,11 +11778,7 @@ small {
 .board-telemetry {
   border: 1px solid var(--border);
   border-radius: var(--radius-xl);
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--surface-2) 90%, transparent),
-    var(--surface)
-  );
+  background: transparent;
   overflow: hidden;
   position: relative;
   margin-bottom: 16px;
@@ -12102,9 +11789,7 @@ small {
   inset: 0;
   pointer-events: none;
   opacity: 0.55;
-  background-image:
-    linear-gradient(color-mix(in srgb, var(--border) 60%, transparent) 1px, transparent 1px),
-    linear-gradient(90deg, color-mix(in srgb, var(--border) 60%, transparent) 1px, transparent 1px);
+  background-image: none;
   background-size: 26px 26px;
   mask-image: linear-gradient(180deg, var(--black), transparent 75%);
 }
@@ -12223,7 +11908,7 @@ small {
 .bt-bar {
   width: 4px;
   border-radius: 2px;
-  background: linear-gradient(180deg, var(--accent-bright), var(--accent-deep));
+  background: var(--accent);
   display: block;
 }
 .bt-chips {
@@ -12309,11 +11994,7 @@ small {
 }
 .mc-back {
   transform: rotateY(180deg);
-  background: linear-gradient(
-    155deg,
-    var(--surface),
-    color-mix(in srgb, var(--accent) 7%, var(--surface))
-  );
+  background: var(--surface);
 }
 .mc-card:hover .mc-face,
 .mc-card:focus-visible .mc-face {
@@ -12325,9 +12006,7 @@ small {
   inset: 0;
   pointer-events: none;
   opacity: 0.5;
-  background-image:
-    linear-gradient(color-mix(in srgb, var(--border) 55%, transparent) 1px, transparent 1px),
-    linear-gradient(90deg, color-mix(in srgb, var(--border) 55%, transparent) 1px, transparent 1px);
+  background-image: none;
   background-size: 18px 18px;
   mask-image: radial-gradient(120% 90% at 100% 0%, var(--black), transparent 72%);
 }
@@ -12514,11 +12193,7 @@ small {
   font-weight: 600;
   padding: 11px 13px;
   border-bottom: 1px solid var(--border);
-  background: linear-gradient(
-    180deg,
-    var(--surface),
-    color-mix(in srgb, var(--surface-2) 70%, var(--surface))
-  );
+  background: var(--surface);
 }
 .ticket-grid tbody td {
   border-bottom: 1px solid color-mix(in srgb, var(--border) 62%, transparent);
@@ -12672,8 +12347,7 @@ small {
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
   border-radius: var(--radius-xl);
-  background:
-    linear-gradient(112deg, color-mix(in srgb, var(--accent) 13%, var(--surface)) 0%, var(--surface) 48%, color-mix(in srgb, var(--purple) 8%, var(--surface-2)) 100%);
+  background: color-mix(in srgb, var(--accent) 13%, var(--surface));
   box-shadow:
     0 30px 80px -42px color-mix(in srgb, var(--accent) 48%, transparent),
     var(--highlight-inset);
@@ -12683,9 +12357,7 @@ small {
   position: absolute;
   z-index: -1;
   inset: 0;
-  background-image:
-    linear-gradient(color-mix(in srgb, var(--accent) 5%, transparent) 1px, transparent 1px),
-    linear-gradient(90deg, color-mix(in srgb, var(--accent) 5%, transparent) 1px, transparent 1px);
+  background-image: none;
   background-size: 34px 34px;
   mask-image: linear-gradient(90deg, black, transparent 68%);
   pointer-events: none;
@@ -12862,12 +12534,7 @@ small {
   box-shadow:
     0 24px 60px -30px color-mix(in srgb, var(--accent) 35%, transparent),
     inset 0 1px 0 color-mix(in srgb, var(--text) 6%, transparent);
-  background: linear-gradient(
-    115deg,
-    color-mix(in srgb, var(--accent) 10%, var(--surface)),
-    var(--surface-2) 55%,
-    color-mix(in srgb, var(--purple) 8%, var(--surface))
-  );
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
   border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--border));
   transition:
     transform 0.25s cubic-bezier(0.16, 1, 0.3, 1),
@@ -12913,11 +12580,7 @@ small {
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   overflow: hidden;
-  background: linear-gradient(
-    110deg,
-    color-mix(in srgb, var(--surface-2) 94%, var(--accent) 6%),
-    var(--surface)
-  );
+  background: color-mix(in srgb, var(--surface-2) 94%, var(--accent) 6%);
   box-shadow: var(--shadow-2), var(--highlight-inset);
 }
 .focus-rail-intro {
@@ -13135,9 +12798,7 @@ small {
   width: min(42vw, 560px);
   height: 360px;
   opacity: 0.5;
-  background:
-    radial-gradient(circle at 72% 35%, color-mix(in srgb, var(--accent) 19%, transparent), transparent 34%),
-    repeating-radial-gradient(circle at 72% 35%, color-mix(in srgb, var(--accent) 13%, transparent) 0 1px, transparent 1px 28px);
+  background: transparent;
   mask-image: linear-gradient(135deg, black, transparent 78%);
 }
 .cockpit-canvas::after {
@@ -13147,7 +12808,7 @@ small {
   height: 180px;
   border-left: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
   border-bottom: 1px solid color-mix(in srgb, var(--accent) 12%, transparent);
-  background-image: radial-gradient(color-mix(in srgb, var(--accent) 38%, transparent) 1px, transparent 1px);
+  background-image: none;
   background-size: 14px 14px;
   mask-image: linear-gradient(135deg, black, transparent 72%);
 }
@@ -13157,7 +12818,7 @@ small {
   overflow: hidden;
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  background: linear-gradient(112deg, color-mix(in srgb, var(--surface-2) 94%, var(--accent) 6%), var(--surface));
+  background: color-mix(in srgb, var(--surface-2) 94%, var(--accent) 6%);
   box-shadow: var(--shadow-2), var(--highlight-inset);
 }
 .cockpit-signal-deck::after {
@@ -13168,7 +12829,7 @@ small {
   width: 54px;
   height: 7px;
   opacity: 0.7;
-  background: repeating-linear-gradient(90deg, var(--accent) 0 2px, transparent 2px 6px);
+  background: transparent;
   mask-image: linear-gradient(90deg, transparent, black);
   pointer-events: none;
 }
@@ -13264,7 +12925,7 @@ small {
   padding: 17px 18px;
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  background: linear-gradient(155deg, var(--surface), color-mix(in srgb, var(--accent) 3%, var(--surface-2)));
+  background: var(--surface);
   box-shadow: var(--shadow-2), var(--highlight-inset);
 }
 .cockpit-right-sidebar .insights-widget::before {
@@ -13392,11 +13053,11 @@ small {
 .template-field-wrap > .ifield-skip { position: absolute; top: 0; right: 0; z-index: 2; }
 .template-field-wrap.skipped { min-height: 72px; padding-top: 34px; }
 .momence-enrichment { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 1px; margin-bottom: 14px; border: 1px solid var(--hairline); border-radius: var(--radius-lg); overflow: hidden; background: var(--hairline); }
-.momence-enrichment > div { padding: 14px 16px; background: linear-gradient(135deg, var(--surface), color-mix(in srgb, var(--surface-2) 88%, var(--accent) 12%)); }
+.momence-enrichment > div { padding: 14px 16px; background: var(--surface); }
 .momence-enrichment span { display: flex; align-items: center; gap: 6px; color: var(--accent); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; }
 .momence-enrichment strong { display: block; margin-top: 7px; font-size: 13px; }
 .momence-enrichment p, .momence-enrichment small { display: block; margin-top: 4px; color: var(--muted); font-size: 10.5px; line-height: 1.5; }
-.intake-evidence-panel { margin-top: 14px; padding: 15px 16px; border: 1px solid var(--hairline); border-radius: var(--radius-lg); background: linear-gradient(125deg, var(--surface), color-mix(in srgb, var(--surface-2) 90%, var(--purple) 10%)); }
+.intake-evidence-panel { margin-top: 14px; padding: 15px 16px; border: 1px solid var(--hairline); border-radius: var(--radius-lg); background: var(--surface); }
 .intake-evidence-panel > div:first-child { display: flex; align-items: flex-start; gap: 10px; }
 .intake-evidence-panel strong { display: block; font-size: 12px; }
 .intake-evidence-panel p { margin: 3px 0 0; color: var(--muted); font-size: 10.5px; }
@@ -13409,7 +13070,7 @@ small {
 .equipment-table tbody tr:focus-visible, .asset-card:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .eq-name-button { padding: 0; border: 0; background: none; color: var(--text); font: inherit; font-weight: 650; cursor: pointer; text-align: left; }
 .eq-name-button:hover { color: var(--accent); }
-.eq-detail-hero { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 18px; padding: 18px; border: 1px solid var(--hairline); border-radius: var(--radius-lg); background: linear-gradient(125deg, var(--surface-2), color-mix(in srgb, var(--surface) 80%, var(--accent) 20%)); }
+.eq-detail-hero { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 18px; padding: 18px; border: 1px solid var(--hairline); border-radius: var(--radius-lg); background: var(--surface-2); }
 .eq-detail-hero h3 { margin: 5px 0 10px; font-size: 22px; }
 .eq-detail-health { min-width: 110px; padding-left: 18px; border-left: 1px solid var(--hairline); text-align: right; }
 .eq-detail-health strong, .eq-detail-health span, .eq-detail-health small { display: block; }
@@ -13430,7 +13091,7 @@ small {
 .owner-rank.rank-2 { color: #4c5866; background: #dce3ea; }
 .owner-rank.rank-3 { color: #704626; background: #e7c09f; }
 
-.draft-signal-panel { margin-bottom: 14px; padding: 16px 18px; border: 1px solid var(--hairline); border-radius: var(--radius-lg); background: linear-gradient(130deg, color-mix(in srgb, var(--surface-2) 90%, var(--accent) 10%), var(--surface)); }
+.draft-signal-panel { margin-bottom: 14px; padding: 16px 18px; border: 1px solid var(--hairline); border-radius: var(--radius-lg); background: color-mix(in srgb, var(--surface-2) 90%, var(--accent) 10%); }
 .draft-signal-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 14px; }
 .draft-signal-head h3 { margin: 4px 0 0; font-size: 15px; }
 .draft-signal-head > small { max-width: 260px; color: var(--muted); font-size: 9.5px; text-align: right; }
@@ -13439,7 +13100,7 @@ small {
 .draft-signal-grid b { font-weight: 600; }
 .draft-signal-grid em { color: var(--muted); font-style: normal; font-variant-numeric: tabular-nums; }
 .draft-signal-grid i { display: block; height: 5px; margin-top: 7px; overflow: hidden; border-radius: 999px; background: var(--surface-3); }
-.draft-signal-grid u { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg,var(--accent),var(--purple)); text-decoration: none; }
+.draft-signal-grid u { display: block; height: 100%; border-radius: inherit; background: var(--accent); text-decoration: none; }
 
 /* A contiguous architectural plan: rooms share walls and a central circulation spine. */
 .floorplan-stage { padding: 30px; border: 1px solid var(--hairline-strong); background-color: transparent; }
@@ -13504,12 +13165,7 @@ small {
   transform: translateY(-1px);
 }
 .sidebar.collapsed .nav-link.active {
-  background:
-    linear-gradient(
-      145deg,
-      color-mix(in srgb, var(--accent) 22%, var(--surface-2)),
-      color-mix(in srgb, var(--accent) 8%, var(--surface-2))
-    );
+  background: color-mix(in srgb, var(--accent) 22%, var(--surface-2));
   box-shadow:
     inset 0 1px 1px color-mix(in srgb, var(--accent) 30%, transparent),
     inset 0 -1px 1px color-mix(in srgb, rgb(0 0 0) 14%, transparent),
@@ -13610,12 +13266,7 @@ small {
 }
 .sidebar.collapsed:hover .nav-link.active,
 .sidebar.collapsed:focus-within .nav-link.active {
-  background:
-    linear-gradient(
-      135deg,
-      color-mix(in srgb, var(--accent) 18%, transparent),
-      color-mix(in srgb, var(--accent) 5%, transparent)
-    );
+  background: transparent;
   box-shadow:
     inset 0 1px 1px color-mix(in srgb, var(--accent) 25%, transparent),
     inset 0 -1px 1px color-mix(in srgb, rgb(0 0 0) 12%, transparent),
@@ -13715,7 +13366,7 @@ small {
   box-shadow: 0 40px 120px -28px rgb(0 0 0 / 0.58), inset 0 1px 0 color-mix(in srgb, var(--text) 7%, transparent);
 }
 :root:not([data-theme="light"]) .dialog-content:has(.ticket-detail-shell) {
-  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 94%, #171b30 6%), var(--surface));
+  background: color-mix(in srgb, var(--surface) 94%, #171b30 6%);
 }
 .dialog-content:has(.ticket-detail-shell)::before {
   content: "";
@@ -13723,7 +13374,7 @@ small {
   z-index: 3;
   inset: 0 14% auto;
   height: 2px;
-  background: linear-gradient(90deg, transparent, var(--purple), var(--accent), transparent);
+  background: transparent;
   pointer-events: none;
 }
 .dialog-content:has(.ticket-detail-shell) > .dialog-head {
@@ -14166,20 +13817,19 @@ small {
 }
 [data-theme="light"] .overview-command-deck {
   border-color: color-mix(in srgb, var(--accent) 35%, #b8d4ff);
-  background:
-    linear-gradient(112deg, rgb(219 242 255 / 0.94) 0%, rgb(244 249 255 / 0.97) 48%, rgb(237 229 255 / 0.92) 100%);
+  background: rgb(219 242 255 / 0.94);
   box-shadow: 0 28px 70px -38px rgb(30 92 210 / 0.38), inset 0 1px 0 rgb(255 255 255 / 0.95);
 }
 [data-theme="light"] .cockpit-signal-deck {
   border-color: #cddbf1;
-  background: linear-gradient(115deg, rgb(236 248 255 / 0.96), #ffffff 52%, rgb(245 239 255 / 0.94));
+  background: rgb(236 248 255 / 0.96);
 }
 [data-theme="light"] .cc-overview .metric-grid-8 {
   background: #d7e2f2;
   border-color: #cbd9ee;
 }
 [data-theme="light"] .cc-overview .mc-face {
-  background: linear-gradient(155deg, #ffffff, #f7faff);
+  background: #ffffff;
 }
 /* The light- and dark-theme sidebar overrides that used to live here have been
    removed. They were written before the rail was restyled and, being scoped to
@@ -14299,10 +13949,7 @@ small {
   padding: 0 4px;
 }
 .resolution-v2 .rw-body {
-  background:
-    linear-gradient(color-mix(in srgb, var(--border) 38%, transparent) 1px, transparent 1px),
-    linear-gradient(90deg, color-mix(in srgb, var(--border) 38%, transparent) 1px, transparent 1px),
-    color-mix(in srgb, var(--surface-2) 78%, var(--surface));
+  background: color-mix(in srgb, var(--surface-2) 78%, var(--surface));
   background-size: 22px 22px, 22px 22px, auto;
 }
 .resolution-v2 .rw-write,
@@ -14319,9 +13966,7 @@ small {
   max-height: 94dvh;
   border-color: color-mix(in srgb, var(--accent) 18%, var(--border));
   border-radius: var(--radius-2xl);
-  background:
-    radial-gradient(circle at 92% 2%, color-mix(in srgb, var(--accent) 8%, transparent), transparent 24%),
-    var(--surface);
+  background: var(--surface);
   box-shadow: 0 42px 120px -38px rgba(0, 0, 0, 0.62), var(--highlight-inset);
 }
 .dialog-content:has(.ticket-detail-shell) .dialog-head {
@@ -14331,9 +13976,7 @@ small {
   backdrop-filter: blur(18px) saturate(1.2);
 }
 [data-theme="light"] .dialog-content:has(.ticket-detail-shell) {
-  background:
-    radial-gradient(circle at 94% 0%, rgb(79 132 255 / 0.13), transparent 27%),
-    linear-gradient(145deg, #ffffff, #f5f9ff 64%, #faf7ff);
+  background: #ffffff;
   box-shadow: 0 42px 110px -42px rgb(26 60 120 / 0.42), inset 0 1px 0 #fff;
 }
 
@@ -14494,9 +14137,7 @@ small {
 .ticket-detail-dialog .ticket-detail-shell { background: var(--surface-2); }
 .ticket-detail-dialog .ticket-detail-shell .td-masthead {
   padding: 24px 28px 20px;
-  background:
-    linear-gradient(90deg, color-mix(in srgb, var(--td-accent) 8%, var(--surface)), transparent 62%),
-    var(--surface);
+  background: var(--surface);
 }
 .ticket-detail-dialog .td-title-row { align-items: flex-start; gap: 24px; }
 .ticket-detail-dialog .td-modal-title {
@@ -14718,7 +14359,7 @@ small {
   padding: 13px 15px;
   border-radius: var(--radius-md);
   border: 1px solid color-mix(in srgb, var(--green) 26%, var(--border));
-  background: linear-gradient(110deg, var(--green-bg), var(--surface-2));
+  background: var(--green-bg);
 }
 .reporter-lock small {
   display: block;
@@ -14751,12 +14392,7 @@ small {
   overflow: hidden;
   isolation: isolate;
   padding: 30px 32px 25px;
-  background: linear-gradient(
-    118deg,
-    color-mix(in srgb, var(--accent) 13%, var(--surface)),
-    var(--surface) 62%,
-    color-mix(in srgb, var(--purple) 8%, var(--surface))
-  );
+  background: color-mix(in srgb, var(--accent) 13%, var(--surface));
 }
 .draft-cover h2 {
   font-size: 28px;
@@ -14859,7 +14495,7 @@ small {
   border: 1px solid var(--border);
   padding: 15px;
   border-radius: var(--radius-md);
-  background: linear-gradient(110deg, var(--surface-2), var(--accent-soft));
+  background: var(--surface-2);
   border-color: color-mix(in srgb, var(--accent) 22%, var(--border));
 }
 @media (max-width: 900px) {
@@ -14907,12 +14543,7 @@ small {
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--border));
   border-radius: var(--radius-xl);
-  background: linear-gradient(
-    120deg,
-    color-mix(in srgb, var(--accent) 10%, var(--surface)),
-    var(--surface) 58%,
-    color-mix(in srgb, var(--purple) 8%, var(--surface))
-  );
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
   box-shadow: var(--shadow-3), var(--highlight-inset);
 }
 .template-hero:after {
@@ -14923,7 +14554,7 @@ small {
   width: 340px;
   height: 340px;
   border-radius: 50%;
-  background: radial-gradient(circle, var(--accent-soft), transparent 68%);
+  background: transparent;
   pointer-events: none;
 }
 .template-hero-mark {
@@ -15006,7 +14637,7 @@ small {
   top: 0;
   bottom: 0;
   width: 3px;
-  background: linear-gradient(var(--accent-bright), var(--accent-deep));
+  background: var(--accent);
 }
 .template-card-top,
 .template-card-badges,
@@ -15155,11 +14786,7 @@ small {
   padding: 20px 22px;
   border: 1px solid color-mix(in srgb, var(--border) 84%, var(--accent) 16%);
   border-radius: var(--radius-xl);
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--accent) 5%, var(--surface)),
-    var(--surface) 42%
-  );
+  background: color-mix(in srgb, var(--accent) 5%, var(--surface));
   box-shadow: var(--shadow-1);
 }
 .saved-drafts-head {
@@ -15210,7 +14837,7 @@ small {
   background: var(--surface-3);
 }
 .draft-capacity-dots i.used {
-  background: linear-gradient(90deg, var(--accent-deep), var(--accent-bright));
+  background: var(--accent);
   box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 35%, transparent);
 }
 .saved-draft-grid {
@@ -15393,11 +15020,7 @@ small {
   width: 100%;
   height: 100%;
   color: var(--muted);
-  background-image: repeating-linear-gradient(
-    135deg,
-    transparent 0 5px,
-    color-mix(in srgb, var(--border) 70%, transparent) 5px 6px
-  );
+  background-image: none;
 }
 .eq-thumb[data-category="Cardio"] .eq-thumb-placeholder {
   color: var(--accent);
@@ -15560,7 +15183,7 @@ small {
 }
 .td-tabs-row .rail-toggle.active {
   color: var(--accent-text);
-  background: linear-gradient(150deg, var(--accent-bright), var(--accent-deep));
+  background: var(--accent);
   box-shadow: 0 6px 18px -6px color-mix(in srgb, var(--accent) 55%, transparent);
 }
 .td-tabs-row .rail-toggle.active span {
@@ -15596,7 +15219,7 @@ small {
   border-radius: var(--radius-sm);
   pointer-events: none;
   z-index: var(--z-base);
-  background: linear-gradient(168deg, var(--accent-bright), var(--accent) 60%, var(--accent-deep));
+  background: var(--accent);
   box-shadow:
     0 3px 12px -4px color-mix(in srgb, var(--accent) 60%, transparent),
     inset 0 1px 0 color-mix(in srgb, var(--white) 26%, transparent);
@@ -15692,7 +15315,7 @@ small {
   height: 2px;
   width: var(--tab-w, 0);
   border-radius: 2px 2px 0 0;
-  background: linear-gradient(90deg, var(--accent-deep), var(--accent-bright));
+  background: var(--accent);
   box-shadow: 0 0 12px -1px color-mix(in srgb, var(--accent) 65%, transparent);
 }
 .tabs-underline .tab {
@@ -16109,11 +15732,7 @@ small {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: radial-gradient(
-    58% 48% at 50% 34%,
-    color-mix(in srgb, var(--accent) 7%, transparent),
-    transparent 72%
-  );
+  background: transparent;
 }
 .empty-state > * {
   position: relative;
@@ -16297,7 +15916,7 @@ small {
   display: block;
   width: 56px;
   height: 56px;
-  background: linear-gradient(150deg, var(--accent-bright), var(--accent-deep));
+  background: var(--accent);
   box-shadow:
     var(--shadow-2),
     inset 0 1px 0 color-mix(in srgb, var(--white) 26%, transparent);
@@ -16306,11 +15925,7 @@ small {
   display: block;
   height: 26px;
   border-radius: var(--radius-2xs);
-  background: linear-gradient(
-    90deg,
-    color-mix(in srgb, var(--accent) 70%, transparent),
-    color-mix(in srgb, var(--purple) 60%, transparent)
-  );
+  background: transparent;
   min-width: 4px;
 }
 .ds-shadow-demo {
@@ -16372,7 +15987,7 @@ small {
   height: 7px;
   width: 26px;
   border-radius: var(--radius-pill);
-  background: linear-gradient(90deg, var(--accent-deep), var(--accent-bright));
+  background: var(--accent);
   box-shadow: 0 0 10px -2px color-mix(in srgb, var(--accent) 60%, transparent);
   animation: ds-duration-run 2.4s infinite alternate;
 }
@@ -16592,11 +16207,7 @@ small {
   align-items: center;
   justify-content: space-between;
   gap: 20px;
-  background: linear-gradient(
-    120deg,
-    color-mix(in srgb, var(--accent) 8%, var(--surface)),
-    var(--surface) 45%
-  );
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
 }
 .fb-head h2 {
   font-size: 22px;
@@ -16976,11 +16587,7 @@ small {
   border: 1px solid var(--border);
   border-radius: var(--radius-xl);
   box-shadow: none;
-  background: linear-gradient(
-    115deg,
-    color-mix(in srgb, var(--surface-2) 70%, var(--surface)),
-    var(--surface) 70%
-  );
+  background: color-mix(in srgb, var(--surface-2) 70%, var(--surface));
 }
 .dialog-content .ticket-detail-shell .td-masthead::before {
   content: "";
@@ -17512,12 +17119,7 @@ small {
   padding: 22px 24px;
   border: 1px solid var(--hairline-strong);
   border-radius: var(--radius-lg);
-  background:
-    linear-gradient(
-      118deg,
-      color-mix(in srgb, var(--accent) 7%, var(--surface)) 0%,
-      var(--surface) 46%
-    );
+  background: color-mix(in srgb, var(--accent) 7%, var(--surface));
 }
 .dialog-content .ticket-detail-shell .td-masthead-body {
   align-self: center;
@@ -17691,7 +17293,7 @@ small {
   padding: 16px 18px;
   overflow: hidden;
   border-color: color-mix(in srgb, var(--purple) 26%, var(--border));
-  background: linear-gradient(125deg, color-mix(in srgb, var(--purple) 8%, var(--surface)), color-mix(in srgb, var(--accent) 5%, var(--surface)));
+  background: color-mix(in srgb, var(--purple) 8%, var(--surface));
 }
 .ticket-detail-dialog .td-outcome-card::before {
   content: "";
@@ -17718,7 +17320,7 @@ small {
   --sla-tone: var(--accent);
   padding: 17px;
   border-bottom: 1px solid var(--hairline);
-  background: linear-gradient(145deg, color-mix(in srgb, var(--purple) 8%, var(--surface)), color-mix(in srgb, var(--accent) 5%, var(--surface)));
+  background: color-mix(in srgb, var(--purple) 8%, var(--surface));
 }
 .ticket-detail-dialog .td-resolution-summary[data-sla="soon"] { --sla-tone: var(--amber); }
 .ticket-detail-dialog .td-resolution-summary[data-sla="breached"] { --sla-tone: var(--red); }
@@ -18289,7 +17891,7 @@ small {
 .ticket-detail-dialog .ticket-detail-shell { background: var(--surface-2); }
 .ticket-detail-dialog .ticket-detail-shell .td-masthead {
   padding: 24px 28px 20px;
-  background: linear-gradient(90deg, color-mix(in srgb, var(--td-accent) 8%, var(--surface)), transparent 62%), var(--surface);
+  background: var(--surface);
 }
 .ticket-detail-dialog .ticket-detail-shell .td-overview {
   grid-template-columns: minmax(0, 1.55fr) minmax(290px, 1fr);

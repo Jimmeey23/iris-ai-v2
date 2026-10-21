@@ -1,5 +1,6 @@
 "use client";
 
+import { simpleLanguage } from "@/lib/plain-language";
 import { useState, useEffect, useMemo, useCallback, useRef, useSyncExternalStore, type CSSProperties } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -726,7 +727,7 @@ export function StudioOpsRadar({ initialStudio = 'kwality' }: { initialStudio?: 
                         </div>
 
                         <strong className="ticket-title-text">{t.title}</strong>
-                        <p className="ticket-category-sub">{t.category} → {t.subcategory}</p>
+                        <p className="ticket-category-sub">{simpleLanguage(t.category)} → {simpleLanguage(t.subcategory)}</p>
 
                         {t.slaDueAt && <TicketSla ticket={t} />}
 

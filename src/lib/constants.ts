@@ -206,6 +206,8 @@ export const AREA_ALIASES: Record<string, string> = {
   "main floor": "Main studio floor",
   "reception": "Reception / lobby",
   "reception / lobby": "Reception / lobby",
+  "lobby / reception": "Reception / lobby",
+  "front desk": "Reception / lobby",
   "locker rooms": "Locker room",
   "changing room": "Lockers & Changing",
   "changing rooms": "Lockers & Changing",
@@ -215,16 +217,12 @@ export const AREA_ALIASES: Record<string, string> = {
 };
 
 /** Areas every site has, offered in addition to the rooms that studio's own plan lists. */
+// Only places every site really has. Rooms such as a lounge, boutique or showers come from
+// that studio's own plan, so a Kenkere ticket is not offered a lounge it does not have.
 const COMMON_STUDIO_AREAS = [
-  "Main studio floor",
   "Reception / lobby",
-  "Locker room",
-  "Showers / washroom",
-  "Member lounge",
-  "Boutique",
-  "Parking / valet",
-  "Back office",
   "Staircase / corridor",
+  "Parking / valet",
 ] as const;
 
 /** True for a string that names a site we hold a room plan for. `getStudioRoomsForStudio`

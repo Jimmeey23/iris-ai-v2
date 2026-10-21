@@ -155,7 +155,9 @@ const calculatedScore=template?scoreAssessment(template.fields,input.customField
 // `positiveNoSla` still governs praise, because that is what the setting is named for and
 // what an administrator who turns it off expects to change. Everything in RECORD_ONLY_KINDS
 // is record-only regardless: a comment is not work, whoever asks.
-const praise=input.kind==='compliment'||input.kind==='feedback'&&input.sentiment==='positive';
+// Only a compliment is praise. A positive sentiment on feedback (often a leftover from the
+// composer) once relabelled staff notes such as a cover-class record as "Member appreciation".
+const praise=input.kind==='compliment';
 // Member linkage informs context, never urgency or whether work is required.
 const clientInvolved=input.source!=='history'&&input.source!=='system'&&await involvesClient(input);
 if(clientInvolved)input.customFields.clientInvolved=true;
@@ -169,7 +171,7 @@ const studioShort=input.studio.split(',')[0].trim();
 // A title that reads on its own in a list. It used to be the taxonomy joined with middots,
 // which told a reader which drawer the ticket was in rather than what had happened; see
 // ticket-label.ts. Classification is still shown, as chips beside the label.
-const purposeTitle=/punctual|late arrival|arriv.*late/i.test(input.subcategory)&&input.category==='Trainer Feedback'?`Instructor late for class${input.trainer?' — '+input.trainer:''} · ${studioShort}`:isHostedClassTicket(input.category,input.subcategory)?`Hosted class report${input.classFormat?' — '+input.classFormat:''} · ${studioShort}`:undefined;
+const purposeTitle=/punctual|late arrival|arriv.*late/i.test(input.subcategory)&&input.category==='Trainer Feedback'?`Trainer late for class${input.trainer?' — '+input.trainer:''} · ${studioShort}`:isHostedClassTicket(input.category,input.subcategory)?`Hosted class report${input.classFormat?' — '+input.classFormat:''} · ${studioShort}`:undefined;
 const title=input.title?.trim()||purposeTitle||(cfg.labelStyle==='classification'
   // The older taxonomy title, kept for workspaces that prefer their rows filed by drawer.
   ? [praise?'Member appreciation':input.subcategory,input.classFormat?.split('+')[0].trim(),studioShort].filter(Boolean).join(' · ')

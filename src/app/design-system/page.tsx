@@ -765,7 +765,7 @@ export default function DesignSystemPage() {
   return (
     <Shell title="Design system" eyebrow="IRIS · VISUAL LANGUAGE" hideFooter
       action={<div className="flex-row">
-        <Badge tone={theme === "dark" ? "amber" : "blue"}>{theme === "dark" ? "Matte black & gold" : "Light"}</Badge>
+        <Badge tone={theme === "dark" ? "amber" : "blue"}>{theme === "dark" ? "Dark" : "Light"}</Badge>
         <ThemeToggle />
       </div>}>
       <div className="ds-page">

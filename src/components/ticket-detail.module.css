@@ -157,9 +157,7 @@
 .dialog:global(.ticket-detail-dialog) .shell :global(.td-hero) {
   position: relative;
   padding: 24px 32px 22px;
-  background:
-    radial-gradient(120% 140% at 100% 0%, color-mix(in srgb, var(--accent) 7%, transparent) 0%, transparent 55%),
-    var(--surface);
+  background: var(--surface);
   border-bottom: 1px solid var(--border);
 }
 .dialog:global(.ticket-detail-dialog) .shell :global(.td-hero-top) {
@@ -304,9 +302,7 @@
 
 /* ── Settled tickets read as settled ───────────────────────────────────────── */
 .dialog:global(.ticket-detail-dialog) .shell .hero[data-settled] {
-  background:
-    repeating-linear-gradient(135deg, transparent 0 14px, color-mix(in srgb, var(--green) 3%, transparent) 14px 15px),
-    color-mix(in srgb, var(--surface-2) 70%, var(--surface));
+  background: color-mix(in srgb, var(--surface-2) 70%, var(--surface));
 }
 .dialog:global(.ticket-detail-dialog) .shell .hero[data-settled] :global(.td-modal-title) { color: var(--secondary); }
 .dialog:global(.ticket-detail-dialog) .shell .hero[data-settled] :global(.td-people) { opacity: .82; }
@@ -487,4 +483,224 @@
  .dialog:global(.ticket-detail-dialog) .shell :global(.td-people) { grid-template-columns:repeat(2,minmax(0,1fr)); }
  .dialog:global(.ticket-detail-dialog) .shell :global(.td-person-reporter) { grid-column:1 / -1; }
  .workspace { padding:12px; gap:12px; }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   CLEAN CASE LAYOUT — Oct 2026. Final word for the ticket detail view.
+   Flat white surfaces, hairline borders, one blue accent. Header is compact
+   (ID chip · status · priority · actions / title / one meta line); the body
+   is a reading column of segmented cards beside a rail of separate cards.
+   Shadows live only on the dialog itself.
+   ══════════════════════════════════════════════════════════════════════════ */
+.dialog:global(.ticket-detail-dialog.dialog-content) {
+  border-radius: 12px; border-color: var(--border); box-shadow: var(--shadow-4);
+}
+.shell { background: var(--surface-2); --td-hairline: var(--border); }
+.workspace { gap: 16px; padding: 20px 24px 24px; }
+@container ticket-case (min-width: 900px) {
+  .workspace[data-split="true"] { grid-template-columns: minmax(0, 1fr) minmax(300px, 340px); }
+}
+
+/* Header */
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-hero),
+.dialog:global(.ticket-detail-dialog) .shell .hero[data-settled] {
+  padding: 18px 24px 16px; background: var(--surface);
+  border-bottom: 1px solid var(--border); box-shadow: none;
+}
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-hero::before),
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-hero::after) { content: none; display: none; }
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-hero .td-identity-line) { gap: 8px; }
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-hero .td-ticket-key) {
+  padding: 4px 8px; border-radius: 6px; font: 500 12px/1.2 var(--font-mono);
+  font-variant-numeric: tabular-nums; letter-spacing: 0;
+  color: var(--secondary); background: var(--surface-3); border: 1px solid var(--border);
+}
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-hero .td-ticket-key:hover) { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 35%, var(--border)); }
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-head-pills) { display: inline-flex; flex-wrap: wrap; gap: 6px; }
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-head-pills .badge) {
+  min-height: 24px; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 500;
+  letter-spacing: 0; text-transform: none; box-shadow: none;
+}
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-hero .icon-btn) {
+  width: 32px; height: 32px; border-radius: 8px; border-color: transparent; background: transparent; box-shadow: none;
+}
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-hero .icon-btn:hover) { background: var(--surface-3); border-color: transparent; }
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-hero .td-edit-btn) {
+  height: 32px; border-radius: 8px; padding: 0 12px; font-size: 13px; font-weight: 500;
+  background: var(--surface); border: 1px solid var(--border); box-shadow: none;
+}
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-hero .td-modal-title) {
+  margin: 12px 0 6px; max-width: 70ch;
+  font: 600 22px/1.3 var(--font-display); letter-spacing: -.015em;
+}
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-meta-line) {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 4px 0; margin: 0;
+  font-size: 13px; line-height: 1.5; color: var(--muted);
+}
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-meta-line > span) { display: inline-flex; align-items: center; gap: 5px; min-width: 0; }
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-meta-line > span + span::before) {
+  content: ""; width: 3px; height: 3px; margin: 0 10px; border-radius: 50%; background: var(--border-strong);
+}
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-meta-line svg) { flex: none; opacity: .7; }
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-meta-line .td-crumb) { font-size: inherit; gap: 4px; }
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-meta-line .td-crumb strong) { font-weight: 500; color: var(--secondary); }
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-hero .td-chips) { margin-top: 10px; }
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-hero .td-chips:empty) { display: none; }
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-hero .td-chips .badge) {
+  min-height: 22px; padding: 2px 8px; border-radius: 6px; font-size: 11.5px; font-weight: 500;
+}
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-hero .td-summary-primary) { margin-top: 10px; font-size: 13.5px; color: var(--secondary); }
+
+/* People strip: a flat key–value row under the header, not a stack of boxes. */
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-people) {
+  margin-top: 14px; gap: 0; border-radius: 10px; background: var(--surface);
+  border: 1px solid var(--border); box-shadow: none;
+}
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-person) { padding: 10px 14px; background: transparent; }
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-person + .td-person) { border-left: 1px solid var(--border); }
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-person-reporter) { background: transparent; }
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-person dt),
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-person-reporter dt) {
+  margin-bottom: 6px; font-size: 11.5px; font-weight: 500; letter-spacing: 0; text-transform: none; color: var(--muted);
+}
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-person strong) { font-size: 13px; font-weight: 600; }
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-person-glyph) { width: 26px; height: 26px; background: var(--surface-2); }
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-hero-meta) { margin-top: 10px; font-size: 12px; font-variant-numeric: tabular-nums; }
+.dialog:global(.ticket-detail-dialog) .shell .hero[data-settled] :global(.td-people) { opacity: 1; }
+.settled { margin-top: 12px; padding: 4px 10px; border-radius: 6px; font-size: 12.5px; }
+.settled strong { text-transform: none; letter-spacing: 0; font-size: 12.5px; font-weight: 600; }
+
+/* Tabs */
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-tabs-row) {
+  padding: 0 24px; gap: 8px; background: var(--surface); border-bottom: 1px solid var(--border); box-shadow: none;
+}
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-tabs-row .td-copy) {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 10px;
+  border: 0; border-radius: 8px; background: transparent; color: var(--muted); font-size: 12.5px; font-weight: 500; box-shadow: none;
+}
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-tabs-row .td-copy:hover) { color: var(--text); background: var(--surface-3); }
+
+/* Cards — one recipe for every section in the reading column and the rail. */
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-column) { gap: 16px; }
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-case-file),
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-context-sheet),
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-sheet),
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-outcome-card),
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-similar-details),
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-aside) > div {
+  position: relative; margin: 0; padding: 18px 20px; overflow: visible;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 12px; box-shadow: none;
+}
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-case-file::before),
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-case-file::after),
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-outcome-card::before),
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-outcome-card::after),
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-sheet::before),
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-aside > div::before) { content: none; display: none; }
+/* Section heads: a small neutral icon tile and a sentence-case title. Eyebrow
+   labels above titles are redundant here, so they are hidden. */
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-case-file > header),
+.dialog:global(.ticket-detail-dialog) .shell .evidence > header,
+.dialog:global(.ticket-detail-dialog) .shell .rdHead { display: flex; align-items: center; gap: 10px; margin: 0 0 14px; }
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-section-icon) {
+  display: grid; place-items: center; flex: none; width: 28px; height: 28px; border-radius: 8px;
+  color: var(--muted); background: var(--surface-2); border: 1px solid var(--border); box-shadow: none;
+}
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-section-icon svg) { width: 15px; height: 15px; }
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-case-file .eyebrow),
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-sheet header .eyebrow) { display: none; }
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-case-file h3),
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-sheet h3),
+.dialog:global(.ticket-detail-dialog) .shell .rdHead h3 { margin: 0; font: 600 14.5px/1.35 var(--font-display); letter-spacing: -.005em; color: var(--text); }
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-narrative) { margin: 0; font-size: 14px; line-height: 1.7; color: var(--text); }
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-narrative-tags) { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-narrative-tags:not(:has(.td-tag-impact))) { display: none; }
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-narrative-tags .td-tag:not(.td-tag-impact)) { display: none; }
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-tag-impact) {
+  display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: 6px;
+  font-size: 12px; color: var(--secondary); background: var(--surface-2); border: 1px solid var(--border);
+}
+
+/* Requested outcome: the one tinted card — it is what the reporter is asking for. */
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-outcome-card) {
+  display: flex; align-items: flex-start; gap: 12px;
+  background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 22%, var(--border));
+}
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-outcome-card .td-section-icon) {
+  color: var(--accent); background: var(--surface); border-color: color-mix(in srgb, var(--accent) 22%, var(--border));
+}
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-outcome-card .eyebrow) {
+  display: inline-block; margin: 0 0 4px; font-size: 12px; font-weight: 600;
+  letter-spacing: 0; text-transform: lowercase; color: var(--accent-deep);
+}
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-outcome-card .eyebrow::first-letter) { text-transform: uppercase; }
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-outcome-card p) { margin: 0; font-size: 14px; line-height: 1.6; color: var(--text); white-space: pre-wrap; }
+
+/* Reported details: a key–value grid with quiet group labels. */
+.rd { gap: 0; }
+.rdGroup { gap: 8px; }
+.rdGroup + .rdGroup { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
+.rdGroup h4 { font-size: 12px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--secondary); }
+.rdGrid { gap: 10px 24px; }
+.rdGrid dt { font-size: 12px; }
+.rdGrid dd { font-size: 13.5px; }
+.rdTable thead th, .csStats dt { letter-spacing: 0; text-transform: none; font-size: 11.5px; font-weight: 600; }
+.csStats dd { font-variant-numeric: tabular-nums; }
+.evidenceFile { border-radius: 10px; background: var(--surface); }
+.evidenceFile img { height: 180px; background: var(--surface-2); }
+
+/* Similar tickets */
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-similar-details > summary) { display: flex; align-items: center; gap: 10px; cursor: pointer; list-style: none; }
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-similar-details > summary strong) { font-size: 14.5px; font-weight: 600; }
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-similar-details > summary small) { display: block; font-size: 12px; color: var(--muted); }
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-similar-details > summary:focus-visible) { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 6px; }
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-similar-card) {
+  border: 1px solid var(--border); border-radius: 10px; background: var(--surface); box-shadow: none;
+}
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-similar-card:hover) { border-color: color-mix(in srgb, var(--accent) 35%, var(--border)); background: var(--surface); transform: none; }
+
+/* Right rail: separate cards stacked with a gap. */
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-aside) {
+  display: grid; gap: 12px; align-content: start; padding: 0; overflow: visible;
+  background: transparent; border: 0; border-radius: 0; box-shadow: none;
+}
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-aside) > div { padding: 16px; }
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-aside) > div:last-child { border-bottom: 1px solid var(--border); }
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-aside .td-panel h3),
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-aside .td-rail-heading) {
+  display: flex; align-items: center; gap: 6px; margin: 0 0 12px;
+  font: 600 13px/1.3 var(--font-display); letter-spacing: 0; text-transform: none; color: var(--text);
+}
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-aside .td-panel h3::before) { content: none; display: none; }
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-aside .td-rail-heading span) { font: inherit; letter-spacing: 0; text-transform: lowercase; }
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-aside .td-rail-heading span::first-letter) { text-transform: uppercase; }
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-aside .td-rail-heading span) { display: inline-block; }
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-aside .td-rail-heading svg) { color: var(--muted); }
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-resolution-instrument) { gap: 14px; padding: 4px 0 0; }
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-resolution-copy) { font-variant-numeric: tabular-nums; }
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-aside .related-ticket) {
+  border: 1px solid var(--border); border-radius: 10px; background: var(--surface); box-shadow: none;
+}
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-aside .related-ticket:hover) { background: var(--surface-2); transform: none; }
+.dialog:global(.ticket-detail-dialog) .shell :global(.td-aside .detail-fields) { display: grid; gap: 10px; }
+
+/* Footer */
+.dialog:global(.ticket-detail-dialog) > :global(.dialog-footer) { padding: 10px 24px; box-shadow: none; }
+.dialog:global(.ticket-detail-dialog) > :global(.dialog-footer::before) { content: none; display: none; }
+
+@container ticket-case (max-width: 1050px) {
+  .dialog:global(.ticket-detail-dialog) .shell :global(.td-person + .td-person) { border-left: 0; }
+  .dialog:global(.ticket-detail-dialog) .shell :global(.td-people) { gap: 0; background: var(--surface); }
+  .dialog:global(.ticket-detail-dialog) .shell :global(.td-person) { border-top: 1px solid var(--border); }
+  .dialog:global(.ticket-detail-dialog) .shell :global(.td-person-reporter) { border-top: 0; }
+}
+@container ticket-case (max-width: 599px) {
+  .workspace { padding: 12px; gap: 12px; }
+  .dialog:global(.ticket-detail-dialog) .shell :global(.td-hero) { padding: 14px 16px; }
+  .dialog:global(.ticket-detail-dialog) .shell :global(.td-hero .td-modal-title) { font-size: 19px; }
+  .dialog:global(.ticket-detail-dialog) .shell :global(.td-tabs-row) { padding: 0 12px; }
+  .dialog:global(.ticket-detail-dialog) .shell :global(.td-case-file),
+  .dialog:global(.ticket-detail-dialog) .shell :global(.td-sheet),
+  .dialog:global(.ticket-detail-dialog) .shell :global(.td-outcome-card),
+  .dialog:global(.ticket-detail-dialog) .shell :global(.td-similar-details) { padding: 14px; }
 }

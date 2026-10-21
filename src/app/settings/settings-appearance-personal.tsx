@@ -69,7 +69,7 @@ export default function SettingsPersonalAppearancePanel({
           </div>
           <strong style={{ fontSize: 13 }}>Dark · default</strong>
           <p style={{ fontSize: 11, color: "var(--muted)", marginTop: 5 }}>
-            Matte black with a brighter, glossier gold.
+            Dark gray with a blue accent.
           </p>
         </button>
         <button

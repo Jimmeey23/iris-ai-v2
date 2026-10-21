@@ -208,7 +208,7 @@ export function DraftDocument({
             typeof cf[k] !== "object",
         ).length > 0 && (
           <section className="draft-block">
-            <h3>04 / Supporting intelligence</h3>
+            <h3>04 / Supporting details</h3>
             <div className="draft-grid">
               {Object.entries(cf)
                 .filter(
@@ -244,10 +244,10 @@ export function DraftDocument({
             <p>
               {draft.impact ? (
                 <>
-                  <strong>Journey impact:</strong> {draft.impact}
+                  <strong>Member impact:</strong> {draft.impact}
                 </>
               ) : (
-                "No journey impact was recorded."
+                "No member impact was recorded."
               )}
             </p>
           </div>

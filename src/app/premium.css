@@ -1,50 +1,86 @@
 /* Shared visual contract, imported last in layout.tsx. Keep theme, navigation,
    controls and workspace finishes here instead of appending competing skins. */
 :root, [data-theme="light"] {
-  --bg: #f7f8fa;
-  --surface: #fff;
-  --surface-2: #f3f5f8;
-  --surface-3: #eaf0f5;
-  --text: #17243b;
-  --secondary: #43516a;
-  --muted: #596a82;
-  --accent: #2458b8;
-  --accent-deep: #1c4592;
-  --accent-bright: #3971d2;
-  --accent-soft: #2458b814;
-  --accent-text: #fff;
-  --border: #e3e8ef;
-  --border-strong: #d1d9e5;
-  --hairline: var(--border);
-  --hairline-strong: var(--border-strong);
-  --shadow-1: 0 1px 3px rgb(20 35 60 / calc(.05 * var(--ui-shadow)));
-  --shadow-2: 0 6px 20px -10px rgb(20 35 60 / calc(.16 * var(--ui-shadow)));
-  --shadow-3: 0 8px 24px -12px rgb(20 35 60 / .12);
-  --shadow-4: 0 24px 80px -24px rgb(20 35 60 / .24);
+  --bg: #ffffff;
+  --surface: #ffffff;
+  --surface-2: #f8fafc;
+  --surface-3: #f1f5f9;
+  --text: #0f172a;
+  --secondary: #334155;
+  --muted: #64748b;
+  --accent: #2563eb;
+  --accent-deep: #1d4ed8;
+  --accent-bright: #3b82f6;
+  --accent-soft: #eff6ff;
+  --accent-text: #ffffff;
+  --border: #e5e7eb;
+  --border-strong: #d1d5db;
+  --surface-4: #e9eef4;
+  --hairline: #eef0f3;
+  --hairline-strong: var(--border);
+  --green: #15803d; --green-bg: #f0fdf4;
+  --amber: #b45309; --amber-bg: #fffbeb;
+  --red: #dc2626; --red-bg: #fef2f2;
+  --blue: #2563eb; --blue-bg: #eff6ff;
+  /* Purple is no longer a brand hue: anything that used it as decoration reads slate. */
+  --purple: #475569; --purple-bg: #f1f5f9;
+  --shadow-hairline: rgb(15 23 42 / .04);
+  /* Flat surfaces: cards separate by border, not shadow. Shadows only on overlays (3–5). */
+  --shadow-1: none;
+  --shadow-2: 0 1px 2px rgb(15 23 42 / calc(.05 * var(--ui-shadow)));
+  --shadow-3: 0 8px 24px -8px rgb(15 23 42 / calc(.14 * var(--ui-shadow))), 0 0 0 1px rgb(15 23 42 / .04);
+  --shadow-4: 0 20px 48px -16px rgb(15 23 42 / calc(.22 * var(--ui-shadow))), 0 0 0 1px rgb(15 23 42 / .05);
+  --shadow-5: 0 28px 64px -20px rgb(15 23 42 / calc(.28 * var(--ui-shadow))), 0 0 0 1px rgb(15 23 42 / .05);
 }
 [data-theme="dark"] {
-  --bg: #10151f;
-  --surface: #171e2a;
-  --surface-2: #1e2735;
-  --surface-3: #273244;
-  --text: #edf1f8;
-  --secondary: #bec9da;
-  --muted: #98a8bf;
-  --accent: #9ab9fc;
-  --accent-deep: #7ca4f6;
-  --accent-bright: #b6ccff;
-  --accent-text: #101d35;
-  --accent-soft: #9ab9fc14;
-  --border: #2b3546;
-  --border-strong: #3b4b61;
-  --hairline: var(--border);
-  --hairline-strong: var(--border-strong);
-  --shadow-1: 0 1px 3px rgb(0 0 0 / calc(.18 * var(--ui-shadow)));
-  --shadow-2: 0 6px 20px -10px rgb(0 0 0 / calc(.4 * var(--ui-shadow)));
+  --bg: #0b1120;
+  --surface: #0f172a;
+  --surface-2: #131c2e;
+  --surface-3: #1a2436;
+  --text: #e5e9f0;
+  --secondary: #cbd5e1;
+  --muted: #94a3b8;
+  --accent: #60a5fa;
+  --accent-deep: #3b82f6;
+  --accent-bright: #93c5fd;
+  --accent-text: #0b1120;
+  --accent-soft: #60a5fa1f;
+  --border: #1f2a3c;
+  --border-strong: #2c3a50;
+  --surface-4: #223047;
+  --hairline: #1a2436;
+  --hairline-strong: var(--border);
+  --green: #4ade80; --green-bg: #4ade801a;
+  --amber: #fbbf24; --amber-bg: #fbbf241a;
+  --red: #f87171; --red-bg: #f871711a;
+  --blue: #60a5fa; --blue-bg: #60a5fa1a;
+  --purple: #a5b4c8; --purple-bg: #a5b4c81a;
+  --shadow-hairline: rgb(0 0 0 / .2);
+  --shadow-1: none;
+  --shadow-2: 0 1px 2px rgb(0 0 0 / calc(.3 * var(--ui-shadow)));
+  --shadow-3: 0 10px 28px -10px rgb(0 0 0 / calc(.5 * var(--ui-shadow))), 0 0 0 1px rgb(255 255 255 / .04);
+  --shadow-4: 0 24px 56px -18px rgb(0 0 0 / calc(.6 * var(--ui-shadow))), 0 0 0 1px rgb(255 255 255 / .05);
+  --shadow-5: 0 28px 64px -20px rgb(0 0 0 / calc(.65 * var(--ui-shadow))), 0 0 0 1px rgb(255 255 255 / .05);
 }
 :root {
-  --font-display: var(--font-outfit), system-ui, sans-serif;
-  --radius-card: calc(16px * var(--ui-radius));
+  /* Inter everywhere (both next/font variables now load Inter). */
+  --font-display: var(--font-space), "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-body: var(--font-outfit), "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --radius-2xs: calc(4px * var(--ui-radius));
+  --radius-xs: calc(6px * var(--ui-radius));
+  --radius-sm: calc(8px * var(--ui-radius));
+  --radius-md: calc(10px * var(--ui-radius));
+  --radius-lg: calc(12px * var(--ui-radius));
+  --radius-xl: calc(12px * var(--ui-radius));
+  --radius-2xl: calc(14px * var(--ui-radius));
+  --radius-card: calc(12px * var(--ui-radius));
+  --ring: 0 0 0 3px color-mix(in srgb, var(--accent) 24%, transparent);
+  /* Gradients collapse to flat fills so every `background: var(--grad-*)` turns solid. */
+  --grad-accent: linear-gradient(var(--accent), var(--accent));
+  --grad-text: linear-gradient(var(--text), var(--text));
+  --glass: var(--surface);
+  --glass-strong: var(--surface);
+  --highlight-inset: inset 0 0 0 0 transparent;
 }
 body { background: var(--bg); -webkit-font-smoothing: antialiased; }
 .content:not(.content-full-height) { padding: calc(clamp(18px, 2.4vw, 32px) * var(--ui-spacing)); }
@@ -220,7 +256,7 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="
   --ovc-neu-in-sm: none;
 }
 .ovc .ovc-card, :root:not([data-theme="light"]) .ovc .ovc-card { background: var(--surface); border-radius: var(--radius-card); }
-.ovc .ovc-hero { background: linear-gradient(120deg, var(--accent-soft), transparent 70%), var(--surface); padding: clamp(20px, 2.5vw, 32px); }
+.ovc .ovc-hero { background: var(--surface); padding: clamp(20px, 2.5vw, 32px); }
 .ovc .ovc-bloom { display: none; }
 .ovc .ovc-btn-accent { background: var(--accent); color: var(--accent-text); border: 1px solid var(--accent); box-shadow: var(--shadow-1); }
 .ovc .ovc-btn-accent:hover { background: var(--accent-deep); color: var(--accent-text); box-shadow: var(--shadow-2); transform: none; }
@@ -989,3 +1025,295 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="
   .tfx-fields, .tfx-display { grid-template-columns: 1fr 1fr; }
   .ticket-grid thead th, .ticket-grid tbody td { padding-inline: 10px; }
 }
+
+/* ════════════════════════════════════════════════════════════════════════
+   CLEAN THEME — Oct 2026. Last in the cascade on purpose.
+   White page, hairline borders, one blue accent, flat cards. Shadows are
+   reserved for things that float (dialogs, menus, popovers, toasts).
+   ════════════════════════════════════════════════════════════════════════ */
+:root { --neu-xs: none; --neu-sm: none; --neu-md: var(--shadow-2); --neu-edge: 0 0 0 0 transparent; }
+body { background: var(--bg); color: var(--text); font-family: var(--font-body); font-feature-settings: "cv11", "ss01"; }
+.card, .panel, .td-panel, .ticket-card, .mc-face, .ovc .ovc-kpi, .presence-strip,
+.overview-command-deck, .cockpit-signal-deck, [data-theme] .card, [data-theme] .panel {
+  box-shadow: none;
+}
+.card, .panel { border-color: var(--border); border-radius: var(--radius-card); }
+.card:hover, .ticket-card:hover, .mc-card:hover .mc-face, .ovc .ovc-kpi:hover { box-shadow: none; transform: none; }
+.btn, .btn-primary, .icon-btn { box-shadow: none; }
+.btn-primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+.btn-primary:hover:not(:disabled) { background: var(--accent-deep); border-color: var(--accent-deep); }
+.btn:focus-visible, .icon-btn:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: none; box-shadow: var(--ring); border-color: var(--accent);
+}
+.dialog-head, .dialog-footer { backdrop-filter: none; -webkit-backdrop-filter: none; }
+.dialog-head { background: var(--surface); }
+.dialog-footer { background: var(--surface); }
+.dialog-content, [data-theme] .dialog-content { border-radius: 12px; box-shadow: var(--shadow-4); }
+.dialog-overlay { background: rgb(15 23 42 / .32); backdrop-filter: none; }
+[data-theme="dark"] .dialog-overlay { background: rgb(0 0 0 / .55); }
+/* Numbers are data: lock glyph widths everywhere they change. */
+.badge, .metric-number, .mc-value, .sla-countdown, .sla-countdown-value, td, .tab-count, .counter, .small-counter { font-variant-numeric: tabular-nums; }
+
+/* ── Ticket edit dialog: grouped sections, two-column grid, pinned footer ── */
+.dialog-content.ticket-edit-dialog { width: min(820px, calc(100vw - 24px)); max-height: 92dvh; }
+.dialog-content.ticket-edit-dialog > .dialog-scroll { padding: 0; }
+.dialog-content.ticket-edit-dialog > .dialog-footer {
+  position: sticky; bottom: 0; justify-content: flex-end; gap: 8px;
+  padding: 12px 24px; border-top: 1px solid var(--border); background: var(--surface);
+}
+.ticket-admin-edit-grid.ted-form { display: block; }
+.ticket-admin-edit-grid.ted-form > * { grid-column: auto; }
+.ted-section { padding: 20px 24px; }
+.ted-section + .ted-section { border-top: 1px solid var(--border); }
+.ted-section > header { margin: 0 0 14px; }
+.ted-section > header h3 { margin: 0; font: 600 14px/1.35 var(--font-display); letter-spacing: -.005em; color: var(--text); }
+.ted-section > header p { margin: 2px 0 0; font-size: 12.5px; line-height: 1.5; color: var(--muted); }
+.ted-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 16px; }
+.ted-grid > * { min-width: 0; }
+/* Long-form answers take the full row. */
+.ted-grid > .field:has(textarea), .ted-grid > label:has(textarea), .ted-grid > :has(> textarea) { grid-column: 1 / -1; }
+.ted-grid textarea { min-height: 96px; resize: vertical; }
+.ted-grid input, .ted-grid select, .ted-grid textarea {
+  width: 100%; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); box-shadow: none;
+}
+.ted-grid input:hover, .ted-grid select:hover, .ted-grid textarea:hover { border-color: var(--border-strong); }
+@media (max-width: 720px) {
+  .ted-section { padding: 16px; }
+  .ted-grid { grid-template-columns: minmax(0, 1fr); }
+  .dialog-content.ticket-edit-dialog > .dialog-footer { padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px)); }
+  .dialog-content.ticket-edit-dialog > .dialog-footer .btn { flex: 1 1 0; min-height: 44px; justify-content: center; }
+}
+
+/* ── Ticket data table (All tickets + Overview) ─────────────────────────
+   One table, two densities: every row 40px. Hairline row
+   rules, sticky header, sticky first column, scroll inside the container. */
+.tgx { min-width: 0; }
+.tgx-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 8px 16px; border-bottom: 1px solid var(--hairline); background: var(--surface); }
+.tgx-bar .tgx-groupinfo { padding: 0; border: 0; background: none; display: flex; align-items: center; gap: 10px; font-size: 12px; }
+.tgx-groupinfo-label { font-weight: 500; color: var(--text); }
+.tgx-keys { font-size: 11.5px; color: var(--muted); display: inline-flex; align-items: center; gap: 4px; }
+.tgx-keys kbd { font: 500 10.5px/1 var(--font-mono); padding: 2px 5px; border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 4px; background: var(--surface-2); color: var(--secondary); }
+.tgx-bar-tools { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+.tgx-tool { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); color: var(--secondary); font-size: 12px; font-weight: 500; cursor: pointer; }
+.tgx-tool:hover, .tgx-tool[aria-expanded="true"] { background: var(--surface-2); color: var(--text); }
+.tgx-tool-n { font-variant-numeric: tabular-nums; color: var(--muted); }
+.tgx-seg { display: inline-flex; border: 1px solid var(--border); border-radius: 7px; padding: 2px; gap: 2px; background: var(--surface); }
+.tgx-seg button { width: 26px; height: 22px; display: grid; place-items: center; border: 0; border-radius: 5px; background: none; color: var(--muted); cursor: pointer; }
+.tgx-seg button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); }
+.tgx-tool:focus-visible, .tgx-seg button:focus-visible, .tgx-act:focus-visible, .tgx-menu-item:focus-within { outline: none; box-shadow: var(--ring); }
+.tgx-menu-wrap { position: relative; }
+.tgx-menu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 30; width: 230px; max-height: 340px; overflow: auto; padding: 6px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow-2); }
+.tgx-menu-item { position: relative; display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; font-size: 12.5px; color: var(--text); cursor: pointer; }
+.tgx-menu-item:hover { background: var(--surface-2); }
+.tgx-menu-item input { position: absolute; opacity: 0; pointer-events: none; }
+.tgx-menu-check { width: 15px; height: 15px; flex: none; display: grid; place-items: center; border: 1px solid var(--border-strong); border-radius: 4px; color: var(--accent-text); }
+.tgx-menu-item input:checked + .tgx-menu-check { background: var(--accent); border-color: var(--accent); }
+.tgx-menu-item.is-locked { color: var(--muted); cursor: default; }
+.tgx-menu-item.is-locked .tgx-menu-check { opacity: .55; }
+
+/* Scroll lives inside the table container, never on the page. */
+.tickets-panel .tgx-scroll, .tgx-scroll { overflow: auto; max-width: 100%; max-height: min(72vh, 920px); overscroll-behavior-x: contain; border: 0; border-radius: 0; }
+.tgx-table.ticket-grid { width: 100%; min-width: 760px; border-collapse: separate; border-spacing: 0; }
+.tgx-table.ticket-grid thead th {
+  position: sticky; top: 0; z-index: 3; height: 36px; padding: 0 12px;
+  background: var(--surface-2); color: var(--muted); font: 500 12px/1 var(--font-body);
+  letter-spacing: 0; text-transform: none; white-space: nowrap; border-bottom: 1px solid var(--border);
+}
+.tgx-table.ticket-grid thead th .tg-th { display: inline-flex; align-items: center; gap: 4px; padding: 0; border: 0; background: none; cursor: pointer; color: inherit; font: inherit; letter-spacing: 0; text-transform: none; border-radius: 4px; }
+.tgx-table.ticket-grid thead th .tg-th:hover { color: var(--text); }
+.tgx-table.ticket-grid thead th .tg-th:focus-visible { outline: none; box-shadow: var(--ring); }
+.tgx-table.ticket-grid thead th .tg-sort-idle { opacity: 0; transition: opacity .12s; }
+.tgx-table.ticket-grid thead th:hover .tg-sort-idle, .tgx-table.ticket-grid thead th .tg-th:focus-visible .tg-sort-idle { opacity: .6; }
+.tgx-table.ticket-grid thead th.tg-sorted { color: var(--text); }
+.tgx-table.ticket-grid thead th.tg-right .tg-th { flex-direction: row-reverse; }
+.tgx-table.ticket-grid tbody tr { height: 40px; background: var(--surface); border-left: 0; cursor: pointer; transition: background .1s; }
+.tgx-table.ticket-grid.tg-compact tbody tr { height: 40px; }
+.tgx-table.ticket-grid tbody td { padding: 6px 12px; border-bottom: 1px solid var(--hairline); font-size: 13px; color: var(--text); white-space: nowrap; vertical-align: middle; background: inherit; }
+.tgx-table.ticket-grid.tg-compact tbody td { padding-block: 3px; }
+.tgx-table.ticket-grid tbody tr:last-child td { border-bottom: 0; }
+.tgx-table.ticket-grid tbody tr:hover { background: var(--surface-2); }
+.tgx-table.ticket-grid tbody tr.tgx-selected, .tgx-table.ticket-grid tbody tr.tgx-selected:hover { background: var(--accent-soft); }
+.tgx-table.ticket-grid tbody tr:focus-visible { outline: none; box-shadow: inset 2px 0 0 var(--accent), inset 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent); background: var(--accent-soft); }
+.tgx-table .tg-right, .tgx-table td.tg-right { text-align: right; }
+/* Columns a person switched on stay on at every width; the container scrolls instead. */
+.tickets-panel .tgx-table th[data-col], .tickets-panel .tgx-table td[data-col] { display: table-cell; }
+
+/* Title cell: one line, truncated, tooltip carries the full title. */
+.tgx-table td[data-col="label"] { min-width: 260px; max-width: 420px; }
+.tgx-table td[data-col="label"] .ticket-name { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 500; }
+.tgx-table td[data-col="label"] .tg-open-ticket { display: inline; max-width: 100%; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+.tgx-table td[data-col="label"] .ticket-meta { display: flex; gap: 5px; margin-top: 2px; font-size: 11.5px; color: var(--muted); overflow: hidden; white-space: nowrap; }
+.tgx-table.tg-compact td[data-col="label"] .ticket-meta { display: none; }
+.tgx-table .ticket-id, .tgx-table .mono { font-family: var(--font-mono); font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.tgx-table .tgx-category { display: inline-block; max-width: 220px; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }
+
+/* Status: dot + label, tinted by status only. */
+.tgx-table .status-pill { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 8px; border-radius: 999px; font-size: 12px; font-weight: 500; border: 0; box-shadow: none; }
+.tgx-table .status-pill svg { display: none; }
+.tgx-table .status-pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: none; }
+.tgx-table .priority-badge { height: 22px; border-radius: 6px; font-size: 12px; font-weight: 500; box-shadow: none; }
+
+/* Owner: avatar + full name on one line. */
+.tgx-table .mini-owner { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+.tgx-table .mini-owner .avatar { width: 22px; height: 22px; font-size: 10px; flex: none; }
+.tgx-table .mini-owner strong { font-weight: 500; font-size: 13px; }
+.tgx-table .mini-owner small { display: none; }
+.tgx-table .mini-owner-empty strong { color: var(--muted); font-weight: 400; }
+
+/* SLA: a single countdown chip. */
+.tgx-table .sla-countdown { display: inline-flex; flex-direction: row; align-items: center; gap: 4px; min-width: 0; height: 22px; padding: 0 8px; border-radius: 6px; background: var(--surface-2); color: var(--secondary); }
+.tgx-table .sla-countdown .sla-countdown-value { font: 500 12px/1 var(--font-mono); color: inherit; letter-spacing: 0; }
+.tgx-table .sla-countdown .sla-countdown-label { font-size: 11px; font-weight: 400; text-transform: none; letter-spacing: 0; color: inherit; opacity: .75; }
+.tgx-table .sla-countdown.ok { background: var(--surface-2); color: var(--secondary); }
+.tgx-table .sla-countdown.soon { background: color-mix(in srgb, var(--amber) 12%, var(--surface)); color: var(--amber); }
+.tgx-table .sla-countdown.breached { background: color-mix(in srgb, var(--red) 10%, var(--surface)); color: var(--red); }
+.tgx-table .sla-countdown.done { background: color-mix(in srgb, var(--green) 10%, var(--surface)); color: var(--green); }
+.tgx-table .sla-countdown.none { background: none; color: var(--muted); padding: 0; }
+.tgx-table .sla-countdown.none .sla-countdown-label { display: none; }
+
+/* Checkbox column. */
+.tgx-table .tg-check { width: 40px; min-width: 40px; padding: 0 0 0 14px; }
+.tgx-table .tg-check input { width: 15px; height: 15px; accent-color: var(--accent); cursor: pointer; vertical-align: middle; }
+
+/* Inline quick actions, revealed on hover / focus. */
+.tgx-table .tgx-actions-th { width: 96px; }
+.tgx-table td.tgx-actions { position: sticky; right: 0; z-index: 1; width: 96px; padding: 0 8px; background: transparent; }
+.tgx-actions-inner { display: flex; justify-content: flex-end; gap: 2px; opacity: 0; transition: opacity .1s; }
+.tgx-table tbody tr:hover .tgx-actions-inner, .tgx-table tbody tr:focus-within .tgx-actions-inner, .tgx-table tbody tr:focus .tgx-actions-inner { opacity: 1; }
+.tgx-table tbody tr:hover td.tgx-actions, .tgx-table tbody tr:focus td.tgx-actions { background: inherit; }
+.tgx-act { width: 26px; height: 26px; display: grid; place-items: center; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--secondary); cursor: pointer; }
+.tgx-act:hover { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, var(--border)); }
+@media (hover: none) { .tgx-actions-inner { opacity: 1; } }
+
+/* Done rows stay quieter without fighting the selected tint. */
+.tgx-table tbody tr.tg-row-resolved, .tgx-table tbody tr.tg-row-closed { background: var(--surface); }
+.tgx-table tbody tr.tgx-selected.tg-row-resolved, .tgx-table tbody tr.tgx-selected.tg-row-closed { background: var(--accent-soft); }
+
+/* Skeleton rows. */
+.tgx-skeleton-row { height: 40px; cursor: default !important; }
+.tgx-sk { display: block; height: 10px; border-radius: 4px; }
+
+/* Pagination footer. */
+.table-pagination .tgx-range { font-variant-numeric: tabular-nums; }
+.table-pagination .tgx-range strong { color: var(--text); font-weight: 500; }
+.tgx-pagesize { display: inline-flex; align-items: center; gap: 8px; margin-left: auto; font-size: 12px; color: var(--muted); }
+.tgx-pagesize select { height: 28px; padding: 0 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text); font-size: 12px; font-variant-numeric: tabular-nums; }
+
+/* Narrow screens: keep it a real table, scroll sideways inside, pin the first column.
+   Overrides the older "row becomes a card" layout for this table only. */
+@media (max-width: 760px) {
+  .tgx-scroll table.tgx-table.ticket-grid { display: table; width: 100%; min-width: 680px; }
+  .tgx-scroll table.tgx-table.ticket-grid thead { display: table-header-group; }
+  .tgx-scroll table.tgx-table.ticket-grid tbody { display: table-row-group; width: auto; }
+  .tgx-scroll table.tgx-table.ticket-grid tbody tr:not(.tg-group-row) { display: table-row; height: 40px; max-height: none; padding: 0; position: static; }
+  .tgx-scroll table.tgx-table.ticket-grid.tg-compact tbody tr:not(.tg-group-row) { height: 40px; }
+  .tgx-scroll table.tgx-table.ticket-grid tbody tr:not(.tg-group-row) > td { display: table-cell; padding: 6px 10px; border-bottom: 1px solid var(--hairline); height: auto; margin: 0; order: 0; flex: none; position: static; }
+  .tgx-scroll table.tgx-table.ticket-grid tbody tr:not(.tg-group-row) > td.tg-check { padding: 0 0 0 12px; width: 40px; }
+  .tgx-scroll table.tgx-table.ticket-grid tr.tg-group-row { display: table-row; }
+  .tgx-scroll table.tgx-table.ticket-grid tr.tg-group-row > td { display: table-cell; }
+  .tgx-keys { display: none; }
+  .tgx-bar { padding: 8px 12px; }
+  .tgx-scroll .tgx-table thead th.tgx-sticky-check, .tgx-scroll table.tgx-table.ticket-grid tbody tr:not(.tg-group-row) > td.tgx-sticky-check { position: sticky; left: 0; z-index: 2; background: inherit; }
+  .tgx-table thead th.tgx-sticky-check { z-index: 4; background: var(--surface-2); }
+  .tgx-scroll .tgx-table thead th.tgx-sticky-first, .tgx-scroll table.tgx-table.ticket-grid tbody tr:not(.tg-group-row) > td.tgx-sticky-first, .tgx-scroll table.tgx-table.ticket-grid tbody tr:not(.tg-group-row) > td[data-col="label"] { position: sticky; left: 0; z-index: 2; background: inherit; box-shadow: 1px 0 0 var(--hairline); }
+  .tgx-scroll .tgx-table.tgx-has-check thead th.tgx-sticky-first, .tgx-scroll table.tgx-table.tgx-has-check tbody tr > td.tgx-sticky-first, .tgx-scroll table.tgx-table.tgx-has-check tbody tr > td[data-col="label"] { left: 40px; }
+  .tgx-table thead th.tgx-sticky-first { z-index: 4; background: var(--surface-2); }
+  .tgx-table td[data-col="label"] { min-width: 200px; max-width: 220px; }
+  .tgx-table td.tgx-actions { position: static; }
+}
+@media (max-width: 600px) {
+  .tickets-panel table.tgx-table { min-width: 680px !important; width: 100%; }
+  .tickets-panel table.tgx-table thead { position: static; width: auto; height: auto; overflow: visible; clip-path: none; display: table-header-group; }
+  .tickets-panel table.tgx-table tbody { display: table-row-group; }
+  .tickets-panel table.tgx-table tr:has(td[data-col="label"]) { display: table-row; padding: 0; gap: 0; }
+  .tickets-panel table.tgx-table tr:has(td[data-col="label"]) > td { display: table-cell; padding: 6px 10px; border-bottom: 1px solid var(--hairline); white-space: nowrap; }
+  .tickets-panel table.tgx-table td[data-col]:not([data-col="label"])::before { content: none; }
+  .tickets-panel table.tgx-table td[data-col="label"] { padding-right: 10px; }
+  .tickets-panel table.tgx-table .sla-countdown { align-items: center; }
+  .tgx-pagesize { margin-left: 0; }
+}
+@media (prefers-reduced-motion: reduce) { .tgx * { transition: none !important; } }
+
+/* ── Uniform 40px rows ─────────────────────────────────────────────────
+   Every row is exactly 40px, whatever it holds: each cell is a single line
+   that truncates, and extra detail lives in tooltips. Density no longer
+   changes the height. */
+.ticket-grid tbody tr,
+.ticket-grid tbody tr.tg-child,
+.ticket-grid tbody tr.tg-row-recur { height: 40px; }
+.ticket-grid tbody td {
+  box-sizing: border-box;
+  height: 40px;
+  max-height: 40px;
+  padding-block: 0 !important;
+  vertical-align: middle;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 20px;
+  font-size: 13px;
+}
+.ticket-grid tbody td > * { max-height: 38px; }
+.ticket-grid .tgx-label-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.ticket-grid .tgx-label-line .ticket-id {
+  flex: none;
+  font-size: 12px;
+  color: var(--muted);
+}
+.ticket-grid .tgx-label-line .ticket-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  text-align: left;
+}
+.ticket-grid .tgx-label-line > :not(.ticket-id):not(.ticket-name) {
+  flex: none;
+  display: inline-flex;
+  max-height: 22px;
+  overflow: hidden;
+  font-size: 11px;
+}
+.ticket-grid .mini-owner { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.ticket-grid .mini-owner > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.ticket-grid .mini-owner strong { font-weight: 500; font-size: 13px; }
+.ticket-grid .mini-owner small { display: none; }
+.ticket-grid .mini-owner .avatar,
+.ticket-grid .mini-owner [class*="avatar"] { width: 22px !important; height: 22px !important; font-size: 10px; flex: none; }
+.ticket-grid .status-pill,
+.ticket-grid .chip,
+.ticket-grid [class*="priority-"] > span { height: 22px; line-height: 20px; padding-block: 0; }
+.ticket-grid .tgx-actions { padding-block: 0 !important; }
+.ticket-grid .tgx-act { width: 26px; height: 26px; }
+.ticket-grid .tg-check input { margin: 0; }
+/* The title gets the space; a recurrence badge is capped and truncates. */
+.ticket-grid .tgx-label-line .ticket-name { min-width: 35%; }
+.ticket-grid .tgx-label-line > :not(.ticket-id):not(.ticket-name) { max-width: 150px; white-space: nowrap; text-overflow: ellipsis; }
+.ticket-grid .tgx-label-line > :not(.ticket-id):not(.ticket-name) * { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Same face and shape for every pill in a row. */
+.ticket-grid tbody td .priority,
+.ticket-grid tbody td [class*="priority"]:not(tr) { font-family: var(--font-body); font-size: 12px; font-weight: 500; letter-spacing: 0; text-transform: none; border-radius: 999px; }
+.ticket-grid tbody td .status-pill { font-size: 12px; font-weight: 500; border-radius: 999px; }
+/* Titles show in full on one line: the ticket column grows to fit the
+   longest title and the table scrolls sideways inside its box if needed. */
+.ticket-grid tbody td.tg-label-cell { overflow: visible; text-overflow: clip; max-width: none !important; width: auto; }
+.ticket-grid .tgx-label-line .ticket-name { flex: none; min-width: 0; overflow: visible; text-overflow: clip; }
+.ticket-grid thead th:has(+ th), .ticket-grid .tg-label-cell { min-width: max-content; }
+.tgx-table.ticket-grid { table-layout: auto !important; width: max-content; min-width: 100%; }
+/* A real, always-visible horizontal scrollbar under the table — the thin
+   overlay one was easy to miss with a mouse. */
+.tgx-scroll { overflow-x: auto !important; scrollbar-width: auto; scrollbar-color: var(--border-strong) var(--surface-2); overscroll-behavior-x: contain; }
+.tgx-scroll::-webkit-scrollbar { height: 10px; }
+.tgx-scroll::-webkit-scrollbar-track { background: var(--surface-2); }
+.tgx-scroll::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 999px; border: 2px solid var(--surface-2); }
+.tgx-scroll::-webkit-scrollbar-thumb:hover { background: var(--muted); }
