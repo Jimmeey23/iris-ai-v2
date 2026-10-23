@@ -843,7 +843,9 @@ export function ResolutionPanel({
         <div className="rw-foot">
           {!readyToResolve && (
             <p>
-              Action taken is needed before this can be resolved.
+              {openFollowUps.length > 0
+                ? `Complete ${openFollowUps.length} open follow-up ${openFollowUps.length === 1 ? "task" : "tasks"} before resolving this ticket.`
+                : "Record the action taken before resolving this ticket."}
             </p>
           )}
           <button

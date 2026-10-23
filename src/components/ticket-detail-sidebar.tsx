@@ -289,7 +289,7 @@ export default function SidebarPanel({
           {bundle.canResolve
             ? "Status changes live in the resolution panel."
             : t.resolutionRequired
-              ? "Only the assigned owner or their reporting manager can change status or resolve this ticket."
+              ? "Only the assigned owner, the original owner after escalation, or their reporting manager can change status or resolve this ticket."
               : "This ticket is a record only. Use the record actions above to update its status."}
         </p>
       </div>

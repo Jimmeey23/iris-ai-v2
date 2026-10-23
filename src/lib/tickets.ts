@@ -20,6 +20,7 @@ import {BEHAVIOR_VERSION, evaluateTicketPolicy, transitionError, transitionTimes
 import {emitTicketEvent,eventEnabled} from './ticket-events';
 import {ticketBcc,ticketEmailBody,type TicketEmailKind} from './ticket-emails';
 import {resolveTrainer} from './trainer-directory';
+import {parseAssetReference,resolveAsset} from './assets';
 import {planFields, fieldsForKind, missingFields, gatingFor, FORM_SCHEMA_VERSION, type IntakeData} from './intake/plan';
 
 type Priority='low'|'medium'|'high'|'critical';
@@ -244,6 +245,24 @@ async function queueTicketEmails(tx:Tx,ticket:EmailTicket,kind:TicketEmailKind,r
 export async function createTicketFromDraft(draft:AdvancedDraft,source=draft.source,channel='workspace',external?:ExternalCreate){return(await insertTicketFromDraft(draft,source,channel,external)).row;}
 /** `created` is false when the submission key or source reference already had a ticket. */
 async function insertTicketFromDraft(draft:AdvancedDraft,source=draft.source,channel='workspace',external?:ExternalCreate){
+// Form intake stores equipment answers as human-readable snake_case fields. Convert those
+// answers to the register FK at the shared ticket creation boundary so all channels agree.
+const cf={...(draft.customFields||{})};
+if(!(Number.isInteger(Number(cf.assetId))&&Number(cf.assetId)>0)){
+  const unitId=String(cf.asset_id||'').trim();
+  const registeredTag=/^P57-EQ-\d+$/i.test(unitId)?unitId:null;
+  let asset=registeredTag?(await db.select().from(assets).where(eq(assets.assetTag,registeredTag)).limit(1))[0]:undefined;
+  const equipmentType=String(cf.asset_type||cf.assetType||'').trim();
+  const spot=String(cf.specific_area||cf.specificArea||'').trim();
+  const bikeNumber=String(cf.bikeNumber||'').trim();
+  const ref=(bikeNumber?parseAssetReference(`bike ${bikeNumber}`):undefined)
+    ||parseAssetReference([equipmentType,unitId,spot].filter(Boolean).join(' '))
+    ||parseAssetReference(`${draft.title} ${draft.description}`);
+  if(!asset&&ref&&draft.studio){
+    asset=await resolveAsset({studio:draft.studio,type:ref.type,label:ref.label,area:String(cf.area||'').trim()||null});
+  }
+  if(asset){cf.assetId=asset.id;cf.assetName=asset.name;draft={...draft,customFields:cf};}
+}
 if(isHostedClassTicket(draft.category,draft.subcategory))draft={...draft,resolutionRequired:false,kind:'feedback',slaHours:0,priority:'low'};
 if(source!=='history'&&source!=='system'){const error=hostedFeedbackError(draft.category,draft.subcategory,draft.customFields?.hostedAttendees);if(error)throw new ApiError(error);}
 const cfg=source==='history'?null:await getConfig();const submissionKey=draft.submissionKey||randomUUID();
