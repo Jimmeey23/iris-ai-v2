@@ -404,12 +404,14 @@ export function canAccessTicket(
     departmentName?: string | null;
     studio?: string | null;
     additionalOwners?: {id: number}[] | null;
+    escalatedFromStaffId?: number | null;
   },
 ) {
   if (user.role === "admin") return true;
   if (ticket.assignedStaffId !== null && (ticket.assignedStaffId === user.staffId || user.managedStaffIds?.includes(ticket.assignedStaffId))) return true;
   // A co-owner on a cross-team ticket (and their manager) sees it like the lead owner does.
   if (ticket.additionalOwners?.some(o => o.id === user.staffId || user.managedStaffIds?.includes(o.id))) return true;
+  if (ticket.escalatedFromStaffId === user.staffId) return true;
   // An agent sees their own work *and* everything logged for their studio. A
   // studio is a shared workplace: an associate covering the floor needs the
   // tickets raised by whoever was on shift before them, not only the ones with

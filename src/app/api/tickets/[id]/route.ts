@@ -202,7 +202,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
     if (b.additionalOwnerIds !== undefined || b.committedResolutionAt !== undefined) {
       const allowed =
         canEditTicketDetails(actor, current) ||
-        (await canResolveTicket(actor, current.assignedStaffId, current.resolutionRequired, current.additionalOwners));
+        (await canResolveTicket(actor, current.assignedStaffId, current.resolutionRequired, current.additionalOwners, current.escalatedFromStaffId));
       if (!allowed) throw new ApiError("Only the ticket's owners, their reporting manager or its author can change this.", 403);
     }
     let coOwnerFields = {};
@@ -214,7 +214,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
       if (people.length !== ids.length || people.some(p=>!staffCoversStudio(cfg,p,b.studio||current.studio||''))) throw new ApiError("Choose active co-owners who cover this studio.");
       coOwnerFields = { additionalOwners: ids.map((sid) => {const p=people.find(p=>p.id===sid)!;return {id:p.id,name:p.name,email:p.email,departmentName:p.department};}) };
     }
-    const canWork=actor.role==='admin'||await canResolveTicket(actor,current.assignedStaffId,current.resolutionRequired,current.additionalOwners);
+    const canWork=actor.role==='admin'||await canResolveTicket(actor,current.assignedStaffId,current.resolutionRequired,current.additionalOwners,current.escalatedFromStaffId);
     if((b.assignedStaffId!==undefined||b.priority!==undefined||b.isEscalated!==undefined)&&!canWork&&!canEditTicketDetails(actor,current))throw new ApiError('Only the ticket owners, their manager, author or an administrator can change routing or priority.',403);
     let ownerFields = {};
     if (b.assignedStaffId) {

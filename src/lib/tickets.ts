@@ -297,6 +297,7 @@ export function ticketScope(user?:Identity):SQL|undefined{
   const studios=coveredStudios(user);
   const inStudios=studios.length?inArray(tickets.studio,studios):undefined;
   const reports=user.managedStaffIds?.length?inArray(tickets.assignedStaffId,user.managedStaffIds):undefined;
+  const escalatedFrom=user.staffId===null?undefined:eq(tickets.escalatedFromStaffId,user.staffId);
   // Co-owners on a cross-team ticket, and their managers — the same rule canAccessTicket applies.
   const coOwned=[user.staffId,...(user.managedStaffIds||[])].filter((id):id is number=>typeof id==='number');
   const coOwner=coOwned.length?or(...coOwned.map(id=>sql`${tickets.additionalOwners} @> ${JSON.stringify([{id}])}::jsonb`)):undefined;
@@ -307,7 +308,7 @@ export function ticketScope(user?:Identity):SQL|undefined{
         inStudios,
       )
     : or(user.staffId===null?undefined:eq(tickets.assignedStaffId,user.staffId),and(user.department?eq(tickets.departmentName,user.department):undefined,inStudios,user.department||studios.length?undefined:sql`false`));
-  return reports||coOwner?or(reports,coOwner,base):base;
+  return reports||coOwner||escalatedFrom?or(reports,coOwner,escalatedFrom,base):base;
 }
 /**
  * Whether the app may send the automatic "assigned to you" email on ticket
@@ -459,7 +460,7 @@ export async function applyEscalations(){
       const from=row.assignedStaffName||'Unassigned';
       await tx.update(tickets).set({
         assignedStaffId:to.id,assignedStaffName:to.name,assignedStaffEmail:to.email,
-        escalatedToStaffId:to.id,escalatedToName:to.name,escalatedAt:at,
+        escalatedToStaffId:to.id,escalatedToName:to.name,escalatedFromStaffId:row.assignedStaffId,escalatedAt:at,
         version:sql`${tickets.version} + 1`,
       }).where(eq(tickets.id,row.id));
       await tx.insert(ticketActivities).values({ticketId:row.id,actorName:'IRIS',action:'escalated.reassigned',detail:to.via==='manager'
@@ -494,10 +495,10 @@ async function findManager(manager:string){
 /** Resolution editing is restricted to the assigned owner and direct reporting manager.
  *  Per the README there is no blanket administrator override: an admin who is neither the
  *  owner nor their manager cannot edit it. */
-export async function canResolveTicket(user:{staffId:number|null;role:string;managedStaffIds?:number[]}|null,assignedStaffId:number|null,resolutionRequired:boolean,/** Co-owners on a cross-team ticket work the resolution too. */coOwners?:{id:number}[]|null):Promise<boolean>{if(!user||!resolutionRequired)return false;if(user.staffId===null)return false;if(coOwners?.some(o=>o.id===user.staffId||user.managedStaffIds?.includes(o.id)))return true;if(assignedStaffId===null)return false;if(user.staffId===assignedStaffId)return true;if(user.managedStaffIds)return user.managedStaffIds.includes(assignedStaffId);const[assignee]=await db.select({manager:staff.manager}).from(staff).where(eq(staff.id,assignedStaffId));if(!assignee?.manager)return false;const managerRow=await findManager(assignee.manager);return managerRow?.id===user.staffId;}
+export async function canResolveTicket(user:{staffId:number|null;role:string;managedStaffIds?:number[]}|null,assignedStaffId:number|null,resolutionRequired:boolean,/** Co-owners on a cross-team ticket work the resolution too. */coOwners?:{id:number}[]|null,escalatedFromStaffId?:number|null):Promise<boolean>{if(!user||!resolutionRequired)return false;if(user.staffId===null)return false;if(coOwners?.some(o=>o.id===user.staffId||user.managedStaffIds?.includes(o.id)))return true;if(escalatedFromStaffId===user.staffId)return true;if(assignedStaffId===null)return false;if(user.staffId===assignedStaffId)return true;if(user.managedStaffIds)return user.managedStaffIds.includes(assignedStaffId);const[assignee]=await db.select({manager:staff.manager}).from(staff).where(eq(staff.id,assignedStaffId));if(!assignee?.manager)return false;const managerRow=await findManager(assignee.manager);return managerRow?.id===user.staffId;}
 /** Single gate for resolution-workspace writes. Reads use normal ticket access. Returns the actor and the
  *  ticket so callers do not re-read either. */
-export async function requireResolutionAccess(ticketId:number):Promise<{user:Identity;ticket:typeof tickets.$inferSelect}>{const user=await currentUser();const[ticket]=await db.select().from(tickets).where(eq(tickets.id,ticketId));if(!ticket)throw new ApiError('Ticket not found',404);if(!ticket.resolutionRequired)throw new ApiError('This ticket does not require a resolution.');if(!user)throw new ApiError('Sign in to edit the resolution workspace.',401);if(!canAccessTicket(user,ticket))throw new ApiError('You do not have access to this ticket resolution.',403);if(!(await canResolveTicket(user,ticket.assignedStaffId,ticket.resolutionRequired,ticket.additionalOwners)))throw new ApiError('Only the assigned owner or their reporting manager can edit this resolution.',403);return{user,ticket};}
+export async function requireResolutionAccess(ticketId:number):Promise<{user:Identity;ticket:typeof tickets.$inferSelect}>{const user=await currentUser();const[ticket]=await db.select().from(tickets).where(eq(tickets.id,ticketId));if(!ticket)throw new ApiError('Ticket not found',404);if(!ticket.resolutionRequired)throw new ApiError('This ticket does not require a resolution.');if(!user)throw new ApiError('Sign in to edit the resolution workspace.',401);if(!canAccessTicket(user,ticket))throw new ApiError('You do not have access to this ticket resolution.',403);if(!(await canResolveTicket(user,ticket.assignedStaffId,ticket.resolutionRequired,ticket.additionalOwners,ticket.escalatedFromStaffId)))throw new ApiError('Only the assigned owner, original owner after escalation, or their reporting manager can edit this resolution.',403);return{user,ticket};}
 /** Full resolution history, readable by every signed-in user with ticket access. */
 export async function getResolutionWorkspace(ticketId:number){const[[resolution],steps,followUps,contacts,attachments]=await Promise.all([
   db.select().from(ticketResolutions).where(eq(ticketResolutions.ticketId,ticketId)),
@@ -513,7 +514,7 @@ if(!user)throw new ApiError('Sign in to your workspace account to view this.',40
 // These reads are independent of each other. Issued sequentially they cost a database
 // round-trip each before anything renders; in parallel they cost one.
 const[canResolve,comments,activities,similar,links,asset]=await Promise.all([
-  canResolveTicket(user,ticket.assignedStaffId,ticket.resolutionRequired,ticket.additionalOwners),
+  canResolveTicket(user,ticket.assignedStaffId,ticket.resolutionRequired,ticket.additionalOwners,ticket.escalatedFromStaffId),
   db.select().from(ticketComments).where(eq(ticketComments.ticketId,id)).orderBy(ticketComments.createdAt),
   db.select().from(ticketActivities).where(eq(ticketActivities.ticketId,id)).orderBy(ticketActivities.createdAt),
   db.select({id:tickets.id,ticketNumber:tickets.ticketNumber,title:tickets.title,status:tickets.status,priority:tickets.priority}).from(tickets).where(and(eq(tickets.category,ticket.category),eq(tickets.subcategory,ticket.subcategory),ne(tickets.id,id),ticketScope(user))).orderBy(desc(tickets.createdAt)).limit(8),
@@ -540,7 +541,7 @@ export async function assertStatusTransition(actor:Identity,current:typeof ticke
   const error=transitionError(current.status,next,resolutionRequired,cfg.allowReopen);
   if(error)throw new ApiError(error,409);
   if(current.status===next)return;
-  const permitted=(!resolutionRequired&&actor.role==='admin')||await canResolveTicket(actor,current.assignedStaffId,current.resolutionRequired,current.additionalOwners);
+  const permitted=(!resolutionRequired&&actor.role==='admin')||await canResolveTicket(actor,current.assignedStaffId,current.resolutionRequired,current.additionalOwners,current.escalatedFromStaffId);
   if(!permitted)throw new ApiError('Only a ticket owner or their reporting manager can change status; administrators can manage record-only entries.',403);
   if(TERMINAL.includes(next)&&!TERMINAL.includes(current.status)&&resolutionRequired){
     const[r]=await db.select().from(ticketResolutions).where(eq(ticketResolutions.ticketId,current.id));

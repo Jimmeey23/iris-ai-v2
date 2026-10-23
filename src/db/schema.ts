@@ -21,6 +21,8 @@ export const tickets = pgTable("tickets", {
   /** Who the breach was escalated to, so the digest and the ticket can say so, and so a
    *  second sweep does not escalate the same ticket to the same person again. */
   escalatedToStaffId: integer("escalated_to_staff_id").references((): AnyPgColumn => staff.id, { onDelete: "set null" }), escalatedToName: text("escalated_to_name"), escalatedAt: timestamp("escalated_at", { withTimezone: true }),
+  /** Original owner retained when a breach escalation transfers the lead assignment. */
+  escalatedFromStaffId: integer("escalated_from_staff_id").references((): AnyPgColumn => staff.id, { onDelete: "set null" }),
   /** Further owners when the work spans teams (a class complaint touching client servicing,
    *  training and operations). `assignedStaffId` stays the lead owner every SLA, escalation
    *  and resolution rule keys on; these people share access, mail and the board column. */

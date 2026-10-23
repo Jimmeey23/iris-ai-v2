@@ -1,0 +1,2 @@
+ALTER TABLE "tickets" ADD COLUMN "escalated_from_staff_id" integer;--> statement-breakpoint
+ALTER TABLE "tickets" ADD CONSTRAINT "tickets_escalated_from_staff_id_staff_id_fk" FOREIGN KEY ("escalated_from_staff_id") REFERENCES "public"."staff"("id") ON DELETE set null ON UPDATE no action;
