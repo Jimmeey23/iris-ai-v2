@@ -2,6 +2,7 @@
 import {useRef, useState} from 'react';
 import {ArrowRight, Loader2, Sparkles} from 'lucide-react';
 import {api} from '../ui';
+import {VoiceInput} from '../voice-input';
 import type {IntakeSuggestion, Pick} from '@/lib/intake/suggest';
 
 const LEVEL_COPY = {
@@ -51,6 +52,7 @@ export function DescribeBox({onUse}: {onUse: (pick: Pick, s: IntakeSuggestion) =
           placeholder="e.g. AC stopped working in Studio 1 at Kwality since the 7am class, members complaining it is boiling"
           aria-label="What happened"
         />
+        <VoiceInput disabled={busy} onText={spoken => { setText(t => (t.trim() ? t.trim() + ' ' : '') + spoken.trim()); if (result) { seq.current++; setResult(undefined); } }} />
         <button type="button" className="btn btn-primary" disabled={!ready || busy} onClick={() => void run()}>
           {busy ? <Loader2 size={14} className="spin" /> : <ArrowRight size={14} />}{busy ? 'Reading…' : 'Suggest'}
         </button>

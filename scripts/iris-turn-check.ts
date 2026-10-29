@@ -60,6 +60,17 @@ function check(name: string, cond: boolean, got?: unknown) {
   check('free-text field gains chips', r.options?.length === 2, r.options);
 }
 
+// Answers drawn from the report replace the generic defaults, and "Something else" stays.
+{
+  const r = mergeProposedTurn({
+    fieldKey: 'impact',
+    question: 'How much is this affecting the floor right now?',
+    options: [{label: 'Class could not run as normal', value: 'Class could not run as normal'}, {label: 'Something else', value: '__other__'}],
+    proposed: {nextField: 'impact', options: [{label: 'Bike out for the 7am', value: 'Bike 6 out of use for the 7am class'}]},
+  });
+  check('report-specific chips replace the defaults', JSON.stringify(r.options?.map(o => o.value)) === JSON.stringify(['Bike 6 out of use for the 7am class', '__other__']), r.options);
+}
+
 // A field whose exact values drive later branches must not.
 {
   const r = mergeProposedTurn({

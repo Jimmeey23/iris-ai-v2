@@ -1,6 +1,6 @@
 import OpenAI from 'openai';
 import {getConfig,credentials} from './config';
-import {anyProvider,claudePass,claudeReady,openAIAvoided,providers,shouldUseClaude} from './llm';
+import {anyProvider,claudePass,claudeReady,llmJson,openAIAvoided,providers,shouldUseClaude} from './llm';
 import {extractEntities,inferSentiment,classifyIssue,matchStudio} from './classifier';
 import {makeDraft,historicalExamples} from './tickets';
 import {listMomence,obj} from './momence';
@@ -230,17 +230,19 @@ export function mergeProposedTurn({fieldKey,question,options,proposed,lastAssist
   }
 
   if(pickerTurn){/* the picker supplies its own choices */}
+  else if(proposed.options?.length&&MODEL_MAY_PROPOSE_OPTIONS.has(fieldKey)){
+    // Fields with no closed list read as an interrogation over a bare text box, so the flow
+    // offers generic answers. Answers drawn from what they actually reported beat those; the
+    // sentinel chips ("Something else") are kept so free text stays one tap away.
+    const seen=new Set<string>();
+    const proposedOpts=proposed.options.filter(o=>{const k=o.value.trim().toLowerCase();if(!k||k.startsWith('__')||seen.has(k))return false;seen.add(k);return true;});
+    opts=[...proposedOpts,...canonical.filter(o=>o.value.startsWith('__'))];
+  }
   else if(canonical.length&&proposed.options?.length){
     // Relabel the canonical answers, never redefine them: every value the flow offered
     // survives, so normalizeAnswer still recognises whatever comes back.
     const byValue=new Map(proposed.options.map(o=>[o.value.trim().toLowerCase(),o.label.trim()]));
     opts=canonical.map(o=>{const relabel=byValue.get(o.value.trim().toLowerCase());return relabel?{label:relabel,value:o.value}:o;});
-  }else if(!canonical.length&&proposed.options?.length&&MODEL_MAY_PROPOSE_OPTIONS.has(fieldKey)){
-    // Fields with no scripted answers are the ones that read as an interrogation: a bare
-    // "How much is this affecting the floor right now?" over an empty text box. The model
-    // may offer concrete answers here, because these values are stored as free text.
-    const seen=new Set<string>();
-    opts=proposed.options.filter(o=>{const k=o.value.trim().toLowerCase();if(!k||seen.has(k))return false;seen.add(k);return true;});
   }
 
   // The acknowledgement leads, the question follows — one sentence of having been heard.
@@ -605,6 +607,64 @@ function saysYes(value:string):boolean{
  *  actually stores, whose two answers really differ, and that the reporter has not already
  *  settled. `now` falls back to what the flow just bound, so a conflict that names the
  *  field without repeating the answer still works. */
+/** Answers offered for the questions that have no closed list. Every question comes with
+ *  something to tap — a bare text box is where the guided flow stalled — and the model
+ *  replaces these with answers drawn from the report whenever it is connected. */
+const IMPACT_OPTIONS=['Class could not run as normal','Members inconvenienced, class continued','Safety risk to members or staff','Minor — comfort or back-office only'];
+const CONTACT_OPTIONS=['Member expects a callback','Reply on WhatsApp','Reply by email','Internal log only'];
+function resolutionOptions(category:string):string[]{
+  switch(category){
+    case 'Repair and Maintenance':case 'Studio Amenities and Facilities':return ['Repair or replace it','Inspect and report back','Take it out of use until fixed'];
+    case 'Tech Issues':case 'Operating Systems':return ['Fix the system before the next class','Inspect and report back','Replace the equipment'];
+    case 'Safety and Security':return ['Investigate and secure the area','Review CCTV and report back','Brief the studio team'];
+    case 'Trainer Feedback':case 'Class Experience':return ['Share feedback with the trainer','Review with the trainer’s manager','Call the member back'];
+    case 'Scheduling':return ['Fix the schedule / booking','Call the member back','Review the class timing'];
+    case 'Theft and Lost Items':return ['Search the studio and report back','Review CCTV','Call the member with an update'];
+    default:return ['Call the member back','Review and follow up','Refund or credit review'];
+  }
+}
+
+/**
+ * Writes the ticket's title and operational summary with the connected model, from the facts
+ * the conversation actually collected. The flow still decides category, studio, routing,
+ * priority and SLA; the model only writes words a person reads, and only from the facts given.
+ * The result is cached on the session against those facts, so re-rendering an unchanged
+ * draft costs nothing and any edit produces a fresh write-up.
+ */
+async function composeDraft(draft:AdvancedDraft,c:Record<string,unknown>,aiEnabled:boolean):Promise<AdvancedDraft>{
+  if(!aiEnabled)return draft;
+  const facts=Object.fromEntries(Object.entries(c).filter(([k,v])=>!k.startsWith('_')&&v!==undefined&&v!==''&&v!==SKIPPED&&typeof v!=='object'));
+  const key=JSON.stringify(facts);
+  let composed=obj(c._composed);
+  if(composed.key!==key){
+    try{
+      const res=await llmJson({
+        system:`You are IRIS, the operations analyst for Physique 57 India. Turn the facts a staff member gave into a complete internal support ticket, grounded ONLY in the supplied facts. Never invent names, times, studios, causes, measurements or outcomes. Say "member", "studio", "trainer", "class", "team"; no brand-speak. Return JSON {"title":"...","summary":"...","impact":"...","requestedResolution":"..."}.
+- title: one precise line, at most 90 characters, naming what happened and where (e.g. "Bike #6 pedal detached mid-class — PowerCycle Studio, Bandra").
+- summary: 4-6 sentences of third-person operational brief: what was reported and by whom, the member/session context, the observed impact, evidence or history already known, and the next action for the assigned team.
+- impact: one short sentence on how this affects the floor, members or operations.
+- requestedResolution: one short sentence on what the assigned team should do.`,
+        user:`Ticket kind: ${draft.kind}\nCategory: ${draft.category} → ${draft.subcategory}\nStudio: ${draft.studio}\nRouted to: ${draft.departmentName}${draft.assignedStaffName?` · ${draft.assignedStaffName}`:''}\nPriority: ${draft.priority} · ${draft.slaLabel}\nFacts:\n${JSON.stringify(facts,null,2)}`,
+        temperature:0.3,maxTokens:700,timeoutMs:20000,
+      });
+      if(!res)return draft;
+      const p=obj(JSON.parse(res.text||'{}'));
+      const text=(v:unknown,max:number)=>typeof v==='string'&&v.trim()?v.trim().replace(/\s+/g,' ').slice(0,max):undefined;
+      composed={key,title:text(p.title,120),summary:text(p.summary,1000),impact:text(p.impact,300),requestedResolution:text(p.requestedResolution,300)};
+      c._composed=composed;
+    }catch(e){console.warn('[iris] draft composition failed:',e instanceof Error?e.message:e);return draft;}
+  }
+  const out={...draft};
+  // A title the reporter typed in the edit dialog is theirs; the model never overwrites it.
+  if(typeof composed.title==='string'&&!(typeof c.title==='string'&&c.title.trim()))out.title=composed.title;
+  if(typeof composed.summary==='string')out.summary=composed.summary;
+  // Only placeholders are replaced: an impact or next step the reporter gave stands as given.
+  const placeholder=(k:'impact'|'requestedResolution',flag:string)=>!c[k]||c[k]===SKIPPED||c[flag]===true;
+  if(typeof composed.impact==='string'&&placeholder('impact','_operationalImpactDefault'))out.impact=composed.impact;
+  if(typeof composed.requestedResolution==='string'&&placeholder('requestedResolution','_operationalResolutionDefault'))out.requestedResolution=composed.requestedResolution;
+  return out;
+}
+
 /** One line on what the equipment register already knows, shown while the fault is being
  *  reported — the moment it can still change what the reporter decides to do. */
 export function buildAssetNote(c:Record<string,unknown>):string|undefined{
@@ -1149,7 +1209,7 @@ opts=[{label:'Session not listed / enter manually',value:'__manual_session__'},.
 else if((!c.studio||c.studio==='—')&&!c.incidentAt&&!c._bundleTried){
   fieldKey='studioAndTime';
   question=`Which studio location was this at, and when did you notice it?`;
-  opts=undefined;
+  opts=options(cfg.studios);
 }
 else if(!c.studio||c.studio==='—'){
   const contextNote = c.area ? `Noted for ${c.area}${c.trainer ? ` (${c.trainer}'s session)` : ''}. ` : '';
@@ -1174,18 +1234,18 @@ else if(!praise&&!c.impact){
   if(c.isClassImpacted==='Yes, blocking now'){c.impact='Could not proceed as normal';return runIris({...input,message:undefined,collected:c,patch:undefined,proposedTurn:proposed});}
   fieldKey='impact';
   question=`How much is this affecting the floor right now?`;
-  opts=undefined;
+  opts=options(IMPACT_OPTIONS);
 }
 else if(!praise&&!c.requestedResolution){
   fieldKey='requestedResolution';
   question=`What should happen next?`;
-  opts=undefined;
+  opts=options(resolutionOptions(String(c.category)));
 }
 else if(!praise&&!c.preferredContact){
   if(!isMemberReport){c.preferredContact='Internal log only';return runIris({...input,message:undefined,collected:c,patch:undefined,proposedTurn:proposed});}
   fieldKey='preferredContact';
   question=`Does the member need a callback, or is this internal-only?`;
-  opts=undefined;
+  opts=options(CONTACT_OPTIONS);
 }
 else if(['Member expects a callback'].includes(String(c.preferredContact))&&!c.memberPhone&&!(asked.memberPhone||0)){
   fieldKey='memberPhone';
@@ -1250,7 +1310,10 @@ if(!fieldKey&&Number(c._linkTo||0)>0){
   const chosen=obj(c._duplicate);
   return{sessionId:input.sessionId,message:`Adding this to ${String(chosen.ticketNumber||'the open ticket')} as report #${Number(chosen.recurrence||2)} — no second ticket will be created.`,phase:'collect',fieldKey:undefined,options:[],collected:c,assetNote:buildAssetNote(c),linkedTicket:{id:Number(c._linkTo),ticketNumber:String(chosen.ticketNumber||''),recurrence:Number(chosen.recurrence||2)},progress:{done:urgentRequired.length,total:urgentRequired.length},engine,notice};
 }
-let draft:AdvancedDraft|undefined;if(!fieldKey){const cf=obj(c.customFields);draft=await makeDraft({...c,description:c.description,memberName:c.memberName||'Studio team observation',memberEmail:c.memberEmail||'',kind:c.kind,source:'iris',sentiment:praise?'positive':c.sentiment||inferSentiment(String(c.description)),customFields:{...cf,...intakeAnswers(c)},preferredContact:c.preferredContact||'Internal log only',momenceContext:c.momenceContext});// The recap is the deliverable: the reporter needs to see the routing, priority and SLA the
+let draft:AdvancedDraft|undefined;if(!fieldKey){const cf=obj(c.customFields);draft=await makeDraft({...c,description:c.description,memberName:c.memberName||'Studio team observation',memberEmail:c.memberEmail||'',kind:c.kind,source:'iris',sentiment:praise?'positive':c.sentiment||inferSentiment(String(c.description)),customFields:{...cf,...intakeAnswers(c)},preferredContact:c.preferredContact||'Internal log only',momenceContext:c.momenceContext});
+// The model writes the title and the operational brief; routing, priority and SLA above stay rule-based.
+draft=await composeDraft(draft,c,cfg.aiEnabled);
+// The recap is the deliverable: the reporter needs to see the routing, priority and SLA the
 // ticket will carry before approving it, not just be told that a ticket exists.
 // Include area for facility/maintenance tickets so the exact room is visible at a glance.
 const locationTail = [draft.studio, (isFacilityCat && c.area) ? String(c.area) : '', draft.incidentAt].filter(Boolean).join(' · ');

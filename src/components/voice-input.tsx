@@ -29,8 +29,9 @@ export function parseVoiceCommand(text: string): VoiceCommand | null {
 
 /**
  * Voice capture with dual layered strategy:
- * 1. Web Speech API (instant, native recognition)
- * 2. Fallback to MediaRecorder + Whisper API for environments blocking speech synthesis
+ * 1. MediaRecorder + server transcription (gpt-transcribe, primed with studio, trainer and
+ *    equipment names) — the accurate path, used whenever OpenAI is connected
+ * 2. Web Speech API as the fallback when server transcription is not connected
  * Supports direct voice commands ("approve ticket", "review draft", "start fresh")
  */
 export function VoiceInput({
@@ -54,7 +55,8 @@ export function VoiceInput({
   const recorder = useRef<MediaRecorder | null>(null);
   const stream = useRef<MediaStream | null>(null);
   const mounted = useRef(true);
-  const fellBack = useRef(false);
+  /** Set once the server says transcription is not connected, so later taps go straight to the browser. */
+  const serverUnavailable = useRef(false);
 
   useEffect(() => {
     return () => {
@@ -114,6 +116,12 @@ export function VoiceInput({
           form.append('audio', file);
           const response = await fetch('/api/iris/transcribe', { method: 'POST', body: form });
           const data = await response.json();
+          if (response.status === 503 && browserSpeech()) {
+            serverUnavailable.current = true;
+            notify('High-accuracy transcription is not connected — using browser dictation. Please repeat that.', 'error');
+            startBrowserSpeech();
+            return;
+          }
           if (!response.ok) throw new Error(data.error || 'Transcription unavailable');
           if (!data.text?.trim()) throw new Error('Didn’t catch that — try speaking a little closer to the mic.');
           handleRecognizedText(data.text);
@@ -126,9 +134,10 @@ export function VoiceInput({
       };
       r.start();
       setRecording(true);
+      notify('Listening — describe the issue, then tap the mic to stop.');
       setTimeout(() => {
         if (r.state === 'recording') r.stop();
-      }, 60000);
+      }, 120000);
     } catch (e) {
       const name = (e as DOMException)?.name;
       notify(
@@ -140,6 +149,43 @@ export function VoiceInput({
     }
   }
 
+  function browserSpeech() {
+    const w = window as unknown as {
+      SpeechRecognition?: new () => Recognition;
+      webkitSpeechRecognition?: new () => Recognition;
+    };
+    return w.SpeechRecognition || w.webkitSpeechRecognition;
+  }
+
+  function startBrowserSpeech() {
+    const Speech = browserSpeech();
+    if (!Speech) return;
+    try {
+      const r = new Speech();
+      r.lang = 'en-IN';
+      r.continuous = true;
+      r.interimResults = false;
+      r.onresult = (e) => {
+        let text = '';
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+          if (e.results[i].isFinal) text += e.results[i][0].transcript + ' ';
+        }
+        if (text.trim()) handleRecognizedText(text);
+      };
+      r.onerror = (e) => {
+        setRecording(false);
+        notify(e.error === 'not-allowed' ? 'Microphone access was blocked. Please allow mic permission in your browser.' : 'Didn\u2019t catch that \u2014 try again, or type your message.', 'error');
+      };
+      r.onend = () => setRecording(false);
+      recognizer.current = r;
+      r.start();
+      setRecording(true);
+      notify('Listening — speak your issue or voice command ("approve ticket", "review draft", etc.). Tap mic to stop.');
+    } catch {
+      notify('Voice input is not available in this browser.', 'error');
+    }
+  }
+
   async function start() {
     if (recording) {
       recognizer.current?.stop();
@@ -147,49 +193,12 @@ export function VoiceInput({
       setRecording(false);
       return;
     }
-    const w = window as unknown as {
-      SpeechRecognition?: new () => Recognition;
-      webkitSpeechRecognition?: new () => Recognition;
-    };
-    const Speech = w.SpeechRecognition || w.webkitSpeechRecognition;
-    if (Speech && !fellBack.current) {
-      try {
-        const r = new Speech();
-        r.lang = 'en-IN';
-        r.continuous = true;
-        r.interimResults = false;
-        r.onresult = (e) => {
-          let text = '';
-          for (let i = e.resultIndex; i < e.results.length; i++) {
-            if (e.results[i].isFinal) text += e.results[i][0].transcript + ' ';
-          }
-          if (text.trim()) {
-            handleRecognizedText(text);
-          }
-        };
-        r.onerror = (e) => {
-          setRecording(false);
-          if (['not-allowed', 'service-not-allowed', 'network'].includes(e.error)) {
-            fellBack.current = true;
-            notify('Switching to high-accuracy audio capture…');
-            void recordAndTranscribe();
-            return;
-          }
-          notify('Retrying with audio recording…', 'error');
-          fellBack.current = true;
-          void recordAndTranscribe();
-        };
-        r.onend = () => setRecording(false);
-        recognizer.current = r;
-        r.start();
-        setRecording(true);
-        notify('Listening — speak your issue or voice command ("approve ticket", "review draft", etc.). Tap mic to stop.');
-        return;
-      } catch {
-        fellBack.current = true;
-      }
+    const canRecord = Boolean(navigator.mediaDevices && typeof window.MediaRecorder !== "undefined");
+    if (canRecord && !serverUnavailable.current) {
+      void recordAndTranscribe();
+      return;
     }
-    void recordAndTranscribe();
+    startBrowserSpeech();
   }
 
   return (

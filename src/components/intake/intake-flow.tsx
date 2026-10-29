@@ -469,7 +469,7 @@ export function IntakeFlow({presetCategory, presetSubcategory, presetDesk, onLeg
         </ol>
         <div className="intake-head-actions">
           {step !== 'classdesk' && step !== 'done' && <button type="button" className="btn btn-sm" onClick={() => setStep('classdesk')}><CalendarDays size={13} /> Start from a class</button>}
-          {onLegacy && <button type="button" className="btn btn-sm intake-legacy" onClick={onLegacy} title="Open the previous conversational intake"><MessageSquareText size={13} /> Legacy chat</button>}
+          {onLegacy && <button type="button" className="btn btn-sm intake-legacy" onClick={onLegacy} title="Log the ticket by chatting with Iris — type or speak"><MessageSquareText size={13} /> Chat with Iris</button>}
         </div>
       </header>
 
