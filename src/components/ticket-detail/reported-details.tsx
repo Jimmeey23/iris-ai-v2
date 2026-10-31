@@ -332,7 +332,7 @@ export function HostedAttendees({ ticket }: { ticket: TicketRecord }) {
         </span>
         <div>
           <span className="eyebrow">
-            HOSTED CLASS · {rows.length} {rows.length === 1 ? "ATTENDEE" : "ATTENDEES"} · {attended} ATTENDED
+            Hosted class · {rows.length} {rows.length === 1 ? "attendee" : "attendees"} · {attended} attended
             {followUps ? ` · ${followUps} TO FOLLOW UP` : ""}
           </span>
           <h3 id={"ha-title-" + ticket.id}>Attendee roster</h3>

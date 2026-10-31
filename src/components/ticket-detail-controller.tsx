@@ -55,19 +55,25 @@ type Bundle = {
 };
 
 const TABS = ["overview", "resolution", "activity", "related"] as const;
+/** Everything the ticket workspace renders. Exported so the design preview can
+ *  hand in a fixture instead of going to the database. */
+export type TicketDetailBundle = Bundle;
 export function useTicketDialogController({
   id,
   open,
   onClose,
   onUpdated,
+  fixture,
 }: {
   id: number;
   open: boolean;
   onClose: () => void;
   onUpdated?: () => void;
+  /** Design-preview only: render this bundle and never touch the network. */
+  fixture?: TicketDetailBundle;
 }) {
   const { notify, user, openAuth } = useApp();
-  const [bundle, setBundle] = useState<Bundle>(),
+  const [bundle, setBundle] = useState<Bundle | undefined>(fixture),
     [error, setError] = useState(""),
     [tab, setTab] = useState<(typeof TABS)[number]>("overview"),
     [busy, setBusy] = useState(false),
@@ -131,14 +137,16 @@ export function useTicketDialogController({
   });
   const load = useCallback(
     () =>
-      api<Bundle>("/api/tickets/" + id).then(
-        (d) => {
-          setBundle(d);
-          setError("");
-        },
-        (e: Error) => setError(e.message),
-      ),
-    [id],
+      fixture
+        ? Promise.resolve()
+        : api<Bundle>("/api/tickets/" + id).then(
+            (d) => {
+              setBundle(d);
+              setError("");
+            },
+            (e: Error) => setError(e.message),
+          ),
+    [id, fixture],
   );
   // Reopening (or switching ticket) starts from a clean slate. Done while rendering,
   // not in an effect, so the stale bundle never paints for a frame.
@@ -147,13 +155,13 @@ export function useTicketDialogController({
   if (shownFor !== shownKey) {
     setShownFor(shownKey);
     if (open) {
-      setBundle(undefined);
+      setBundle(fixture);
       setTab("overview");
       setRailOpen(false);
     }
   }
   useEffect(() => {
-    if (open) {
+    if (open && !fixture) {
       void load();
       void api<{ staff: StaffRecord[] }>("/api/staff")
         .then((d) => setStaff(d.staff))
@@ -195,7 +203,7 @@ export function useTicketDialogController({
         window.removeEventListener("iris:tickets-updated", onVisible);
       };
     }
-  }, [open, load, editOpen]);
+  }, [open, load, editOpen, fixture]);
   // The picker searches server-side (`?q=` returns up to 20 matches) rather than
   // downloading the whole ticket list, debounced so typing doesn't fire a request a key.
   const linkTerm = linkQuery.trim();
@@ -469,6 +477,17 @@ export function useTicketDialogController({
     }
   }
 
+  /**
+   * In the preview every write is switched off. The point of that route is to
+   * judge the interface, and a mutation there would either fail against the
+   * signed-out API or, worse, half-succeed. Saying so once, plainly, is better
+   * than letting someone click Resolve and watch nothing happen.
+   */
+  const off = () =>
+    notify("Actions are switched off in the design preview.");
+  const as = <T extends (...args: never[]) => unknown>(fn: T) =>
+    (fixture ? off : fn) as T;
+
   const t = bundle?.ticket;
   const coOwners = t ? coOwnersOf(t) : [];
   const settled = t ? ["resolved", "closed"].includes(t.status) : false;
@@ -490,9 +509,9 @@ export function useTicketDialogController({
     notify,
     openEditor,
     load,
-    duplicate,
+    duplicate: as(duplicate),
     nudging,
-    nudge,
+    nudge: as(nudge),
     recurrenceCount,
     setChildId,
     coOwners,
@@ -506,17 +525,17 @@ export function useTicketDialogController({
     note,
     setNote,
     setMentioned,
-    addNote,
+    addNote: as(addNote),
     setLinkOpen,
-    link,
+    link: as(link),
     extendOpen,
     extendHours,
     setExtendHours,
     extendReason,
     setExtendReason,
     setExtendOpen,
-    extendSla,
-    patch,
+    extendSla: as(extendSla),
+    patch: as(patch),
     staff,
     canManage,
     setEntity,
@@ -527,11 +546,11 @@ export function useTicketDialogController({
     editOpen,
     setEditOpen,
     edit,
-    saveEdit,
+    saveEdit: as(saveEdit),
     setEdit,
     deleteOpen,
     deleteConfirmation,
-    deleteTicket,
+    deleteTicket: as(deleteTicket),
     linkOpen,
     linkQuery,
     setLinkQuery,
@@ -549,6 +568,7 @@ export function TicketDialog(props: {
   open: boolean;
   onClose: () => void;
   onUpdated?: () => void;
+  fixture?: TicketDetailBundle;
 }) {
   const model = useTicketDialogController(props);
   return <TicketDialogView model={model} />;

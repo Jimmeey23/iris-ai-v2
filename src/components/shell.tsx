@@ -55,7 +55,7 @@ import { onVisibleInterval } from "@/lib/visible-interval";
 type NavItem = {
   href: string;
   label: string;
-  icon: React.ComponentType<{ size?: number; className?: string }>;
+  icon: React.ComponentType<{ size?: number; className?: string; strokeWidth?: number }>;
 };
 const nav: NavItem[] = [
   { href: "/dashboard", label: "Overview", icon: Gauge },
@@ -151,6 +151,59 @@ const subscribePhone = (cb: () => void) => {
 const usePhone = () =>
   useSyncExternalStore(subscribePhone, () => window.matchMedia(PHONE_QUERY).matches, () => false);
 
+/** One nav renderer for all three rail sections. The previous code repeated
+ *  this markup per section, which is how the developer group ended up without
+ *  the tour hook the workspace group had. */
+function NavSection({
+  heading,
+  items,
+  path,
+  collapsed,
+  role,
+  onNavigate,
+  tour = false,
+}: {
+  heading: string;
+  items: NavItem[];
+  path: string;
+  collapsed: boolean;
+  role?: string;
+  onNavigate: () => void;
+  tour?: boolean;
+}) {
+  if (items.length === 0) return null;
+  return (
+    <>
+      <div className="nav-heading">{heading}</div>
+      {items.map((n) => {
+        const Icon = n.icon;
+        const active =
+          path === n.href ||
+          path.startsWith(n.href + "/") ||
+          (path === "/" && n.href === "/dashboard");
+        if (lockedFor(n.href, role)) return <LockedNavItem key={n.href} item={n} />;
+        return (
+          <Link
+            key={n.href}
+            href={n.href}
+            className={"nav-link" + (active ? " active" : "")}
+            aria-current={active ? "page" : undefined}
+            aria-label={collapsed ? n.label : undefined}
+            title={collapsed ? n.label : undefined}
+            data-tip={collapsed ? n.label : undefined}
+            data-tip-pos="right"
+            data-tour={tour ? "nav" + n.href.replace(/\//g, "-") : undefined}
+            onClick={onNavigate}
+          >
+            <Icon size={16} strokeWidth={1.8} />
+            <span className="nav-label">{n.label}</span>
+          </Link>
+        );
+      })}
+    </>
+  );
+}
+
 export function Shell({
   children,
   title = "Overview",
@@ -161,6 +214,11 @@ export function Shell({
   fullHeight = false,
   fullWidth = false,
   banner,
+  /** Overrides the path used to compute which nav item is current. Only the
+   *  design preview uses it: /preview is not a product route, so without this
+   *  the rail renders with nothing selected and the active state cannot be
+   *  reviewed. */
+  activePath,
 }: {
   children: ReactNode;
   title?: string;
@@ -173,8 +231,10 @@ export function Shell({
    *  whole viewport rather than the readable-measure layout most pages want. */
   fullWidth?: boolean;
   banner?: ReactNode;
+  activePath?: string;
 }) {
-  const path = usePathname(),
+  const currentPath = usePathname(),
+    path = activePath ?? currentPath,
     router = useRouter();
   const { user, openAuth, refreshUser, notify, pollSeconds } = useApp();
   /** Live presence, shared with every avatar in the app — one poll, one truth. */
@@ -317,8 +377,6 @@ export function Shell({
   }, [user, path, activeName]);
 
   const openItems = items.filter(isOpen);
-  /** The Overview is deliberately chrome-free: no drawer or collapse controls. */
-  const isOverview = path === "/dashboard" || path === "/";
   async function signOut() {
     try {
       await api("/api/auth", {
@@ -343,180 +401,125 @@ export function Shell({
         />
       )}
       <aside className={"sidebar" + (mobile ? " open" : "") + (collapsed ? " collapsed" : "")}>
-        <Link className="brand" href="/">
-          <IrisLockup size={30} subtitle="" />
+        <Link className="brand" href="/" aria-label="IRIS — overview">
+          <IrisLockup size={26} compact={collapsed} subtitle="Ops workspace" />
         </Link>
         <div className="sidebar-scrollable">
-          <div className="nav-heading">WORKSPACE</div>
-          {visibleNav.map((n) => {
-            const Icon = n.icon;
-            const active =
-              path === n.href || path.startsWith(n.href + "/") || (path === "/" && n.href === "/dashboard");
-            if (lockedFor(n.href, user?.role))
-              return <LockedNavItem key={n.href} item={n} />;
-            return (
-              <Link
-                key={n.href}
-                href={n.href}
-                className={"nav-link" + (active ? " active" : "")}
-                aria-current={active ? "page" : undefined}
-                aria-label={collapsed ? n.label : undefined}
-                title={collapsed ? n.label : undefined}
-                data-tip={collapsed ? n.label : undefined}
-                data-tip-pos="right"
-                data-tour={"nav" + n.href.replace(/\//g, "-")}
-                onClick={() => setMobile(false)}
-              >
-                <Icon size={16} />
-                <span className="nav-label">{n.label}</span>
-              </Link>
-            );
-          })}
-          <div className="nav-heading">ORGANIZATION</div>
-          {visibleOrg.map((n) => {
-            const Icon = n.icon;
-            const active = path.startsWith(n.href);
-            if (lockedFor(n.href, user?.role))
-              return <LockedNavItem key={n.href} item={n} />;
-            return (
-              <Link
-                key={n.href}
-                href={n.href}
-                className={"nav-link" + (active ? " active" : "")}
-                aria-current={active ? "page" : undefined}
-                aria-label={collapsed ? n.label : undefined}
-                title={collapsed ? n.label : undefined}
-                data-tip={collapsed ? n.label : undefined}
-                data-tip-pos="right"
-                onClick={() => setMobile(false)}
-              >
-                <Icon size={16} />
-                <span className="nav-label">{n.label}</span>
-              </Link>
-            );
-          })}
-          {visibleDeveloper.length > 0 && (
-            <>
-              <div className="nav-heading">DEVELOPER</div>
-              {visibleDeveloper.map((n) => {
-                const Icon = n.icon;
-                const active = path.startsWith(n.href);
-                return (
-                  <Link
-                    key={n.href}
-                    href={n.href}
-                    className={"nav-link" + (active ? " active" : "")}
-                    aria-current={active ? "page" : undefined}
-                    aria-label={collapsed ? n.label : undefined}
-                    title={collapsed ? n.label : undefined}
-                    data-tip={collapsed ? n.label : undefined}
-                    data-tip-pos="right"
-                    onClick={() => setMobile(false)}
-                  >
-                    <Icon size={16} />
-                    <span className="nav-label">{n.label}</span>
-                  </Link>
-                );
-              })}
-            </>
-          )}
+          <NavSection
+            heading="Workspace"
+            items={visibleNav}
+            path={path}
+            collapsed={collapsed}
+            role={user?.role}
+            onNavigate={() => setMobile(false)}
+            tour
+          />
+          <NavSection
+            heading="Organisation"
+            items={visibleOrg}
+            path={path}
+            collapsed={collapsed}
+            role={user?.role}
+            onNavigate={() => setMobile(false)}
+          />
+          <NavSection
+            heading="Developer"
+            items={visibleDeveloper}
+            path={path}
+            collapsed={collapsed}
+            role={user?.role}
+            onNavigate={() => setMobile(false)}
+          />
         </div>
       </aside>
       <header className="topbar" ref={topbarRef}>
-          <div className="flex-row">
-            {!isOverview && (
-              <>
-                <button
-                  className="icon-btn mobile-menu"
-                  onClick={() => setMobile(true)}
-                  aria-label="Open navigation"
-                >
-                  <Menu size={19} />
-                </button>
-                <button
-                  className="icon-btn desktop-sidebar-toggle"
-                  onClick={() => setCollapsed((value) => !value)}
-                  aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
-                  aria-pressed={collapsed}
-                >
-                  <PanelLeft size={17} />
-                </button>
-              </>
-            )}
-            <div className="breadcrumb">
-              <PanelLeft size={15} />
-              <span>Workspace</span>
-              <ChevronRight size={11} />
-              <strong key={activeName} className="breadcrumb-current">
-                {activeName}
-              </strong>
-            </div>
-          </div>
-          <div className="topbar-actions">
-            <button
-              className="topbar-search"
-              data-tour="topbar-search"
-              onClick={() => setSearchOpen(true)}
-            >
-              <Search size={14} />
-              <span>Search tickets, staff, modules…</span>
-              <kbd>⌘K</kbd>
-            </button>
-            <span className="topbar-divider" />
+        <div className="topbar-lead">
+          <button
+            className="icon-btn mobile-menu"
+            onClick={() => setMobile(true)}
+            aria-label="Open navigation"
+          >
+            <Menu size={18} />
+          </button>
+          <button
+            className="icon-btn desktop-sidebar-toggle"
+            onClick={() => setCollapsed((value) => !value)}
+            aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
+            aria-pressed={collapsed}
+          >
+            <PanelLeft size={16} />
+          </button>
+          <nav className="breadcrumb" aria-label="Breadcrumb">
+            <span className="breadcrumb-root">Workspace</span>
+            <ChevronRight size={12} aria-hidden="true" />
+            <strong key={activeName} className="breadcrumb-current">
+              {activeName}
+            </strong>
+          </nav>
+        </div>
+        <div className="topbar-actions">
+          <button
+            className="topbar-search"
+            data-tour="topbar-search"
+            onClick={() => setSearchOpen(true)}
+            aria-label="Search tickets, staff and modules"
+          >
+            <Search size={14} />
+            <span>Search or jump to…</span>
+            <kbd>⌘K</kbd>
+          </button>
+          <span
+            className="topbar-status"
+            data-tour="topbar-open-count"
+            title={`${openItems.length} open tickets`}
+          >
+            <span className="live-label" aria-hidden="true">
+              <i />
+            </span>
+            <span className="topbar-status-count">{openItems.length}</span>
+            <span className="topbar-status-label">open</span>
+          </span>
+          {online.length > 1 && (
             <span
-              className="topbar-status"
-              data-tour="topbar-open-count"
-              title={openItems.length + " open tickets"}
+              className="topbar-presence"
+              title={online.map((p) => p.name + (p.viewing ? ` — ${p.viewing}` : "")).join("\n")}
             >
-              <span className="live-label">
-                <i />
+              <span className="topbar-presence-faces" aria-hidden="true">
+                {online.slice(0, 3).map((p) => (
+                  <Avatar key={p.userId ?? p.name} name={p.name} tone="purple" showPresence={false} />
+                ))}
               </span>
-              <span className="topbar-status-count">{openItems.length}</span>
-              <span className="topbar-status-label">open</span>
+              <span className="topbar-presence-count">{online.length}</span>
+              <span className="topbar-status-label">online</span>
             </span>
-            {online.length > 1 && (
-              <>
-                <span className="topbar-divider" />
-                <span className="topbar-presence" title={online.map((p) => p.name + (p.viewing ? ` — ${p.viewing}` : "")).join("\n")}>
-                  <span className="topbar-presence-faces">
-                    {online.slice(0, 3).map((p) => (
-                      <Avatar key={p.userId ?? p.name} name={p.name} tone="purple" showPresence={false} />
-                    ))}
-                  </span>
-                  <span className="topbar-presence-count">{online.length}</span>
-                  <span className="topbar-status-label">online</span>
-                </span>
-              </>
+          )}
+          <span className="topbar-divider" aria-hidden="true" />
+          <span data-tour="topbar-theme" className="topbar-tools">
+            <ThemeToggle />
+          </span>
+          <button
+            className="icon-btn topbar-bell"
+            data-tour="topbar-notifications"
+            aria-label={unread.length ? `Notifications (${unread.length} unread)` : "Notifications"}
+            onClick={() => { setNotifications(true); markRead(); }}
+          >
+            <Bell size={17} strokeWidth={1.8} />
+            {(unread.length > 0 || openItems.some((t) => t.priority === "critical")) && (
+              <i className={"notif-dot" + (unread.length ? " notif-dot-count" : "")}>
+                {unread.length > 0 && <span>{unread.length > 9 ? "9+" : unread.length}</span>}
+              </i>
             )}
-            <span className="topbar-divider" />
-            <span data-tour="topbar-theme" className="flex-row">
-              <ThemeToggle />
-            </span>
-            <button
-              className="icon-btn"
-              data-tour="topbar-notifications"
-              aria-label="Open notifications"
-              onClick={() => { setNotifications(true); markRead(); }}
-              style={{ position: "relative" }}
-            >
-              <Bell size={17} />
-              {(unread.length > 0 || openItems.some((t) => t.priority === "critical")) && (
-                <i className={"notif-dot" + (unread.length ? " notif-dot-count" : "")}>
-                  {unread.length > 0 && <span>{unread.length > 9 ? "9+" : unread.length}</span>}
-                </i>
-              )}
-            </button>
-            <span className="topbar-divider" />
-            <button
-              className="topbar-avatar"
-              data-tour="topbar-avatar"
-              onClick={() => (user ? router.push("/profile") : openAuth())}
-              aria-label="Account"
-            >
-              <Avatar name={user?.name || "IRIS"} tone="purple" />
-            </button>
-          </div>
-        </header>
+          </button>
+          <button
+            className="topbar-avatar"
+            data-tour="topbar-avatar"
+            onClick={() => (user ? router.push("/profile") : openAuth())}
+            aria-label="Account"
+          >
+            <Avatar name={user?.name || "IRIS"} tone="purple" />
+          </button>
+        </div>
+      </header>
       <div className={"workspace-main" + (collapsed ? " sidebar-collapsed" : "")}>
         {banner}
         <main
@@ -529,24 +532,24 @@ export function Shell({
         >
           {!hideHeading && (
             <div className="page-heading">
-              <div>
+              <div className="page-heading-text">
                 {eyebrow && <div className="eyebrow">{eyebrow}</div>}
                 <h1>{title}</h1>
               </div>
-              {action}
+              {action && <div className="page-heading-actions">{action}</div>}
             </div>
           )}
           {pageLocked ? (
             <div className="locked-page">
               <span className="locked-page-icon">
-                <Lock size={20} />
+                <Lock size={19} />
               </span>
               <h2>This page is for administrators</h2>
               <p>
                 Your account has {user?.role} access. Ask an administrator if
                 you need something changed here.
               </p>
-              <Link href="/dashboard" className="btn">
+              <Link href="/dashboard" className="btn btn-sm">
                 Back to the overview
               </Link>
             </div>
@@ -555,15 +558,13 @@ export function Shell({
           )}
           {!hideFooter && (
             <footer className="page-footer">
-              <span>
-                <span className="live-label">
-                  <i />
-                </span>
-                Every issue logged. Every follow-up tracked.
-              </span>
               <span className="page-footer-brand">
-                IRIS <span className="page-footer-sep">/</span> Physique 57
-                India <span style={{ color: "var(--accent)" }}>✧</span>
+                IRIS <span className="page-footer-sep">·</span> Physique 57 India
+              </span>
+              <span className="page-footer-meta">
+                {openItems.length} open {openItems.length === 1 ? "ticket" : "tickets"}
+                <span className="page-footer-sep">·</span>
+                {user ? `Signed in as ${user.name}` : "Internal workspace"}
               </span>
             </footer>
           )}

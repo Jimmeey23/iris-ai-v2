@@ -10,7 +10,15 @@
  * from a stylesheet named after one tab, so every selector list here has had
  * its non-trainer members removed, and rules left with none are dropped.
  *
- * Relies on the `--neu-*` tokens defined in design-system.css. */
+ * Material comes from tokens.css. The `--active-*` pair these rules referenced was
+ * deleted in the revert they were extracted from, so it is defined here once. */
+
+.tr-review,
+.tr-seg {
+  --active-fg: var(--accent-text);
+  --active-bg: var(--accent);
+  --active-glow: var(--ring);
+}
 
 .tr-review.active {
   color: var(--active-fg) !important;
@@ -24,34 +32,34 @@
 }
 
 .tr-seg button[data-active="true"] {
-  color: var(--active-fg) !important;
-  background: var(--active-bg) !important;
-  border-color: transparent !important;
-  box-shadow: var(--active-glow), inset 0 1px 0 rgb(255 255 255 / 0.22) !important;
+  color: var(--active-fg);
+  background: var(--active-bg);
+  border-color: transparent;
+  box-shadow: var(--active-glow), inset 0 1px 0 rgb(255 255 255 / 0.22);
 }
 
 .tr-seg button[data-active="true"] * {
-  color: var(--active-fg) !important;
+  color: var(--active-fg);
 }
 
 .tr-review.active {
   color: var(--text) !important;
   background: color-mix(in srgb, var(--accent) 10%, var(--surface)) !important;
   border: 1px solid color-mix(in srgb, var(--accent) 42%, transparent) !important;
-  box-shadow: var(--neu-xs), inset 3px 0 0 var(--accent) !important;
+  box-shadow: inset 3px 0 0 var(--accent) !important;
 }
 
 .tr-review.active * { color: inherit !important; }
 
-.tr-review.active .badge.green { color: var(--green) !important; }
+.tr-review.active .badge.green { color: var(--green); }
 
-.tr-review.active .badge.red { color: var(--red) !important; }
+.tr-review.active .badge.red { color: var(--red); }
 
-.tr-review.active .badge.amber { color: var(--amber) !important; }
+.tr-review.active .badge.amber { color: var(--amber); }
 
-.tr-review.active .badge.blue { color: var(--blue) !important; }
+.tr-review.active .badge.blue { color: var(--blue); }
 
-.tr-review.active .tr-review-score { color: var(--accent) !important; }
+.tr-review.active .tr-review-score { color: var(--accent); }
 
 [data-theme="light"] .tr-portrait::after {
   background: transparent;
@@ -132,7 +140,7 @@
   transition: transform 0.25s var(--ease-spring), box-shadow 0.25s ease;
 }
 
-.tr-kpi:hover { transform: translateY(-2px); box-shadow: var(--neu-sm) !important; }
+.tr-kpi:hover { transform: translateY(-2px); box-shadow: var(--neu-sm); }
 
 .tr-section {
   border-radius: 18px;
@@ -167,7 +175,7 @@
 .tr-split-row,
 .tr-answers {
   border-radius: 12px;
-  background: var(--surface-raised-2) !important;
+  background: var(--surface-raised-2);
   box-shadow: inset 0 0 0 1px var(--neu-line);
 }
 
@@ -176,7 +184,7 @@
 .tr-review-score { font-weight: 750; }
 
 .tr-seg button:not([data-active="true"]) {
-  color: var(--secondary) !important;
+  color: var(--secondary);
   background: transparent;
 }
 
@@ -363,8 +371,8 @@
 .tpc-photo .tpc-photo-img,
 .tpc-photo .avatar,
 .tpc-photo .person-photo-fallback {
-  width: 100% !important;
-  height: 100% !important;
+  width: 100%;
+  height: 100%;
   /* Faces sit high in these portraits, so the crop favours the top third. */
   object-fit: cover;
   object-position: 50% 16%;
@@ -443,13 +451,13 @@
 .trainer-profile-card,
 .trainer-profile-card:hover { box-shadow: 0 4px 12px rgb(15 23 42 / 0.06) !important; }
 .trainer-profile-card:hover { transform: translateY(-1px); }
-.dialog-content:has(.tr-report) { box-shadow: 0 18px 48px rgb(0 0 0 / 0.22) !important; }
+.dialog-content:has(.tr-report) { box-shadow: 0 18px 48px rgb(0 0 0 / 0.22); }
 .dialog-content:has(.tr-report) .tr-masthead,
 .dialog-content:has(.tr-report) .tr-section,
-.dialog-content:has(.tr-report) .tr-kpi { box-shadow: 0 2px 8px rgb(15 23 42 / 0.055) !important; }
-.dialog-content:has(.tr-report) .tr-kpi:hover { transform: none; box-shadow: 0 2px 8px rgb(15 23 42 / 0.075) !important; }
+.dialog-content:has(.tr-report) .tr-kpi { box-shadow: 0 2px 8px rgb(15 23 42 / 0.055); }
+.dialog-content:has(.tr-report) .tr-kpi:hover { transform: none; box-shadow: 0 2px 8px rgb(15 23 42 / 0.075); }
 :root:not([data-theme="light"]) .trainer-profile-card,
 :root:not([data-theme="light"]) .trainer-profile-card:hover,
 :root:not([data-theme="light"]) .dialog-content:has(.tr-report) .tr-masthead,
 :root:not([data-theme="light"]) .dialog-content:has(.tr-report) .tr-section,
-:root:not([data-theme="light"]) .dialog-content:has(.tr-report) .tr-kpi { box-shadow: 0 4px 14px rgb(0 0 0 / 0.2) !important; }
+:root:not([data-theme="light"]) .dialog-content:has(.tr-report) .tr-kpi { box-shadow: 0 4px 14px rgb(0 0 0 / 0.2); }

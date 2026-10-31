@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { summarize, isSlaTracked, isBreached } from "@/lib/metrics";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowRight, Sparkles, Zap, TriangleAlert, Timer, ShieldCheck, RotateCcw, Filter } from "lucide-react";
+import { Zap, TriangleAlert, Timer, ShieldCheck, Filter } from "lucide-react";
 import type { TicketListRecord } from "@/lib/ticket-contract";
 
 /**
@@ -178,11 +178,6 @@ export function OverviewCanvas({
   const healthy = useMemo(() => tickets.filter((t) => isSlaTracked(t) && !isBreached(t, mountedAt)), [tickets, mountedAt]);
   const compliance = slaMetrics.slaCompliance;
 
-  /** Which card is showing its reverse. Clicking a card flips it; the filter
-   *  is a deliberate second step on the back, so a stray click never rewrites
-   *  what the table below is showing. */
-  const [flipped, setFlipped] = useState<string | null>(null);
-
   /** Closed inside the window the charts already describe. */
   const resolvedInSpan = useMemo(
     () =>
@@ -329,225 +324,152 @@ export function OverviewCanvas({
 
   return (
     <div className="ovc">
-      <div className="ovc-row">
-        <section className="ovc-card ovc-hero">
-          <span className="ovc-bloom" aria-hidden="true" />
-          <div className="ovc-hero-inner">
-            <p className="ovc-eyebrow ovc-eyebrow-row">
-              <span>
-                Internal operations · {studios === studioTotal ? "All studios" : "Filtered scope"}
-              </span>
-              <i aria-hidden="true" />
-              <span className="ovc-eyebrow-end">{tickets.length.toLocaleString()} in scope</span>
-            </p>
-            <h2 className="ovc-title">
-              {greet}, {name.split(" ")[0]} — <em>{lead.n}</em> {lead.tail}
-            </h2>
-            <p className="ovc-lede">
-              Review reported issues, assigned owners and outstanding actions for the selected period.
-            </p>
-            <div className="ovc-cta-row">
-              <Link className="ovc-btn ovc-btn-accent" href="/iris">
-                <Sparkles size={16} />
-                Log a ticket
-                <ArrowRight size={16} className="ovc-btn-arrow" />
-              </Link>
-              <button
-                className="ovc-btn ovc-btn-soft"
-                onClick={() => onFilter({ state: "open" }, "Open tickets")}
-              >
-                Open work queue
-              </button>
-            </div>
-            <dl className="ovc-strip">
-              {strip.map((m) => (
-                <div key={m.label}>
-                  <dt>{m.label}</dt>
-                  <dd>{m.value}</dd>
-                  {m.hint && <small title={m.hint}>{m.hint}</small>}
-                </div>
-              ))}
-            </dl>
-            <footer className="ovc-hero-foot">
-              {owners.length > 0 && (
-                <span className="ovc-stack" aria-hidden="true">
-                  {owners.slice(0, 3).map((o, i) => (
-                    <i key={o} data-tone={i % 3}>
-                      {initials(o)}
-                    </i>
-                  ))}
-                  {owners.length > 3 && <i className="ovc-stack-more">+{owners.length - 3}</i>}
+      {/* KPI row. Four figures, one geometry, each one a filter. The old cards
+          flipped in 3D to reveal a breakdown; a click now applies the filter
+          directly and the breakdown is the tooltip, so the primary action is
+          the one the figure implies. */}
+      <div className="ovc-kpis">
+        {kpis.map((k) => {
+          const Icon = k.icon;
+          const facts = k.facts.map(([label, value]) => `${label}: ${value}`).join(" · ");
+          return (
+            <button
+              key={k.id}
+              type="button"
+              className="ovc-card ovc-kpi ovc-kpi-face"
+              onClick={k.onOpen}
+              title={facts}
+              aria-label={`${k.label}: ${k.value === null ? "no data" : `${k.value}${k.suffix ?? ""}`}. ${facts}. Apply this filter.`}
+            >
+              <span className="ovc-kpi-top">
+                <span className={"ovc-chip " + (k.accent ? "is-accent" : "is-neutral")}>
+                  <Icon size={15} strokeWidth={2} />
                 </span>
-              )}
-              <p>
-                <b>
-                  {owners.length} {owners.length === 1 ? "person" : "people"}
-                </b>{" "}
-                assigned to current open tickets
+                <Sparkline
+                  data={k.data}
+                  id={k.id}
+                  stroke={k.accent ? "var(--accent)" : "var(--muted)"}
+                />
+              </span>
+              <strong className={k.value === null ? "is-empty" : undefined}>
+                {k.value === null ? "—" : <Counter value={k.value} suffix={k.suffix ?? ""} />}
+              </strong>
+              <span className="ovc-kpi-label">{k.label}</span>
+              <small>{k.value === null ? "No matching tickets" : k.sub}</small>
+              <span className="ovc-kpi-action" aria-hidden="true">
+                <Filter size={11} /> Filter
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="ovc-row">
+        {/* Volume: logged against resolved over the same window. A bar chart
+            with one overlaying line — the only shape here that needs two
+            series, and the reason it is the largest card on the page. */}
+        <section className="ovc-card ovc-volume-panel" aria-labelledby="ovc-volume-title">
+          <header className="ovc-panel-head">
+            <div>
+              <p className="ovc-eyebrow" id="ovc-volume-title">Volume</p>
+              <p className="ovc-panel-value">
+                <Counter value={volumeTotal} /> <small>logged this period</small>
               </p>
-            </footer>
+            </div>
+            <p className="ovc-volume-key">
+              <span className="is-bar" /> Logged
+              <span className="is-line" /> Resolved
+            </p>
+          </header>
+          <div className="ovc-volume-plot">
+            <div className="ovc-volume-bars">
+              {volume.map((v, i) => (
+                <span
+                  key={i}
+                  className={i === peak && volumeTotal > 0 ? "is-peak" : undefined}
+                  style={{ height: (v / Math.max(...volume, 1)) * 100 + "%" }}
+                  title={`${v} logged`}
+                />
+              ))}
+            </div>
+            <svg
+              className="ovc-volume-line"
+              viewBox="0 0 100 100"
+              preserveAspectRatio="none"
+              aria-hidden="true"
+            >
+              <path
+                d={resolved
+                  .map((v, i) => {
+                    const x = (i / Math.max(1, resolved.length - 1)) * 100;
+                    const y = 100 - (v / Math.max(...volume, 1)) * 100;
+                    return `${i ? "L" : "M"}${x.toFixed(2)},${Math.max(0, y).toFixed(2)}`;
+                  })
+                  .join(" ")}
+                vectorEffect="non-scaling-stroke"
+              />
+            </svg>
           </div>
+          <dl className="ovc-strip">
+            {strip.map((m) => (
+              <div key={m.label}>
+                <dt>{m.label}</dt>
+                <dd>{m.value}</dd>
+                {m.hint && <small title={m.hint}>{m.hint}</small>}
+              </div>
+            ))}
+          </dl>
         </section>
 
-        <section className="ovc-card ovc-snapshot">
-          <header className="ovc-snapshot-head">
-            <p className="ovc-eyebrow">Work summary</p>
+        {/* Summary: the three counts a manager checks first, plus the state of
+            the queue in one sentence. */}
+        <section className="ovc-card ovc-summary" aria-labelledby="ovc-summary-title">
+          <header className="ovc-panel-head">
+            <p className="ovc-eyebrow" id="ovc-summary-title">Work summary</p>
             <span className={"ovc-flag " + (overdue.length ? "is-alert" : "is-ok")}>
               <i aria-hidden="true" />
               {overdue.length ? "Action needed" : "On track"}
             </span>
           </header>
 
+          <p className="ovc-summary-lead">
+            {greet}, {name.split(" ")[0]}. <strong>{lead.n}</strong> {lead.tail}
+          </p>
+
           <dl className="ovc-stats">
             <div>
-              <dd>
-                <Counter value={open.length} />
-              </dd>
+              <dd><Counter value={open.length} /></dd>
               <dt>Open</dt>
               <small>{loggedToday > 0 ? `+${loggedToday} today` : "none logged today"}</small>
             </div>
             <div>
-              <dd>
-                <Counter value={unassigned.length} />
-              </dd>
+              <dd><Counter value={unassigned.length} /></dd>
               <dt>Unassigned</dt>
-              <small>{unassigned.length ? "needs routing" : "All routed"}</small>
+              <small>{unassigned.length ? "needs routing" : "all routed"}</small>
             </div>
             <div>
-              <dd>
-                <Counter value={studios} />
-              </dd>
+              <dd><Counter value={studios} /></dd>
               <dt>Studios live</dt>
               <small>of {studioTotal || studios}</small>
             </div>
           </dl>
 
-          <div className="ovc-volume">
-            <div className="ovc-volume-head">
-              <p className="ovc-eyebrow">Volume · {volumeTotal}</p>
-              <small>this period</small>
-            </div>
-            <div className="ovc-volume-plot">
-              <div className="ovc-volume-bars">
-                {volume.map((v, i) => (
-                  <span
-                    key={i}
-                    className={i === peak && volumeTotal > 0 ? "is-peak" : undefined}
-                    style={{ height: (v / Math.max(...volume, 1)) * 100 + "%" }}
-                    title={`${v} logged`}
-                  />
+          <footer className="ovc-summary-foot">
+            {owners.length > 0 && (
+              <span className="ovc-stack" aria-hidden="true">
+                {owners.slice(0, 3).map((o, i) => (
+                  <i key={o} data-tone={i % 3}>{initials(o)}</i>
                 ))}
-              </div>
-              <svg
-                className="ovc-volume-line"
-                viewBox="0 0 100 100"
-                preserveAspectRatio="none"
-                aria-hidden="true"
-              >
-                <path
-                  d={resolved
-                    .map((v, i) => {
-                      const x = (i / Math.max(1, resolved.length - 1)) * 100;
-                      const y = 100 - (v / Math.max(...volume, 1)) * 100;
-                      return `${i ? "L" : "M"}${x.toFixed(2)},${Math.max(0, y).toFixed(2)}`;
-                    })
-                    .join(" ")}
-                  vectorEffect="non-scaling-stroke"
-                />
-              </svg>
-            </div>
-            <p className="ovc-volume-key">
-              <span className="is-bar" /> Logged
-              <span className="is-line" /> Resolved
+                {owners.length > 3 && <i className="ovc-stack-more">+{owners.length - 3}</i>}
+              </span>
+            )}
+            <p>
+              <b>{owners.length} {owners.length === 1 ? "person" : "people"}</b> assigned to open tickets
+              {" · "}
+              <b>{slaMetrics.slaCompliance}%</b> within SLA
             </p>
-          </div>
+          </footer>
         </section>
-      </div>
-
-      <div className="ovc-kpis">
-        {kpis.map((k) => {
-          const Icon = k.icon;
-          const isBack = flipped === k.id;
-          const peakOf = Math.max(...k.studios.map(([, n]) => n), 1);
-          return (
-            <div key={k.id} className={"ovc-kpi-scene" + (isBack ? " is-flipped" : "")}>
-              <div className="ovc-kpi-flip">
-                <button
-                  className="ovc-card ovc-kpi ovc-kpi-face"
-                  onClick={() => setFlipped(k.id)}
-                  aria-expanded={isBack}
-                  aria-label={`${k.label}: ${k.value === null ? "No data" : `${k.value}${k.suffix ?? ""}`}. Show detail`}
-                  tabIndex={isBack ? -1 : 0}
-                >
-                  <span className="ovc-kpi-top">
-                    <span className={"ovc-chip " + (k.accent ? "is-accent" : "is-neutral")}>
-                      <Icon size={17} strokeWidth={2} />
-                    </span>
-                    <Sparkline
-                      data={k.data}
-                      id={k.id}
-                      stroke={k.accent ? "var(--accent)" : "var(--ovc-spark-muted)"}
-                    />
-                  </span>
-                  <strong className={k.value === null ? "is-empty" : undefined}>
-                    {k.value === null ? "—" : <Counter value={k.value} suffix={k.suffix ?? ""} />}
-                  </strong>
-                  <span className="ovc-kpi-label">{k.label}</span>
-                  <small>{k.value === null ? "No matching tickets" : k.sub}</small>
-                </button>
-
-                <div className="ovc-card ovc-kpi ovc-kpi-back" aria-hidden={!isBack}>
-                  <header>
-                    <span className="ovc-kpi-label">{k.label}</span>
-                    <button
-                      className="ovc-kpi-close"
-                      onClick={() => setFlipped(null)}
-                      aria-label="Back to the figure"
-                      tabIndex={isBack ? 0 : -1}
-                    >
-                      <RotateCcw size={13} />
-                    </button>
-                  </header>
-                  {k.value === null ? (
-                    <div className="ovc-kpi-empty">
-                      <ShieldCheck size={20} aria-hidden="true" />
-                      <strong>Nothing to break down</strong>
-                      <span>No matching tickets are in the current scope.</span>
-                    </div>
-                  ) : <dl className="ovc-kpi-facts">
-                    {k.facts.map(([label, value]) => (
-                      <div key={label}>
-                        <dt>{label}</dt>
-                        <dd>{value}</dd>
-                      </div>
-                    ))}
-                  </dl>}
-                  {k.value !== null && k.studios.length > 0 && (
-                    <div className="ovc-kpi-studios">
-                      {k.studios.map(([studio, n]) => (
-                        <div key={studio}>
-                          <span>{studio}</span>
-                          <i>
-                            <u style={{ width: (n / peakOf) * 100 + "%" }} />
-                          </i>
-                          <b>{n}</b>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  <button
-                    className="ovc-kpi-filter"
-                    onClick={k.onOpen}
-                    tabIndex={isBack ? 0 : -1}
-                  >
-                    <Filter size={12} />
-                    Filter the table
-                  </button>
-                </div>
-              </div>
-            </div>
-          );
-        })}
       </div>
     </div>
   );

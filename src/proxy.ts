@@ -3,7 +3,12 @@ import { updateSession } from "@/lib/supabase/middleware";
 
 // Static files (anything with a file extension, e.g. /icon.svg) never reach the
 // proxy at all: the matcher below excludes them, so they need no entry here.
-const PUBLIC = ["/login", "/auth", "/api/auth", "/video", "/_next"];
+//
+// /preview is the design preview: a public, database-free route that renders the
+// real shell and components against fixture data, so the interface can be
+// reviewed without a Supabase session. It shows no workspace data — the fixtures
+// are invented — and it is not linked from the product.
+const PUBLIC = ["/login", "/auth", "/api/auth", "/video", "/_next", "/preview"];
 
 // The OAuth handshake keeps its PKCE code verifier in a cookie named with the
 // same `sb-<ref>-auth-token` prefix the session uses. Refreshing the session on

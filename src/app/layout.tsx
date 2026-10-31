@@ -1,7 +1,14 @@
 import type {Metadata,Viewport} from 'next';
-import {Inter,JetBrains_Mono} from 'next/font/google';
+/* Fonts are self-hosted (Fontsource), not fetched from Google at build time.
+ * next/font/google resolves during the build, which made every deploy depend on
+ * fonts.googleapis.com being reachable — a deploy fails outright if it is not.
+ * These are the same three families, bundled from npm instead. */
+import '@fontsource-variable/inter';
+import '@fontsource-variable/inter-tight';
+import '@fontsource-variable/jetbrains-mono';
 import {AppProvider} from '@/components/ui';
 import {FeedbackTab} from '@/components/feedback-tab';
+import './tokens.css';
 import './globals.css';
 import './design-system.css';
 import './intake.css';
@@ -9,9 +16,7 @@ import './trainers.css';
 import './feedback.css';
 import './tour.css';
 import './premium.css';
-const outfit=Inter({subsets:['latin'],variable:'--font-outfit',display:'swap'});
-const spaceGrotesk=Inter({subsets:['latin'],variable:'--font-space',display:'swap',weight:['500','600','700']});
-const jetbrainsMono=JetBrains_Mono({subsets:['latin'],variable:'--font-mono-tech',display:'swap',weight:['400','500','600']});
+import './system.css';
 export const metadata:Metadata={
   title:{default:'IRIS — Physique 57 India Ops Log',template:'%s · IRIS'},
   description:'Internal ticket logging for Physique 57 India studio staff — issues, snags and member feedback, routed and tracked in one workspace.',
@@ -32,4 +37,4 @@ const THEME_SCRIPT="try{var t=localStorage.getItem('iris-theme');if(t!=='light'&
 // The next/font variables sit on <html>, not <body>: globals.css composes --font-display,
 // --font-body and --font-mono from them on :root, and at :root a variable set on <body>
 // does not exist yet — so those tokens resolved to nothing and every surface fell back.
-export default function RootLayout({children}:{children:React.ReactNode}){return <html lang="en" className={outfit.variable+' '+spaceGrotesk.variable+' '+jetbrainsMono.variable} suppressHydrationWarning><head><script dangerouslySetInnerHTML={{__html:THEME_SCRIPT}}/></head><body suppressHydrationWarning><AppProvider>{children}<FeedbackTab/></AppProvider></body></html>;}
+export default function RootLayout({children}:{children:React.ReactNode}){return <html lang="en" suppressHydrationWarning><head><script dangerouslySetInnerHTML={{__html:THEME_SCRIPT}}/></head><body suppressHydrationWarning><AppProvider>{children}<FeedbackTab/></AppProvider></body></html>;}

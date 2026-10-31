@@ -60,7 +60,7 @@ export default function ProfilePage() {
     }
   }
   return (
-    <Shell title="Your account" eyebrow="PROFILE & SECURITY">
+    <Shell title="Your account" eyebrow="Account">
       <div className="card" style={{ maxWidth: 620, padding: 28 }}>
         <div className="flex-row" style={{ marginBottom: 24 }}>
           <ShieldCheck size={20} />

@@ -59,6 +59,11 @@ const nextConfig: NextConfig = {
   // they never contend for the `<distDir>/dev/lock` file lock.
   distDir: process.env.NEXT_DIST_DIR || ".next",
   poweredByHeader: false,
+  // The dev server is reached through a proxied preview host in this
+  // environment (…e2b.app), and Next blocks cross-origin /_next/hmr requests by
+  // default — which silently breaks hot reload and client chunks in preview.
+  // Restricting the allowlist to wildcards keeps the protection elsewhere.
+  allowedDevOrigins: ['*.e2b.app', '*.arena.ai', 'localhost:3000', '127.0.0.1:3000'],
   turbopack: {
     // Pin the workspace root. Without this, Next walks up and finds the stray
     // lockfile in the home directory, then warns on every start.

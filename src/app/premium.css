@@ -1,87 +1,7 @@
-/* Shared visual contract, imported last in layout.tsx. Keep theme, navigation,
-   controls and workspace finishes here instead of appending competing skins. */
-:root, [data-theme="light"] {
-  --bg: #ffffff;
-  --surface: #ffffff;
-  --surface-2: #f8fafc;
-  --surface-3: #f1f5f9;
-  --text: #0f172a;
-  --secondary: #334155;
-  --muted: #64748b;
-  --accent: #2563eb;
-  --accent-deep: #1d4ed8;
-  --accent-bright: #3b82f6;
-  --accent-soft: #eff6ff;
-  --accent-text: #ffffff;
-  --border: #e5e7eb;
-  --border-strong: #d1d5db;
-  --surface-4: #e9eef4;
-  --hairline: #eef0f3;
-  --hairline-strong: var(--border);
-  --green: #15803d; --green-bg: #f0fdf4;
-  --amber: #b45309; --amber-bg: #fffbeb;
-  --red: #dc2626; --red-bg: #fef2f2;
-  --blue: #2563eb; --blue-bg: #eff6ff;
-  /* Purple is no longer a brand hue: anything that used it as decoration reads slate. */
-  --purple: #475569; --purple-bg: #f1f5f9;
-  --shadow-hairline: rgb(15 23 42 / .04);
-  /* Flat surfaces: cards separate by border, not shadow. Shadows only on overlays (3–5). */
-  --shadow-1: none;
-  --shadow-2: 0 1px 2px rgb(15 23 42 / calc(.05 * var(--ui-shadow)));
-  --shadow-3: 0 8px 24px -8px rgb(15 23 42 / calc(.14 * var(--ui-shadow))), 0 0 0 1px rgb(15 23 42 / .04);
-  --shadow-4: 0 20px 48px -16px rgb(15 23 42 / calc(.22 * var(--ui-shadow))), 0 0 0 1px rgb(15 23 42 / .05);
-  --shadow-5: 0 28px 64px -20px rgb(15 23 42 / calc(.28 * var(--ui-shadow))), 0 0 0 1px rgb(15 23 42 / .05);
-}
-[data-theme="dark"] {
-  --bg: #0b1120;
-  --surface: #0f172a;
-  --surface-2: #131c2e;
-  --surface-3: #1a2436;
-  --text: #e5e9f0;
-  --secondary: #cbd5e1;
-  --muted: #94a3b8;
-  --accent: #60a5fa;
-  --accent-deep: #3b82f6;
-  --accent-bright: #93c5fd;
-  --accent-text: #0b1120;
-  --accent-soft: #60a5fa1f;
-  --border: #1f2a3c;
-  --border-strong: #2c3a50;
-  --surface-4: #223047;
-  --hairline: #1a2436;
-  --hairline-strong: var(--border);
-  --green: #4ade80; --green-bg: #4ade801a;
-  --amber: #fbbf24; --amber-bg: #fbbf241a;
-  --red: #f87171; --red-bg: #f871711a;
-  --blue: #60a5fa; --blue-bg: #60a5fa1a;
-  --purple: #a5b4c8; --purple-bg: #a5b4c81a;
-  --shadow-hairline: rgb(0 0 0 / .2);
-  --shadow-1: none;
-  --shadow-2: 0 1px 2px rgb(0 0 0 / calc(.3 * var(--ui-shadow)));
-  --shadow-3: 0 10px 28px -10px rgb(0 0 0 / calc(.5 * var(--ui-shadow))), 0 0 0 1px rgb(255 255 255 / .04);
-  --shadow-4: 0 24px 56px -18px rgb(0 0 0 / calc(.6 * var(--ui-shadow))), 0 0 0 1px rgb(255 255 255 / .05);
-  --shadow-5: 0 28px 64px -20px rgb(0 0 0 / calc(.65 * var(--ui-shadow))), 0 0 0 1px rgb(255 255 255 / .05);
-}
-:root {
-  /* Inter everywhere (both next/font variables now load Inter). */
-  --font-display: var(--font-space), "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-body: var(--font-outfit), "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --radius-2xs: calc(4px * var(--ui-radius));
-  --radius-xs: calc(6px * var(--ui-radius));
-  --radius-sm: calc(8px * var(--ui-radius));
-  --radius-md: calc(10px * var(--ui-radius));
-  --radius-lg: calc(12px * var(--ui-radius));
-  --radius-xl: calc(12px * var(--ui-radius));
-  --radius-2xl: calc(14px * var(--ui-radius));
-  --radius-card: calc(12px * var(--ui-radius));
-  --ring: 0 0 0 3px color-mix(in srgb, var(--accent) 24%, transparent);
-  /* Gradients collapse to flat fills so every `background: var(--grad-*)` turns solid. */
-  --grad-accent: linear-gradient(var(--accent), var(--accent));
-  --grad-text: linear-gradient(var(--text), var(--text));
-  --glass: var(--surface);
-  --glass-strong: var(--surface);
-  --highlight-inset: inset 0 0 0 0 transparent;
-}
+/* Shared visual contract. The palette, geometry and elevation all come from
+   tokens.css; this sheet only carries the component rules that every screen
+   shares, and system.css (loaded last) is the authoritative skin. */
+
 body { background: var(--bg); -webkit-font-smoothing: antialiased; }
 .content:not(.content-full-height) { padding: calc(clamp(18px, 2.4vw, 32px) * var(--ui-spacing)); }
 .page-heading p { max-width: 70ch; color: var(--secondary); line-height: 1.65; }
@@ -485,18 +405,7 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="
    resolved = green check, row quietened; closed = grey lock, row quieter still;
    recorded = archive glyph, muted. Every phase carries an icon and a word, never hue alone.
    Recurrence gets the one hue nothing else on the board uses (orchid), in both themes. */
-:root, [data-theme="light"] {
-  --recur: #8a2aa8;
-  --recur-bg: #8a2aa812;
-  --status-closed: #677387;
-  --row-done-bg: color-mix(in srgb, var(--surface-2) 75%, var(--surface));
-}
-[data-theme="dark"] {
-  --recur: #e0a6f5;
-  --recur-bg: #e0a6f51c;
-  --status-closed: #8e9bb0;
-  --row-done-bg: color-mix(in srgb, var(--bg) 55%, var(--surface));
-}
+/* Recurrence and terminal-status colours are tokens (tokens.css). */
 .status-resolved { --badge-ink: var(--green); }
 .status-closed { --badge-ink: var(--status-closed); }
 .status-recorded { --badge-ink: var(--muted); }
@@ -1031,7 +940,6 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="
    White page, hairline borders, one blue accent, flat cards. Shadows are
    reserved for things that float (dialogs, menus, popovers, toasts).
    ════════════════════════════════════════════════════════════════════════ */
-:root { --neu-xs: none; --neu-sm: none; --neu-md: var(--shadow-2); --neu-edge: 0 0 0 0 transparent; }
 body { background: var(--bg); color: var(--text); font-family: var(--font-body); font-feature-settings: "cv11", "ss01"; }
 .card, .panel, .td-panel, .ticket-card, .mc-face, .ovc .ovc-kpi, .presence-strip,
 .overview-command-deck, .cockpit-signal-deck, [data-theme] .card, [data-theme] .panel {

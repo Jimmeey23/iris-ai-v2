@@ -410,28 +410,56 @@ function ToastProvider({ children }: { children: ReactNode }) {
   );
 }
 
-export function AppProvider({ children }: { children: ReactNode }) {
+/**
+ * Signed-in stand-in for the design preview (/preview).
+ *
+ * The real workspace cannot be opened without a Supabase session and a seeded
+ * database, which makes the redesign impossible to look at in a throwaway
+ * environment. The preview route renders the *real* shell and the *real*
+ * components against fixture data, and this is the only switch it needs: it
+ * seeds the identity and skips the network calls that would otherwise 401.
+ *
+ * Nothing here is reachable from a normal session — no product route passes
+ * `preview`, so the live app always resolves its identity from the server.
+ */
+export type PreviewIdentity = { user: Identity; workspaceName?: string };
+
+export function AppProvider({
+  children,
+  preview,
+}: {
+  children: ReactNode;
+  preview?: PreviewIdentity;
+}) {
   return (
     <ToastProvider>
-      <AppStateProvider>
+      <AppStateProvider preview={preview}>
         <DirectoryProvider>{children}</DirectoryProvider>
       </AppStateProvider>
     </ToastProvider>
   );
 }
 
-function AppStateProvider({ children }: { children: ReactNode }) {
+function AppStateProvider({
+  children,
+  preview,
+}: {
+  children: ReactNode;
+  preview?: PreviewIdentity;
+}) {
   const notify = useToast();
   const [pollSeconds, setPollSeconds] = useState(15);
   const [staleTicketDays, setStaleTicketDays] = useState(3);
-  const [workspaceName, setWorkspaceName] = useState("Physique 57 India");
+  const [workspaceName, setWorkspaceName] = useState(
+    preview?.workspaceName ?? "Physique 57 India",
+  );
   const theme = useSyncExternalStore(
     subscribeTheme,
     readTheme,
     () => "light" as Theme,
   );
   const [view, setViewState] = useState("list");
-  const [user, setUser] = useState<Identity | null>(null);
+  const [user, setUser] = useState<Identity | null>(preview?.user ?? null);
   const [setupRequired, setSetupRequired] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
   const applyIdentity = useCallback((d: IdentityResponse | null) => {
@@ -450,6 +478,7 @@ function AppStateProvider({ children }: { children: ReactNode }) {
     // `[data-theme="dark"]` silently stops matching. Re-assert it once on mount.
     if (!document.documentElement.dataset.theme)
       document.documentElement.dataset.theme = readTheme();
+    if (preview) return;
     void fetchIdentity().then(applyIdentity);
     // A choice saved on this device always wins. Without one, adopt an explicit theme
     // from the server; if there is none, keep what the layout script picked from the OS.
@@ -461,11 +490,12 @@ function AppStateProvider({ children }: { children: ReactNode }) {
         if (p.view) setViewState(p.view);
       })
       .catch(() => {});
-  }, [applyIdentity]);
+  }, [applyIdentity, preview]);
   const toggleTheme = useCallback(() => {
     const next: Theme = readTheme() === "dark" ? "light" : "dark";
     writeTheme(next, true);
     window.dispatchEvent(new Event("iris:settings-updated"));
+    if (preview) return;
     void api("/api/preferences", {
       method: "PATCH",
       body: JSON.stringify({ theme: next }),
@@ -475,8 +505,9 @@ function AppStateProvider({ children }: { children: ReactNode }) {
         "error",
       ),
     );
-  }, [notify]);
+  }, [notify, preview]);
   useEffect(() => {
+    if (preview) return;
     const load = () => {
       void api<PublicSettings>("/api/settings?scope=public")
         .then((c) => {
@@ -495,14 +526,15 @@ function AppStateProvider({ children }: { children: ReactNode }) {
     load();
     window.addEventListener("iris:settings-updated", load);
     return () => window.removeEventListener("iris:settings-updated", load);
-  }, []);
+  }, [preview]);
   const setView = useCallback((v: string) => {
     setViewState(v);
+    if (preview) return;
     void api("/api/preferences", {
       method: "PATCH",
       body: JSON.stringify({ view: v }),
     }).catch(() => {});
-  }, []);
+  }, [preview]);
   const openAuth = useCallback(() => setAuthOpen(true), []);
   const closeAuth = useCallback(() => setAuthOpen(false), []);
   const value = useMemo<AppContextType>(

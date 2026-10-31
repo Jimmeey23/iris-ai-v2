@@ -202,9 +202,9 @@ export default function AnalyticsPage() {
 
   return (
     <Shell
-      title="The bigger picture, beautifully clear."
+      title="Analytics"
       banner={<IrisMarquee page="analytics" />}
-      eyebrow="TREND DASHBOARD"
+      eyebrow="Insights"
       action={
         <div className="flex-row">
           <button className="btn" onClick={() => setReload((n) => n + 1)} aria-label="Refresh reports">

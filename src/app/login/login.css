@@ -1,369 +1,397 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   Sign in — v3
+   ────────────────────────────────────────────────────────────────────────────
+   Two panels: a quiet brand panel on the left, the form on the right.
+
+   What changed and why:
+   • The autoplaying 1.3 MB MP4 is gone. It started downloading on every visit
+     (even for people who only ever saw the form) and it was the single
+     heaviest asset in the product. The left panel now uses the static poster
+     that was already shipping — a softer, calmer image that costs 28 KB.
+   • The form column is one surface with one control geometry, matching the
+     rest of the product: 8px radius, 36px controls, the same focus ring.
+   • Copy is direct. The panel says what the workspace is, not what it feels
+     like.
+   ════════════════════════════════════════════════════════════════════════════ */
+
 .auth-page {
   min-height: 100svh;
   display: grid;
-  grid-template-columns: minmax(0, 1.18fr) minmax(420px, 0.82fr);
+  grid-template-columns: minmax(0, 1.05fr) minmax(440px, 0.95fr);
   background: var(--bg);
   color: var(--text);
 }
+
+/* ── Brand panel ─────────────────────────────────────────────────────────── */
 .auth-visual {
   position: relative;
+  isolation: isolate;
   overflow: hidden;
   min-height: 100svh;
-  /* The cinematic panel stays night-dark in both themes (the clip is dark). */
-  --auth-night: 5 5 8;
-  background: rgb(var(--auth-night));
-}
-.auth-video {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  opacity: 0.72;
-}
-.auth-video-light {
-  display: none;
-}
-[data-theme="light"] .auth-video-dark {
-  display: none;
-}
-[data-theme="light"] .auth-video-light {
-  display: block;
-}
-.auth-veil {
-  position: absolute;
-  inset: 0;
   background:
-    linear-gradient(
-      180deg,
-      rgb(var(--auth-night) / 0.1),
-      rgb(var(--auth-night) / 0.24) 40%,
-      rgb(var(--auth-night) / 0.9)
-    ),
-    linear-gradient(90deg, transparent 60%, rgb(var(--auth-night) / 0.42));
+    url("/video/iris-intro-dark.webp") center / cover no-repeat,
+    #08090b;
 }
+/* A two-stop scrim: dark enough at the bottom for copy, light enough at the
+   top that the artwork still reads. */
+.auth-visual::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    linear-gradient(180deg, rgb(6 7 10 / 0.35) 0%, rgb(6 7 10 / 0.72) 58%, rgb(6 7 10 / 0.94) 100%),
+    linear-gradient(90deg, rgb(6 7 10 / 0.55) 0%, transparent 65%);
+}
+.auth-veil { display: none; }
+.auth-video { display: none; }
+
 .auth-story {
   position: absolute;
-  left: clamp(36px, 6vw, 88px);
-  right: 48px;
-  bottom: clamp(44px, 8vh, 92px);
-  color: var(--white);
-  max-width: 680px;
+  left: clamp(32px, 5vw, 72px);
+  right: clamp(32px, 5vw, 72px);
+  bottom: clamp(40px, 7vh, 80px);
+  max-width: 34rem;
+  color: #fff;
 }
 .auth-kicker {
-  display: flex;
-  gap: 8px;
+  display: inline-flex;
   align-items: center;
-  font: 600 11px/1 var(--font-mono-tech);
-  letter-spacing: 0.14em;
+  gap: 7px;
+  padding: 5px 10px 5px 8px;
+  border: 1px solid rgb(255 255 255 / 0.16);
+  border-radius: var(--radius-pill);
+  background: rgb(255 255 255 / 0.06);
+  color: rgb(255 255 255 / 0.86);
+  font-family: var(--font-body);
+  font-size: var(--text-3xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: #dcd2ff;
 }
+.auth-kicker svg { color: rgb(255 255 255 / 0.7); }
+
 .auth-story h1 {
-  font: 600 clamp(42px, 5vw, 72px)/0.98 var(--font-space);
-  letter-spacing: -0.055em;
-  margin: 24px 0 20px;
+  margin: 18px 0 14px;
+  color: #fff;
+  -webkit-text-fill-color: #fff;
+  font-family: var(--font-display);
+  font-size: clamp(34px, 3.6vw, 54px);
+  font-weight: var(--weight-semibold);
+  letter-spacing: -0.035em;
+  line-height: 1.04;
+  text-shadow: 0 2px 32px rgb(0 0 0 / 0.45);
 }
 .auth-story > p {
-  font-size: 17px;
-  line-height: 1.6;
-  color: color-mix(in srgb, var(--white) 72%, transparent);
-  max-width: 520px;
+  max-width: 30rem;
+  color: rgb(255 255 255 / 0.74);
+  font-size: var(--text-md);
+  line-height: var(--leading-normal);
 }
 .auth-trust {
   display: flex;
-  gap: 20px;
   flex-wrap: wrap;
-  margin-top: 34px;
-  font-size: 12px;
-  color: color-mix(in srgb, var(--white) 72%, transparent);
+  gap: 8px;
+  margin-top: 26px;
+  padding-top: 20px;
+  border-top: 1px solid rgb(255 255 255 / 0.12);
 }
 .auth-trust span {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 7px;
+  gap: 6px;
+  padding: 4px 9px;
+  border-radius: var(--radius-xs);
+  background: rgb(255 255 255 / 0.07);
+  color: rgb(255 255 255 / 0.82);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-medium);
 }
-.auth-trust svg {
-  width: 14px;
-  color: #b9ffdb;
-}
+.auth-trust svg { width: 12px; height: 12px; color: #86efac; }
+
+/* ── Form panel ──────────────────────────────────────────────────────────── */
 .auth-panel {
   display: grid;
   place-items: center;
-  padding: 48px;
-  background:
-    radial-gradient(
-      circle at 80% 10%,
-      color-mix(in srgb, var(--accent) 8%, transparent),
-      transparent 35%
-    ),
-    var(--bg);
+  padding: clamp(28px, 4vw, 56px);
+  background: var(--bg);
 }
 .auth-card {
-  width: min(100%, 430px);
+  width: min(100%, 400px);
 }
-.auth-copy {
-  margin: 42px 0 28px;
-}
+.auth-card .iris-lockup { margin-bottom: 34px; }
+.auth-card .iris-lockup-name { font-size: 17px; }
+
+.auth-copy { margin: 0 0 24px; }
 .auth-eyebrow {
-  color: var(--accent);
-  font: 600 10px var(--font-mono-tech);
-  letter-spacing: 0.14em;
+  color: var(--muted);
+  font-family: var(--font-body);
+  font-size: var(--text-3xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
 }
 .auth-copy h2 {
-  font: 600 34px var(--font-space);
-  letter-spacing: -0.035em;
-  margin: 9px 0;
+  margin: 8px 0 6px;
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
+  line-height: 1.15;
 }
 .auth-copy p,
 .auth-note {
   color: var(--muted);
-  font-size: 13px;
-  line-height: 1.6;
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
 }
-.auth-google,
-.auth-submit {
-  width: 100%;
-  height: 46px;
-  border-radius: var(--radius-md);
+
+.auth-google {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  font-weight: 600;
-  font-size: 13px;
-}
-.auth-google {
+  gap: 9px;
+  width: 100%;
+  height: 40px;
   border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
   background: var(--surface);
   color: var(--text);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  text-decoration: none;
+  transition: background-color var(--dur-2) var(--ease-standard), border-color var(--dur-2) var(--ease-standard);
+}
+.auth-google:hover {
+  background: var(--surface-2);
+  border-color: var(--border-strong);
   text-decoration: none;
 }
 .google-g {
-  font:
-    700 17px Arial,
-    sans-serif;
-  color: #4285f4; /* Google brand blue */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  background: var(--surface-3);
+  color: var(--blue);
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: var(--weight-bold);
 }
+
 .auth-divider {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
+  margin: 18px 0;
   color: var(--muted);
-  font-size: 10px;
-  margin: 20px 0;
+  font-size: var(--text-3xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
-.auth-divider:before,
-.auth-divider:after {
+.auth-divider::before,
+.auth-divider::after {
   content: "";
+  flex: 1;
   height: 1px;
   background: var(--border);
-  flex: 1;
 }
+
 .auth-form {
   display: grid;
-  gap: 15px;
+  gap: 14px;
 }
-.auth-form label {
-  font-size: 11px;
-  font-weight: 600;
+.auth-form > label {
   display: grid;
-  gap: 7px;
+  gap: 6px;
+  color: var(--secondary);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
 }
 .auth-input {
-  height: 45px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--surface);
   display: flex;
   align-items: center;
-  padding: 0 13px;
-  gap: 10px;
+  gap: 9px;
+  height: 38px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  transition: border-color var(--dur-2) var(--ease-standard), box-shadow var(--dur-2) var(--ease-standard);
 }
+.auth-input:hover { border-color: var(--border-strong); }
 .auth-input:focus-within {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent);
+  box-shadow: var(--ring);
 }
 .auth-input > svg {
   width: 15px;
+  height: 15px;
+  flex: none;
   color: var(--muted);
 }
-.auth-input input {
-  border: 0;
-  outline: 0;
-  background: transparent;
-  color: var(--text);
-  min-width: 0;
-  flex: 1;
-  font: inherit;
-}
-.auth-input button {
-  border: 0;
-  background: none;
-  color: var(--muted);
-  padding: 4px;
-}
-.auth-input button svg {
-  width: 15px;
-}
-.auth-submit {
-  border: 0;
-  background: var(--accent);
-  color: var(--accent-text);
-  margin-top: 3px;
-}
-.auth-submit svg {
-  width: 15px;
-}
-.auth-submit:disabled {
-  opacity: 0.6;
-}
-.auth-error {
-  padding: 10px 12px;
-  border-radius: var(--radius-sm);
-  background: var(--red-bg);
-  color: var(--red);
-  font-size: 12px;
-}
-.auth-notice {
-  padding: 10px 12px;
-  border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
-  color: var(--text);
-  font-size: 12px;
-  line-height: 1.5;
-}
-.auth-note {
-  text-align: center;
-  margin: 18px 12px 0;
-  font-size: 11px;
-}
-.auth-toggle {
-  background: none;
-  border: 0;
-  padding: 0;
-  color: var(--accent);
-  font-weight: 600;
-  cursor: pointer;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-.auth-toggle:hover {
-  color: var(--accent-bright);
-}
-@media (max-width: 860px) {
-  .auth-page {
-    grid-template-columns: 1fr;
-  }
-  .auth-visual {
-    min-height: 250px;
-    max-height: 34svh;
-  }
-  .auth-story {
-    left: 28px;
-    bottom: 28px;
-  }
-  .auth-story h1 {
-    font-size: 36px;
-    margin: 14px 0 0;
-  }
-  .auth-story > p,
-  .auth-trust {
-    display: none;
-  }
-  .auth-panel {
-    padding: 36px 22px;
-    place-items: start center;
-  }
-  .auth-copy {
-    margin: 28px 0 22px;
-  }
-}
-/* Route-scoped reduced-motion swap: the global rule in globals.css can only
-   shorten animations, not stop an autoplaying <video>, so swap to the poster. */
-@media (prefers-reduced-motion: reduce) {
-  .auth-visual .auth-video {
-    display: none;
-  }
-  .auth-visual {
-    background: center/cover url("/video/iris-intro-dark.webp");
-  }
-  [data-theme="light"] .auth-visual {
-    background-image: url("/video/iris-intro-light.webp");
-  }
-}
-/* Keep the cinematic-panel copy independent from the workspace theme tokens. */
-.auth-visual .auth-story h1 {
-  color: var(--white);
-  -webkit-text-fill-color: var(--white);
-  text-shadow: 0 2px 24px rgb(0 0 0 / 0.48);
-}
-.auth-visual .auth-story > p {
-  color: color-mix(in srgb, var(--white) 82%, transparent);
-}
-
-/* ── Sign-up form ────────────────────────────────────────────────────────────
-   The dropdowns used to keep their native chrome inside the styled shell, so a
-   select sat a few pixels off from the input above it and carried the operating
-   system's own arrow. They are now the same control as every other field, with
-   one chevron drawn by us. */
+.auth-input:focus-within > svg { color: var(--accent); }
+.auth-input input,
 .auth-input select {
-  appearance: none;
-  -webkit-appearance: none;
-  border: 0;
-  outline: 0;
-  background: transparent;
-  color: var(--text);
-  font: inherit;
   flex: 1;
   min-width: 0;
   height: 100%;
-  padding: 0 18px 0 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  box-shadow: none;
+}
+.auth-input input:focus-visible,
+.auth-input select:focus-visible { box-shadow: none; outline: none; }
+.auth-input button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: none;
+  color: var(--muted);
   cursor: pointer;
 }
-/* A native menu inherits nothing from the page, so the list itself is given the
-   surface colours explicitly — otherwise dark mode opens a white menu. */
-.auth-input select option {
-  background: var(--surface);
-  color: var(--text);
+.auth-input button:hover { background: var(--surface-2); color: var(--text); }
+.auth-input button svg { width: 15px; height: 15px; }
+
+.auth-submit {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  height: 40px;
+  margin-top: 4px;
+  border: 1px solid var(--ink);
+  border-radius: var(--radius-sm);
+  background: var(--ink);
+  color: var(--ink-text);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+  transition: background-color var(--dur-2) var(--ease-standard), opacity var(--dur-2) var(--ease-standard);
 }
-.auth-input select:invalid,
-.auth-input select option[value=""] {
-  color: var(--muted);
+.auth-submit:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--ink) 86%, var(--accent));
+  border-color: color-mix(in srgb, var(--ink) 86%, var(--accent));
 }
-.auth-input-select {
-  position: relative;
+.auth-submit:disabled { opacity: 0.6; cursor: progress; }
+.auth-submit svg { width: 15px; height: 15px; }
+
+.auth-error,
+.auth-notice {
+  padding: 9px 11px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-2xs);
+  line-height: var(--leading-snug);
 }
-.auth-input-select::after {
-  content: "";
-  position: absolute;
-  right: 14px;
-  top: 50%;
-  width: 7px;
-  height: 7px;
-  border-right: 1.6px solid var(--muted);
-  border-bottom: 1.6px solid var(--muted);
-  transform: translateY(-70%) rotate(45deg);
-  pointer-events: none;
+.auth-error {
+  border-color: color-mix(in srgb, var(--red) 28%, transparent);
+  background: var(--red-bg);
+  color: var(--red);
 }
-.auth-input-select:focus-within::after {
-  border-color: var(--accent);
-}
-/* Studio, department and manager belong together and read as one block; on a
-   roomy screen the first two share a row rather than making the form taller. */
-.auth-hint {
-  display: block;
-  margin-top: 5px;
-  font-size: 11.5px;
-  line-height: 1.5;
-  color: var(--muted);
-}
-@media (min-width: 560px) {
-  .auth-form .auth-signup-pair {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
-  }
+.auth-notice {
+  border-color: color-mix(in srgb, var(--accent) 24%, transparent);
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 
-.auth-visual { background: url('/video/iris-intro-dark.webp') center / cover no-repeat; }
+.auth-hint {
+  display: block;
+  color: var(--muted);
+  font-size: var(--text-2xs);
+  line-height: var(--leading-normal);
+}
+
+.auth-note {
+  margin: 18px 0 0;
+  text-align: center;
+  font-size: var(--text-2xs);
+}
+.auth-toggle {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-weight: var(--weight-semibold);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.auth-toggle:hover { color: var(--accent-deep); }
+
+/* ── Responsive ──────────────────────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .auth-page { grid-template-columns: 1fr; }
+  .auth-visual {
+    min-height: 210px;
+    max-height: 28svh;
+  }
+  .auth-story {
+    left: 24px;
+    right: 24px;
+    bottom: 24px;
+  }
+  .auth-story h1 {
+    margin: 12px 0 0;
+    font-size: 30px;
+  }
+  .auth-story > p,
+  .auth-trust { display: none; }
+  .auth-panel {
+    place-items: start center;
+    padding: 30px 22px 44px;
+  }
+  .auth-card .iris-lockup { margin-bottom: 22px; }
+}
+
+/* ── Standalone auth pages (change-password) ─────────────────────────────── */
+.auth-page-plain {
+  grid-template-columns: 1fr;
+  place-items: center;
+  min-height: 100svh;
+  padding: 40px 20px;
+  background:
+    radial-gradient(60% 45% at 50% 0%, var(--accent-soft), transparent 70%),
+    var(--bg);
+}
+.auth-page-plain .auth-panel {
+  width: min(100%, 420px);
+  padding: 32px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  background: var(--surface);
+  box-shadow: var(--shadow-3);
+  place-items: stretch;
+}
+.auth-page-plain .auth-form-wrap { width: 100%; }
+.auth-title {
+  margin: 0 0 8px;
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
+}
+.auth-sub {
+  margin: 0 0 22px;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+}
+.auth-page-plain .auth-form { gap: 12px; }
+.auth-page-plain .field { display: grid; gap: 6px; }
+.auth-page-plain .field > span {
+  color: var(--secondary);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
+}

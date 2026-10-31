@@ -14,7 +14,7 @@ export default function TicketRelatedPanel({
       <div className="between">
         <div>
           <h3>Linked tickets</h3>
-          <p className="secondary" style={{ fontSize: 12 }}>
+          <p className="secondary">
             Manually connect related incidents or follow-ups.
           </p>
         </div>
@@ -27,8 +27,7 @@ export default function TicketRelatedPanel({
         <div className="related-ticket" key={s.id}>
           <button
             onClick={() => setChildId(s.id)}
-            className="text-btn grow"
-            style={{ textAlign: "left", display: "block" }}
+            className="text-btn grow related-open"
           >
             <small className="muted">{s.ticketNumber}</small>
             <p>{s.title}</p>

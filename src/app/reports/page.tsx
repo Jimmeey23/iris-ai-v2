@@ -58,7 +58,7 @@ export default function ReportsPage(){
   const delta=typeof m.last7==='number'&&typeof m.prev7==='number'?(m.prev7?Math.round(((m.last7-m.prev7)/m.prev7)*100):(m.last7?100:0)):null;
 
   return (
-    <Shell title="Reports library" eyebrow={`${list.length} REPORT TYPES · 7 EXPORT FORMATS`} action={<Badge tone="blue"><FileBarChart2 size={12}/>Live data</Badge>}>
+    <Shell title="Reports library" eyebrow="Library" action={<Badge tone="blue"><FileBarChart2 size={12}/>Live data</Badge>}>
       <div className="report-shell">
         <aside className="report-nav card">
           <div className="report-nav-search"><SearchField value={q} onChange={setQ} placeholder="Find a report…"/></div>

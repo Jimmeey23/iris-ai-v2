@@ -39,7 +39,7 @@ export default function StaffPage() {
   return (
     <Shell
       title="People & teams"
-      eyebrow="PEOPLE & TEAMS"
+      eyebrow="People"
       action={
         <Link className="btn btn-primary" href="/settings">
           <ShieldCheck size={13} />

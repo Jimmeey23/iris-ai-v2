@@ -33,14 +33,6 @@ const ERROR_MESSAGES: Record<string, string> = {
 export default function LoginPage() {
   const router = useRouter();
   const { refreshUser } = useApp();
-  const [playVideo, setPlayVideo] = useState(false);
-  useEffect(() => {
-    const media = window.matchMedia("(min-width: 1024px) and (prefers-reduced-motion: no-preference)");
-    const update = () => setPlayVideo(media.matches);
-    update();
-    media.addEventListener("change", update);
-    return () => media.removeEventListener("change", update);
-  }, []);
   const [mode, setMode] = useState<"login" | "signup" | "setup">("login"),
     [setupToken, setSetupToken] = useState(""),
     [email, setEmail] = useState(""),
@@ -110,18 +102,6 @@ export default function LoginPage() {
   return (
     <main className="auth-page">
       <section className="auth-visual" aria-label="IRIS operations workspace">
-        {playVideo && <video
-          autoPlay
-          muted
-          loop
-          playsInline
-          preload="none"
-          poster="/video/iris-intro-dark.webp"
-          className="auth-video"
-        >
-          <source src="/video/iris-intro-dark.mp4" type="video/mp4" />
-        </video>}
-        <div className="auth-veil" />
         <div className="auth-story">
           <div className="auth-kicker">
             <Sparkles size={14} /> Physique 57 India operations
@@ -132,8 +112,8 @@ export default function LoginPage() {
             thoughtfully actioned.
           </h1>
           <p>
-            One intelligent workspace for studio issues, ownership and
-            follow-through.
+            Studio issues, member feedback and follow-ups in one workspace —
+            logged, routed and owned.
           </p>
           <div className="auth-trust">
             <span>
@@ -153,9 +133,9 @@ export default function LoginPage() {
       </section>
       <section className="auth-panel">
         <div className="auth-card">
-          <IrisLockup size={34} />
+          <IrisLockup size={32} subtitle="Ops workspace" />
           <div className="auth-copy">
-            <span className="auth-eyebrow">SECURE WORKSPACE</span>
+            <span className="auth-eyebrow">Secure workspace</span>
             <h2>
               {mode === "login"
                 ? "Welcome back"
@@ -266,7 +246,7 @@ export default function LoginPage() {
                 {notice}
               </div>
             )}
-            <button className="auth-submit" disabled={busy}>
+            <button className="auth-submit" type="submit" disabled={busy}>
               {busy
                 ? "Please wait…"
                 : mode === "login"

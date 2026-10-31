@@ -184,7 +184,7 @@ export function TicketDialogView({
         className={"ticket-detail-dialog " + styles.dialog}
         footer={
           <>
-            <span className="muted flex-row" style={{ fontSize: 10 }}>
+            <span className="muted flex-row td-footer-note">
               <ShieldCheck size={13} />
               Saved to your workspace · refreshes automatically
             </span>
@@ -212,7 +212,7 @@ export function TicketDialogView({
         }
       >
         {error && (
-          <div className="error-box" style={{ marginBottom: 16 }}>
+          <div className="error-box td-dialog-error">
             {error}
           </div>
         )}
