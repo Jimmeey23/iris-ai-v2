@@ -164,7 +164,7 @@ export default function FeedbackConsolePage() {
   return (
     <Shell
       title="Feedback console"
-      eyebrow="PRODUCT FEEDBACK"
+      eyebrow="Developer"
       action={
         <button
           type="button"

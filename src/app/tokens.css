@@ -1,0 +1,369 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   IRIS — DESIGN TOKENS (v3, October 2026)
+   ────────────────────────────────────────────────────────────────────────────
+   This file is the ONLY place a visual value is defined. Nothing else in the
+   app may declare a colour, radius, shadow, duration or type size of its own.
+
+   Before this file existed the palette was declared three times — once in
+   globals.css, once in design-system.css and once in premium.css — with
+   different values for 68 of the same token names. Whichever stylesheet
+   happened to load last won, so the product's colour depended on import
+   order rather than on design intent.
+
+   Load order is now explicit:
+     1. tokens.css        values               (this file)
+     2. globals.css       base + legacy screens
+     3. design-system.css component skins
+     4. feature sheets    intake / trainers / feedback / tour
+     5. system.css        shared component contract (authoritative)
+
+   Everything downstream reads these names, so a single edit here reshapes
+   every screen at once. Component CSS must never hard-code a hex.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* ── Theme-independent primitives ─────────────────────────────────────────
+   These never change with the theme, so they are declared once.           */
+:root {
+  /* Appearance sliders — written inline on <html> by `applyAppearance`
+     (Settings → Appearance). Every scale below multiplies by one of them. */
+  --ui-scale: 1;
+  --ui-spacing: 1;
+  --ui-radius: 1;
+  --ui-shadow: 1;
+
+  /* Typefaces. Self-hosted via Fontsource and imported in layout.tsx, so the
+     family stops at the first name — no network request, no swap flash. */
+  --font-display: "Inter Tight Variable", "Inter Variable", system-ui,
+    -apple-system, "Segoe UI", sans-serif;
+  --font-body: "Inter Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, monospace;
+
+  /* Literals that must never be re-tinted by a theme. */
+  --white: #fff;
+  --black: #000;
+  --brand-whatsapp: #25d366;
+
+  /* ── Radius scale ─────────────────────────────────────────────────────
+     Four steps, not thirty-eight. `--radius-pill` is the only fully round
+     value; chips and avatars use it, nothing else does.
+       2xs  micro marks (badges, keys)      4px
+       xs   compact controls (chips)        6px
+       sm   buttons, inputs, selects        8px
+       md   nested panels, menu items      10px
+       lg   cards and panels               12px
+       xl   dialogs, sheets                16px
+       card alias kept for older call sites                         */
+  --radius-2xs: calc(4px * var(--ui-radius));
+  --radius-xs: calc(6px * var(--ui-radius));
+  --radius-sm: calc(8px * var(--ui-radius));
+  --radius-md: calc(10px * var(--ui-radius));
+  --radius-lg: calc(12px * var(--ui-radius));
+  --radius-xl: calc(16px * var(--ui-radius));
+  --radius-2xl: calc(20px * var(--ui-radius));
+  --radius-card: var(--radius-lg);
+  --radius-pill: 999px;
+
+  /* Legacy aliases still consumed by feature sheets. They resolve to the
+     canonical steps so there is exactly one geometry in the product. */
+  --r-panel: var(--radius-lg);
+  --r-ctl: var(--radius-sm);
+  --r-chip: var(--radius-xs);
+
+  /* ── Type scale ───────────────────────────────────────────────────────
+     A 1.16–1.18 ratio on a 13px UI base, with a hard legibility floor of
+     10.5px. Display sizes are fluid so a phone and a 27" display both get
+     an optically correct headline.                                        */
+  --text-3xs: 10.5px;
+  --text-2xs: 11px;
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-base: 14px;
+  --text-md: 15.5px;
+  --text-lg: clamp(17px, 1.1vw, 19px);
+  --text-xl: clamp(20px, 1.5vw, 23px);
+  --text-2xl: clamp(24px, 2vw, 29px);
+  --text-3xl: clamp(28px, 2.6vw, 36px);
+  --text-4xl: clamp(34px, 3.4vw, 46px);
+
+  --tracking-tight: -0.032em;
+  --tracking-snug: -0.016em;
+  --tracking-normal: 0;
+  --tracking-wide: 0.06em;
+  --tracking-mono: 0.12em;
+
+  --leading-tight: 1.15;
+  --leading-snug: 1.38;
+  --leading-normal: 1.55;
+  --leading-relaxed: 1.7;
+
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  /* ── Spacing scale (4px base) ─────────────────────────────────────────
+     Used for the layout rhythm: content padding, card padding, gaps. The
+     Settings → Appearance "Spacing" slider multiplies all of it.          */
+  --space-1: calc(4px * var(--ui-spacing));
+  --space-2: calc(8px * var(--ui-spacing));
+  --space-3: calc(12px * var(--ui-spacing));
+  --space-4: calc(16px * var(--ui-spacing));
+  --space-5: calc(20px * var(--ui-spacing));
+  --space-6: calc(24px * var(--ui-spacing));
+  --space-7: calc(32px * var(--ui-spacing));
+  --space-8: calc(40px * var(--ui-spacing));
+  --space-9: calc(56px * var(--ui-spacing));
+
+  /* ── Motion scale ─────────────────────────────────────────────────────
+     One vocabulary. Anything that is not in this list is a mistake.       */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+  --ease-standard: cubic-bezier(0.2, 0.8, 0.25, 1);
+  --ease-in-out-quart: cubic-bezier(0.76, 0, 0.24, 1);
+  --dur-1: 90ms;
+  --dur-2: 140ms;
+  --dur-3: 200ms;
+  --dur-4: 280ms;
+  --dur-5: 400ms;
+  --dur-6: 640ms;
+  --dur-7: 900ms;
+
+  /* ── Layer scale ─────────────────────────────────────────────────────
+     Low tiers order siblings inside one stacking context; the rest are
+     page-level layers. Components reference these names, never numbers.  */
+  --z-below: -1;
+  --z-base: 0;
+  --z-raised: 1;
+  --z-float: 2;
+  --z-above: 3;
+  --z-lift: 5;
+  --z-lift-top: 6;
+  --z-marquee: 15;
+  --z-sticky: 30;
+  --z-menu: 30;
+  --z-sidebar: 40;
+  --z-dropdown: 50;
+  --z-popover: 60;
+  --z-scrim: 70;
+  --z-drawer: 80;
+  --z-overlay: 100;
+  --z-modal: 110;
+  --z-toast: 300;
+
+  /* ── Layout ──────────────────────────────────────────────────────────
+     The rail width, bar height and page margin are one decision, so they are
+     declared together on `.workspace` in system.css and read from `--rail`
+     and `--bar`. These are the page-level measures that do not move. */
+  --content-max: 1440px;
+  --readable-max: 74ch;
+  --focus-width: 2px;
+}
+
+/* ── Light theme — "Paper" ──────────────────────────────────────────────────
+   A soft neutral canvas with white surfaces. Cards separate by a hairline
+   border and a whisper of elevation, never by a heavy drop shadow: on a
+   dense operational screen, shadow is the first thing that reads as noise.
+
+   Every foreground/background pair below clears WCAG AA (4.5:1) at the size
+   it is actually used, including the tinted badge backgrounds.
+   ────────────────────────────────────────────────────────────────────────── */
+:root,
+[data-theme="light"] {
+  color-scheme: light;
+
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --surface-2: #f3f4f7;
+  --surface-3: #eaecef;
+  --surface-4: #e1e4ea;
+
+  --text: #0c0e13;
+  --secondary: #3e4450;
+  --muted: #6e7480;
+
+  --border: #e4e7ec;
+  --border-strong: #d3d8e0;
+  --hairline: #eef0f3;
+  --hairline-strong: #e4e7ec;
+
+  /* One accent. Indigo — distinct enough to feel like a brand, quiet enough
+     to appear five times on a screen without shouting. 7.4:1 on white. */
+  --accent: #4f46e5;
+  --accent-deep: #4338ca;
+  --accent-bright: #6366f1;
+  --accent-soft: #eef0fe;
+  --accent-text: #ffffff;
+
+  --green: #067647;
+  --green-bg: #ecfdf3;
+  --amber: #b54708;
+  --amber-bg: #fffaeb;
+  --red: #b42318;
+  --red-bg: #fef3f2;
+  --blue: #175cd3;
+  --blue-bg: #eff8ff;
+  --purple: #5925dc;
+  --purple-bg: #f4f3ff;
+  --danger: var(--red);
+
+  /* Recurrence keeps one hue nothing else on the board uses. */
+  --recur: #8a2aa8;
+  --recur-bg: #8a2aa812;
+  --status-closed: #677387;
+  --row-done-bg: #fafbfc;
+
+  /* Elevation. Only 3–5 are real shadows, and only floating things use them. */
+  --shadow-hairline: rgb(12 14 19 / 0.05);
+  --shadow-1: 0 1px 1px rgb(12 14 19 / calc(0.03 * var(--ui-shadow)));
+  --shadow-2:
+    0 1px 2px rgb(12 14 19 / calc(0.06 * var(--ui-shadow))),
+    0 1px 3px rgb(12 14 19 / calc(0.04 * var(--ui-shadow)));
+  --shadow-3:
+    0 8px 24px -12px rgb(12 14 19 / calc(0.16 * var(--ui-shadow))),
+    0 1px 3px rgb(12 14 19 / calc(0.05 * var(--ui-shadow)));
+  --shadow-4:
+    0 24px 60px -24px rgb(12 14 19 / calc(0.24 * var(--ui-shadow))),
+    0 4px 12px -4px rgb(12 14 19 / calc(0.08 * var(--ui-shadow)));
+  --shadow-5:
+    0 40px 96px -32px rgb(12 14 19 / calc(0.3 * var(--ui-shadow))),
+    0 8px 24px -8px rgb(12 14 19 / calc(0.1 * var(--ui-shadow)));
+  --shadow-ring: 0 0 0 1px var(--hairline);
+  --highlight-inset: inset 0 1px 0 rgb(255 255 255 / 0.7);
+  --ring: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent);
+
+  /* Surfaces & gradients. The app is flat by design; these exist so legacy
+     call sites still resolve, and they resolve to flat fills. */
+  --glass: var(--surface);
+  --glass-strong: var(--surface);
+  --grad-accent: linear-gradient(var(--accent), var(--accent));
+  --grad-text: linear-gradient(var(--text), var(--text));
+
+  /* Inverse pair for the dark-on-light brand mark and pressed states. */
+  --ink: #0c0e13;
+  --ink-text: #ffffff;
+}
+
+/* ── Dark theme — "Graphite" ────────────────────────────────────────────────
+   Not an inversion of Paper: the canvas is nearly black, surfaces step *up*
+   in luminance as they come forward, and the accent is lightened so it keeps
+   its contrast against a dark field.
+   ────────────────────────────────────────────────────────────────────────── */
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg: #08090b;
+  --surface: #0e1014;
+  --surface-2: #14171c;
+  --surface-3: #1a1e25;
+  --surface-4: #22272f;
+
+  --text: #f1f3f7;
+  --secondary: #c4cad4;
+  --muted: #8a93a0;
+
+  --border: #21252c;
+  --border-strong: #313742;
+  --hairline: #191d23;
+  --hairline-strong: #262b33;
+
+  --accent: #a5b4fc;
+  --accent-deep: #818cf8;
+  --accent-bright: #c7d2fe;
+  --accent-soft: #a5b4fc14;
+  --accent-text: #0b0d12;
+
+  --green: #4ade80;
+  --green-bg: #4ade8014;
+  --amber: #fbbf24;
+  --amber-bg: #fbbf2414;
+  --red: #fb7185;
+  --red-bg: #fb718514;
+  --blue: #93c5fd;
+  --blue-bg: #93c5fd14;
+  --purple: #c4b5fd;
+  --purple-bg: #c4b5fd14;
+  --danger: var(--red);
+
+  --recur: #e0a6f5;
+  --recur-bg: #e0a6f514;
+  --status-closed: #8e9bb0;
+  --row-done-bg: #0b0d10;
+
+  --shadow-hairline: rgb(0 0 0 / 0.4);
+  --shadow-1: 0 1px 1px rgb(0 0 0 / calc(0.4 * var(--ui-shadow)));
+  --shadow-2:
+    0 1px 2px rgb(0 0 0 / calc(0.5 * var(--ui-shadow))),
+    0 1px 3px rgb(0 0 0 / calc(0.3 * var(--ui-shadow)));
+  --shadow-3:
+    0 10px 30px -14px rgb(0 0 0 / calc(0.7 * var(--ui-shadow))),
+    0 0 0 1px rgb(255 255 255 / 0.04);
+  --shadow-4:
+    0 28px 64px -24px rgb(0 0 0 / calc(0.8 * var(--ui-shadow))),
+    0 0 0 1px rgb(255 255 255 / 0.05);
+  --shadow-5:
+    0 44px 110px -36px rgb(0 0 0 / calc(0.9 * var(--ui-shadow))),
+    0 0 0 1px rgb(255 255 255 / 0.06);
+  --shadow-ring: 0 0 0 1px var(--hairline);
+  --highlight-inset: inset 0 1px 0 rgb(255 255 255 / 0.04);
+  --ring: 0 0 0 3px color-mix(in srgb, var(--accent) 26%, transparent);
+
+  --glass: color-mix(in srgb, var(--surface) 82%, transparent);
+  --glass-strong: color-mix(in srgb, var(--surface) 92%, transparent);
+  --grad-accent: linear-gradient(var(--accent), var(--accent));
+  --grad-text: linear-gradient(var(--text), var(--text));
+
+  --ink: #f1f3f7;
+  --ink-text: #08090b;
+}
+
+/* ── Legacy material aliases ────────────────────────────────────────────────
+   design-system.css and the feature sheets still ask for these names. They
+   now resolve to the flat, hairline-first material defined above — the old
+   neumorphic pair is gone, which is what removes the 18px-vs-12px card
+   radius conflict the two systems had.
+   ────────────────────────────────────────────────────────────────────────── */
+:root,
+[data-theme="light"],
+[data-theme="dark"] {
+  --neu-line: var(--border);
+  --neu-sunken: var(--surface-2);
+  --neu-xs: none;
+  --neu-sm: none;
+  --neu-md: var(--shadow-3);
+  --neu-in: none;
+  --neu-in-sm: none;
+  --neu-edge: 0 0 0 0 transparent;
+
+  --ovc-line: var(--border);
+  --ovc-ink: var(--text);
+  --ovc-muted: var(--secondary);
+  --ovc-faint: var(--muted);
+  --ovc-surface: var(--surface);
+  --ovc-sunken: var(--surface-2);
+  --ovc-spark-muted: var(--muted);
+  --ovc-chip-bg: var(--surface-2);
+  --ovc-chip-ink: var(--secondary);
+  --ovc-neu-xs: none;
+  --ovc-neu-sm: none;
+  --ovc-neu-md: var(--shadow-3);
+  --ovc-neu-in: none;
+  --ovc-neu-in-sm: none;
+
+  /* Rail and commander-deck material. These names were private palettes inside
+     design-system.css; they now alias the semantic layer, so the rail and the
+     overview use the same surface as everything else. */
+  --sb-face: var(--surface);
+  --sb-hover: var(--surface-2);
+  --sb-edge: var(--border);
+  --sb-lift: var(--shadow-2);
+  --sb-inner-light: transparent;
+  --sb-r: var(--radius-sm);
+  --font-sans: var(--font-body);
+  --surface-raised-2: var(--surface-2);
+  --ov-face: var(--surface);
+  --ov-rim: 0 0 0 0 transparent;
+  --ov-cast: none;
+  --ov-cast-lg: var(--shadow-3);
+  --ov-press: none;
+  --ov-r: var(--radius-lg);
+}

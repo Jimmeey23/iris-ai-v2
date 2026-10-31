@@ -443,8 +443,8 @@ export function CommandCenter({directory = false, assignedOnly = false}: {direct
     </section>
   );
 
-  const shellTitle = assignedOnly ? 'Assigned to me' : directory ? 'All tickets' : `Welcome${user?.name ? `, ${user.name.trim().split(/\s+/)[0]}` : ''}`;
-  const shellEyebrow = assignedOnly ? 'YOUR PERSONAL QUEUE' : directory ? 'TICKET DIRECTORY' : 'INTERNAL OPERATIONS';
+  const shellTitle = assignedOnly ? 'Assigned to me' : directory ? 'All tickets' : 'Overview';
+  const shellEyebrow = assignedOnly ? 'Your queue' : directory ? 'Tickets' : user?.name ? `Workspace · ${user.name.trim().split(/\s+/)[0]}` : 'Workspace';
   const shellAction = (
     <div className="flex-row">
       <select className="btn" aria-label="Reporting date range" value={f.from || f.to ? 'custom' : f.range} onChange={(e) => changeFilters({range: e.target.value, from: '', to: ''})}>

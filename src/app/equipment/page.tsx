@@ -14,8 +14,8 @@ export default function EquipmentPage() {
   return (
     <Shell
       title="Equipment register"
-      eyebrow="FLEET HEALTH"
-      banner={<><IrisMarquee page="equipment" /><p className="muted" style={{fontSize: 12, marginTop: 10}}>Every snag ever logged, against the item it happened to — bikes, weights, laptops, the air conditioning, the coffee maker. Anything taken out of rotation on the floor appears here within 30 seconds.</p></>}
+      eyebrow="Operations"
+      banner={<><IrisMarquee page="equipment" /><p className="banner-note">Every snag ever logged, against the item it happened to. Anything taken out of rotation appears here within 30 seconds.</p></>}
     >
       <EquipmentPanel initialStudio={studio} initialAssetId={assetId} />
     </Shell>

@@ -755,7 +755,7 @@ export default function DesignSystemPage() {
   const { theme, user } = useApp();
   if (user?.role !== "admin")
     return (
-      <Shell title="Design system" eyebrow="IRIS · VISUAL LANGUAGE" hideFooter>
+      <Shell title="Design system" eyebrow="Developer" hideFooter>
         <Empty
           title="Admins only"
           detail="The design system reference is an internal developer page. Ask an administrator if you need something changed here."
@@ -763,7 +763,7 @@ export default function DesignSystemPage() {
       </Shell>
     );
   return (
-    <Shell title="Design system" eyebrow="IRIS · VISUAL LANGUAGE" hideFooter
+    <Shell title="Design system" eyebrow="Developer" hideFooter
       action={<div className="flex-row">
         <Badge tone={theme === "dark" ? "amber" : "blue"}>{theme === "dark" ? "Dark" : "Light"}</Badge>
         <ThemeToggle />

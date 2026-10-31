@@ -10,7 +10,15 @@
  * from a stylesheet named after one tab, so every selector list here has had
  * its non-trainer members removed, and rules left with none are dropped.
  *
- * Relies on the `--neu-*` tokens defined in design-system.css. */
+ * Material comes from tokens.css. The `--active-*` pair these rules referenced was
+ * deleted in the revert they were extracted from, so it is defined here once. */
+
+.tr-review,
+.tr-seg {
+  --active-fg: var(--accent-text);
+  --active-bg: var(--accent);
+  --active-glow: var(--ring);
+}
 
 .tr-review.active {
   color: var(--active-fg) !important;
@@ -38,7 +46,7 @@
   color: var(--text) !important;
   background: color-mix(in srgb, var(--accent) 10%, var(--surface)) !important;
   border: 1px solid color-mix(in srgb, var(--accent) 42%, transparent) !important;
-  box-shadow: var(--neu-xs), inset 3px 0 0 var(--accent) !important;
+  box-shadow: inset 3px 0 0 var(--accent) !important;
 }
 
 .tr-review.active * { color: inherit !important; }

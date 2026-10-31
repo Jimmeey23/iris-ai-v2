@@ -80,7 +80,7 @@ export default function FormsPage(){
   const filtered=forms.filter(f=>!q||(f.name+' '+f.blurb+' '+f.template).toLowerCase().includes(q.toLowerCase()));
 
   return (
-    <Shell title="Fill it in where the work happens." eyebrow="EVALUATION FORMS" action={<div className="flex-row">{user?.role==='admin'&&<button className="btn" onClick={()=>setAddOpen(true)}><Plus size={14}/>Add form</button>}<Badge tone="blue"><ClipboardList size={12}/>{forms.length} forms</Badge></div>}>
+    <Shell title="Evaluation forms" eyebrow="Training" action={<div className="flex-row">{user?.role==='admin'&&<button className="btn" onClick={()=>setAddOpen(true)}><Plus size={14}/>Add form</button>}<Badge tone="blue"><ClipboardList size={12}/>{forms.length} forms</Badge></div>}>
       {!active&&<>
       <div className="iris-banner">
         <div className="iris-orb"><ClipboardList size={23}/></div>

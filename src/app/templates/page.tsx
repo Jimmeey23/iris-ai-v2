@@ -21,7 +21,7 @@ export default function TemplatesPage(){
   useEffect(()=>{loadDrafts();},[loadDrafts]);
   const filtered=useMemo(()=>all.filter(t=>(category==='All templates'||category==='Featured'&&t.featured||category===t.category)&&(!q||(t.title+' '+t.description+' '+t.category+' '+t.subcategory).toLowerCase().includes(q.toLowerCase()))),[all,category,q]);
   const categories=['Featured','All templates',...CATEGORIES];
-  return <Shell title="Start with the right questions." eyebrow="IRIS TEMPLATE LIBRARY" action={<Badge tone="blue"><Layers size={12}/>{all.length} guided templates</Badge>}>
+  return <Shell title="Templates" eyebrow="Library" action={<Badge tone="blue"><Layers size={12}/>{all.length} guided templates</Badge>}>
     <section className="template-hero">
       <div className="template-hero-mark"><Layers size={24}/></div>
       <div className="grow"><span className="eyebrow">PURPOSE-BUILT MEMBER VOICE CAPTURE</span><h2>Fast to complete. Specific to the moment.</h2><p>Each template asks only what the receiving team needs, links live member or class context where relevant, and produces a review-ready ticket before anything is filed.</p></div>
