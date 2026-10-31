@@ -114,17 +114,18 @@ function Foundations() {
         <div className="eyebrow">SHAPE</div>
         <h3 style={{ margin: "6px 0 16px" }}>Radius scale</h3>
         <p className="secondary" style={{ marginBottom: 18, fontSize: "var(--text-xs)", maxWidth: 640, lineHeight: 1.7 }}>
-          Seven steps replace the 38 distinct radii that were previously in circulation. Components
-          pick a step; they no longer invent a number.
+          Seven steps replace the 38 distinct radii that were in circulation, and the four competing
+          card radii that made two panels on the same screen look like different products. A
+          component picks a step; it never invents a number.
         </p>
         <div className="ds-scale-grid">
-          <ScaleStep kind="radius" token="--radius-2xs" value="4px" />
-          <ScaleStep kind="radius" token="--radius-xs" value="6px" />
-          <ScaleStep kind="radius" token="--radius-sm" value="8px" />
-          <ScaleStep kind="radius" token="--radius-md" value="11px" />
-          <ScaleStep kind="radius" token="--radius-lg" value="14px" />
-          <ScaleStep kind="radius" token="--radius-xl" value="18px" />
-          <ScaleStep kind="radius" token="--radius-2xl" value="24px" />
+          <ScaleStep kind="radius" token="--radius-2xs" value="4px · marks" />
+          <ScaleStep kind="radius" token="--radius-xs" value="6px · chips" />
+          <ScaleStep kind="radius" token="--radius-sm" value="8px · controls" />
+          <ScaleStep kind="radius" token="--radius-md" value="10px · insets" />
+          <ScaleStep kind="radius" token="--radius-lg" value="12px · cards" />
+          <ScaleStep kind="radius" token="--radius-xl" value="16px · dialogs" />
+          <ScaleStep kind="radius" token="--radius-2xl" value="20px · sheets" />
         </div>
       </section>
 
@@ -132,16 +133,16 @@ function Foundations() {
         <div className="eyebrow">DEPTH</div>
         <h3 style={{ margin: "6px 0 16px" }}>Elevation scale</h3>
         <p className="secondary" style={{ marginBottom: 18, fontSize: "var(--text-xs)", maxWidth: 640, lineHeight: 1.7 }}>
-          Five steps, each adding spread and softening. Combined with{" "}
-          <code>--highlight-inset</code> — a hairline of light along the top edge — this is what stops
-          a dark surface reading as a flat grey rectangle.
+          Elevation is earned. Cards are flat — a white panel on a tinted canvas, separated by a
+          hairline, because a board of forty hovering cards is a fairground. Shadow is reserved for
+          things that genuinely float: dialogs, menus, popovers and toasts.
         </p>
         <div className="ds-scale-grid">
-          <ScaleStep kind="shadow" token="--shadow-1" value="resting" />
-          <ScaleStep kind="shadow" token="--shadow-2" value="raised" />
-          <ScaleStep kind="shadow" token="--shadow-3" value="hover" />
+          <ScaleStep kind="shadow" token="--shadow-1" value="hairline" />
+          <ScaleStep kind="shadow" token="--shadow-2" value="control" />
+          <ScaleStep kind="shadow" token="--shadow-3" value="menu" />
           <ScaleStep kind="shadow" token="--shadow-4" value="popover" />
-          <ScaleStep kind="shadow" token="--shadow-5" value="modal" />
+          <ScaleStep kind="shadow" token="--shadow-5" value="dialog" />
         </div>
       </section>
 
@@ -149,14 +150,15 @@ function Foundations() {
         <div className="eyebrow">TYPE</div>
         <h3 style={{ margin: "6px 0 16px" }}>Type scale</h3>
         <p className="secondary" style={{ marginBottom: 18, fontSize: "var(--text-xs)", maxWidth: 640, lineHeight: 1.7 }}>
-          A 1.167 ratio with a hard floor at 9px. Twenty-eight declarations previously rendered at
-          7–8.5px; those have been collapsed onto the floor. Numerals are tabular wherever a value
-          can change, so timers and counts never jitter as they tick.
+          A 1.16–1.18 ratio on a 13px UI base, with a hard legibility floor at 10.5px — twenty-eight
+          declarations previously rendered at 7–8.5px. Display sizes are fluid, so a phone and a 27-inch
+          display both get an optically correct headline. Numerals are tabular wherever a value can
+          change, so timers and counts never jitter as they tick.
         </p>
         <div className="ds-type-scale">
-          {[["--text-4xl", "52px"], ["--text-3xl", "38px"], ["--text-2xl", "30px"], ["--text-xl", "24px"],
-            ["--text-lg", "19px"], ["--text-md", "16px"], ["--text-base", "14px"], ["--text-sm", "12.5px"],
-            ["--text-xs", "11.5px"], ["--text-2xs", "10.5px"], ["--text-3xs", "10px"]].map(([t, v]) => (
+          {[["--text-4xl", "34–46px"], ["--text-3xl", "28–36px"], ["--text-2xl", "24–29px"], ["--text-xl", "20–23px"],
+            ["--text-lg", "17–19px"], ["--text-md", "15.5px"], ["--text-base", "14px"], ["--text-sm", "13px"],
+            ["--text-xs", "12px"], ["--text-2xs", "11px"], ["--text-3xs", "10.5px"]].map(([t, v]) => (
             <div className="ds-type-row" key={t}>
               <span style={{ fontSize: `var(${t})`, fontFamily: "var(--font-display)", fontWeight: 600, letterSpacing: "var(--tracking-tight)" }}>
                 Every ticket tracked
@@ -171,9 +173,11 @@ function Foundations() {
         <div className="eyebrow">MOTION</div>
         <h3 style={{ margin: "6px 0 16px" }}>Easing &amp; duration</h3>
         <p className="secondary" style={{ marginBottom: 18, fontSize: "var(--text-xs)", maxWidth: 640, lineHeight: 1.7 }}>
-          Four easings and six durations replace the 20+ timings that were competing on the same
-          screen. <code>--ease-out-expo</code> is the house curve for entrances,{" "}
-          <code>--ease-spring</code> for anything the user physically presses.
+          Four easings and seven durations replace the 20+ timings that were competing on the same
+          screen. Motion is feedback, not choreography: entrances use{" "}
+          <code>--ease-out-expo</code>, colour and state changes use{" "}
+          <code>--ease-standard</code>, and nothing on a working surface moves for longer than
+          280ms.
         </p>
         <div className="ds-scale-grid">
           <ScaleStep kind="motion" token="--ease-out-expo" value="entrances" />
@@ -182,7 +186,7 @@ function Foundations() {
           <ScaleStep kind="motion" token="--ease-in-out-quart" value="curtains" />
         </div>
         <div className="ds-durations">
-          {[1, 2, 3, 4, 5, 6].map((n) => (
+          {[1, 2, 3, 4, 5, 6, 7].map((n) => (
             <div className="ds-duration" key={n}>
               <span className="ds-duration-bar" style={{ animationDuration: `var(--dur-${n})` }} />
               <code>--dur-{n}</code>

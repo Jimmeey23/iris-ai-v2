@@ -2399,3 +2399,168 @@ tbody tr[data-done="true"] td { color: var(--muted); background: transparent; }
   .ovc-kpis { grid-template-columns: 1fr; }
   .ovc-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   18. FEATURE HEROES
+   Templates, Reports and Trainer reviews each open with a "hero" block that was
+   designed separately: gradients, a decorative mark, a stats row in its own
+   type scale. They are informational headers, so they now share one shape with
+   the page banners — a hairline card, an icon well, a heading and a line of
+   explanation.
+   ──────────────────────────────────────────────────────────────────────────── */
+.template-hero {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+  padding: var(--space-5);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  overflow: visible;
+}
+.template-hero::after { display: none; }
+.template-hero-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
+  background: var(--accent-soft);
+  color: var(--accent);
+  box-shadow: none;
+}
+.template-hero h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-snug);
+}
+.template-hero p {
+  max-width: 68ch;
+  margin-top: 5px;
+  color: var(--secondary);
+  font-size: var(--text-2xs);
+  line-height: var(--leading-normal);
+}
+.template-hero .eyebrow { color: var(--muted); }
+.template-hero-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.template-hero-stats li,
+.template-hero-stats > div {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--secondary);
+  font-size: var(--text-3xs);
+}
+.template-hero-stats strong {
+  display: block;
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+}
+
+/* Reports: a two-column workbench, not a page of cards. */
+.report-shell {
+  display: grid;
+  grid-template-columns: minmax(220px, 268px) minmax(0, 1fr);
+  gap: var(--space-4);
+  align-items: start;
+}
+.report-nav {
+  position: sticky;
+  top: calc(var(--bar) + var(--space-4));
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+.report-grid {
+  display: grid;
+  gap: var(--space-3);
+}
+@media (max-width: 900px) {
+  .report-shell { grid-template-columns: 1fr; }
+  .report-nav { position: static; }
+}
+
+/* Full-height work surfaces (the ticket board, the radar) size themselves off the
+   bar. They used a hard-coded 68px that stopped matching the shell the moment
+   the bar became a token — a 4px overflow that produced a scrollbar on every
+   one of them. */
+.content.content-full-height {
+  height: calc(100dvh - var(--bar));
+  max-height: calc(100dvh - var(--bar));
+  padding: var(--space-4) var(--space-5);
+}
+.content.content-full-height.has-banner {
+  height: calc(100dvh - var(--bar));
+  max-height: calc(100dvh - var(--bar));
+  padding: var(--space-3) var(--space-5) var(--space-4);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   19. RESOLUTIONS
+   A handful of legacy rules are more specific than the base primitive they were
+   written against (` :root[data-theme="light"] .card ` beats `.card`), so they
+   survived the rewrite by specificity rather than by intent. Rather than adding
+   `!important` to the system layer, each one is restated here at the weight it
+   needs. These are the only rules in the file written to win a specificity
+   fight, and each says why.
+   ──────────────────────────────────────────────────────────────────────────── */
+
+/* Tonal avatar variants: globals painted five saturated gradients (0,2,0). One
+   tint per tone, no gradient. */
+.avatar.purple { background: var(--purple-bg); color: var(--purple); box-shadow: none; }
+.avatar.amber { background: var(--amber-bg); color: var(--amber); box-shadow: none; }
+.avatar.green { background: var(--green-bg); color: var(--green); box-shadow: none; }
+.avatar.blue { background: var(--blue-bg); color: var(--blue); box-shadow: none; }
+.avatar.red { background: var(--red-bg); color: var(--red); box-shadow: none; }
+.avatar.grey,
+.avatar.slate { background: var(--surface-3); color: var(--secondary); box-shadow: none; }
+
+/* Card surfaces: three earlier sheets set the background at (0,2,0)+(0,3,0). */
+:root[data-theme="light"] .card,
+:root[data-theme="light"] .panel,
+[data-theme] .card,
+[data-theme] .panel,
+[data-theme] .ticket-card {
+  background: var(--surface);
+  border-color: var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: none;
+}
+
+/* Dialog sizes keep their width but take the system corner. */
+.dialog-content.wide,
+.dialog-content.narrow { border-radius: var(--radius-xl); }
+
+/* Toast glyphs: the tinted 27px well is gone, so its radius must go too. */
+.toast > svg,
+.toast.success > svg,
+.toast.error > svg {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+.toast.success > svg { color: var(--green); }
+.toast.error > svg { color: var(--red); }
+
+/* Empty-state headings: design-system set them at (0,1,1). */
+.empty-state h3 { color: var(--text); font-size: var(--text-md); }
+.empty-state p { color: var(--muted); font-size: var(--text-2xs); }
