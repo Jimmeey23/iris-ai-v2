@@ -46,8 +46,10 @@ import {
 } from "@/components/ui";
 import { OverviewCanvas } from "@/components/overview-canvas";
 import { Kanban, TicketCard } from "@/components/tickets-board";
+import { StatusStrip } from "@/components/iris-marquee";
 import {
   PREVIEW_DIRECTORY,
+  PREVIEW_STATUS,
   PREVIEW_TICKETS,
   PREVIEW_USER,
 } from "./preview-data";
@@ -116,6 +118,8 @@ function PreviewBody() {
       }
       banner={<PreviewBanner />}
     >
+      <StatusStrip items={PREVIEW_STATUS} />
+
       <Tabs
         className="preview-tabs"
         label="Preview sections"
@@ -125,7 +129,7 @@ function PreviewBody() {
       />
 
       {view === "gallery" && (
-        <div className="stack" style={{ gap: "var(--space-5)" }}>
+        <div className="preview-stack">
           <OverviewCanvas
             name={PREVIEW_USER.name}
             tickets={tickets}
@@ -146,8 +150,8 @@ function PreviewBody() {
       {view === "tickets" && <PreviewTable tickets={tickets} />}
 
       {view === "board" && (
-        <div className="card" style={{ overflow: "hidden" }}>
-          <div className="section-head" style={{ padding: "var(--space-4) var(--space-4) 0", marginBottom: 0 }}>
+        <div className="card preview-clip">
+          <div className="section-head preview-lead">
             <div>
               <h2>Tickets by status</h2>
               <p>{tickets.length} in scope · {open.length} open</p>
@@ -196,14 +200,14 @@ function PreviewTable({ tickets }: { tickets: typeof PREVIEW_TICKETS }) {
   );
 
   return (
-    <section className="card" style={{ overflow: "hidden" }}>
-      <div className="section-head" style={{ padding: "var(--space-4) var(--space-4) 0", marginBottom: "var(--space-3)" }}>
+    <section className="card preview-clip">
+      <div className="section-head preview-lead is-tight">
         <div>
           <h2>Ticket workspace</h2>
           <p>{rows.length} shown · newest first</p>
         </div>
         <div className="preview-toolbar">
-          <div style={{ width: 240 }}>
+          <div className="preview-search">
             <SearchField value={query} onChange={setQuery} placeholder="Search tickets…" />
           </div>
           <Button size="sm" icon={RefreshCw}>Refresh</Button>
@@ -277,10 +281,10 @@ function PreviewTable({ tickets }: { tickets: typeof PREVIEW_TICKETS }) {
 function ComponentGallery() {
   const [on, setOn] = useState(true);
   return (
-    <div className="stack" style={{ gap: "var(--space-4)" }}>
-      <section className="card" style={{ padding: "var(--space-5)" }}>
+    <div className="preview-stack-tight">
+      <section className="card preview-card">
         <div className="eyebrow">Buttons</div>
-        <h3 style={{ margin: "6px 0 16px" }}>Five intents, four sizes</h3>
+        <h3>Five intents, four sizes</h3>
         <div className="preview-row">
           <Button variant="primary">Log a ticket</Button>
           <Button>Secondary</Button>
@@ -299,9 +303,9 @@ function ComponentGallery() {
         </div>
       </section>
 
-      <section className="card" style={{ padding: "var(--space-5)" }}>
+      <section className="card preview-card">
         <div className="eyebrow">Form controls</div>
-        <h3 style={{ margin: "6px 0 16px" }}>One geometry, one focus ring</h3>
+        <h3>One geometry, one focus ring</h3>
         <div className="preview-grid">
           <Field label="Ticket title" hint="What happened, in one line.">
             <input placeholder="e.g. Bike 7 pedals slip under load" />
@@ -334,9 +338,9 @@ function ComponentGallery() {
         </div>
       </section>
 
-      <section className="card" style={{ padding: "var(--space-5)" }}>
+      <section className="card preview-card">
         <div className="eyebrow">Data marks</div>
-        <h3 style={{ margin: "6px 0 16px" }}>Status, priority and tags</h3>
+        <h3>Status, priority and tags</h3>
         <div className="preview-row">
           <Status status="open" />
           <Status status="in_progress" />
@@ -368,24 +372,24 @@ function ComponentGallery() {
         </div>
       </section>
 
-      <section className="card" style={{ padding: "var(--space-5)" }}>
+      <section className="card preview-card">
         <div className="eyebrow">States</div>
-        <h3 style={{ margin: "6px 0 16px" }}>Empty, loading, error</h3>
+        <h3>Empty, loading, error</h3>
         <Empty
           art="inbox"
           title="No tickets yet"
           detail="New entries appear here the moment they are filed."
           action={<Button size="sm" icon={Plus}>Log the first ticket</Button>}
         />
-        <div style={{ marginTop: "var(--space-4)" }}><Loading rows={3} /></div>
-        <div className="error-box" style={{ marginTop: "var(--space-4)" }}>
+        <div className="preview-aside-panel"><Loading rows={3} /></div>
+        <div className="error-box preview-aside-panel">
           <TriangleAlert size={12} /> The server returned an unexpected response. Please retry.
         </div>
       </section>
 
-      <section className="card" style={{ padding: "var(--space-5)" }}>
+      <section className="card preview-card">
         <div className="eyebrow">Directory</div>
-        <h3 style={{ margin: "6px 0 16px" }}>Who is here</h3>
+        <h3>Who is here</h3>
         <div className="preview-row">
           {PREVIEW_DIRECTORY.map((p) => (
             <span key={p.name} className="preview-owner">
@@ -395,7 +399,7 @@ function ComponentGallery() {
             </span>
           ))}
         </div>
-        <div style={{ marginTop: "var(--space-4)", display: "flex", gap: 8, alignItems: "center" }}>
+        <div className="preview-inline">
           <Search size={14} className="muted" />
           <span className="muted">Search field, kbd and tooltips are shared with the shell.</span>
         </div>

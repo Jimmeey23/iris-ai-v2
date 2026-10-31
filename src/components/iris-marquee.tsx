@@ -4,15 +4,8 @@ import { api } from "./ui";
 import { onVisibleInterval } from "@/lib/visible-interval";
 import { Activity, ShieldAlert, Wrench, Database, Sparkles } from "lucide-react";
 
-type Item = { label: string; value: string; tone?: string; badge?: string };
+export type StatusItem = { label: string; value: string; tone?: string; badge?: string };
 
-const TONE_COLOUR: Record<string, string> = {
-  green: "var(--green)",
-  amber: "var(--amber)",
-  red: "var(--red)",
-  blue: "var(--blue)",
-  accent: "var(--accent)",
-};
 const TONE_ICON: Record<string, typeof Activity> = {
   green: Activity,
   amber: Wrench,
@@ -20,6 +13,43 @@ const TONE_ICON: Record<string, typeof Activity> = {
   blue: Database,
   accent: Sparkles,
 };
+
+/**
+ * The strip on its own, with the data handed in.
+ *
+ * Split out so the design preview can render the real thing against fixtures
+ * without a database, and so the tone → colour mapping lives in CSS rather than
+ * in a style attribute per cell.
+ */
+export function StatusStrip({ items }: { items: StatusItem[] }) {
+  if (!items.length) return null;
+  return (
+    <div className="iris-status-strip" aria-label="Operations status">
+      {items.map((item, idx) => {
+        const Icon = TONE_ICON[item.tone || "blue"] || Database;
+        return (
+          <div key={idx} className="status-cell">
+            <span className="status-cell-icon" data-tone={item.tone || "blue"} aria-hidden="true">
+              <Icon size={13} strokeWidth={2} />
+            </span>
+            <span className="status-cell-label">{item.label}</span>
+            <span className="status-cell-value">{item.value}</span>
+            {item.badge && (
+              <span
+                className={`status-cell-badge ${
+                  item.tone === "red" ? "red" : item.tone === "amber" ? "amber" : "green"
+                }`}
+              >
+                <span className="status-cell-dot" aria-hidden="true" />
+                {item.badge}
+              </span>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 /**
  * The live status strip.
@@ -34,11 +64,11 @@ const TONE_ICON: Record<string, typeof Activity> = {
  * until they arrive: an empty strip is quieter than a wrong one.
  */
 export function IrisMarquee({ page = "overview" }: { page?: string }) {
-  const [items, setItems] = useState<Item[]>([]);
+  const [items, setItems] = useState<StatusItem[]>([]);
   useEffect(() => {
     let cancelled = false;
     const load = () => {
-      void api<{ items: Item[] }>(`/api/marquee?page=${encodeURIComponent(page)}`)
+      void api<{ items: StatusItem[] }>(`/api/marquee?page=${encodeURIComponent(page)}`)
         .then((d) => {
           if (!cancelled) setItems(d.items || []);
         })
@@ -53,32 +83,5 @@ export function IrisMarquee({ page = "overview" }: { page?: string }) {
     };
   }, [page]);
 
-  if (!items.length) return null;
-
-  return (
-    <div className="iris-status-strip" aria-label="Operations status">
-      {items.map((item, idx) => {
-        const Icon = TONE_ICON[item.tone || "blue"] || Database;
-        return (
-          <div key={idx} className="status-cell">
-            <span
-              className="status-cell-icon"
-              style={{ color: TONE_COLOUR[item.tone || "blue"] || "var(--blue)" }}
-              aria-hidden="true"
-            >
-              <Icon size={13} strokeWidth={2} />
-            </span>
-            <span className="status-cell-label">{item.label}</span>
-            <span className="status-cell-value">{item.value}</span>
-            {item.badge && (
-              <span className={`status-cell-badge ${item.tone === "red" ? "red" : item.tone === "amber" ? "amber" : "green"}`}>
-                <span className="status-cell-dot" aria-hidden="true" />
-                {item.badge}
-              </span>
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
+  return <StatusStrip items={items} />;
 }

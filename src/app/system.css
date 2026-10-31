@@ -1960,7 +1960,11 @@ tbody tr[data-done="true"] td { color: var(--muted); background: transparent; }
   white-space: nowrap;
 }
 .status-cell:last-child { border-right: 0; }
-.status-cell-icon { display: inline-flex; }
+.status-cell-icon { display: inline-flex; color: var(--blue); }
+.status-cell-icon[data-tone="green"] { color: var(--green); }
+.status-cell-icon[data-tone="amber"] { color: var(--amber); }
+.status-cell-icon[data-tone="red"] { color: var(--red); }
+.status-cell-icon[data-tone="accent"] { color: var(--accent); }
 .status-cell-label { color: var(--muted); }
 .status-cell-value {
   color: var(--text);
@@ -3058,3 +3062,18 @@ tbody tr[data-done="true"] td { color: var(--muted); background: transparent; }
 .sla-countdown.is-ok { color: var(--green); }
 .sla-countdown.is-soon { color: var(--amber); }
 .sla-countdown.is-breached { color: var(--red); }
+/* Layout helpers used by the preview only, so the page carries no style
+   attributes of its own — the same rule the product is being held to. */
+.preview-stack { display: flex; flex-direction: column; gap: var(--space-5); }
+.preview-stack-tight { display: flex; flex-direction: column; gap: var(--space-4); }
+.preview-card { padding: var(--space-5); }
+.preview-card > h3 { margin: 6px 0 var(--space-4); }
+.preview-clip { overflow: hidden; }
+.preview-lead {
+  padding: var(--space-4) var(--space-4) 0;
+  margin-bottom: 0;
+}
+.preview-lead.is-tight { margin-bottom: var(--space-3); }
+.preview-aside-panel { margin-top: var(--space-4); }
+.preview-search { width: 240px; }
+.preview-inline { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: var(--space-4); }

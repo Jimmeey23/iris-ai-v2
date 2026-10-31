@@ -176,3 +176,17 @@ export const PREVIEW_DIRECTORY = [
   { name: "Karan Mehta", online: false },
   { name: "Ananya Kulkarni", online: false },
 ];
+
+/**
+ * What the status strip shows on the overview. Same shape the API returns, so
+ * the preview renders the real `StatusStrip`, including the LIVE-style badges
+ * that the strip suppresses on quiet days.
+ */
+export const PREVIEW_STATUS = [
+  { label: "Open now", value: "4 tickets", tone: "accent", badge: "Live" },
+  { label: "Critical", value: "1 ticket needing attention now", tone: "red", badge: "Urgent" },
+  { label: "Past target", value: "1 ticket past the resolution target", tone: "red" },
+  { label: "Unassigned", value: "1 ticket waiting for an owner", tone: "amber" },
+  { label: "Last 24 hours", value: "3 logged · 1 resolved", tone: "green" },
+  { label: "Longest open", value: "P57-02049 — 3 days · Studio 2 mirror wall down", tone: "amber" },
+];
