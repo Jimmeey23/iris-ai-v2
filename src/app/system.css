@@ -2019,8 +2019,7 @@ tbody tr[data-done="true"] td { color: var(--muted); background: transparent; }
   font-family: var(--font-body);
   font-size: var(--text-3xs);
   font-weight: var(--weight-semibold);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  letter-spacing: 0.01em;
 }
 
 /* KPI row */
