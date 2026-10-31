@@ -100,6 +100,7 @@ function PreviewBody() {
     <Shell
       title={view === "gallery" ? "Overview" : view === "components" ? "Components" : "Tickets"}
       eyebrow="Design preview · fixture data"
+      activePath="/dashboard"
       fullWidth
       hideFooter
       action={

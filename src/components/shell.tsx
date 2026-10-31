@@ -214,6 +214,11 @@ export function Shell({
   fullHeight = false,
   fullWidth = false,
   banner,
+  /** Overrides the path used to compute which nav item is current. Only the
+   *  design preview uses it: /preview is not a product route, so without this
+   *  the rail renders with nothing selected and the active state cannot be
+   *  reviewed. */
+  activePath,
 }: {
   children: ReactNode;
   title?: string;
@@ -226,8 +231,10 @@ export function Shell({
    *  whole viewport rather than the readable-measure layout most pages want. */
   fullWidth?: boolean;
   banner?: ReactNode;
+  activePath?: string;
 }) {
-  const path = usePathname(),
+  const currentPath = usePathname(),
+    path = activePath ?? currentPath,
     router = useRouter();
   const { user, openAuth, refreshUser, notify, pollSeconds } = useApp();
   /** Live presence, shared with every avatar in the app — one poll, one truth. */
