@@ -46,8 +46,10 @@ import {
 } from "@/components/ui";
 import { OverviewCanvas } from "@/components/overview-canvas";
 import { Kanban, TicketCard } from "@/components/tickets-board";
+import { TicketDialog } from "@/components/ticket-detail-controller";
 import { StatusStrip } from "@/components/iris-marquee";
 import {
+  PREVIEW_BUNDLE,
   PREVIEW_DIRECTORY,
   PREVIEW_STATUS,
   PREVIEW_TICKETS,
@@ -57,12 +59,13 @@ import { isSlaTracked } from "@/lib/metrics";
 import { isClosed } from "@/lib/ticket-filtering";
 import { slaState } from "@/lib/utils";
 
-type View = "gallery" | "tickets" | "board" | "components";
+type View = "gallery" | "tickets" | "board" | "detail" | "components";
 
 const VIEWS: TabItem<View>[] = [
   { id: "gallery", label: "Overview" },
   { id: "tickets", label: "Ticket list" },
   { id: "board", label: "Board" },
+  { id: "detail", label: "Ticket workspace" },
   { id: "components", label: "Components" },
 ];
 
@@ -171,8 +174,50 @@ function PreviewBody() {
         </div>
       )}
 
+      {view === "detail" && <TicketWorkspacePreview />}
+
       {view === "components" && <ComponentGallery />}
     </Shell>
+  );
+}
+
+/**
+ * The ticket workspace, open on a fixture.
+ *
+ * This is the real `TicketDialog` — controller, tabs, rail and all — with the
+ * bundle handed in instead of fetched. Writes are switched off by the
+ * controller when a fixture is passed, so the surface can be reviewed without
+ * pretending it can edit anything.
+ */
+function TicketWorkspacePreview() {
+  const [open, setOpen] = useState(true);
+  return (
+    <>
+      <div className="preview-stack-tight">
+        <section className="card preview-card">
+          <h3>The ticket workspace</h3>
+          <p className="muted">
+            One case, four tabs and one context rail. The deck below is the real
+            dialog: masthead, people strip, SLA, tabs, evidence and the
+            resolution panel. It opens on load; close it and reopen it here.
+          </p>
+          <div className="preview-inline">
+            <Button variant="primary" size="sm" icon={Ticket} onClick={() => setOpen(true)}>
+              Open P57-02049
+            </Button>
+            <span className="preview-owner">
+              Actions are switched off in the preview.
+            </span>
+          </div>
+        </section>
+      </div>
+      <TicketDialog
+        id={PREVIEW_BUNDLE.ticket.id}
+        open={open}
+        fixture={PREVIEW_BUNDLE}
+        onClose={() => setOpen(false)}
+      />
+    </>
   );
 }
 

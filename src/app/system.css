@@ -567,8 +567,7 @@ hr {
   font-family: var(--font-body);
   font-size: var(--text-3xs);
   font-weight: var(--weight-semibold);
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  letter-spacing: 0.01em;
 }
 
 .section-head {
@@ -1622,8 +1621,7 @@ tbody tr[data-done="true"] td { color: var(--muted); background: transparent; }
   color: var(--muted);
   font-size: var(--text-3xs);
   font-weight: var(--weight-semibold);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  letter-spacing: 0.01em;
 }
 .ovc-card,
 .ovc .ovc-kpi { transition: border-color var(--dur-2) var(--ease-standard); }
@@ -3077,3 +3075,36 @@ tbody tr[data-done="true"] td { color: var(--muted); background: transparent; }
 .preview-aside-panel { margin-top: var(--space-4); }
 .preview-search { width: 240px; }
 .preview-inline { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: var(--space-4); }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   23. TICKET WORKSPACE
+   The most-used surface: one case, four tabs, one context rail. Its geometry
+   lives in `ticket-detail.module.css`; what is here is the handful of details
+   that were carried as style attributes — a 10px footer note, a record-status
+   pill with a hex fallback baked into a color-mix, the timeline's title weight.
+   They are rules now, so they follow the theme and the type scale.
+   ──────────────────────────────────────────────────────────────────────────── */
+.td-footer-note {
+  font-size: var(--text-3xs);
+  color: var(--muted);
+}
+.td-dialog-error { margin-bottom: var(--space-4); }
+.td-record-pill-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--green) 15%, transparent);
+  color: var(--green);
+}
+.td-record-status-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: var(--space-3);
+}
+.timeline-head { margin-bottom: var(--space-5); }
+.timeline-row strong { font-weight: var(--weight-medium); }
+.related-ticket .text-btn.related-open { display: block; text-align: left; }

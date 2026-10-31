@@ -54,24 +54,11 @@ export default function SidebarPanel({
       >
         <div className="td-rail-heading">
           <CheckCircle2 size={14} />
-          <span>{t.resolutionRequired ? "RESOLUTION" : "RECORD STATUS"}</span>
+          <span>{t.resolutionRequired ? "Resolution" : "Record status"}</span>
         </div>
         {!t.resolutionRequired || t.status === "recorded" ? (
           <div className="td-resolution-instrument td-record-only-instrument">
-            <div
-              className="td-record-pill-badge"
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                width: 44,
-                height: 44,
-                borderRadius: "50%",
-                background:
-                  "color-mix(in srgb, var(--green, #10b981) 15%, transparent)",
-                color: "var(--green, #10b981)",
-              }}
-            >
+            <div className="td-record-pill-badge">
               <BookmarkCheck size={22} />
             </div>
             <div className="td-resolution-copy">
@@ -244,15 +231,7 @@ export default function SidebarPanel({
           </button>
         </div>
         {!t.resolutionRequired && (
-          <div
-            className="td-record-status-bar"
-            style={{
-              display: "flex",
-              gap: "8px",
-              marginTop: "12px",
-              flexWrap: "wrap",
-            }}
-          >
+          <div className="td-record-status-bar">
             {t.status !== "recorded" && (
               <button
                 type="button"

@@ -116,15 +116,15 @@ export function BoardTelemetry({tickets, total, staleDays = 3}: {
       </div>
 
       <div className="bt-readouts">
-        <Readout icon={Activity} label="INTAKE · 7D" value={String(stats.last7.length)} sub={`${stats.closedLast7.length} closed`}/>
+        <Readout icon={Activity} label="Intake · 7 days" value={String(stats.last7.length)} sub={`${stats.closedLast7.length} closed`}/>
         <Readout
           icon={GitCommitHorizontal}
-          label="NET FLOW"
+          label="Net flow"
           value={`${stats.net > 0 ? '−' : stats.net < 0 ? '+' : '±'}${Math.abs(stats.net)}`}
           sub={stats.net > 0 ? 'backlog falling' : stats.net < 0 ? 'backlog rising' : 'steady'}
         />
-        <Readout icon={Timer} label="OLDEST OPEN" value={stats.oldestOpen ? `${stats.oldestDays}d` : '—'} sub={stats.oldestOpen ? stats.oldestOpen.ticketNumber : 'queue empty'}/>
-        <Readout icon={Database} label="CLEARANCE" value={`${clearance}%`} sub="closed vs logged, 7d"/>
+        <Readout icon={Timer} label="Oldest open" value={stats.oldestOpen ? `${stats.oldestDays}d` : '—'} sub={stats.oldestOpen ? stats.oldestOpen.ticketNumber : 'queue empty'}/>
+        <Readout icon={Database} label="Clearance" value={`${clearance}%`} sub="closed vs logged, 7d"/>
 
         <div className="bt-volume">
           <span className="bt-label">VOLUME · 14D</span>
