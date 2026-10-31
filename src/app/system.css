@@ -2794,10 +2794,6 @@ tbody tr[data-done="true"] td { color: var(--muted); background: transparent; }
    panels are now the same surface as everything else, and the conversation is
    plain text with a hairline between turns rather than a glow behind it.
    ──────────────────────────────────────────────────────────────────────────── */
-.chat-ambient-glow,
-.chat-ambient-glow::before,
-.chat-ambient-glow::after { display: none !important; }
-
 .chat-head {
   display: flex;
   align-items: center;

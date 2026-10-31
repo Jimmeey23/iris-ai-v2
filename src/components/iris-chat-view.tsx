@@ -156,7 +156,6 @@ export function IrisChatView({
     <>
       <div className="chat-layout">
         <section className="card chat-panel">
-          <div className="chat-ambient-glow" aria-hidden="true" />
           <div className="chat-head">
             <div className="chat-identity">
               <div className={"avatar-ring" + (speaking ? " speaking" : "")}>

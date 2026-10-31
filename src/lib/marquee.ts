@@ -57,33 +57,33 @@ export async function marqueeFor(page: MarqueePage): Promise<MarqueeItem[]> {
     .from(tickets);
 
   const base: MarqueeItem[] = [
-    {label: 'OPEN NOW', value: plural(counts.open, 'ticket'), tone: counts.open ? 'accent' : 'green', badge: 'LIVE'},
+    {label: 'Open now', value: plural(counts.open, 'ticket'), tone: counts.open ? 'accent' : 'green', badge: 'Live'},
   ];
-  if (counts.critical) base.push({label: 'CRITICAL', value: plural(counts.critical, 'ticket') + ' needing attention now', tone: 'red', badge: 'URGENT'});
-  if (counts.overdue) base.push({label: 'PAST TARGET', value: plural(counts.overdue, 'ticket') + ' past the resolution target', tone: 'red'});
-  else if (counts.breaching) base.push({label: 'DUE SOON', value: plural(counts.breaching, 'ticket') + ' due within 3 hours', tone: 'amber'});
-  if (counts.unassigned) base.push({label: 'UNASSIGNED', value: plural(counts.unassigned, 'ticket') + ' waiting for an owner', tone: 'amber'});
+  if (counts.critical) base.push({label: 'Critical', value: plural(counts.critical, 'ticket') + ' needing attention now', tone: 'red', badge: 'Urgent'});
+  if (counts.overdue) base.push({label: 'Past target', value: plural(counts.overdue, 'ticket') + ' past the resolution target', tone: 'red'});
+  else if (counts.breaching) base.push({label: 'Due soon', value: plural(counts.breaching, 'ticket') + ' due within 3 hours', tone: 'amber'});
+  if (counts.unassigned) base.push({label: 'Unassigned', value: plural(counts.unassigned, 'ticket') + ' waiting for an owner', tone: 'amber'});
 
   const byStudio = async () => {
     const rows = await db.select({studio: tickets.studio, n: sql<number>`count(*)::int`}).from(tickets)
       .where(OPEN).groupBy(tickets.studio).orderBy(desc(sql`count(*)`)).limit(4);
-    return rows.filter(r => r.studio).map(r => ({label: (r.studio as string).split(',')[0].toUpperCase(), value: plural(Number(r.n), 'open ticket'), tone: 'blue' as const}));
+    return rows.filter(r => r.studio).map(r => ({label: (r.studio as string).split(',')[0], value: plural(Number(r.n), 'open ticket'), tone: 'blue' as const}));
   };
   const topCategories = async (since: Date) => {
     const rows = await db.select({category: tickets.category, sub: tickets.subcategory, n: sql<number>`count(*)::int`}).from(tickets)
       .where(gte(tickets.createdAt, since)).groupBy(tickets.category, tickets.subcategory).orderBy(desc(sql`count(*)`)).limit(3);
-    return rows.map(r => ({label: 'RECURRING', value: `${r.category} · ${r.sub} — ${plural(Number(r.n), 'report')} this week`, tone: 'amber' as const}));
+    return rows.map(r => ({label: 'Recurring', value: `${r.category} · ${r.sub} — ${plural(Number(r.n), 'report')} this week`, tone: 'amber' as const}));
   };
   const oldestOpen = async () => {
     const [row] = await db.select({num: tickets.ticketNumber, title: tickets.title, at: tickets.createdAt}).from(tickets)
       .where(OPEN).orderBy(tickets.createdAt).limit(1);
-    return row ? [{label: 'LONGEST OPEN', value: `${row.num} — ${ago(row.at)} · ${row.title}`, tone: 'amber' as const}] : [];
+    return row ? [{label: 'Longest open', value: `${row.num} — ${ago(row.at)} · ${row.title}`, tone: 'amber' as const}] : [];
   };
 
   switch (page) {
     case 'overview':
       return [...base,
-        {label: 'LAST 24 HOURS', value: `${plural(counts.loggedToday, 'ticket')} logged · ${counts.resolvedToday} resolved`, tone: 'green'},
+        {label: 'Last 24 hours', value: `${plural(counts.loggedToday, 'ticket')} logged · ${counts.resolvedToday} resolved`, tone: 'green'},
         ...(await byStudio()), ...(await oldestOpen())];
 
     case 'tickets':
@@ -93,7 +93,7 @@ export async function marqueeFor(page: MarqueePage): Promise<MarqueeItem[]> {
       const faulty = await db.select({n: sql<number>`count(*)::int`}).from(assets).where(ne(assets.status, 'operational'));
       const out = Number(faulty[0]?.n || 0);
       return [...base, ...(await byStudio()),
-        {label: 'EQUIPMENT', value: out ? plural(out, 'unit') + ' not in normal service' : 'every registered unit operational', tone: out ? 'red' : 'green'},
+        {label: 'Equipment', value: out ? plural(out, 'unit') + ' not in normal service' : 'every registered unit operational', tone: out ? 'red' : 'green'},
         ...(await topCategories(weekAgo))];
     }
 
@@ -102,17 +102,17 @@ export async function marqueeFor(page: MarqueePage): Promise<MarqueeItem[]> {
         .where(ne(assets.status, 'operational')).groupBy(assets.type).orderBy(desc(sql`count(*)`)).limit(4);
       const [total] = await db.select({n: sql<number>`count(*)::int`}).from(assets);
       return [
-        {label: 'REGISTER', value: plural(Number(total?.n || 0), 'unit') + ' tracked', tone: 'blue', badge: 'LIVE'},
+        {label: 'Register', value: plural(Number(total?.n || 0), 'unit') + ' tracked', tone: 'blue', badge: 'Live'},
         ...(rows.length
-          ? rows.map(r => ({label: String(r.type).toUpperCase(), value: plural(Number(r.n), 'unit') + ' needing attention', tone: 'red' as const}))
-          : [{label: 'CONDITION', value: 'every registered unit is operational', tone: 'green' as const}]),
+          ? rows.map(r => ({label: String(r.type), value: plural(Number(r.n), 'unit') + ' needing attention', tone: 'red' as const}))
+          : [{label: 'Condition', value: 'every registered unit is operational', tone: 'green' as const}]),
         ...base.slice(0, 3)];
     }
 
     case 'iris':
       return [
-        {label: 'LOGGED TODAY', value: plural(counts.loggedToday, 'ticket'), tone: 'accent', badge: 'LIVE'},
-        {label: 'IRIS DRAFTS', value: 'describe it in your own words — member, studio and priority are filled in for you', tone: 'blue'},
+        {label: 'Logged today', value: plural(counts.loggedToday, 'ticket'), tone: 'accent', badge: 'Live'},
+        {label: 'IRIS drafts', value: 'describe it in your own words — member, studio and priority are filled in for you', tone: 'blue'},
         ...base.slice(0, 3), ...(await topCategories(weekAgo))];
 
     case 'analytics': {
@@ -121,8 +121,8 @@ export async function marqueeFor(page: MarqueePage): Promise<MarqueeItem[]> {
       const before = Number(prev?.n || 0);
       const delta = before ? Math.round(((counts.loggedWeek - before) / before) * 100) : null;
       return [
-        {label: 'THIS WEEK', value: plural(counts.loggedWeek, 'ticket') + ' logged' + (delta === null ? '' : ` · ${delta >= 0 ? '+' : ''}${delta}% on the week before`), tone: delta !== null && delta > 15 ? 'amber' : 'blue', badge: 'LIVE'},
-        {label: 'CLEARED', value: plural(counts.resolvedToday, 'ticket') + ' resolved in the last 24 hours', tone: 'green'},
+        {label: 'This week', value: plural(counts.loggedWeek, 'ticket') + ' logged' + (delta === null ? '' : ` · ${delta >= 0 ? '+' : ''}${delta}% on the week before`), tone: delta !== null && delta > 15 ? 'amber' : 'blue', badge: 'Live'},
+        {label: 'Cleared', value: plural(counts.resolvedToday, 'ticket') + ' resolved in the last 24 hours', tone: 'green'},
         ...(await topCategories(weekAgo)), ...base.slice(0, 3)];
     }
 
@@ -131,8 +131,8 @@ export async function marqueeFor(page: MarqueePage): Promise<MarqueeItem[]> {
         .where(and(gte(tickets.createdAt, weekAgo), sql`${tickets.trainer} is not null and ${tickets.trainer} <> ''`))
         .groupBy(tickets.trainer).orderBy(desc(sql`count(*)`)).limit(3);
       return [
-        {label: 'THIS WEEK', value: plural(counts.loggedWeek, 'ticket') + ' across the studios', tone: 'blue', badge: 'LIVE'},
-        ...rows.map(r => ({label: String(r.trainer).toUpperCase(), value: plural(Number(r.n), 'mention') + ' this week', tone: 'accent' as const})),
+        {label: 'This week', value: plural(counts.loggedWeek, 'ticket') + ' across the studios', tone: 'blue', badge: 'Live'},
+        ...rows.map(r => ({label: String(r.trainer), value: plural(Number(r.n), 'mention') + ' this week', tone: 'accent' as const})),
         ...base.slice(0, 2)];
     }
     default:

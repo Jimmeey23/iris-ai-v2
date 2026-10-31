@@ -3590,47 +3590,6 @@ small {
     inset 0 1px 0 color-mix(in srgb, var(--text) 7%, transparent),
     inset 0 -1px 0 color-mix(in srgb, var(--bg) 40%, transparent);
 }
-.chat-ambient-glow {
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  pointer-events: none;
-  overflow: hidden;
-  z-index: var(--z-base);
-}
-.chat-ambient-glow::before {
-  content: "";
-  position: absolute;
-  width: 420px;
-  height: 420px;
-  border-radius: 50%;
-  background: transparent;
-  top: -180px;
-  right: -120px;
-  filter: blur(40px);
-  animation: ambient-drift 14s ease-in-out infinite;
-}
-.chat-ambient-glow::after {
-  content: "";
-  position: absolute;
-  width: 320px;
-  height: 320px;
-  border-radius: 50%;
-  background: transparent;
-  bottom: -140px;
-  left: -80px;
-  filter: blur(50px);
-  animation: ambient-drift 18s ease-in-out infinite reverse;
-}
-@keyframes ambient-drift {
-  0%,
-  100% {
-    transform: translate(0, 0) scale(1);
-  }
-  50% {
-    transform: translate(-6%, 4%) scale(1.06);
-  }
-}
 
 /* ── Header ─────────────────────────────────────────────── */
 .chat-head {
