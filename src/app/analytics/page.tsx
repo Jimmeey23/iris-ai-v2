@@ -92,7 +92,10 @@ function Delta({ now, before, goodWhenUp = false, unit = "%", points = false }: 
   return (
     <span className={"an-delta " + (good ? "good" : "bad")}>
       {up ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
-      {up ? "+" : ""}{diff}{points ? " pts" : unit} vs previous
+      {/* Past +300% a percentage stops meaning anything ("+17935%"); say how many times larger. */}
+      {!points && before && diff >= 300
+        ? `${Math.round(now / before).toLocaleString()}× previous`
+        : <>{up ? "+" : ""}{diff}{points ? " pts" : unit} vs previous</>}
     </span>
   );
 }
@@ -604,7 +607,10 @@ export default function AnalyticsPage() {
 }
 
 function Trend({ data }: { data: Report["trend"] }) {
-  const max = Math.max(1, ...data.flatMap((d) => [d.created, d.resolved]));
+  // Rounded up to a multiple of 3 so the four gridline labels are distinct whole numbers
+  // (a peak of 1 used to label the axis 1, 1, 0, 0).
+  const peak = Math.max(1, ...data.flatMap((d) => [d.created, d.resolved]));
+  const max = Math.ceil(peak / 3) * 3;
   const w = 560,
     h = 150;
   const path = (key: "created" | "resolved") =>

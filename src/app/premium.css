@@ -1481,3 +1481,6 @@ body { background: var(--bg); color: var(--text); font-family: var(--font-body);
 .intake-classdesk-cta { border-style: solid; background: var(--surface); }
 .intake-cat-owner .avatar, .intake-cat-owner > span:first-child { box-shadow: none; }
 .eyebrow::before { display: none; }
+
+/* Metric tiles: the number is the signal, so icons sit neutral rather than in five colours. */
+.metric-icon, .metric-icon[class*=" "] { background: var(--surface-2); color: var(--muted); border: 0; box-shadow: none; }
