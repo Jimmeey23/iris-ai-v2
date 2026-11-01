@@ -1,6 +1,6 @@
 "use client";
 import { simpleLanguage } from "@/lib/plain-language";
-import {entryTypeLabel} from "@/lib/display";
+import {entryTypeLabel, memberLabel} from "@/lib/display";
 import { useEffect, useCallback, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -515,7 +515,7 @@ export function TicketTable({
                   <div className="ticket-meta">
                     <span className="ticket-id">{t.ticketNumber}</span>
                     <span>·</span>
-                    <span className="ticket-member">{t.memberName}</span>
+                    <span className="ticket-member">{memberLabel(t.memberName)}</span>
                     {t.studio && (
                       <>
                         <span>·</span>
@@ -618,7 +618,7 @@ export function TicketCard({
         <div className="ticket-card-who">
           <Avatar name={t.memberName || "Member"} />
           <div className="grow">
-            <strong>{t.memberName}</strong>
+            <strong>{memberLabel(t.memberName)}</strong>
             <small>
               {has("studio") ? t.studio?.split(",")[0] : ""}
               {has("department")
@@ -968,7 +968,7 @@ export function FeedView({
                   {t.ticketNumber} · {t.title}
                 </strong>
                 <p>
-                  {t.memberName} · {t.studio?.split(",")[0]} · assigned to{" "}
+                  {memberLabel(t.memberName)} · {t.studio?.split(",")[0]} · assigned to{" "}
                   {t.assignedStaffName || "the queue"} ({t.departmentName})
                 </p>
                 <span className="ticket-chips">

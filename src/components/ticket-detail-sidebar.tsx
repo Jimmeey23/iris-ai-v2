@@ -1,5 +1,5 @@
 "use client";
-import { indiaDate, object } from "@/lib/display";
+import { indiaDate, memberLabel, object } from "@/lib/display";
 import { slaState } from "@/lib/utils";
 import {
   ArrowUpRight,
@@ -311,7 +311,7 @@ export default function SidebarPanel({
                   id: t.momenceMemberId,
                 })
               : setLocalDetails({
-                  title: t.memberName,
+                  title: memberLabel(t.memberName),
                   data: {
                     name: t.memberName,
                     email: t.memberEmail,
@@ -328,7 +328,7 @@ export default function SidebarPanel({
           <div className="flex-row">
             <PersonPhoto name={t.memberName} size={34} />
             <div>
-              <p>{t.memberName}</p>
+              <p>{memberLabel(t.memberName)}</p>
               <small>
                 {t.momenceMemberId ? "Momence member" : "Ticket contact"}
               </small>

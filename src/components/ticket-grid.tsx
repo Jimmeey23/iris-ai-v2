@@ -6,7 +6,7 @@ import {ChevronDown, ChevronRight, ArrowDown, ArrowUp, ChevronsUpDown, TriangleA
 import {Avatar, Badge, Priority} from './ui';
 import {RecurrenceBadges, SlaCountdown, StatusPill} from './tickets-board';
 import {relativeTime} from '@/lib/utils';
-import {indiaDate} from '@/lib/display';
+import {indiaDate,memberLabel} from '@/lib/display';
 import {
   COLUMN_META, GROUP_LABELS, accountabilitySortValue, commitmentMissed, originalSlaDueAt,
   recurrenceInfo, statusPhase, type GroupBy, type TicketColumn,
@@ -73,7 +73,7 @@ function CellBody({column, ticket, staleDays, nowMs, onOpen}: CellProps) {
         </td>
       );
     case 'ticketNumber': return <td><span className="ticket-id mono">{t.ticketNumber}</span></td>;
-    case 'member': return <td>{t.memberName || <span className="muted">—</span>}</td>;
+    case 'member': return <td>{memberLabel(t.memberName)}</td>;
     case 'kind': return <td><span className="chip chip-kind" data-tone={KIND_TONE[t.kind] || ''}>{entryTypeLabel(t)}</span></td>;
     case 'category': return <td><span className="tgx-category" title={t.category}>{t.category || <span className="muted">—</span>}</span></td>;
     case 'subcategory': return <td><span className="category-sub">{t.subcategory || '—'}</span></td>;

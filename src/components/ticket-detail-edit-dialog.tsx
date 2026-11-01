@@ -47,7 +47,7 @@ export default function EditDialogPanel({
               busy ||
               edit.title.trim().length < 3 ||
               edit.description.trim().length < 12 ||
-              edit.memberName.trim().length < 2 ||
+              edit.memberName.trim().length === 1 ||
               !edit.studio.trim()
             }
             onClick={() => void saveEdit()}
