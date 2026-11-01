@@ -1,6 +1,6 @@
 /* Shared visual contract, imported last in layout.tsx. Keep theme, navigation,
    controls and workspace finishes here instead of appending competing skins. */
-/* Palette: warm-neutral paper and ink, one studio-teal accent. Accent marks selection,
+/* Palette: warm-neutral paper and ink, one sapphire accent. Accent marks selection,
    links and focus only — the loudest thing on screen should be the work. */
 :root, [data-theme="light"] {
   --bg: #fafaf9;
@@ -11,10 +11,10 @@
   --text: #18181b;
   --secondary: #3f3f46;
   --muted: #71717a;
-  --accent: #0f766e;
-  --accent-deep: #115e59;
-  --accent-bright: #14b8a6;
-  --accent-soft: #f0fdfa;
+  --accent: #2b59c3;
+  --accent-deep: #1f4399;
+  --accent-bright: #4f7be8;
+  --accent-soft: #eef3fd;
   --accent-text: #ffffff;
   --border: #e7e5e4;
   --border-strong: #d6d3d1;
@@ -42,11 +42,11 @@
   --text: #f4f4f5;
   --secondary: #d4d4d8;
   --muted: #a1a1aa;
-  --accent: #2dd4bf;
-  --accent-deep: #14b8a6;
-  --accent-bright: #5eead4;
-  --accent-text: #042f2e;
-  --accent-soft: #2dd4bf1a;
+  --accent: #7aa2f7;
+  --accent-deep: #5b87ee;
+  --accent-bright: #a3c0ff;
+  --accent-text: #0b1530;
+  --accent-soft: #7aa2f71f;
   --border: #2a2a2e;
   --border-strong: #3a3a3f;
   --hairline: #222226;
@@ -1484,3 +1484,101 @@ body { background: var(--bg); color: var(--text); font-family: var(--font-body);
 
 /* Metric tiles: the number is the signal, so icons sit neutral rather than in five colours. */
 .metric-icon, .metric-icon[class*=" "] { background: var(--surface-2); color: var(--muted); border: 0; box-shadow: none; }
+
+/* ── Ticket table ───────────────────────────────────────────────────────────
+   One calm sheet: a quiet sticky header, 52px rows on hairlines, the title as the
+   loudest thing in the row, status and priority as small tinted marks, and a thin
+   priority rail on the left edge so urgent work reads before anything is read. */
+.tickets-panel .table-wrap.tgx-scroll {
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+table.tgx-table.ticket-grid { border-collapse: separate; border-spacing: 0; width: 100%; font-size: 13px; }
+table.tgx-table.ticket-grid thead th {
+  position: sticky; top: 0; z-index: 2;
+  height: 40px; padding: 0 14px;
+  background: color-mix(in srgb, var(--surface-2) 70%, var(--surface));
+  border-bottom: 1px solid var(--border);
+  color: var(--muted); font: 500 12px/1 var(--font-body); letter-spacing: 0; text-transform: none;
+  text-align: left; white-space: nowrap;
+}
+table.tgx-table.ticket-grid thead .tg-th {
+  font: inherit; color: inherit; background: none; border: 0; padding: 0;
+  display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+}
+table.tgx-table.ticket-grid thead .tg-th:hover,
+table.tgx-table.ticket-grid thead .tg-sorted .tg-th { color: var(--text); }
+table.tgx-table.ticket-grid thead .tg-sort-idle { opacity: 0; transition: opacity 120ms; }
+table.tgx-table.ticket-grid thead th:hover .tg-sort-idle { opacity: .6; }
+
+table.tgx-table.ticket-grid tbody td {
+  height: 52px; padding: 0 14px;
+  border-bottom: 1px solid var(--hairline);
+  background: var(--surface);
+  color: var(--secondary); vertical-align: middle;
+  transition: background-color 120ms;
+}
+table.tgx-table.ticket-grid tbody tr { cursor: pointer; }
+table.tgx-table.ticket-grid tbody tr:hover td { background: color-mix(in srgb, var(--accent) 3%, var(--surface)); }
+table.tgx-table.ticket-grid tbody tr[aria-selected="true"] td { background: var(--accent-soft); }
+table.tgx-table.ticket-grid tbody tr:focus-visible { outline: none; }
+table.tgx-table.ticket-grid tbody tr:focus-visible td { background: var(--accent-soft); }
+table.tgx-table.ticket-grid tbody tr:last-child td { border-bottom: 0; }
+
+/* Priority rail: a 3px edge on the first cell, only where it means something. */
+table.tgx-table.ticket-grid tbody tr > td:first-child { position: relative; }
+table.tgx-table.ticket-grid tbody tr.priority-row-critical > td:first-child { box-shadow: inset 3px 0 0 var(--red); }
+table.tgx-table.ticket-grid tbody tr.priority-row-high > td:first-child { box-shadow: inset 3px 0 0 var(--amber); }
+table.tgx-table.ticket-grid tbody tr:is(.tg-row-closed, .tg-row-resolved, .tg-row-recorded) > td:first-child { box-shadow: none; }
+
+/* Title cell: number then title on one line; finished work steps back a shade. */
+table.tgx-table.ticket-grid .tgx-label-line { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+table.tgx-table.ticket-grid .tgx-label-line .ticket-id { flex: none; font: 400 12px var(--font-mono); color: var(--muted); }
+table.tgx-table.ticket-grid .tgx-label-line .ticket-name {
+  font: 500 14px/1.3 var(--font-body); color: var(--text); letter-spacing: -.005em;
+  background: none; border: 0; padding: 0; text-align: left;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0;
+}
+table.tgx-table.ticket-grid tbody tr:hover .ticket-name { color: var(--accent); }
+table.tgx-table.ticket-grid tr:is(.tg-row-closed, .tg-row-recorded) .ticket-name { color: var(--secondary); font-weight: 400; }
+
+/* Status: a soft tinted capsule with a dot. */
+table.tgx-table.ticket-grid .status-pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 24px; padding: 0 10px; border-radius: 999px; border: 0;
+  font: 500 12px/1 var(--font-body); letter-spacing: 0; text-transform: none;
+  background: var(--surface-2); color: var(--secondary); box-shadow: none;
+}
+table.tgx-table.ticket-grid .status-pill::before {
+  content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: .85;
+}
+table.tgx-table.ticket-grid .status-pill > i, table.tgx-table.ticket-grid .status-pill > .dot { display: none; }
+table.tgx-table.ticket-grid .status-phase-open { background: var(--accent-soft); color: var(--accent); }
+table.tgx-table.ticket-grid .status-phase-resolved { background: var(--green-bg); color: var(--green); }
+table.tgx-table.ticket-grid .status-phase-closed,
+table.tgx-table.ticket-grid .status-phase-recorded { background: var(--surface-2); color: var(--muted); }
+
+/* Priority: dot and word, no box. */
+table.tgx-table.ticket-grid .priority-badge {
+  background: none; border: 0; padding: 0; box-shadow: none;
+  display: inline-flex; align-items: center; gap: 6px;
+  font: 500 12px var(--font-body); color: var(--secondary);
+}
+table.tgx-table.ticket-grid .priority-badge .priority-dot { width: 7px; height: 7px; border-radius: 2px; }
+table.tgx-table.ticket-grid .priority-critical { color: var(--red); }
+table.tgx-table.ticket-grid .priority-high { color: var(--amber); }
+
+/* Owner: small face, plain name. */
+table.tgx-table.ticket-grid .mini-owner { display: inline-flex; align-items: center; gap: 8px; }
+table.tgx-table.ticket-grid .mini-owner .avatar { width: 22px; height: 22px; font-size: 10px; }
+table.tgx-table.ticket-grid .mini-owner strong { font-weight: 500; color: var(--text); }
+table.tgx-table.ticket-grid .mini-owner-empty strong { color: var(--muted); font-weight: 400; }
+
+table.tgx-table.ticket-grid .tgx-category { color: var(--secondary); }
+table.tgx-table.ticket-grid input[type="checkbox"] { accent-color: var(--accent); width: 15px; height: 15px; }
+table.tgx-table.ticket-grid .tgx-actions-inner { gap: 2px; }
+/* Finished rows stay legible and in colour; the title's lighter weight says "done". */
+table.tgx-table.ticket-grid tbody tr.tg-row-closed > td > * { opacity: 1; filter: none; }
+table.tgx-table.ticket-grid th[data-col="owner"], table.tgx-table.ticket-grid td:has(> .mini-owner) { min-width: 168px; }
+table.tgx-table.ticket-grid th[data-col="status"] { min-width: 112px; }
+table.tgx-table.ticket-grid th[data-col="priority"] { min-width: 96px; }

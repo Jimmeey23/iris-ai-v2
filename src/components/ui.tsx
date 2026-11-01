@@ -261,15 +261,15 @@ export function useMounted() {
 
 const ACCENT_PRESETS = {
   dark: {
-    // "gold" is the stored default preset name; it now carries the studio teal.
-    gold: { accent: "#2dd4bf", deep: "#14b8a6", bright: "#5eead4" },
+    // "gold" is the stored default preset name; it now carries the sapphire accent.
+    gold: { accent: "#7aa2f7", deep: "#5b87ee", bright: "#a3c0ff" },
     blue: { accent: "#60a5fa", deep: "#3b82f6", bright: "#93c5fd" },
     violet: { accent: "#b39dff", deep: "#7f6be0", bright: "#c8b7ff" },
     mint: { accent: "#57d6a8", deep: "#22a779", bright: "#82e7c2" },
     rose: { accent: "#ff7a9d", deep: "#d55178", bright: "#ff9cb7" },
   },
   light: {
-    gold: { accent: "#0f766e", deep: "#115e59", bright: "#14b8a6" },
+    gold: { accent: "#2b59c3", deep: "#1f4399", bright: "#4f7be8" },
     blue: { accent: "#2563eb", deep: "#1d4ed8", bright: "#3b82f6" },
     violet: { accent: "#6d4fd1", deep: "#4f34ab", bright: "#8f73ea" },
     mint: { accent: "#0f8a5f", deep: "#0a6344", bright: "#24a875" },

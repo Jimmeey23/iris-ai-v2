@@ -364,7 +364,7 @@
    the sign-in screen should load in one round-trip and say what the tool is. */
 .auth-visual {
   background: #18181b;
-  background-image: radial-gradient(120% 80% at 0% 100%, rgb(45 212 191 / .10), transparent 60%);
+  background-image: radial-gradient(120% 80% at 0% 100%, rgb(79 123 232 / .16), transparent 60%);
 }
 .auth-visual .auth-story h1 {
   text-shadow: none;
@@ -380,7 +380,7 @@
   color: #d4d4d8;
 }
 .auth-visual .auth-trust span { color: #a1a1aa; }
-.auth-visual .auth-trust svg { color: #2dd4bf; }
+.auth-visual .auth-trust svg { color: #7aa2f7; }
 
 .auth-page .auth-input input { font-size: 14px; }
 /* Form side: one paper surface, sentence-case labels in the UI face. */
