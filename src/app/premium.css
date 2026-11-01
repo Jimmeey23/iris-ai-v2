@@ -1582,3 +1582,7 @@ table.tgx-table.ticket-grid tbody tr.tg-row-closed > td > * { opacity: 1; filter
 table.tgx-table.ticket-grid th[data-col="owner"], table.tgx-table.ticket-grid td:has(> .mini-owner) { min-width: 168px; }
 table.tgx-table.ticket-grid th[data-col="status"] { min-width: 112px; }
 table.tgx-table.ticket-grid th[data-col="priority"] { min-width: 96px; }
+
+/* Every table header in the UI face, sentence case — data tables, reports, leaderboards. */
+table thead th { font-family: var(--font-body); text-transform: none; letter-spacing: 0; font-size: 12px; font-weight: 500; color: var(--muted); }
+.template-hero { background: var(--surface); box-shadow: none; }

@@ -350,8 +350,7 @@ export function EquipmentPanel({initialStudio, initialAssetId}: {initialStudio?:
       <div className="card card-pad">
         <div className="between wrap" style={{gap: 12}}>
           <div>
-            <h3 style={{marginBottom: 4}}>Equipment register</h3>
-            <p className="muted" style={{fontSize: 12}}>
+            <p className="muted" style={{fontSize: 13}}>
               Every logged snag, against the item it happened to.
             </p>
           </div>

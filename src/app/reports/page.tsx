@@ -164,7 +164,8 @@ function cell(key:string,v:string|number|undefined){
   return String(v);
 }
 function Trend({data}:{data:{label:string;created:number;resolved:number}[]}){
-  const max=Math.max(1,...data.flatMap(d=>[d.created,d.resolved]));const w=560,h=140;
+  // Top rounded to a multiple of 3 so the four axis labels are distinct whole numbers.
+  const max=Math.ceil(Math.max(1,...data.flatMap(d=>[d.created,d.resolved]))/3)*3;const w=560,h=140;
   const pt=(i:number,v:number)=>`${25+i/(data.length-1)*(w-40)},${15+h-(v/max*h)}`;
   const path=(k:'created'|'resolved')=>data.map((d,i)=>(i?'L':'M')+pt(i,d[k])).join(' ');
   return <svg className="chart-svg" viewBox="0 0 570 185" role="img" aria-label="Created vs resolved">

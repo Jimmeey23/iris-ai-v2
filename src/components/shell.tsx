@@ -519,7 +519,7 @@ export function Shell({
               <div>
                 <h1>{title}</h1>
               </div>
-              {action}
+              {!pageLocked && action}
             </div>
           )}
           {pageLocked ? (
