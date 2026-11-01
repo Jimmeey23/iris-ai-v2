@@ -10,10 +10,12 @@
  * strip never becomes the reason a page is slow. Nothing here is user-specific, so the result
  * is safe to cache briefly at the edge if it ever needs to be.
  */
-import {and, desc, eq, gte, inArray, isNull, lt, ne, sql} from 'drizzle-orm';
+import {and, desc, eq, gte, inArray, isNull, lt, ne, sql, type SQL} from 'drizzle-orm';
 import {db} from '@/db';
 import {assets, tickets} from '@/db/schema';
 import {CLOSED_STATUSES} from './metrics';
+import {ticketScope} from './tickets';
+import type {Identity} from './auth';
 
 export type MarqueeItem = {
   label: string;
@@ -37,8 +39,12 @@ function ago(from: Date | string | null | undefined) {
   return `${Math.floor(h / 24)}d`;
 }
 
-export async function marqueeFor(page: MarqueePage): Promise<MarqueeItem[]> {
+export async function marqueeFor(page: MarqueePage, user?: Identity): Promise<MarqueeItem[]> {
   const now = new Date();
+  // The same visibility rule as the ticket list: an agent's ticker counts only what
+  // they can open, so it never contradicts the page under it or leaks a title.
+  const scope = ticketScope(user);
+  const seen = (...c: (SQL | undefined)[]) => and(scope, ...c);
   const dayAgo = new Date(now.getTime() - 86400000);
   const weekAgo = new Date(now.getTime() - 7 * 86400000);
 
@@ -54,7 +60,8 @@ export async function marqueeFor(page: MarqueePage): Promise<MarqueeItem[]> {
       loggedToday: sql<number>`count(*) filter (where ${tickets.createdAt} >= ${dayAgo})::int`,
       loggedWeek: sql<number>`count(*) filter (where ${tickets.createdAt} >= ${weekAgo})::int`,
     })
-    .from(tickets);
+    .from(tickets)
+    .where(seen());
 
   const base: MarqueeItem[] = [
     {label: 'OPEN NOW', value: plural(counts.open, 'ticket'), tone: counts.open ? 'accent' : 'green', badge: 'LIVE'},
@@ -66,17 +73,17 @@ export async function marqueeFor(page: MarqueePage): Promise<MarqueeItem[]> {
 
   const byStudio = async () => {
     const rows = await db.select({studio: tickets.studio, n: sql<number>`count(*)::int`}).from(tickets)
-      .where(OPEN).groupBy(tickets.studio).orderBy(desc(sql`count(*)`)).limit(4);
+      .where(seen(OPEN)).groupBy(tickets.studio).orderBy(desc(sql`count(*)`)).limit(4);
     return rows.filter(r => r.studio).map(r => ({label: (r.studio as string).split(',')[0].toUpperCase(), value: plural(Number(r.n), 'open ticket'), tone: 'blue' as const}));
   };
   const topCategories = async (since: Date) => {
     const rows = await db.select({category: tickets.category, sub: tickets.subcategory, n: sql<number>`count(*)::int`}).from(tickets)
-      .where(gte(tickets.createdAt, since)).groupBy(tickets.category, tickets.subcategory).orderBy(desc(sql`count(*)`)).limit(3);
+      .where(seen(gte(tickets.createdAt, since))).groupBy(tickets.category, tickets.subcategory).orderBy(desc(sql`count(*)`)).limit(3);
     return rows.map(r => ({label: 'RECURRING', value: `${r.category} · ${r.sub} — ${plural(Number(r.n), 'report')} this week`, tone: 'amber' as const}));
   };
   const oldestOpen = async () => {
     const [row] = await db.select({num: tickets.ticketNumber, title: tickets.title, at: tickets.createdAt}).from(tickets)
-      .where(OPEN).orderBy(tickets.createdAt).limit(1);
+      .where(seen(OPEN)).orderBy(tickets.createdAt).limit(1);
     return row ? [{label: 'LONGEST OPEN', value: `${row.num} — ${ago(row.at)} · ${row.title}`, tone: 'amber' as const}] : [];
   };
 
@@ -117,7 +124,7 @@ export async function marqueeFor(page: MarqueePage): Promise<MarqueeItem[]> {
 
     case 'analytics': {
       const [prev] = await db.select({n: sql<number>`count(*)::int`}).from(tickets)
-        .where(and(gte(tickets.createdAt, new Date(now.getTime() - 14 * 86400000)), lt(tickets.createdAt, weekAgo)));
+        .where(seen(gte(tickets.createdAt, new Date(now.getTime() - 14 * 86400000)), lt(tickets.createdAt, weekAgo)));
       const before = Number(prev?.n || 0);
       const delta = before ? Math.round(((counts.loggedWeek - before) / before) * 100) : null;
       return [
@@ -128,7 +135,7 @@ export async function marqueeFor(page: MarqueePage): Promise<MarqueeItem[]> {
 
     case 'trainers': {
       const rows = await db.select({trainer: tickets.trainer, n: sql<number>`count(*)::int`}).from(tickets)
-        .where(and(gte(tickets.createdAt, weekAgo), sql`${tickets.trainer} is not null and ${tickets.trainer} <> ''`))
+        .where(seen(gte(tickets.createdAt, weekAgo), sql`${tickets.trainer} is not null and ${tickets.trainer} <> ''`))
         .groupBy(tickets.trainer).orderBy(desc(sql`count(*)`)).limit(3);
       return [
         {label: 'THIS WEEK', value: plural(counts.loggedWeek, 'ticket') + ' across the studios', tone: 'blue', badge: 'LIVE'},

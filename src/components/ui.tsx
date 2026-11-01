@@ -975,11 +975,7 @@ export function Avatar({
         aria-label={name || "Unassigned owner"}
       >
         {photo ? (
-          // A 26px avatar from an arbitrary provider CDN: next/image would bill an
-          // optimisation request per face for an image already smaller than its own
-          // overhead, and needs every provider host allow-listed to render at all.
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={photo} alt="" loading="lazy" />
+          <PersonPhoto src={photo} fallback={<UserRound size={large ? 17 : 13} aria-hidden="true" />} />
         ) : (
           <UserRound size={large ? 17 : 13} aria-hidden="true" />
         )}
@@ -996,8 +992,7 @@ export function Avatar({
       aria-label={owner ? `${label}, ticket owner` : undefined}
     >
       {photo ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={photo} alt="" loading="lazy" />
+        <PersonPhoto src={photo} fallback={owner ? <UserRound size={large ? 17 : 13} aria-hidden="true" /> : initials(name || "IRIS")} />
       ) : owner ? (
         <UserRound size={large ? 17 : 13} aria-hidden="true" />
       ) : (
@@ -1006,6 +1001,16 @@ export function Avatar({
       {presence && <i className="avatar-presence" aria-hidden="true" />}
     </span>
   );
+}
+/** A profile photo from the sign-in provider's CDN. A plain <img>: next/image would bill an
+ *  optimisation request per 26px face and needs every provider host allow-listed. Google's
+ *  avatar host refuses many requests that carry a Referer, so none is sent; if the photo still
+ *  fails, the avatar falls back to what it shows without one instead of a broken-image icon. */
+function PersonPhoto({src, fallback}: {src: string; fallback: ReactNode}) {
+  const [failed, setFailed] = useState<string | null>(null);
+  if (failed === src) return <>{fallback}</>;
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src={src} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => setFailed(src)} />;
 }
 export function Badge({
   children,
