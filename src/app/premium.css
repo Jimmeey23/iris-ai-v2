@@ -1,80 +1,83 @@
 /* Shared visual contract, imported last in layout.tsx. Keep theme, navigation,
    controls and workspace finishes here instead of appending competing skins. */
+/* Palette: warm-neutral paper and ink, one studio-teal accent. Accent marks selection,
+   links and focus only — the loudest thing on screen should be the work. */
 :root, [data-theme="light"] {
-  --bg: #ffffff;
+  --bg: #fafaf9;
   --surface: #ffffff;
-  --surface-2: #f8fafc;
-  --surface-3: #f1f5f9;
-  --text: #0f172a;
-  --secondary: #334155;
-  --muted: #64748b;
-  --accent: #2563eb;
-  --accent-deep: #1d4ed8;
-  --accent-bright: #3b82f6;
-  --accent-soft: #eff6ff;
+  --surface-2: #f5f5f4;
+  --surface-3: #efeeec;
+  --surface-4: #e7e5e4;
+  --text: #18181b;
+  --secondary: #3f3f46;
+  --muted: #71717a;
+  --accent: #0f766e;
+  --accent-deep: #115e59;
+  --accent-bright: #14b8a6;
+  --accent-soft: #f0fdfa;
   --accent-text: #ffffff;
-  --border: #e5e7eb;
-  --border-strong: #d1d5db;
-  --surface-4: #e9eef4;
-  --hairline: #eef0f3;
+  --border: #e7e5e4;
+  --border-strong: #d6d3d1;
+  --hairline: #f0efed;
   --hairline-strong: var(--border);
   --green: #15803d; --green-bg: #f0fdf4;
   --amber: #b45309; --amber-bg: #fffbeb;
-  --red: #dc2626; --red-bg: #fef2f2;
-  --blue: #2563eb; --blue-bg: #eff6ff;
-  /* Purple is no longer a brand hue: anything that used it as decoration reads slate. */
-  --purple: #475569; --purple-bg: #f1f5f9;
-  --shadow-hairline: rgb(15 23 42 / .04);
+  --red: #b91c1c; --red-bg: #fef2f2;
+  --blue: #1d4ed8; --blue-bg: #eff6ff;
+  --purple: #57534e; --purple-bg: #f5f5f4;
+  --shadow-hairline: rgb(24 24 27 / .04);
   /* Flat surfaces: cards separate by border, not shadow. Shadows only on overlays (3–5). */
   --shadow-1: none;
-  --shadow-2: 0 1px 2px rgb(15 23 42 / calc(.05 * var(--ui-shadow)));
-  --shadow-3: 0 8px 24px -8px rgb(15 23 42 / calc(.14 * var(--ui-shadow))), 0 0 0 1px rgb(15 23 42 / .04);
-  --shadow-4: 0 20px 48px -16px rgb(15 23 42 / calc(.22 * var(--ui-shadow))), 0 0 0 1px rgb(15 23 42 / .05);
-  --shadow-5: 0 28px 64px -20px rgb(15 23 42 / calc(.28 * var(--ui-shadow))), 0 0 0 1px rgb(15 23 42 / .05);
+  --shadow-2: none;
+  --shadow-3: 0 8px 24px -8px rgb(24 24 27 / .14), 0 0 0 1px rgb(24 24 27 / .05);
+  --shadow-4: 0 20px 48px -16px rgb(24 24 27 / .2), 0 0 0 1px rgb(24 24 27 / .05);
+  --shadow-5: 0 28px 64px -20px rgb(24 24 27 / .26), 0 0 0 1px rgb(24 24 27 / .05);
 }
 [data-theme="dark"] {
-  --bg: #0b1120;
-  --surface: #0f172a;
-  --surface-2: #131c2e;
-  --surface-3: #1a2436;
-  --text: #e5e9f0;
-  --secondary: #cbd5e1;
-  --muted: #94a3b8;
-  --accent: #60a5fa;
-  --accent-deep: #3b82f6;
-  --accent-bright: #93c5fd;
-  --accent-text: #0b1120;
-  --accent-soft: #60a5fa1f;
-  --border: #1f2a3c;
-  --border-strong: #2c3a50;
-  --surface-4: #223047;
-  --hairline: #1a2436;
+  --bg: #111113;
+  --surface: #18181b;
+  --surface-2: #1f1f23;
+  --surface-3: #27272a;
+  --surface-4: #2f2f33;
+  --text: #f4f4f5;
+  --secondary: #d4d4d8;
+  --muted: #a1a1aa;
+  --accent: #2dd4bf;
+  --accent-deep: #14b8a6;
+  --accent-bright: #5eead4;
+  --accent-text: #042f2e;
+  --accent-soft: #2dd4bf1a;
+  --border: #2a2a2e;
+  --border-strong: #3a3a3f;
+  --hairline: #222226;
   --hairline-strong: var(--border);
   --green: #4ade80; --green-bg: #4ade801a;
   --amber: #fbbf24; --amber-bg: #fbbf241a;
   --red: #f87171; --red-bg: #f871711a;
-  --blue: #60a5fa; --blue-bg: #60a5fa1a;
-  --purple: #a5b4c8; --purple-bg: #a5b4c81a;
-  --shadow-hairline: rgb(0 0 0 / .2);
+  --blue: #93c5fd; --blue-bg: #93c5fd1a;
+  --purple: #a8a29e; --purple-bg: #a8a29e1a;
+  --shadow-hairline: rgb(0 0 0 / .3);
   --shadow-1: none;
-  --shadow-2: 0 1px 2px rgb(0 0 0 / calc(.3 * var(--ui-shadow)));
-  --shadow-3: 0 10px 28px -10px rgb(0 0 0 / calc(.5 * var(--ui-shadow))), 0 0 0 1px rgb(255 255 255 / .04);
-  --shadow-4: 0 24px 56px -18px rgb(0 0 0 / calc(.6 * var(--ui-shadow))), 0 0 0 1px rgb(255 255 255 / .05);
-  --shadow-5: 0 28px 64px -20px rgb(0 0 0 / calc(.65 * var(--ui-shadow))), 0 0 0 1px rgb(255 255 255 / .05);
+  --shadow-2: none;
+  --shadow-3: 0 10px 28px -10px rgb(0 0 0 / .55), 0 0 0 1px rgb(255 255 255 / .05);
+  --shadow-4: 0 24px 56px -18px rgb(0 0 0 / .6), 0 0 0 1px rgb(255 255 255 / .06);
+  --shadow-5: 0 28px 64px -20px rgb(0 0 0 / .65), 0 0 0 1px rgb(255 255 255 / .06);
 }
 :root {
-  /* Inter everywhere (both next/font variables now load Inter). */
-  --font-display: var(--font-space), "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-body: var(--font-outfit), "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  /* Geist for every UI role; the mono face is reserved for ticket IDs and times. */
+  --font-display: var(--font-space), "Geist", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-body: var(--font-outfit), "Geist", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-sans: var(--font-body);
+  /* Three radii: controls, panels, pills. The scale names stay so existing rules map onto them. */
   --radius-2xs: calc(4px * var(--ui-radius));
   --radius-xs: calc(6px * var(--ui-radius));
-  --radius-sm: calc(8px * var(--ui-radius));
-  --radius-md: calc(10px * var(--ui-radius));
-  --radius-lg: calc(12px * var(--ui-radius));
-  --radius-xl: calc(12px * var(--ui-radius));
-  --radius-2xl: calc(14px * var(--ui-radius));
-  --radius-card: calc(12px * var(--ui-radius));
-  --ring: 0 0 0 3px color-mix(in srgb, var(--accent) 24%, transparent);
+  --radius-sm: calc(6px * var(--ui-radius));
+  --radius-md: calc(6px * var(--ui-radius));
+  --radius-lg: calc(10px * var(--ui-radius));
+  --radius-xl: calc(10px * var(--ui-radius));
+  --radius-2xl: calc(10px * var(--ui-radius));
+  --radius-card: calc(10px * var(--ui-radius));
+  --ring: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
   /* Gradients collapse to flat fills so every `background: var(--grad-*)` turns solid. */
   --grad-accent: linear-gradient(var(--accent), var(--accent));
   --grad-text: linear-gradient(var(--text), var(--text));
@@ -1317,3 +1320,112 @@ body { background: var(--bg); color: var(--text); font-family: var(--font-body);
 .tgx-scroll::-webkit-scrollbar-track { background: var(--surface-2); }
 .tgx-scroll::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 999px; border: 2px solid var(--surface-2); }
 .tgx-scroll::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+/* ── Quiet layer ────────────────────────────────────────────────────────────
+   Small labels were set in tracked-out monospace capitals across ~95 classes in
+   seven sheets. One rule sets them all in the UI face at a readable size, with
+   light tracking, so labels inform rather than shout. Generated from every
+   selector that sets text-transform: uppercase; extend it rather than restyle. */
+:is(
+.auth-kicker,
+.bt-head,
+.bt-label,
+.cd-coach,
+.cd-stat,
+.chat-agent-pill,
+.chat-day,
+.compose-hint,
+.context-facts,
+.context-tag,
+.csStats,
+.draft-block,
+.draft-fact,
+.draft-quote,
+.draft-value,
+.ds-row-label,
+.eq-detail-grid,
+.export-popover-title,
+.eyebrow,
+.fb-console-detail,
+.fb-console-facts,
+.fb-console-stats,
+.fb-preview-section,
+.feedback-choices,
+.feedback-field,
+.field,
+.floorplan-room-label,
+.floorplan-selected-tag,
+.input-label,
+.intake-cat-dept,
+.intake-done-facts,
+.intake-route-row,
+.intake-suggest-label,
+.iris-lockup-text,
+.lk-scope,
+.m-label,
+.mc-label,
+.mini-owner,
+.momence-enrichment,
+.mq-unit-badge,
+.ovc-eyebrow,
+.ovc-flag,
+.ovc-kpi-facts,
+.ovc-strip,
+.ownerRole,
+.presence-strip,
+.rdGroup,
+.rdTable,
+.recurrence-kind,
+.report-nav-heading,
+.room-category-badge,
+.room-selected-flag,
+.room-super-tag,
+.rv-sec,
+.rv-step,
+.rw-form,
+.rw-read,
+.rw-status,
+.saved-draft-meta,
+.sc-head,
+.settled,
+.sla-countdown-label,
+.studio-viewing-badge,
+.td-fact-body,
+.td-facts,
+.td-identity-line,
+.td-person,
+.td-rail-heading,
+.td-request-strip,
+.td-resolution-copy,
+.td-similar-status,
+.td-sla-caption,
+.td-sla-extend-form,
+.template-category-label,
+.template-preview-label,
+.tf-chipset-label,
+.tf-grid,
+.ticket-flag,
+.topbar-status-label,
+.tour-badge,
+.tr-answers,
+.tr-dial-label,
+.tr-kpi-label,
+.tr-note,
+.tr-review-facts,
+.tr-section-head
+) {
+  font-family: var(--font-body) !important;
+  letter-spacing: .02em !important;
+}
+
+/* Glass effects read as noise on an ops tool: surfaces are opaque. */
+*, *::before, *::after { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+
+/* Cards separate by a hairline, never by shadow or glow. */
+.card, .ticket-card, .stat-card, .metric-card, .panel { box-shadow: none; }
+
+::selection { background: color-mix(in srgb, var(--accent) 22%, transparent); }
+
+/* Brand lockup: the subtitle is a quiet line of UI type, the "Ai" a plain accent. */
+.iris-lockup-text small { font-family: var(--font-body); text-transform: none; letter-spacing: 0; font-size: 12px; color: var(--muted); }
+.iris-lockup-name i { text-shadow: none; }

@@ -285,12 +285,6 @@
   .auth-visual .auth-video {
     display: none;
   }
-  .auth-visual {
-    background: center/cover url("/video/iris-intro-dark.webp");
-  }
-  [data-theme="light"] .auth-visual {
-    background-image: url("/video/iris-intro-light.webp");
-  }
 }
 /* Keep the cinematic-panel copy independent from the workspace theme tokens. */
 .auth-visual .auth-story h1 {
@@ -366,4 +360,40 @@
   }
 }
 
-.auth-visual { background: url('/video/iris-intro-dark.webp') center / cover no-repeat; }
+/* Brand panel: solid ink, one quiet line of type. No photography, no video —
+   the sign-in screen should load in one round-trip and say what the tool is. */
+.auth-visual {
+  background: #18181b;
+  background-image: radial-gradient(120% 80% at 0% 100%, rgb(45 212 191 / .10), transparent 60%);
+}
+.auth-visual .auth-story h1 {
+  text-shadow: none;
+  font-weight: 600;
+  letter-spacing: -.035em;
+}
+.auth-visual .auth-story p { color: #a1a1aa; }
+.auth-visual .auth-kicker {
+  font-family: var(--font-body);
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 13px;
+  color: #d4d4d8;
+}
+.auth-visual .auth-trust span { color: #a1a1aa; }
+.auth-visual .auth-trust svg { color: #2dd4bf; }
+
+.auth-page .auth-input input { font-size: 14px; }
+/* Form side: one paper surface, sentence-case labels in the UI face. */
+.auth-panel { background: var(--bg); }
+.auth-eyebrow {
+  font: 500 13px var(--font-body);
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--muted);
+}
+.auth-copy h2 { font-weight: 600; }
+@media (max-width: 760px) {
+  /* 16px stops iOS zooming on focus; the placeholder follows the field, not a larger default. */
+  .auth-input input, .auth-input input::placeholder { font-size: 16px; }
+  .auth-page .auth-input input { background: transparent; border: 0; box-shadow: none; padding: 0; height: auto; min-height: 0; }
+}

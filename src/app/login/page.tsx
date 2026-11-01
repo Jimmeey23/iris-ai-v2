@@ -9,7 +9,6 @@ import {
   KeyRound,
   LockKeyhole,
   Mail,
-  Sparkles,
   User,
 } from "lucide-react";
 import { IrisLockup } from "@/components/iris-mark";
@@ -33,14 +32,6 @@ const ERROR_MESSAGES: Record<string, string> = {
 export default function LoginPage() {
   const router = useRouter();
   const { refreshUser } = useApp();
-  const [playVideo, setPlayVideo] = useState(false);
-  useEffect(() => {
-    const media = window.matchMedia("(min-width: 1024px) and (prefers-reduced-motion: no-preference)");
-    const update = () => setPlayVideo(media.matches);
-    update();
-    media.addEventListener("change", update);
-    return () => media.removeEventListener("change", update);
-  }, []);
   const [mode, setMode] = useState<"login" | "signup" | "setup">("login"),
     [setupToken, setSetupToken] = useState(""),
     [email, setEmail] = useState(""),
@@ -110,22 +101,8 @@ export default function LoginPage() {
   return (
     <main className="auth-page">
       <section className="auth-visual" aria-label="IRIS operations workspace">
-        {playVideo && <video
-          autoPlay
-          muted
-          loop
-          playsInline
-          preload="none"
-          poster="/video/iris-intro-dark.webp"
-          className="auth-video"
-        >
-          <source src="/video/iris-intro-dark.mp4" type="video/mp4" />
-        </video>}
-        <div className="auth-veil" />
         <div className="auth-story">
-          <div className="auth-kicker">
-            <Sparkles size={14} /> Physique 57 India operations
-          </div>
+          <div className="auth-kicker">Physique 57 India</div>
           <h1>
             Every member voice,
             <br />
@@ -155,7 +132,6 @@ export default function LoginPage() {
         <div className="auth-card">
           <IrisLockup size={34} />
           <div className="auth-copy">
-            <span className="auth-eyebrow">SECURE WORKSPACE</span>
             <h2>
               {mode === "login"
                 ? "Welcome back"

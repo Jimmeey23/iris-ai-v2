@@ -1,5 +1,5 @@
 import type {Metadata,Viewport} from 'next';
-import {Inter,JetBrains_Mono} from 'next/font/google';
+import {Geist,Geist_Mono} from 'next/font/google';
 import {AppProvider} from '@/components/ui';
 import {FeedbackTab} from '@/components/feedback-tab';
 import './globals.css';
@@ -9,9 +9,10 @@ import './trainers.css';
 import './feedback.css';
 import './tour.css';
 import './premium.css';
-const outfit=Inter({subsets:['latin'],variable:'--font-outfit',display:'swap'});
-const spaceGrotesk=Inter({subsets:['latin'],variable:'--font-space',display:'swap',weight:['500','600','700']});
-const jetbrainsMono=JetBrains_Mono({subsets:['latin'],variable:'--font-mono-tech',display:'swap',weight:['400','500','600']});
+// One UI family under both legacy variable names, so every --font-display/--font-body rule resolves to Geist.
+const outfit=Geist({subsets:['latin'],variable:'--font-outfit',display:'swap'});
+const spaceGrotesk=Geist({subsets:['latin'],variable:'--font-space',display:'swap'});
+const jetbrainsMono=Geist_Mono({subsets:['latin'],variable:'--font-mono-tech',display:'swap',weight:['400','500']});
 export const metadata:Metadata={
   title:{default:'IRIS — Physique 57 India Ops Log',template:'%s · IRIS'},
   description:'Internal ticket logging for Physique 57 India studio staff — issues, snags and member feedback, routed and tracked in one workspace.',

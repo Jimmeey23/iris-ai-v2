@@ -183,7 +183,7 @@
 
   --font-display: var(--font-space), "Inter", system-ui, sans-serif;
   --font-body: var(--font-outfit), "Inter", system-ui, sans-serif;
-  --font-mono: var(--font-mono-tech), "JetBrains Mono", ui-monospace, monospace;
+  --font-mono: var(--font-mono-tech), "Geist Mono", ui-monospace, monospace;
 
   /* Theme-independent literals, named so component CSS never repeats a hex. */
   --white: #fff;
