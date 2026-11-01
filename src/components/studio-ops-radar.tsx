@@ -123,15 +123,15 @@ function formatSlaDelta(mins: number): string {
   return overdue ? `Overdue by ${body}` : `${body} left`;
 }
 
-/* One shared 1s clock for every ticking label. Only the components that subscribe re-render
- * each second — the radar itself re-renders on data, never on the clock. */
+/* One shared clock for every ticking label. The labels are minute-granular, so a 15s beat is
+ * plenty. Only subscribers re-render — the radar itself re-renders on data, never on the clock. */
 const clock = {
   now: Date.now(),
   listeners: new Set<() => void>(),
   timer: undefined as ReturnType<typeof setInterval> | undefined,
   subscribe(fn: () => void) {
     clock.listeners.add(fn);
-    if (!clock.timer) clock.timer = setInterval(() => { clock.now = Date.now(); clock.listeners.forEach((l) => l()); }, 1000);
+    if (!clock.timer) clock.timer = setInterval(() => { clock.now = Date.now(); clock.listeners.forEach((l) => l()); }, 15000);
     return () => {
       clock.listeners.delete(fn);
       if (!clock.listeners.size && clock.timer) { clearInterval(clock.timer); clock.timer = undefined; }

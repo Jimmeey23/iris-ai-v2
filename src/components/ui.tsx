@@ -152,7 +152,10 @@ export function usePerson(name?: string | null) {
 function DirectoryProvider({children}: {children: ReactNode}) {
   const [people, setPeople] = useState<Map<string, DirectoryPerson>>(new Map());
   const [online, setOnline] = useState<DirectoryPerson[]>([]);
+  // Signed out (the login page), every poll would only come back 401.
+  const signedIn = Boolean(useContext(AppContext)?.user);
   useEffect(() => {
+    if (!signedIn) return;
     let stop = false;
     const load = () => {
       void api<{people: DirectoryPerson[]}>("/api/directory")
@@ -166,7 +169,7 @@ function DirectoryProvider({children}: {children: ReactNode}) {
     // Matches the heartbeat in the shell, so a dot is at most one beat behind the truth.
     const clear = onVisibleInterval(load, 60000);
     return () => { stop = true; clear(); };
-  }, []);
+  }, [signedIn]);
   const value = useMemo(() => ({people, online}), [people, online]);
   return <DirectoryContext.Provider value={value}>{children}</DirectoryContext.Provider>;
 }
