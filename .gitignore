@@ -19,3 +19,6 @@ test-results/
 # Import it through Settings → History & knowledge instead of committing it.
 data/
 .env.bak*
+
+# Local browser-automation output.
+.playwright-mcp/

@@ -2,6 +2,10 @@ import type { NextConfig } from "next";
 import path from "node:path";
 
 const isDev = process.env.NODE_ENV !== "production";
+const supabaseOrigin = (() => {
+  try { return new URL(process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").host; } catch { return ""; }
+})();
+const supabaseConnect = supabaseOrigin ? ` https://${supabaseOrigin} wss://${supabaseOrigin}` : "";
 
 /**
  * Content-Security-Policy.
@@ -13,7 +17,8 @@ const isDev = process.env.NODE_ENV !== "production";
  *   - https://*.fillout.com      the iframe those scripts inject
  *   - https: for img-src         equipment photos are arbitrary URLs a studio pastes in
  *   - blob: / data:              exports (createObjectURL), TTS audio, attachment previews
- * Supabase, OpenAI, Momence etc. are only called server-side, so connect-src is 'self'.
+ *   - the Supabase project       browser realtime (live-signal.tsx) over wss:, plus auth over https:
+ * OpenAI, Momence etc. are only called server-side.
  *
  * script-src needs 'unsafe-inline' for the pre-paint theme script in layout.tsx and
  * Next's inline bootstrap. A per-request nonce (generated in proxy.ts) would be
@@ -33,7 +38,7 @@ const cspDirectives = [
   "img-src 'self' data: blob: https:",
   "font-src 'self' data:",
   "media-src 'self' blob: data:",
-  `connect-src 'self' https://server.fillout.com https://*.fillout.com${isDev ? " ws: wss:" : ""}`,
+  `connect-src 'self' https://server.fillout.com https://*.fillout.com${supabaseConnect}${isDev ? " ws: wss:" : ""}`,
   "frame-src 'self' https://*.fillout.com https://*.zite.so",
   "worker-src 'self' blob:",
   "object-src 'none'",
