@@ -9,12 +9,12 @@ import {tickets,staff,departments,assets,appSettings,ticketActivities,ticketComm
 import {ticketInputSchema,publicTicketInputSchema,type TicketInput,type AdvancedDraft,type TicketOwner} from './ticket-contract';
 import {getConfig,type WorkspaceConfig} from './config';
 import {ApiError,canAccessTicket,canEditTicketDetails,coveredStudios,currentUser,requireTicketAccess,type Identity} from './auth';
-import {ROUND_ROBIN_DEPARTMENTS,cityOf,inferPriority,inferSeverity,studioIdsFor} from './routing';
+import {ROUND_ROBIN_DEPARTMENTS,configuredOwners,departmentForTicket,cityOf,inferPriority,inferSeverity,studioIdsFor} from './routing';
 import {buildTemplate} from './templates';
 import {ticketNumberFor,slugify} from './utils';
 import {scoreAssessment} from './guided-templates';
 import {configuredTemplates} from './template-store';
-import {indiaDate} from './display';
+import {PLACEHOLDER_MEMBER,indiaDate} from './display';
 import {equipmentRepairRoute, repairVerificationKind} from './equipment-routing';
 import {BEHAVIOR_VERSION, evaluateTicketPolicy, transitionError, transitionTimestamps} from './ticket-policy';
 import {emitTicketEvent,eventEnabled} from './ticket-events';
@@ -38,8 +38,6 @@ export function slaHoursFor(cfg:Pick<Config,'responseHours'|'subcategoryRouting'
 const RESERVED_FIELD=/^(auditCorrection.*|clientInvolved|autoFollowUp|followUpType|followUpReason|parent[A-Z].*|recurrence.*|recheck.*|firstResolvedAt|lastRepeatAt|closedOnImport)$/;
 export function stripReservedFields(cf:Record<string,unknown>):Record<string,unknown>{return Object.fromEntries(Object.entries(cf).filter(([k])=>k==='_intake'||(!k.startsWith('_')&&!RESERVED_FIELD.test(k))));}
 const ticketArea=(fields:Record<string,unknown>)=>String(fields.area||fields.specific_area||fields.affected_room||fields.incident_location||'').trim()||null;
-/** Names the intake and the automations file under when nobody outside the team is involved. */
-const PLACEHOLDER_MEMBER=/^(studio team( observation)?|automated follow-up|member|client|n\/?a|none|unknown|internal|staff|-)\b/i;
 /** Whether a client (member or prospect) is directly involved: someone linked in Momence, a
  *  member's contact details, a member or prospect raising it, members affected, or a named
  *  person on the ticket who is not on the staff directory. A trainer assessment is about the
@@ -62,10 +60,7 @@ type Routing=Awaited<ReturnType<typeof resolveRouting>>;
 /** Per-run caches for bulk callers (history import), so a thousand rows do not read the
  *  configuration and the routing tables a thousand times. */
 export type DraftContext={cfg?:Config;routing?:Map<string,Routing>};
-/** Saved form/category routes are authoritative; unknown categories use Management. */
-export function departmentForTicket(cfg:Pick<Config,'categoryDepartments'|'subcategoryRouting'>,category:string,subcategory=''){
-  return cfg.subcategoryRouting[category+'|||'+subcategory]?.departmentId || cfg.categoryDepartments[category] || 'management';
-}
+export {departmentForTicket};
 /** Stable directory IDs and explicit coverage take precedence over legacy location hints. */
 export function staffCoversStudio(cfg:Config,p:{id:number;studioId:number|null;location:string},studio:string){
   const coverage=cfg.staffStudioCoverage?.[String(p.id)];
@@ -75,24 +70,32 @@ export function staffCoversStudio(cfg:Config,p:{id:number;studioId:number|null;l
 }
 export async function resolveRouting(cfg:Config,category:string,studio:string,subcategory='',opts:{tx?:Tx;departmentId?:string}={}){
   const store=opts.tx||db;
-  const subRule=opts.departmentId?undefined:cfg.subcategoryRouting[category+'|||'+subcategory];
   const departmentId=opts.departmentId||departmentForTicket(cfg,category,subcategory);
   const [dept]=await store.select().from(departments).where(eq(departments.id,departmentId));
   if(!dept?.active)throw new ApiError('The responsible department is inactive. Update its routing rule.');
   const ids=studioIdsFor(studio);
-  const override=opts.departmentId?undefined:subRule?.ownerId||cfg.routingOwners[category+'::'+studio]||cfg.routingOwners[category];
+  // A co-owner lookup (explicit departmentId) is not the configured lead, so it skips the overrides.
+  const candidates=opts.departmentId?[]:configuredOwners(cfg,category,studio,subcategory);
+  const override=candidates[0]?.id;
   const queue={id:null,name:'Unassigned',email:'',role:'Department queue'};
   const result=(owner:typeof queue|typeof staff.$inferSelect,reason:string)=>({departmentId,dept,owner,ids,override,reason});
   if(!cfg.autoAssign)return result(queue,'Automatic assignment is disabled; responsible department queue.');
   if(!studio||!cfg.studios.includes(studio))return result(queue,'Select a recognised studio before an owner can be assigned.');
   const people=await store.select().from(staff).where(and(eq(staff.isActive,true),eq(staff.department,dept.name)));
-  if(override){const owner=people.find(p=>p.id===override);if(!owner)throw new ApiError('The configured owner is inactive or outside the responsible department.');if(cfg.staffStudioCoverage?.[String(owner.id)]&&!staffCoversStudio(cfg,owner,studio))return result(queue,'The configured owner does not cover this studio; responsible department queue.');return result(owner,'Configured owner override.');}
+  const skipped:string[]=[];
+  for(const c of candidates){
+    const owner=people.find(p=>p.id===c.id);
+    if(!owner){skipped.push(`${c.rule} owner is inactive or outside ${dept.name}`);continue;}
+    if(cfg.staffStudioCoverage?.[String(owner.id)]&&!staffCoversStudio(cfg,owner,studio)){skipped.push(`${c.rule} owner does not cover this studio`);continue;}
+    return result(owner,`Configured owner override (${c.rule}).`);
+  }
+  const note=skipped.length?` Skipped: ${skipped.join('; ')}.`:'';
   const city=cityOf(studio);
   const seats=city?cfg.cityOwnerIds?.[departmentId]?.[city]||[]:[];
   const named=people.filter(p=>seats.includes(p.id)&&staffCoversStudio(cfg,p,studio));
   const eligible=people.filter(p=>staffCoversStudio(cfg,p,studio));
   const pool=named.length?named:eligible;
-  if(!pool.length)return result(queue,'No active eligible owner covers this studio; department queue.');
+  if(!pool.length)return result(queue,'No active eligible owner covers this studio; department queue.'+note);
   const load=await store.select({id:tickets.assignedStaffId,n:sql<number>`count(*) filter (where ${tickets.status} not in ('resolved','closed','recorded'))::int`,at:sql<string|null>`max(${tickets.createdAt})`})
     .from(tickets).where(inArray(tickets.assignedStaffId,pool.map(p=>p.id))).groupBy(tickets.assignedStaffId);
   const usage=(id:number)=>load.find(x=>x.id===id);
@@ -100,7 +103,7 @@ export async function resolveRouting(cfg:Config,category:string,studio:string,su
   const sorted=[...pool].sort((a,b)=>rota
     ?new Date(usage(a.id)?.at||0).getTime()-new Date(usage(b.id)?.at||0).getTime()||a.id-b.id
     :(usage(a.id)?.n||0)-(usage(b.id)?.n||0)||Number(b.categories.includes(category))-Number(a.categories.includes(category))||a.id-b.id);
-  return result(sorted[0],rota?'Studio coverage and round-robin assignment.':'Studio coverage and lowest open workload.');
+  return result(sorted[0],(rota?'Studio coverage and round-robin assignment.':'Studio coverage and lowest open workload.')+note);
 }
 async function coOwnersFor(args:{lead:number|null;leadDepartment:string;teams:string[];ids:number[];studio:string;category:string;cfg?:Config;tx?:Tx}):Promise<TicketOwner[]>{
   const cfg=args.cfg||await getConfig();const store=args.tx||db;

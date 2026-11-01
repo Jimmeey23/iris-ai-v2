@@ -97,6 +97,31 @@ export const ESCALATION_OWNERS: Record<string, RegExp> = {
  * longest without one. Scoring by seniority, as the fallback does, sent everything to the
  * same two people. */
 export const ROUND_ROBIN_DEPARTMENTS = new Set(['sales-client-servicing', 'customer-service']);
+/** The saved routing settings the precedence reads. Kept structural so this module stays client-safe. */
+export type RoutingSettings={categoryDepartments:Record<string,string>;routingOwners:Record<string,number>;subcategoryRouting:Record<string,{departmentId:string;ownerId?:number|null}|undefined>};
+/** The responsible department: a saved subcategory route, then the saved category route, then
+ *  Management. Saved settings are authoritative; there is no hardcoded department ahead of them. */
+export function departmentForTicket(cfg:Pick<RoutingSettings,'categoryDepartments'|'subcategoryRouting'>,category:string,subcategory=''){
+  return cfg.subcategoryRouting[category+'|||'+subcategory]?.departmentId || cfg.categoryDepartments[category] || 'management';
+}
+/**
+ * The one assignment precedence every creation path shares (intake, Iris, Fillout, email and
+ * history all file through makeDraft and createTicketFromDraft):
+ *   1. mandatory safety routing — equipmentRepairRoute rewrites the category before this runs;
+ *   2. subcategory owner override;  3. studio + category owner override;  4. category owner;
+ *   5. eligible staff (named city seats, then studio coverage);  6. the department queue.
+ * This returns levels 2–4 in that order, each tagged with the rule that supplied it so the
+ * ticket can record why it was assigned. A candidate who is inactive, outside the department or
+ * not covering the studio is skipped for the next level, never silently replaced by a default.
+ */
+export function configuredOwners(cfg:Pick<RoutingSettings,'routingOwners'|'subcategoryRouting'>,category:string,studio:string,subcategory=''){
+  const levels:[number|null|undefined,string][]=[
+    [cfg.subcategoryRouting[category+'|||'+subcategory]?.ownerId,`subcategory:${category}|||${subcategory}`],
+    [studio?cfg.routingOwners[category+'::'+studio]:undefined,`studio:${category}::${studio}`],
+    [cfg.routingOwners[category],`category:${category}`],
+  ];
+  return levels.filter((l):l is [number,string]=>typeof l[0]==='number').map(([id,rule])=>({id,rule}));
+}
 export const cityOf = (studioName?: string | null) => !studioName ? null : /bengaluru|bangalore|kenkere|copper.*cloves/i.test(studioName) ? 'bengaluru' as const : /mumbai|bandra|kwality|kemps|supreme|courtside/i.test(studioName) ? 'mumbai' as const : null;
 
 /** Directory ids that place a staff member at this studio. Courtside and Copper & Cloves reuse
