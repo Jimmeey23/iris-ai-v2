@@ -1429,3 +1429,26 @@ body { background: var(--bg); color: var(--text); font-family: var(--font-body);
 /* Brand lockup: the subtitle is a quiet line of UI type, the "Ai" a plain accent. */
 .iris-lockup-text small { font-family: var(--font-body); text-transform: none; letter-spacing: 0; font-size: 12px; color: var(--muted); }
 .iris-lockup-name i { text-shadow: none; }
+
+/* Top bar: one navigation toggle per form factor, then the page name in plain type. */
+.topbar .mobile-menu { display: none; }
+@media (max-width: 767px) {
+  .topbar .mobile-menu { display: inline-flex; }
+  .topbar .desktop-sidebar-toggle { display: none; }
+}
+.topbar .icon-btn { border-color: transparent; background: transparent; box-shadow: none; }
+.topbar .icon-btn:hover { background: var(--surface-2); }
+.topbar .breadcrumb-current {
+  background: none; padding: 0; margin-left: 4px;
+  font: 600 14px/1 var(--font-body); color: var(--text); letter-spacing: -.01em;
+}
+.topbar-search { background: var(--surface-2); border: 1px solid var(--border); box-shadow: none; }
+.topbar-status, .topbar-presence { background: none; border: 0; box-shadow: none; }
+
+/* Overview: labels in sentence case, the stat strip as one hairline-divided row. */
+.ovc-eyebrow, .ovc-strip dt, .ovc-kpi-label, .ovc-presence-head { text-transform: none; letter-spacing: 0; }
+.ovc-strip { gap: 0; background: none; border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; }
+.ovc-strip > div { background: var(--surface); border: 0; border-radius: 0; box-shadow: none; }
+.ovc-strip > div + div { border-left: 1px solid var(--border); }
+.ovc-bloom { display: none; }
+.ovc-title em { color: inherit; font-style: normal; }

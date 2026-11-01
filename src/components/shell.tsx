@@ -422,33 +422,24 @@ export function Shell({
       </aside>
       <header className="topbar" ref={topbarRef}>
           <div className="flex-row">
-            {!isOverview && (
-              <>
-                <button
-                  className="icon-btn mobile-menu"
-                  onClick={() => setMobile(true)}
-                  aria-label="Open navigation"
-                >
-                  <Menu size={19} />
-                </button>
-                <button
-                  className="icon-btn desktop-sidebar-toggle"
-                  onClick={() => setCollapsed((value) => !value)}
-                  aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
-                  aria-pressed={collapsed}
-                >
-                  <PanelLeft size={17} />
-                </button>
-              </>
-            )}
-            <div className="breadcrumb">
-              <PanelLeft size={15} />
-              <span>Workspace</span>
-              <ChevronRight size={11} />
-              <strong key={activeName} className="breadcrumb-current">
-                {activeName}
-              </strong>
-            </div>
+            <button
+              className="icon-btn mobile-menu"
+              onClick={() => setMobile(true)}
+              aria-label="Open navigation"
+            >
+              <Menu size={19} />
+            </button>
+            <button
+              className="icon-btn desktop-sidebar-toggle"
+              onClick={() => setCollapsed((value) => !value)}
+              aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
+              aria-pressed={collapsed}
+            >
+              <PanelLeft size={17} />
+            </button>
+            <strong key={activeName} className="breadcrumb-current">
+              {activeName}
+            </strong>
           </div>
           <div className="topbar-actions">
             <button

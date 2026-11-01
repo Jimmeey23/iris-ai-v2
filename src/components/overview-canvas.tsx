@@ -1,9 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { summarize, isSlaTracked, isBreached } from "@/lib/metrics";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowRight, Sparkles, Zap, TriangleAlert, Timer, ShieldCheck, RotateCcw, Filter } from "lucide-react";
+import { Zap, TriangleAlert, Timer, ShieldCheck, RotateCcw, Filter } from "lucide-react";
 import type { TicketListRecord } from "@/lib/ticket-contract";
 
 /**
@@ -229,8 +228,6 @@ export function OverviewCanvas({
       : { label: "Top category", value: "—", hint: "nothing open" },
   ];
 
-  const hour = new Date().getHours();
-  const greet = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
 
   /** The headline is the summary: one sentence, the number set in the accent. */
   const lead = overdue.length
@@ -264,7 +261,7 @@ export function OverviewCanvas({
       id: "active",
       icon: Zap,
       accent: true,
-      value: open.length || null,
+      value: open.length,
       label: "Active now",
       sub: "Open queues",
       data: bucketCounts(open, span),
@@ -280,7 +277,7 @@ export function OverviewCanvas({
       id: "attention",
       icon: TriangleAlert,
       accent: false,
-      value: urgent.length || null,
+      value: urgent.length,
       label: "Needs attention",
       sub: `${shareOfOpen(urgent.length)}% of open`,
       data: bucketCounts(urgent, span),
@@ -296,7 +293,7 @@ export function OverviewCanvas({
       id: "overdue",
       icon: Timer,
       accent: false,
-      value: overdue.length || null,
+      value: overdue.length,
       label: "Overdue",
       sub: `${shareOfOpen(overdue.length)}% of open`,
       data: bucketCounts(overdue, span),
@@ -333,25 +330,13 @@ export function OverviewCanvas({
         <section className="ovc-card ovc-hero">
           <span className="ovc-bloom" aria-hidden="true" />
           <div className="ovc-hero-inner">
-            <p className="ovc-eyebrow ovc-eyebrow-row">
-              <span>
-                Internal operations · {studios === studioTotal ? "All studios" : "Filtered scope"}
-              </span>
-              <i aria-hidden="true" />
-              <span className="ovc-eyebrow-end">{tickets.length.toLocaleString()} in scope</span>
-            </p>
             <h2 className="ovc-title">
-              {greet}, {name.split(" ")[0]} — <em>{lead.n}</em> {lead.tail}
+              {lead.n.charAt(0).toUpperCase() + lead.n.slice(1)} {lead.tail}
             </h2>
             <p className="ovc-lede">
-              Review reported issues, assigned owners and outstanding actions for the selected period.
+              {tickets.length.toLocaleString()} tickets in the selected period.
             </p>
             <div className="ovc-cta-row">
-              <Link className="ovc-btn ovc-btn-accent" href="/iris">
-                <Sparkles size={16} />
-                Log a ticket
-                <ArrowRight size={16} className="ovc-btn-arrow" />
-              </Link>
               <button
                 className="ovc-btn ovc-btn-soft"
                 onClick={() => onFilter({ state: "open" }, "Open tickets")}
@@ -368,8 +353,8 @@ export function OverviewCanvas({
                 </div>
               ))}
             </dl>
-            <footer className="ovc-hero-foot">
-              {owners.length > 0 && (
+            {owners.length > 0 && <footer className="ovc-hero-foot">
+              {(
                 <span className="ovc-stack" aria-hidden="true">
                   {owners.slice(0, 3).map((o, i) => (
                     <i key={o} data-tone={i % 3}>
@@ -385,7 +370,7 @@ export function OverviewCanvas({
                 </b>{" "}
                 assigned to current open tickets
               </p>
-            </footer>
+            </footer>}
           </div>
         </section>
 
