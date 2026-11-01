@@ -87,9 +87,11 @@ export async function computeAnalytics(user: Identity, params: URLSearchParams) 
         .where(and(where, gte(tickets.resolvedAt, trendFrom))).groupBy(sql`1`),
       db.select({
         name: tickets.assignedStaffName,
-        assigned: sql<number>`count(*)::int`,
+        // Record-only entries (trainer assessments, compliments) are never resolved, so
+        // counting them made "assigned" exceed open + closed and halved close rates.
+        assigned: n('assigned', sql`not (${metricSql.recordOnly})`),
         open: n('open', metricSql.open),
-        closed: n('closed', metricSql.resolved),
+        closed: n('closed', and(metricSql.resolved, sql`not (${metricSql.recordOnly})`) as SQL),
         overdue: n('overdue', metricSql.breachedOpen(now)),
         critical: n('critical', and(metricSql.open, eq(tickets.priority, 'critical')) as SQL),
         medianHours: sql<number | null>`percentile_cont(0.5) within group (order by ${metricSql.resolutionHours}) filter (where ${metricSql.durationEligible})`,
@@ -151,7 +153,8 @@ export async function computeAnalytics(user: Identity, params: URLSearchParams) 
       recurrence,
       ...intel,
       patterns,
-      ownerLeaderboard: ownerLifetime.map(o => ({...o, name: o.name || 'Unassigned', medianHours: round1(o.medianHours === null ? null : Number(o.medianHours))})).sort((a, b) => b.closed - a.closed || b.assigned - a.assigned),
+      // Owners who only hold record-only entries have no work to rank.
+      ownerLeaderboard: ownerLifetime.filter(o => o.assigned > 0).map(o => ({...o, name: o.name || 'Unassigned', medianHours: round1(o.medianHours === null ? null : Number(o.medianHours))})).sort((a, b) => b.closed - a.closed || b.assigned - a.assigned),
       scope: {
         from: from ? new Date(from).toISOString() : null,
         to: new Date(to).toISOString(),
