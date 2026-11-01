@@ -133,7 +133,7 @@ export function SettingsPageView({
   } = model;
   return (
     <Shell
-      title="Make Iris your own."
+      title="Settings"
       eyebrow="WORKSPACE SETTINGS"
       action={
         <button

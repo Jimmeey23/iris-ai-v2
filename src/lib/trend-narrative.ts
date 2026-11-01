@@ -66,7 +66,7 @@ export function ruleNarrative(facts: NarrativeFacts): Narrative {
 
   const parts: string[] = [];
   const vs = p ? changePhrase(t.raised, p.raised) : null;
-  parts.push(`${t.raised} tickets were raised${vs ? `, ${vs}` : ''}, and ${t.resolved} were resolved. ${t.open} ${t.open === 1 ? 'remains' : 'remain'} open${t.overdue ? `, ${t.overdue} of them overdue` : ''}.`);
+  parts.push(`${t.raised} ${t.raised === 1 ? 'ticket was' : 'tickets were'} raised${vs ? `, ${vs}` : ''}, and ${t.resolved} ${t.resolved === 1 ? 'was' : 'were'} resolved. ${t.open} ${t.open === 1 ? 'remains' : 'remain'} open${t.overdue ? `, ${t.overdue} of them overdue` : ''}.`);
   if (t.slaCompliance !== null) {
     const move = p && p.slaCompliance !== null ? Math.round((t.slaCompliance - p.slaCompliance) * 10) / 10 : null;
     parts.push(`SLA compliance was ${t.slaCompliance}%${move ? ` (${move > 0 ? 'up' : 'down'} ${Math.abs(move)} points)` : ''}.`);

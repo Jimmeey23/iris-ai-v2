@@ -2,7 +2,6 @@
 import {useState} from 'react';
 import {LayoutList, MessageSquareText} from 'lucide-react';
 import {Shell} from '../shell';
-import {IrisMarquee} from '../iris-marquee';
 import {IrisChat} from '../iris-chat';
 import {IntakeFlow} from './intake-flow';
 
@@ -18,7 +17,7 @@ export function IrisIntakePage({presetCategory, presetSubcategory, presetMode, p
 
   if (mode === 'chat') {
     return (
-      <Shell hideHeading hideFooter fullHeight banner={<IrisMarquee page="iris" />}>
+      <Shell hideHeading hideFooter fullHeight>
         <div className="intake-legacy-bar" role="status">
           <span className="badge amber"><MessageSquareText size={10} /> Chat intake</span>
           <span>Describe the issue by typing or speaking — Iris asks for anything missing and builds the ticket.</span>
@@ -29,7 +28,7 @@ export function IrisIntakePage({presetCategory, presetSubcategory, presetMode, p
     );
   }
   return (
-    <Shell hideHeading hideFooter banner={<IrisMarquee page="iris" />}>
+    <Shell hideHeading hideFooter>
       <IntakeFlow presetCategory={presetCategory} presetSubcategory={presetSubcategory} presetDesk={presetDesk} onLegacy={() => setMode('chat')} />
     </Shell>
   );

@@ -11,7 +11,6 @@ import {Shell} from './shell';
 import {useTickets, Kanban, TicketCard, MatrixView, FeedView} from './tickets-board';
 import {OverviewCanvas} from './overview-canvas';
 import {PresenceStrip} from './presence-strip';
-import {IrisMarquee} from './iris-marquee';
 import {TicketGrid} from './ticket-grid';
 import {TicketFilters} from './ticket-filters';
 import {MetricCards, boardMetrics} from './metric-cards';
@@ -455,7 +454,7 @@ export function CommandCenter({directory = false, assignedOnly = false}: {direct
   );
 
   if (loading || !loaded || !uiReady) return (
-    <Shell title={shellTitle} eyebrow={shellEyebrow} fullWidth action={shellAction} banner={<IrisMarquee page="overview" />}>
+    <Shell title={shellTitle} eyebrow={shellEyebrow} fullWidth action={shellAction}>
       <section className="overview-loading" aria-label="Loading the complete workspace"><Loading rows={8} variant="list"/></section>
     </Shell>
   );
@@ -466,7 +465,6 @@ export function CommandCenter({directory = false, assignedOnly = false}: {direct
       eyebrow={shellEyebrow}
       fullWidth
       action={shellAction}
-      banner={!directory ? <IrisMarquee page="overview" /> : undefined}
     >
       {!directory && (
         <OverviewCanvas

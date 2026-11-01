@@ -66,7 +66,7 @@ const nav: NavItem[] = [
   { href: "/equipment", label: "Equipment", icon: Drill },
   { href: "/templates", label: "Template library", icon: LibraryBig },
   { href: "/reports", label: "Reports library", icon: Files },
-  { href: "/analytics", label: "Trend dashboard", icon: ChartSpline },
+  { href: "/analytics", label: "Trends", icon: ChartSpline },
   { href: "/trainers", label: "Trainer reviews", icon: Dumbbell },
   { href: "/forms", label: "Evaluation forms", icon: ClipboardCheck },
 ];
@@ -154,25 +154,23 @@ const usePhone = () =>
 export function Shell({
   children,
   title = "Overview",
-  eyebrow,
   action,
   hideHeading = false,
-  hideFooter = false,
   fullHeight = false,
   fullWidth = false,
-  banner,
 }: {
   children: ReactNode;
   title?: string;
+  /** Accepted for older call sites; page titles carry no eyebrow label. */
   eyebrow?: string;
   action?: ReactNode;
   hideHeading?: boolean;
+  /** Accepted for older call sites; there is no page footer. */
   hideFooter?: boolean;
   fullHeight?: boolean;
   /** Lifts the page's `max-width` cap — for a table or board meant to use the
    *  whole viewport rather than the readable-measure layout most pages want. */
   fullWidth?: boolean;
-  banner?: ReactNode;
 }) {
   const path = usePathname(),
     router = useRouter();
@@ -518,19 +516,16 @@ export function Shell({
           </div>
         </header>
       <div className={"workspace-main" + (collapsed ? " sidebar-collapsed" : "")}>
-        {banner}
         <main
           className={
             "content" +
             (fullHeight ? " content-full-height" : "") +
-            (fullWidth ? " content-full-width" : "") +
-            (banner ? " has-banner" : "")
+            (fullWidth ? " content-full-width" : "")
           }
         >
           {!hideHeading && (
             <div className="page-heading">
               <div>
-                {eyebrow && <div className="eyebrow">{eyebrow}</div>}
                 <h1>{title}</h1>
               </div>
               {action}
@@ -552,20 +547,6 @@ export function Shell({
             </div>
           ) : (
             children
-          )}
-          {!hideFooter && (
-            <footer className="page-footer">
-              <span>
-                <span className="live-label">
-                  <i />
-                </span>
-                Every issue logged. Every follow-up tracked.
-              </span>
-              <span className="page-footer-brand">
-                IRIS <span className="page-footer-sep">/</span> Physique 57
-                India <span style={{ color: "var(--accent)" }}>✧</span>
-              </span>
-            </footer>
           )}
         </main>
       </div>

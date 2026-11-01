@@ -97,7 +97,7 @@ export default function IntegrationsPage() {
   }
   return (
     <Shell
-      title="Your tools. Better together."
+      title="Integrations"
       eyebrow="INTEGRATIONS"
       action={
         <Badge tone="blue">

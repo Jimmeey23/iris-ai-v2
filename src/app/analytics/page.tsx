@@ -28,7 +28,6 @@ import { Shell } from "@/components/shell";
 import { api, useApp, Badge, Loading, Avatar } from "@/components/ui";
 import { STUDIOS, DEPARTMENT_RECORDS } from "@/lib/constants";
 import { csvDownload, indiaDate } from "@/lib/display";
-import { IrisMarquee } from "@/components/iris-marquee";
 import { DrillDrawer, type DrillRequest } from "@/components/analytics/drill-drawer";
 import type { Cluster } from "@/lib/recurrence";
 import type { BreakdownRow, Intel } from "@/lib/analytics-intel";
@@ -202,8 +201,7 @@ export default function AnalyticsPage() {
 
   return (
     <Shell
-      title="The bigger picture, beautifully clear."
-      banner={<IrisMarquee page="analytics" />}
+      title="Trends"
       eyebrow="TREND DASHBOARD"
       action={
         <div className="flex-row">
