@@ -59,8 +59,8 @@ export default function TicketOverviewPanel({
             <div>
               <span className="eyebrow">
                 {t.requestedResolution
-                  ? "Requested outcome"
-                  : "Reported impact"}
+                  ? "REQUESTED OUTCOME"
+                  : "REPORTED IMPACT"}
               </span>
               <p>{t.requestedResolution || t.impact}</p>
             </div>

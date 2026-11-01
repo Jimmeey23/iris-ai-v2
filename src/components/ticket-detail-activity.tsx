@@ -38,7 +38,7 @@ export default function TicketActivityPanel({
           </div>
         ))}
         {!bundle.comments.length && (
-          <p className="secondary">
+          <p className="secondary" style={{ fontSize: 12 }}>
             No internal notes yet.
           </p>
         )}
@@ -65,12 +65,12 @@ export default function TicketActivityPanel({
         </button>
       </div>
       <div>
-        <h3 className="timeline-head">Timeline</h3>
+        <h3 style={{ marginBottom: 22 }}>Timeline</h3>
         {bundle.activities.map((a) => (
           <div className="timeline-row" key={a.id}>
             <ActivityGlyph action={a.action} />
             <p>
-              <strong>{a.actorName}</strong> ·{" "}
+              <strong style={{ fontWeight: 500 }}>{a.actorName}</strong> ·{" "}
               {a.action.replaceAll(".", " ")}
             </p>
             <small>{a.detail}</small>

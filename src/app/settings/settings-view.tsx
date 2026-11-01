@@ -134,7 +134,7 @@ export function SettingsPageView({
   return (
     <Shell
       title="Make Iris your own."
-      eyebrow="Workspace settings"
+      eyebrow="WORKSPACE SETTINGS"
       action={
         <button
           className="btn btn-primary"

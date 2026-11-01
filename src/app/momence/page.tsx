@@ -270,8 +270,8 @@ export default function MomencePage() {
   const Icon = modules.find((m) => m.id === activeModule)!.icon;
   return (
     <Shell
-      title="Momence"
-      eyebrow="Operations"
+      title="Your studio, connected."
+      eyebrow="MOMENCE WORKSPACE"
       action={
         <div className="flex-row">
           <button className="btn" onClick={() => setConsoleOpen(true)}>
