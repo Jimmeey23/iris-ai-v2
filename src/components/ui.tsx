@@ -128,7 +128,7 @@ type Toast = {
 };
 export type DirectoryPerson = {
   name: string; role?: string; avatarUrl: string | null; colour?: string | null;
-  userId: number | null; online: boolean; viewing?: string | null;
+  userId: number | null; username?: string | null; online: boolean; viewing?: string | null;
 };
 /**
  * Faces and presence, fetched once and shared.

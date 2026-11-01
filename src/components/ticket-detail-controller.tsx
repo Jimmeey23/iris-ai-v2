@@ -1,11 +1,11 @@
 "use client";
 import type { StaffRecord } from "@/lib/constants";
 import type { TicketListRecord, TicketRecord } from "@/lib/ticket-contract";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { mentionIdsIn, type MentionPerson } from "./mention-box";
 import { TicketDialogView } from "./ticket-detail-view";
 import { coOwnersOf } from "./ticket-detail/ownership";
-import { api, useApp } from "./ui";
+import { api, useApp, useDirectory } from "./ui";
 type Resolution = import("./resolution-panel").Resolution;
 type Bundle = {
   ticket: TicketRecord;
@@ -72,7 +72,15 @@ export function useTicketDialogController({
     [tab, setTab] = useState<(typeof TABS)[number]>("overview"),
     [busy, setBusy] = useState(false),
     [note, setNote] = useState("");
-  const [mentionPeople, setMentionPeople] = useState<MentionPerson[]>([]);
+  // The app-wide directory is already loaded (and kept fresh) by the provider; reading it
+  // here saves a request every time a ticket opens.
+  const { people: directory } = useDirectory();
+  const mentionPeople = useMemo(
+    () => [...directory.values()]
+      .filter((p) => p.userId !== null)
+      .map((p): MentionPerson => ({ userId: p.userId as number, name: p.name, username: p.username ?? null })),
+    [directory],
+  );
   const [mentioned, setMentioned] = useState<MentionPerson[]>([]);
   const [railOpen, setRailOpen] = useState(false);
   const resolutionToggle = useRef<HTMLButtonElement>(null);
@@ -157,21 +165,6 @@ export function useTicketDialogController({
       void load();
       void api<{ staff: StaffRecord[] }>("/api/staff")
         .then((d) => setStaff(d.staff))
-        .catch(() => {});
-      void api<{
-        people: {
-          userId: number | null;
-          name: string;
-          username: string | null;
-        }[];
-      }>("/api/directory")
-        .then((d) =>
-          setMentionPeople(
-            d.people.filter(
-              (person): person is MentionPerson => person.userId !== null,
-            ),
-          ),
-        )
         .catch(() => {});
       // Paused while the editor is open. A refresh landing mid-edit bumps the revision the
       // save is about to be checked against, so a perfectly good edit came back as "this

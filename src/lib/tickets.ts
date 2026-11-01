@@ -531,25 +531,28 @@ export async function getResolutionWorkspace(ticketId:number){const[[resolution]
 ]);return{resolution:resolution||null,steps,followUps,contacts,attachments};}
 /** Everything the ticket page renders. Returns null when the ticket does not exist and throws
  *  403 when the caller may not open it. */
-export async function getTicketBundle(id:number,viewer?:Identity|null){const[[ticket],user]=await Promise.all([db.select().from(tickets).where(eq(tickets.id,id)),viewer===undefined?currentUser():Promise.resolve(viewer)]);if(!ticket)return null;
-if(!user)throw new ApiError('Sign in to your workspace account to view this.',401);requireTicketAccess(user,ticket);
-// These reads are independent of each other. Issued sequentially they cost a database
-// round-trip each before anything renders; in parallel they cost one.
-const[canResolve,comments,activities,similar,links,asset]=await Promise.all([
-  canResolveTicket(user,ticket.assignedStaffId,ticket.resolutionRequired,ticket.additionalOwners,ticket.escalatedFromStaffId),
+export async function getTicketBundle(id:number,viewer?:Identity|null){
+// Everything that needs only the id is read in the same round trip as the ticket itself;
+// it is discarded unread if the access check below fails. Two waves instead of three.
+const[[ticket],user,comments,activities,links,workspace,conversationAttachments]=await Promise.all([
+  db.select().from(tickets).where(eq(tickets.id,id)),
+  viewer===undefined?currentUser():Promise.resolve(viewer),
   db.select().from(ticketComments).where(eq(ticketComments.ticketId,id)).orderBy(ticketComments.createdAt),
   db.select().from(ticketActivities).where(eq(ticketActivities.ticketId,id)).orderBy(ticketActivities.createdAt),
-  db.select({id:tickets.id,ticketNumber:tickets.ticketNumber,title:tickets.title,status:tickets.status,priority:tickets.priority}).from(tickets).where(and(eq(tickets.category,ticket.category),eq(tickets.subcategory,ticket.subcategory),ne(tickets.id,id),ticketScope(user))).orderBy(desc(tickets.createdAt)).limit(8),
   db.select().from(ticketLinks).where(or(eq(ticketLinks.ticketId,id),eq(ticketLinks.relatedId,id))),
-  ticket.assetId?db.select({id:assets.id,name:assets.name,assetTag:assets.assetTag,status:assets.status,type:assets.type,studio:assets.studio}).from(assets).where(eq(assets.id,ticket.assetId)).then(rows=>rows[0]||null):Promise.resolve(null),
+  getResolutionWorkspace(id),
+  db.select({id:chatAttachments.id,fileName:chatAttachments.fileName,fileType:chatAttachments.fileType,fileSize:chatAttachments.fileSize,createdAt:chatAttachments.createdAt}).from(chatAttachments).innerJoin(chatSessions,eq(chatAttachments.sessionId,chatSessions.id)).where(eq(chatSessions.ticketId,id)),
 ]);
+if(!ticket)return null;
+if(!user)throw new ApiError('Sign in to your workspace account to view this.',401);requireTicketAccess(user,ticket);
 const linkedIds=links.map(l=>l.ticketId===id?l.relatedId:l.ticketId);
 // Resolution history is shared with everyone who can view this ticket.
 // canResolve controls editing only; it must never suppress the documented history.
-const[linked,workspace,conversationAttachments]=await Promise.all([
+const[canResolve,similar,asset,linked]=await Promise.all([
+  canResolveTicket(user,ticket.assignedStaffId,ticket.resolutionRequired,ticket.additionalOwners,ticket.escalatedFromStaffId),
+  db.select({id:tickets.id,ticketNumber:tickets.ticketNumber,title:tickets.title,status:tickets.status,priority:tickets.priority}).from(tickets).where(and(eq(tickets.category,ticket.category),eq(tickets.subcategory,ticket.subcategory),ne(tickets.id,id),ticketScope(user))).orderBy(desc(tickets.createdAt)).limit(8),
+  ticket.assetId?db.select({id:assets.id,name:assets.name,assetTag:assets.assetTag,status:assets.status,type:assets.type,studio:assets.studio}).from(assets).where(eq(assets.id,ticket.assetId)).then(rows=>rows[0]||null):Promise.resolve(null),
   linkedIds.length?db.select({id:tickets.id,ticketNumber:tickets.ticketNumber,title:tickets.title,status:tickets.status}).from(tickets).where(inArray(tickets.id,linkedIds)):Promise.resolve([]),
-  getResolutionWorkspace(id),
-  db.select({id:chatAttachments.id,fileName:chatAttachments.fileName,fileType:chatAttachments.fileType,fileSize:chatAttachments.fileSize,createdAt:chatAttachments.createdAt}).from(chatAttachments).innerJoin(chatSessions,eq(chatAttachments.sessionId,chatSessions.id)).where(eq(chatSessions.ticketId,id)),
 ]);
 // One rule, in lib/auth, shared with the PATCH route that enforces it. The client uses this
 // only to decide whether to offer the button.
