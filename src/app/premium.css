@@ -180,12 +180,11 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="
 .tabs .tab { min-height: 36px; height: auto; padding: 8px 14px; font-size: 12px; transform: none; }
 .tabs .tab:hover { background: var(--surface-3); }
 .tabs-segment .tab[aria-selected="true"] {
-  background: var(--accent); color: var(--accent-text); font-weight: 600; box-shadow: var(--shadow-1);
+  background: var(--surface); color: var(--text); font-weight: 600;
+  box-shadow: 0 0 0 1px var(--border), 0 1px 2px rgb(24 24 27 / .06);
 }
 .tabs .tab-pill { background: var(--surface-3); color: var(--secondary); font-size: 10px; }
-.tabs-segment .tab[aria-selected="true"] .tab-pill {
-  background: color-mix(in srgb, var(--accent-text) 18%, transparent); color: var(--accent-text);
-}
+.tabs-segment .tab[aria-selected="true"] .tab-pill { background: var(--surface-2); color: var(--text); }
 .tabs-underline .tab[aria-selected="true"] { color: var(--accent); background: var(--accent-soft); border-radius: var(--radius-sm) var(--radius-sm) 0 0; }
 .tabs-underline .tabs-thumb { top: auto; bottom: 0; height: 2px; background: var(--accent); box-shadow: none; border-radius: 2px; }
 .tabs-underline .tab[aria-selected="true"] .tab-pill { color: var(--accent); background: var(--accent-soft); }
@@ -1324,7 +1323,7 @@ body { background: var(--bg); color: var(--text); font-family: var(--font-body);
 /* ── Quiet layer ────────────────────────────────────────────────────────────
    Small labels were set in tracked-out monospace capitals across ~95 classes in
    seven sheets. One rule sets them all in the UI face at a readable size, with
-   light tracking, so labels inform rather than shout. Generated from every
+   sentence case, so labels inform rather than shout. Generated from every
    selector that sets text-transform: uppercase; extend it rather than restyle. */
 :is(
 .auth-kicker,
@@ -1415,7 +1414,8 @@ body { background: var(--bg); color: var(--text); font-family: var(--font-body);
 .tr-section-head
 ) {
   font-family: var(--font-body) !important;
-  letter-spacing: .02em !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
 }
 
 /* Glass effects read as noise on an ops tool: surfaces are opaque. */
@@ -1452,3 +1452,32 @@ body { background: var(--bg); color: var(--text); font-family: var(--font-body);
 .ovc-strip > div + div { border-left: 1px solid var(--border); }
 .ovc-bloom { display: none; }
 .ovc-title em { color: inherit; font-style: normal; }
+
+/* Ticket table: the title carries the row. Number muted, type as plain text,
+   row actions appear on hover, the keyboard hint lives in the shortcut sheet. */
+.ticket-id { color: var(--muted); font-size: 12px; }
+.tgx-label-line .ticket-name { font-weight: 500; color: var(--text); }
+.chip.chip-kind { background: none; border: 0; padding: 0; color: var(--muted); font-size: 12px; }
+.tgx-keys { display: none; }
+.tgx-act { border: 0; background: transparent; box-shadow: none; color: var(--muted); }
+.tgx-act:hover { background: var(--surface-2); color: var(--text); }
+@media (hover: hover) {
+  tr .tgx-actions-inner { opacity: 0; transition: opacity 120ms; }
+  tr:hover .tgx-actions-inner, tr:focus-within .tgx-actions-inner { opacity: 1; }
+}
+.tfx-pill { background: var(--surface); box-shadow: none; }
+.tfx-search { border: 0; box-shadow: none; background: none; padding: 0; }
+.tfx-search .search-input input { border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); box-shadow: none; }
+.tfx-search .search-input { border: 0; box-shadow: none; background: none; padding: 0; }
+
+/* Badges in the UI face; the ticket number stays mono because it is an identifier. */
+.badge, .priority-badge, .status-badge { font-family: var(--font-body); letter-spacing: 0; text-transform: none; }
+.td-resolution-copy span { text-transform: none; letter-spacing: 0; }
+
+/* Raise a ticket: one header strip, plain category cards, a solid secondary call. */
+.intake-head { box-shadow: none; }
+.intake-orb { background: var(--accent-soft); color: var(--accent); box-shadow: none; }
+.intake-cat-art { display: none; }
+.intake-classdesk-cta { border-style: solid; background: var(--surface); }
+.intake-cat-owner .avatar, .intake-cat-owner > span:first-child { box-shadow: none; }
+.eyebrow::before { display: none; }

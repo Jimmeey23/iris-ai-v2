@@ -54,7 +54,7 @@ export default function SidebarPanel({
       >
         <div className="td-rail-heading">
           <CheckCircle2 size={14} />
-          <span>{t.resolutionRequired ? "RESOLUTION" : "RECORD STATUS"}</span>
+          <span>{t.resolutionRequired ? "Resolution" : "Record status"}</span>
         </div>
         {!t.resolutionRequired || t.status === "recorded" ? (
           <div className="td-resolution-instrument td-record-only-instrument">

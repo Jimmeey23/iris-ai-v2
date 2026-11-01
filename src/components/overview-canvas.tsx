@@ -1,6 +1,7 @@
 "use client";
 
 import { summarize, isSlaTracked, isBreached } from "@/lib/metrics";
+import { STUDIOS } from "@/lib/constants";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Zap, TriangleAlert, Timer, ShieldCheck, RotateCcw, Filter } from "lucide-react";
 import type { TicketListRecord } from "@/lib/ticket-contract";
@@ -138,11 +139,9 @@ export function OverviewCanvas({
     () => tickets.filter((t) => dayIndex(t.createdAt, today) === 0).length,
     [tickets, today],
   );
-  /** Every studio the workspace knows of, not only those with open work. */
-  const studioTotal = useMemo(
-    () => new Set(tickets.map((t) => t.studio).filter(Boolean)).size,
-    [tickets],
-  );
+  /** Every studio the workspace runs — counting only studios seen in the caller's
+   *  tickets made an agent's "of N" read "of 1" beside a five-studio breakdown. */
+  const studioTotal = STUDIOS.length;
   const owners = useMemo(() => {
     const names = new Set<string>();
     for (const t of open) if (t.assignedStaffName) names.add(t.assignedStaffName);

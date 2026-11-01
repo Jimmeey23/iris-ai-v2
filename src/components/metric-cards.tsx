@@ -216,9 +216,9 @@ export function MetricCards({metrics, onApplyFilter, onOpenTicket}: {
         ) : (
           <div className="stack">
             <div className="mc-breakdowns">
-              <Breakdown title="BY CATEGORY" rows={drill.rows} pick={(t) => t.category}/>
-              <Breakdown title="BY STUDIO" rows={drill.rows} pick={(t) => (t.studio || '').split(',')[0]}/>
-              <Breakdown title="BY OWNER" rows={drill.rows} pick={(t) => t.assignedStaffName || 'Unassigned'}/>
+              <Breakdown title="By category" rows={drill.rows} pick={(t) => t.category}/>
+              <Breakdown title="By studio" rows={drill.rows} pick={(t) => (t.studio || '').split(',')[0]}/>
+              <Breakdown title="By owner" rows={drill.rows} pick={(t) => t.assignedStaffName || 'Unassigned'}/>
             </div>
             <div className="table-wrap">
               <table className="data-table">
