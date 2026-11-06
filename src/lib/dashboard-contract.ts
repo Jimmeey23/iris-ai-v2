@@ -51,7 +51,7 @@ export const COLUMN_META: Record<TicketColumn, {label: string; align?: 'right' |
 };
 
 export const LEGACY_DEFAULT_COLUMNS: TicketColumn[] = ['label', 'kind', 'category', 'status', 'priority', 'owner', 'created', 'sla'];
-export const DEFAULT_COLUMNS: TicketColumn[] = ['label','studio','status','priority','owner','sla'];
+export const DEFAULT_COLUMNS: TicketColumn[] = ['label','studio','status','priority','owner','department','escalation','sla'];
 
 /**
  * Bumped when a release wants existing people to see something their saved layout would
@@ -61,9 +61,11 @@ export const DEFAULT_COLUMNS: TicketColumn[] = ['label','studio','status','prior
  *
  * v2: accountability columns (co-owners, escalation, extension, revised SLA, committed
  *     resolution) join the default set; the stock page size goes 25 → 50.
+ * v3: department joins the default set so assigned department is visible without setup.
  */
-export const DASHBOARD_PREFS_VERSION = 2;
+export const DASHBOARD_PREFS_VERSION = 3;
 export const V2_DEFAULT_COLUMNS: TicketColumn[] = ['coOwners', 'escalation', 'extension', 'revisedSla', 'committedResolution'];
+export const V3_DEFAULT_COLUMNS: TicketColumn[] = ['department'];
 const LEGACY_PAGE_SIZE = 25;
 export const DEFAULT_PAGE_SIZE = 50;
 
@@ -147,8 +149,12 @@ export const DEFAULT_DASHBOARD: DashboardPrefs = dashboardPrefsSchema.parse({});
  */
 export function migrateDashboardPrefs(prefs: DashboardPrefs): {prefs: DashboardPrefs; patch: Partial<DashboardPrefs> | null} {
   if ((prefs.prefsVersion ?? 0) >= DASHBOARD_PREFS_VERSION) return {prefs, patch: null};
+  const prev = prefs.prefsVersion ?? 0;
   const patch: Partial<DashboardPrefs> = {prefsVersion: DASHBOARD_PREFS_VERSION};
-  const wanted = new Set<TicketColumn>([...prefs.columns, ...V2_DEFAULT_COLUMNS]);
+  const wants: TicketColumn[] = [];
+  if (prev < 2) wants.push(...V2_DEFAULT_COLUMNS);
+  if (prev < 3) wants.push(...V3_DEFAULT_COLUMNS);
+  const wanted = new Set<TicketColumn>([...prefs.columns, ...wants]);
   patch.columns = TICKET_COLUMNS.filter((c) => wanted.has(c));
   // 25 was the old stock value, not a choice anyone made — and the workspace default still
   // hands it out — so only that exact number is lifted; 10 or 100 were picked on purpose.

@@ -108,6 +108,53 @@ export default function SettingsRoutingPanel({
         ))}
       </section>
       <section className="card card-pad">
+        <h2>Escalation matrix — where a breached ticket goes</h2>
+        <p className="secondary">
+          One rule: when a ticket needing resolution sits <strong>{cfg.escalateAfterBreachHours || 0}h</strong> past its target with no extension, IRIS raises it to critical and reassigns it. First to the owner&apos;s reporting manager; when no manager is on file, to the department&apos;s fallback below. Set the fallback per department — leave empty only if that department should never escalate via fallback.
+        </p>
+        <div style={{ display: "grid", gap: 10, marginTop: 16 }}>
+          {DEPARTMENT_RECORDS.filter((d) => d.active).map((dept) => {
+            const current = (cfg.escalationOwnerIds as Record<string, number | undefined>)[dept.id];
+            return (
+              <div key={dept.id} className="setting-row" style={{ alignItems: "center" }}>
+                <div className="grow">
+                  <h4>{dept.name}</h4>
+                  <p style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>
+                    {current
+                      ? `When a ${dept.name} ticket has no reporting manager, it goes to ${staff.find((p) => p.id === current)?.name ?? `#${current}`}.`
+                      : `No fallback — tickets with no manager stay put and only raise priority.`}
+                  </p>
+                </div>
+                <div style={{ minWidth: 190 }}>
+                  <select
+                    aria-label={`${dept.name} escalation owner`}
+                    value={current ? String(current) : ""}
+                    onChange={(e) => {
+                      const next = { ...(cfg.escalationOwnerIds as Record<string, number>) };
+                      if (e.target.value) next[dept.id] = Number(e.target.value);
+                      else delete next[dept.id];
+                      set("escalationOwnerIds", next as unknown as typeof cfg.escalationOwnerIds);
+                    }}
+                  >
+                    <option value="">No fallback</option>
+                    {staff
+                      .filter((p) => p.isActive)
+                      .map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name} {p.department === dept.name ? "· " + dept.name : `· ${p.department}`}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <p className="secondary" style={{ fontSize: 11, marginTop: 12 }}>
+          Tip: the reporting manager is read from <code>staff.manager</code> in the directory. Use a full name that matches someone in IRIS — first-name-only can be ambiguous and will be treated as no match.
+        </p>
+      </section>
+      <section className="card card-pad">
         <h2>Assignment precedence and coverage</h2>
         <p className="secondary">Form owner override → studio/category override → category override → eligible city pool → studio coverage and workload. If no eligible owner is available, the ticket stays in the responsible department queue. Manual exceptions require an administrator’s reason.</p>
         <details><summary>City owner pools</summary>

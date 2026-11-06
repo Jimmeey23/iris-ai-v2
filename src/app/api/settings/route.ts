@@ -36,6 +36,8 @@ export async function GET(req: NextRequest) {
         timezone: cfg.timezone,
         staleTicketDays: cfg.staleTicketDays,
         slaWarningPercent: cfg.slaWarningPercent,
+        escalateAfterBreachHours: cfg.escalateAfterBreachHours,
+        escalationOwnerIds: cfg.escalationOwnerIds,
         dateFormat: cfg.dateFormat,
         weekStartsOn: cfg.weekStartsOn,
         currency: cfg.currency,
