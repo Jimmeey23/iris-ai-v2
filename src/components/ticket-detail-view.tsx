@@ -30,6 +30,7 @@ import { TicketDialog } from "./ticket-detail";
 import type { useTicketDialogController } from "./ticket-detail-controller";
 import styles from "./ticket-detail.module.css";
 import { RecurrenceBanner } from "./ticket-detail/ownership";
+import { TicketAccountabilitySection } from "./ticket-accountability";
 import { SlaCountdown } from "./tickets-board";
 import { Avatar, Badge, Loading, Modal, Priority, Status, Tabs } from "./ui";
 
@@ -393,6 +394,7 @@ export function TicketDialogView({
                   {t.summary && t.summary !== t.title && (
                     <p className="td-summary td-summary-primary">{t.summary}</p>
                   )}
+                  <TicketAccountabilitySection ticket={t as never} staff={staff as never} />
                   {/* Who is involved, at a glance. "Reported by" leads: it is the person to go
                       back to with a question, and it used to be the smallest text on the screen,
                       easily read as the member's name. */}

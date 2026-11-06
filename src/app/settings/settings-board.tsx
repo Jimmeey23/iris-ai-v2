@@ -291,7 +291,11 @@ export default function SettingsBoardPanel({
             <h4>Escalate after a missed target</h4>
             <p>
               Hours past the resolution target before a ticket is raised to
-              critical. Zero switches escalation off.
+              critical and reassigned — first to the owner’s reporting manager, then to the department fallback in{" "}
+              <strong>Assignment rules → Escalation matrix</strong>. Zero switches escalation off.
+              {cfg.escalateAfterBreachHours > 0
+                ? ` Currently: ${cfg.escalateAfterBreachHours}h past target.`
+                : " Currently off."}
             </p>
           </div>
           <input
